@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand palette (extracted from design) */
+  --color-ink: #11111b;
+  --color-ink-2: #1b1b2a;
+  --color-ink-3: #14141f;
+  --color-accent: #e60053;
+  --color-accent-deep: #6b0a34;
+  --color-blue: #1818d6;
+  --color-indigo: #3e3af2;
+  --color-lilac: #dac8ff;
+
+  /* Fonts */
+  --font-vazir: var(--font-vazir);
+  --font-bigshot: var(--font-bigshot);
+  --font-archivo: var(--font-archivo);
+  --font-timmana: var(--font-timmana);
+  --font-unna: var(--font-unna);
+  --font-turncoat: var(--font-turncoat);
+  --font-almarai: var(--font-almarai);
+  --font-display: var(--font-display);
+
+  --shadow-card: 0 20px 60px -20px rgba(0, 0, 0, 0.7);
+}
+
+html,
+body {
+  background: var(--color-ink);
+  color: #fff;
+}
+
+body {
+  font-family: var(--font-vazir), system-ui, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Gradient text used for blog titles and some headings */
+.text-lilac-gradient {
+  background: linear-gradient(180deg, #ffffff 0%, #dac8ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Glass panel used across hero / cards */
+.glass {
+  background: rgba(27, 27, 42, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+}
+
+::selection {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+/* Slim scrollbar to match the dark theme */
+::-webkit-scrollbar {
+  width: 10px;
+}
+::-webkit-scrollbar-track {
+  background: var(--color-ink);
+}
+::-webkit-scrollbar-thumb {
+  background: #2a2a3d;
+  border-radius: 8px;
+}
