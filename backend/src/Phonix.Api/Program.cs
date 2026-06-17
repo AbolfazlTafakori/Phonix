@@ -1,11 +1,26 @@
+using System.Text.Json.Serialization;
+using Phonix.Api.Data;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 
-builder.Services.AddControllers();
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+builder.Services.AddSingleton<StoreData>();
+
+const string frontendCors = "frontend";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(frontendCors, policy => policy
+        .WithOrigins("http://localhost:3000", "http://localhost:3001")
+        .AllowAnyHeader()
+        .AllowAnyMethod());
+});
 
 var app = builder.Build();
 
@@ -16,7 +31,7 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+app.UseCors(frontendCors);
 
 app.UseAuthorization();
 

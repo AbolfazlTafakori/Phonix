@@ -73,5 +73,5 @@ export const footerLinks = [
 export const navLinks = [
   { label: "خانه", href: "/", hasMenu: false },
   { label: "محصولات", href: "/films", hasMenu: true },
-  { label: "بلاگ", href: "#", hasMenu: false },
+  { label: "بلاگ", href: "/blog", hasMenu: false },
 ];

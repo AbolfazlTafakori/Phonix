@@ -31,6 +31,10 @@ figma-export/content_*.json
 # ===== generated teaser image =====
 coming-soon.png
 
+# ===== admin-uploaded media (keep the folder, ignore uploads) =====
+frontend/public/uploads/*
+!frontend/public/uploads/.gitkeep
+
 # ===== secrets / env =====
 .env
 .env.local

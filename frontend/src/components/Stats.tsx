@@ -1,10 +1,8 @@
-const stats = [
-  { number: null, label: "پرداخت امن", icon: "/figma/icon-secure.png" },
-  { number: null, label: "پشتیبانی آنلاین", icon: "/figma/icon-support.png" },
-  { number: "+10,000", label: "خرید ثبت شده", icon: null },
-];
+import { getSiteContent } from "@/lib/content";
 
-export default function Stats() {
+export default async function Stats() {
+  const { stats } = await getSiteContent();
+
   return (
     <section className="mx-auto mt-10 max-w-[1100px] px-5">
       <div className="grid grid-cols-1 overflow-hidden rounded-[28px] border border-white/8 bg-gradient-to-b from-[#1c1c2b]/80 to-[#141420]/80 shadow-[0_24px_60px_-30px_rgba(0,0,0,0.8)] sm:grid-cols-3">
@@ -25,9 +23,7 @@ export default function Stats() {
               {s.icon ? (
                 <img src={s.icon} alt="" aria-hidden className="h-14 w-14 object-contain" />
               ) : (
-                <span className="font-display text-[40px] font-bold italic leading-none text-white">
-                  {s.number}
-                </span>
+                <span className="font-display text-[40px] font-bold italic leading-none text-white">{s.value}</span>
               )}
             </div>
 

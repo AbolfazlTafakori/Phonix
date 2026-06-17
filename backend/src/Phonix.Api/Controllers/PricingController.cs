@@ -1,0 +1,59 @@
+using Microsoft.AspNetCore.Mvc;
+using Phonix.Api.Data;
+using Phonix.Api.Dtos;
+using Phonix.Api.Models;
+
+namespace Phonix.Api.Controllers;
+
+[ApiController]
+[Route("api/pricing")]
+public class PricingController : ControllerBase
+{
+    private readonly StoreData _store;
+
+    public PricingController(StoreData store) => _store = store;
+
+    [HttpGet("settings")]
+    public PricingSettings GetSettings() => _store.GetSettings();
+
+    [HttpPut("settings")]
+    public PricingSettings UpdateSettings(PricingSettings settings)
+    {
+        _store.UpdateSettings(settings);
+        return _store.GetSettings();
+    }
+
+    [HttpGet("plans")]
+    public IEnumerable<PlanDto> GetPlans() => _store.GetPlans().Select(p => p.ToDto());
+
+    [HttpPost("plans")]
+    public ActionResult<PlanDto> CreatePlan(PlanInput input)
+    {
+        var plan = _store.AddPlan(new SubscriptionPlan
+        {
+            Label = input.Label,
+            Months = input.Months,
+            Price = input.Price,
+            DiscountPercent = input.DiscountPercent,
+        });
+        return plan.ToDto();
+    }
+
+    [HttpPut("plans/{id:int}")]
+    public ActionResult<PlanDto> UpdatePlan(int id, PlanInput input)
+    {
+        var ok = _store.UpdatePlan(new SubscriptionPlan
+        {
+            Id = id,
+            Label = input.Label,
+            Months = input.Months,
+            Price = input.Price,
+            DiscountPercent = input.DiscountPercent,
+        });
+        if (!ok) return NotFound();
+        return _store.GetPlans().First(p => p.Id == id).ToDto();
+    }
+
+    [HttpDelete("plans/{id:int}")]
+    public IActionResult DeletePlan(int id) => _store.DeletePlan(id) ? NoContent() : NotFound();
+}
