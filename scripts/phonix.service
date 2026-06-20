@@ -1,0 +1,19 @@
+# systemd unit that brings the whole stack up on boot and gives `systemctl` control.
+# install.sh copies this to /etc/systemd/system/phonix.service and points WorkingDirectory
+# at the real install path. Manage with: systemctl {start,stop,status,restart} phonix
+[Unit]
+Description=Phonix storefront (Docker Compose stack)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/phonix
+ExecStart=/usr/bin/docker compose up -d --remove-orphans
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

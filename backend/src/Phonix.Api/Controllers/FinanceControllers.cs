@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
+using Phonix.Api.Dtos;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
 
@@ -67,6 +68,11 @@ public class TransactionsController : ControllerBase
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [HttpGet]
     public IEnumerable<Transaction> Get([FromQuery] TxStatus? status) => _store.GetTransactions(status);
+
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [HttpGet("page")]
+    public PagedResult<Transaction> GetPage([FromQuery] TxStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
+        PagedResult<Transaction>.From(_store.GetTransactions(status), page, pageSize);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [HttpGet("{id:int}")]

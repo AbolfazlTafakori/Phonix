@@ -34,6 +34,9 @@ public class Product
     public string Sku { get; set; } = "";
     public string Description { get; set; } = "";
     public string Warning { get; set; } = "";
+    // Pre-written delivery text for this product; prefills the admin deliver modal so staff
+    // don't retype the same instructions for every order of the same product.
+    public string DeliveryTemplate { get; set; } = "";
     public List<ProductFeature> Features { get; set; } = new();
     public List<ProductPlan> Plans { get; set; } = new();
 

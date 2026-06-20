@@ -1,5 +1,7 @@
 using System.Net;
 using System.Net.Mail;
+using System.Net.Mime;
+using System.Text;
 using Phonix.Api.Data;
 
 namespace Phonix.Api.Services;
@@ -17,7 +19,7 @@ public class EmailSender : IEmailSender
         _logger = logger;
     }
 
-    public async Task<bool> SendAsync(string to, string subject, string body)
+    public async Task<bool> SendAsync(string to, string subject, string body, string? htmlBody = null)
     {
         if (string.IsNullOrWhiteSpace(to))
         {
@@ -39,9 +41,18 @@ public class EmailSender : IEmailSender
                 From = new MailAddress(settings.FromEmail, settings.FromName),
                 Subject = subject,
                 Body = body,
+                BodyEncoding = Encoding.UTF8,
+                SubjectEncoding = Encoding.UTF8,
                 IsBodyHtml = false,
             };
             message.To.Add(to);
+            // Attach the HTML alternative so clients that support it render the branded version,
+            // while plain-text clients still get a readable message.
+            if (!string.IsNullOrWhiteSpace(htmlBody))
+            {
+                var htmlView = AlternateView.CreateAlternateViewFromString(htmlBody, Encoding.UTF8, MediaTypeNames.Text.Html);
+                message.AlternateViews.Add(htmlView);
+            }
 
 #pragma warning disable SYSLIB0014 // SmtpClient is adequate for standard SMTP delivery here.
             using var client = new SmtpClient(settings.Host, settings.Port)

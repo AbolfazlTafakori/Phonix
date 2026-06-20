@@ -130,4 +130,5 @@ public class AdvancedSettings
     public string MaintenanceMessage { get; set; } = "";
     public string AnalyticsId { get; set; } = "";
     public string CustomHeadScript { get; set; } = "";
+    public string Terms { get; set; } = "";
 }

@@ -1,109 +1,224 @@
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Phonix.Api.Data;
 using Phonix.Api.Security;
 using Phonix.Api.Services;
+using Serilog;
+using Serilog.Formatting.Compact;
 
-var builder = WebApplication.CreateBuilder(args);
+// Logs live beside the data store so one volume holds state + diagnostics; overridable on the server.
+var logDir = Environment.GetEnvironmentVariable("PHONIX_LOG_DIR")
+    ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "logs");
+Directory.CreateDirectory(logDir);
 
-// Add services to the container.
+// Bootstrap logger so even failures during startup land in the console.
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
-builder.Services.AddControllers().AddJsonOptions(options =>
+try
 {
-    options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
-});
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
-builder.Services.AddSingleton<StoreData>();
-builder.Services.AddHostedService<StorePersistenceWorker>();
-builder.Services.AddSingleton<IEmailSender, EmailSender>();
-builder.Services.AddHttpClient();
-builder.Services.AddSingleton<ITelegramBackupSender, TelegramBackupSender>();
-builder.Services.AddHostedService<TelegramBackupWorker>();
+    var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddAuthentication(TokenAuthenticationHandler.SchemeName)
-    .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.SchemeName, null);
-builder.Services.AddAuthorization();
+    // Structured logging: console (captured by systemd's journal on the server) + rolling daily JSON files.
+    builder.Host.UseSerilog((context, services, config) => config
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .WriteTo.Console()
+        .WriteTo.File(
+            new CompactJsonFormatter(),
+            Path.Combine(logDir, "phonix-.log"),
+            rollingInterval: RollingInterval.Day,
+            retainedFileCountLimit: 31,
+            fileSizeLimitBytes: 50_000_000,
+            rollOnFileSizeLimit: true,
+            shared: true));
 
-// throttle auth endpoints per client IP to blunt credential brute-forcing.
-const string authRateLimit = "auth";
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.AddPolicy(authRateLimit, context =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            _ => new FixedWindowRateLimiterOptions
-            {
-                Window = TimeSpan.FromMinutes(1),
-                PermitLimit = 10,
-                QueueLimit = 0,
-            }));
-});
+    // Add services to the container.
 
-const string frontendCors = "frontend";
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(frontendCors, policy => policy
-        .WithOrigins("http://localhost:3000", "http://localhost:3001")
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials());
-});
-
-var app = builder.Build();
-
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
-else
-{
-    app.UseHsts();
-    app.UseHttpsRedirection();
-}
-
-app.UseRouting();
-app.UseCors(frontendCors);
-
-// double-submit CSRF guard: cookie-authenticated unsafe requests must echo the CSRF
-// cookie in a header. Bearer-header clients are CSRF-immune and skip this.
-var csrfExemptPaths = new[] { "/api/auth/login", "/api/auth/register", "/api/auth/forgot" };
-app.Use(async (context, next) =>
-{
-    var method = context.Request.Method;
-    var unsafeMethod = HttpMethods.IsPost(method) || HttpMethods.IsPut(method)
-        || HttpMethods.IsDelete(method) || HttpMethods.IsPatch(method);
-    var cookieAuth = context.Request.Cookies.ContainsKey(AuthCookies.Token)
-        && string.IsNullOrEmpty(context.Request.Headers.Authorization);
-    // unauthenticated entry points don't act on an existing session, so they don't need CSRF
-    // (and a stale token cookie shouldn't be able to block re-login).
-    var exempt = csrfExemptPaths.Contains(context.Request.Path.Value, StringComparer.OrdinalIgnoreCase);
-    if (unsafeMethod && cookieAuth && !exempt)
+    builder.Services.AddControllers().AddJsonOptions(options =>
     {
-        var cookieCsrf = context.Request.Cookies[AuthCookies.Csrf];
-        var headerCsrf = context.Request.Headers[AuthCookies.CsrfHeader].ToString();
-        if (string.IsNullOrEmpty(cookieCsrf) || !CryptographicOperations.FixedTimeEquals(
-                System.Text.Encoding.UTF8.GetBytes(cookieCsrf), System.Text.Encoding.UTF8.GetBytes(headerCsrf)))
+        options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    });
+    builder.Services.AddEndpointsApiExplorer();
+    builder.Services.AddSwaggerGen();
+    builder.Services.AddSingleton<StoreData>();
+    builder.Services.AddHostedService<StorePersistenceWorker>();
+    builder.Services.AddSingleton<IEmailSender, EmailSender>();
+    builder.Services.AddHttpClient();
+    builder.Services.AddSingleton<ITelegramBackupSender, TelegramBackupSender>();
+    builder.Services.AddHostedService<TelegramBackupWorker>();
+
+    builder.Services.AddAuthentication(TokenAuthenticationHandler.SchemeName)
+        .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.SchemeName, null);
+    builder.Services.AddAuthorization();
+
+    // throttle auth endpoints per client IP to blunt credential brute-forcing.
+    const string authRateLimit = "auth";
+    builder.Services.AddRateLimiter(options =>
+    {
+        options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+        // baseline per-IP ceiling across the whole API to blunt scraping/abuse.
+        options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    Window = TimeSpan.FromMinutes(1),
+                    PermitLimit = 300,
+                    QueueLimit = 0,
+                }));
+        options.AddPolicy(authRateLimit, context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    Window = TimeSpan.FromMinutes(1),
+                    PermitLimit = 10,
+                    QueueLimit = 0,
+                }));
+    });
+
+    const string frontendCors = "frontend";
+    // Allow the configured public frontend origin (PHONIX_FRONTEND_URL on the server) alongside the
+    // local dev origins, so credentialed cookie auth works from the real domain in production.
+    var corsOrigins = new List<string> { "http://localhost:3000", "http://localhost:3001" };
+    var frontendOrigin = Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL")?.TrimEnd('/');
+    if (!string.IsNullOrWhiteSpace(frontendOrigin) && !corsOrigins.Contains(frontendOrigin))
+        corsOrigins.Add(frontendOrigin);
+    builder.Services.AddCors(options =>
+    {
+        options.AddPolicy(frontendCors, policy => policy
+            .WithOrigins(corsOrigins.ToArray())
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials());
+    });
+
+    var app = builder.Build();
+
+    // Behind a reverse proxy (nginx/Caddy terminating TLS), trust its X-Forwarded-* so the real
+    // client IP (rate-limiting/logs) and HTTPS scheme (Secure cookies) are accurate. Off by default
+    // because the proxy hop would otherwise let a directly-exposed port spoof the client IP.
+    if (Environment.GetEnvironmentVariable("PHONIX_BEHIND_PROXY") == "true")
+    {
+        var fwd = new ForwardedHeadersOptions
         {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            await context.Response.WriteAsync("درخواست نامعتبر (CSRF).");
-            return;
-        }
+            ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+        };
+        fwd.KnownNetworks.Clear();
+        fwd.KnownProxies.Clear();
+        app.UseForwardedHeaders(fwd);
     }
-    await next();
-});
 
-app.UseRateLimiter();
+    // Catch-all: log unhandled exceptions with full context and never leak internals to the client.
+    app.Use(async (context, next) =>
+    {
+        try
+        {
+            await next();
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Unhandled exception processing {Method} {Path}",
+                context.Request.Method, context.Request.Path.Value);
+            if (!context.Response.HasStarted)
+            {
+                context.Response.Clear();
+                context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+                context.Response.ContentType = "application/json; charset=utf-8";
+                await context.Response.WriteAsync("{\"error\":\"خطای داخلی سرور.\"}");
+            }
+        }
+    });
 
-app.UseAuthentication();
-app.UseAuthorization();
+    // One structured summary line per request (method, path, status, duration), enriched with caller identity.
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.EnrichDiagnosticContext = (diag, http) =>
+        {
+            diag.Set("ClientIp", http.Connection.RemoteIpAddress?.ToString() ?? "unknown");
+            var userId = http.User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!string.IsNullOrEmpty(userId)) diag.Set("UserId", userId);
+        };
+    });
 
-app.MapControllers();
+    // baseline security headers on every response (defense in depth alongside the frontend headers).
+    app.Use(async (context, next) =>
+    {
+        var headers = context.Response.Headers;
+        headers["X-Content-Type-Options"] = "nosniff";
+        headers["X-Frame-Options"] = "DENY";
+        headers["Referrer-Policy"] = "no-referrer";
+        await next();
+    });
 
-app.Run();
+    // Configure the HTTP request pipeline.
+    if (app.Environment.IsDevelopment())
+    {
+        app.UseSwagger();
+        app.UseSwaggerUI();
+    }
+    // HTTPS redirect/HSTS only when TLS is actually terminated for the app (set PHONIX_FORCE_HTTPS=true
+    // once a TLS proxy is in front). The default HTTP-only container deploy stays clean without it.
+    else if (Environment.GetEnvironmentVariable("PHONIX_FORCE_HTTPS") == "true")
+    {
+        app.UseHsts();
+        app.UseHttpsRedirection();
+    }
+
+    app.UseRouting();
+    app.UseCors(frontendCors);
+
+    // double-submit CSRF guard: cookie-authenticated unsafe requests must echo the CSRF
+    // cookie in a header. Bearer-header clients are CSRF-immune and skip this.
+    var csrfExemptPaths = new[] { "/api/auth/login", "/api/auth/register", "/api/auth/forgot" };
+    app.Use(async (context, next) =>
+    {
+        var method = context.Request.Method;
+        var unsafeMethod = HttpMethods.IsPost(method) || HttpMethods.IsPut(method)
+            || HttpMethods.IsDelete(method) || HttpMethods.IsPatch(method);
+        var cookieAuth = context.Request.Cookies.ContainsKey(AuthCookies.Token)
+            && string.IsNullOrEmpty(context.Request.Headers.Authorization);
+        // unauthenticated entry points don't act on an existing session, so they don't need CSRF
+        // (and a stale token cookie shouldn't be able to block re-login).
+        var exempt = csrfExemptPaths.Contains(context.Request.Path.Value, StringComparer.OrdinalIgnoreCase);
+        if (unsafeMethod && cookieAuth && !exempt)
+        {
+            var cookieCsrf = context.Request.Cookies[AuthCookies.Csrf];
+            var headerCsrf = context.Request.Headers[AuthCookies.CsrfHeader].ToString();
+            if (string.IsNullOrEmpty(cookieCsrf) || !CryptographicOperations.FixedTimeEquals(
+                    System.Text.Encoding.UTF8.GetBytes(cookieCsrf), System.Text.Encoding.UTF8.GetBytes(headerCsrf)))
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsync("درخواست نامعتبر (CSRF).");
+                return;
+            }
+        }
+        await next();
+    });
+
+    app.UseRateLimiter();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
+
+    app.MapControllers();
+
+    Log.Information("Phonix API starting up (logs → {LogDir})", logDir);
+    app.Run();
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "Phonix API terminated unexpectedly");
+}
+finally
+{
+    Log.CloseAndFlush();
+}

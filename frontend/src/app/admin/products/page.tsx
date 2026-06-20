@@ -20,6 +20,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   sku: "",
   description: "",
   warning: "",
+  deliveryTemplate: "",
   features: [
     { text: "تحویل آنی پس از پرداخت", included: true },
     { text: "پشتیبانی ۲۴ ساعته", included: true },
@@ -79,6 +80,7 @@ export default function AdminProductsPage() {
       sku: p.sku,
       description: p.description,
       warning: p.warning,
+      deliveryTemplate: p.deliveryTemplate,
       features: p.features.map((f) => ({ ...f })),
       plans: p.plans.map((pl) => ({ type: pl.type, months: pl.months, price: pl.price, discountPercent: pl.discountPercent, isActive: pl.isActive })),
     });
@@ -208,6 +210,11 @@ export default function AdminProductsPage() {
 
           <Field label="مطالعه اجباری / هشدار">
             <textarea rows={2} value={form.warning} onChange={(e) => set("warning", e.target.value)} placeholder="مثلاً: از تغییر رمز اکانت خودداری کنید." className={`${inputCls} h-auto py-3`} />
+          </Field>
+
+          <Field label="قالب پیش‌فرض تحویل (اختیاری)">
+            <textarea rows={3} value={form.deliveryTemplate} onChange={(e) => set("deliveryTemplate", e.target.value)} placeholder="متن آماده‌ای که هنگام تحویل این محصول در فرم تحویل پیش‌نویس می‌شود. مثلاً: نام کاربری: ___ / رمز: ___" className={`${inputCls} h-auto py-3 font-mono`} />
+            <p className="mt-1.5 text-xs text-white/45">هنگام تحویل سفارش‌های این محصول، این متن به‌صورت خودکار در کادر «محتوای تحویل» قرار می‌گیرد و قابل ویرایش است.</p>
           </Field>
 
           <div className="grid grid-cols-2 gap-3">

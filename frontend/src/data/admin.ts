@@ -46,6 +46,7 @@ export const adminMenuGroups: AdminMenuGroup[] = [
     title: "تنظیمات",
     items: [
       { label: "تنظیمات عمومی", href: "/admin/settings", icon: "settings" },
+      { label: "قوانین و مقررات", href: "/admin/rules", icon: "news" },
       { label: "تنظیمات ایمیل", href: "/admin/settings/email", icon: "bell" },
       { label: "پشتیبان‌گیری و بازیابی", href: "/admin/backup", icon: "disk" },
       { label: "تنظیمات پیشرفته", href: "/admin/settings/advanced", icon: "cpu" },

@@ -6,6 +6,7 @@ import type { Order, OrderStatus } from "@/lib/types";
 import { formatToman, formatNumber } from "@/lib/format";
 import { orderStatusLabel } from "@/lib/labels";
 import { Card, PageHeader, Spinner, StatusBadge, Modal, Field, Toggle, inputCls } from "@/components/admin/ui";
+import { Pagination, usePaged } from "@/components/admin/Pagination";
 import AdminIcon from "@/components/admin/AdminIcon";
 
 type Filter = "all" | OrderStatus;
@@ -17,6 +18,9 @@ export default function AdminOrdersPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [busy, setBusy] = useState<number | null>(null);
 
+  // productId → pre-written delivery template, used to prefill the deliver modal.
+  const [templates, setTemplates] = useState<Record<number, string>>({});
+
   const [deliverOrder, setDeliverOrder] = useState<Order | null>(null);
   const [content, setContent] = useState("");
   const [sendEmail, setSendEmail] = useState(true);
@@ -27,7 +31,9 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     (async () => {
       try {
-        setOrders(await api.orders.list());
+        const [orderList, products] = await Promise.all([api.orders.list(), api.products.list()]);
+        setOrders(orderList);
+        setTemplates(Object.fromEntries(products.map((p) => [p.id, p.deliveryTemplate])));
       } catch (e) {
         setError(e instanceof Error ? e.message : "خطا در بارگذاری");
       } finally {
@@ -46,6 +52,7 @@ export default function AdminOrdersPage() {
     [orders],
   );
   const shown = filter === "all" ? orders : orders.filter((o) => o.status === filter);
+  const { page, setPage, totalPages, slice, total, pageSize } = usePaged(shown, 10);
 
   async function act(o: Order, kind: "approve" | "cancel") {
     setBusy(o.id);
@@ -59,7 +66,17 @@ export default function AdminOrdersPage() {
 
   function openDeliver(o: Order) {
     setDeliverOrder(o);
-    setContent(o.deliveryContent ?? "");
+    // Keep any already-saved delivery content; otherwise prefill from the per-product templates
+    // of the order's items (prefixing with the product name when more than one has a template).
+    if (o.deliveryContent?.trim()) {
+      setContent(o.deliveryContent);
+    } else {
+      const parts = o.items
+        .map((it) => ({ name: it.name, tpl: (templates[it.productId] ?? "").trim() }))
+        .filter((x) => x.tpl);
+      const multi = parts.length > 1;
+      setContent(parts.map((x) => (multi ? `${x.name}:\n${x.tpl}` : x.tpl)).join("\n\n"));
+    }
     setSendEmail(true);
     setEmailSubject(`سفارش ${o.code} آماده شد`);
     setEmailBody("سفارش شما آماده شد. برای مشاهده به حساب کاربری خود، بخش سفارش‌ها مراجعه کنید.");
@@ -111,7 +128,7 @@ export default function AdminOrdersPage() {
         <Card className="p-12 text-center text-white/40">سفارشی در این وضعیت نیست</Card>
       ) : (
         <div className="space-y-4">
-          {shown.map((o) => (
+          {slice.map((o) => (
             <Card key={o.id} className="p-5">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 pb-3">
                 <div>
@@ -161,6 +178,7 @@ export default function AdminOrdersPage() {
               </div>
             </Card>
           ))}
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
         </div>
       )}
 

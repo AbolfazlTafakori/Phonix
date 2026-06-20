@@ -141,6 +141,7 @@ export const defaultAdvanced: AdvancedSettings = {
   maintenanceMessage: "در حال ارتقای سرویس برای تجربه‌ای بهتر هستیم. لطفاً کمی بعد دوباره سر بزنید.",
   analyticsId: "",
   customHeadScript: "",
+  terms: "",
 };
 
 export const getAdvancedSettings = cache(async (): Promise<AdvancedSettings> => {

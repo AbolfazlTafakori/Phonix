@@ -2,6 +2,21 @@ using Phonix.Api.Models;
 
 namespace Phonix.Api.Dtos;
 
+// A single page of a larger list plus the totals the UI needs to render pagination controls.
+public record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int PageSize)
+{
+    public int TotalPages => PageSize > 0 ? (int)Math.Ceiling(Total / (double)PageSize) : 0;
+
+    public static PagedResult<T> From(IReadOnlyList<T> all, int page, int pageSize)
+    {
+        if (page < 1) page = 1;
+        if (pageSize < 1) pageSize = 20;
+        if (pageSize > 200) pageSize = 200;
+        var items = all.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        return new PagedResult<T>(items, all.Count, page, pageSize);
+    }
+}
+
 public record CategoryDto(
     int Id, string Name, string Slug, string Icon, bool IsActive, int SortOrder, int ProductCount);
 
@@ -11,12 +26,12 @@ public record CategoryInput(
 public record ProductDto(
     int Id, string Name, int CategoryId, string CategoryName, long Price, int DiscountPercent,
     long FinalPrice, long Stock, bool IsActive, bool Featured, string Image, string Sku, string Description,
-    string Warning, List<ProductFeature> Features, List<ProductPlan> Plans);
+    string Warning, List<ProductFeature> Features, List<ProductPlan> Plans, string DeliveryTemplate);
 
 public record ProductInput(
     string Name, int CategoryId, long Price, int DiscountPercent, long Stock, bool IsActive,
     bool Featured, string Image, string Sku, string Description, string? Warning,
-    List<ProductFeature>? Features, List<ProductPlan>? Plans);
+    List<ProductFeature>? Features, List<ProductPlan>? Plans, string? DeliveryTemplate);
 
 public record PriceInput(long Price, int DiscountPercent);
 
@@ -43,7 +58,8 @@ public static class Mapping
 
     public static ProductDto ToDto(this Product p, string categoryName) =>
         new(p.Id, p.Name, p.CategoryId, categoryName, p.Price, p.DiscountPercent, p.FinalPrice,
-            p.Stock, p.IsActive, p.Featured, p.Image, p.Sku, p.Description, p.Warning, p.Features, p.Plans);
+            p.Stock, p.IsActive, p.Featured, p.Image, p.Sku, p.Description, p.Warning, p.Features, p.Plans,
+            p.DeliveryTemplate);
 
     public static UserDto ToDto(this AppUser u) =>
         new(u.Id, u.Code, u.Name, u.Username, u.Email, u.Phone, u.Role, u.Orders, u.TotalSpent, u.Wallet,

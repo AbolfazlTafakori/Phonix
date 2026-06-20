@@ -22,11 +22,15 @@ public class AuthController : ControllerBase
 {
     private readonly StoreData _store;
     private readonly IEmailSender _email;
-    public AuthController(StoreData store, IEmailSender email)
+    private readonly ILogger<AuthController> _logger;
+    public AuthController(StoreData store, IEmailSender email, ILogger<AuthController> logger)
     {
         _store = store;
         _email = email;
+        _logger = logger;
     }
+
+    private string ClientIp => HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
 
@@ -34,8 +38,8 @@ public class AuthController : ControllerBase
     {
         var token = _store.CreateToken(user.Id, "verify", TimeSpan.FromDays(2));
         var link = $"{FrontendUrl}/verify-email?token={token}";
-        return _email.SendAsync(user.Email, "تأیید ایمیل حساب فونیکس",
-            $"برای فعال‌سازی حساب خود روی این لینک کلیک کنید:\n{link}");
+        var (text, html) = EmailTemplates.VerifyEmail(link);
+        return _email.SendAsync(user.Email, "تأیید ایمیل حساب فونیکس", text, html);
     }
 
     [HttpPost("register")]
@@ -67,6 +71,8 @@ public class AuthController : ControllerBase
             ReferredBy = referredBy,
         });
         await SendVerification(user);
+        _logger.LogInformation("New account registered: {Username} (#{UserId}) from {ClientIp}",
+            user.Username, user.Id, ClientIp);
         var token = _store.CreateSession(user);
         AuthCookies.Issue(Response, token, Request.IsHttps);
         return new AuthResultDto(token, user.ToDto());
@@ -81,8 +87,8 @@ public class AuthController : ControllerBase
         {
             var token = _store.CreateToken(user.Id, "reset", TimeSpan.FromHours(1));
             var link = $"{FrontendUrl}/reset-password?token={token}";
-            await _email.SendAsync(user.Email, "بازنشانی گذرواژه فونیکس",
-                $"برای تعیین گذرواژه جدید روی این لینک کلیک کنید (تا ۱ ساعت معتبر است):\n{link}");
+            var (text, html) = EmailTemplates.ResetPassword(link);
+            await _email.SendAsync(user.Email, "بازنشانی گذرواژه فونیکس", text, html);
         }
         return Ok(new { ok = true });
     }
@@ -118,6 +124,7 @@ public class AuthController : ControllerBase
             return BadRequest("لینک بازنشانی نامعتبر یا منقضی شده است.");
         var hash = PasswordHasher.Hash(input.NewPassword);
         _store.UpdateUser(userId, u => u.Password = hash);
+        _logger.LogInformation("Password reset completed for user #{UserId} from {ClientIp}", userId, ClientIp);
         return Ok(new { ok = true });
     }
 
@@ -126,11 +133,21 @@ public class AuthController : ControllerBase
     {
         var user = _store.FindByLogin(input.Identifier?.Trim() ?? "");
         if (user is null || !PasswordHasher.Verify(input.Password ?? "", user.Password))
+        {
+            _logger.LogWarning("Failed login for {Identifier} from {ClientIp}",
+                input.Identifier?.Trim(), ClientIp);
             return Unauthorized("نام کاربری یا گذرواژه نادرست است.");
+        }
         if (user.Blocked)
+        {
+            _logger.LogWarning("Blocked account login attempt: {Username} (#{UserId}) from {ClientIp}",
+                user.Username, user.Id, ClientIp);
             return StatusCode(403, "حساب شما مسدود شده است.");
+        }
         var token = _store.CreateSession(user);
         AuthCookies.Issue(Response, token, Request.IsHttps);
+        _logger.LogInformation("Login: {Username} (#{UserId}) from {ClientIp}",
+            user.Username, user.Id, ClientIp);
         return new AuthResultDto(token, user.ToDto());
     }
 

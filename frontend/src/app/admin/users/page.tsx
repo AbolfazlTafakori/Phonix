@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import type { User, UserRole } from "@/lib/types";
 import { formatToman, formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner, Toggle, StatusBadge, Drawer, DataTable, inputCls, type Column } from "@/components/admin/ui";
+import { Pagination, usePaged } from "@/components/admin/Pagination";
 import AdminIcon from "@/components/admin/AdminIcon";
 
 const roleLabels: Record<UserRole, string> = { Customer: "کاربر", Support: "پشتیبانی", Admin: "مدیر" };
@@ -63,6 +64,8 @@ export default function AdminUsersPage() {
       return true;
     });
   }, [users, search, roleFilter, statusFilter]);
+
+  const { page, setPage, totalPages, slice, total, pageSize } = usePaged(filtered, 15);
 
   function applyUser(updated: User) {
     setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
@@ -196,9 +199,12 @@ export default function AdminUsersPage() {
       ) : error ? (
         <Card className="p-8 text-center text-rose-400">{error}</Card>
       ) : (
-        <Card className="overflow-hidden">
-          <DataTable columns={columns} rows={filtered} rowKey={(u) => u.id} minWidth={860} empty="کاربری یافت نشد" />
-        </Card>
+        <>
+          <Card className="overflow-hidden">
+            <DataTable columns={columns} rows={slice} rowKey={(u) => u.id} minWidth={860} empty="کاربری یافت نشد" />
+          </Card>
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
+        </>
       )}
 
       <UserDrawer user={selected} onClose={() => setSelected(null)} onApply={applyUser} onDelete={removeUser} />

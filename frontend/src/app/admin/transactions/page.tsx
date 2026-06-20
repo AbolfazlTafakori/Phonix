@@ -5,6 +5,7 @@ import { api } from "@/lib/api";
 import type { Transaction, TxStatus } from "@/lib/types";
 import { formatToman, formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner, StatusBadge, DataTable, type Column } from "@/components/admin/ui";
+import { Pagination, usePaged } from "@/components/admin/Pagination";
 import AdminIcon from "@/components/admin/AdminIcon";
 
 const statusLabel: Record<TxStatus, string> = { Pending: "در انتظار", Approved: "تایید شده", Rejected: "رد شده" };
@@ -39,6 +40,7 @@ export default function AdminTransactionsPage() {
   );
 
   const filtered = useMemo(() => (filter === "all" ? items : items.filter((t) => t.status === filter)), [items, filter]);
+  const { page, setPage, totalPages, slice, total, pageSize } = usePaged(filtered, 12);
 
   async function act(t: Transaction, kind: "approve" | "reject") {
     setBusy(t.id);
@@ -137,9 +139,12 @@ export default function AdminTransactionsPage() {
       ) : error ? (
         <Card className="p-8 text-center text-rose-400">{error}</Card>
       ) : (
-        <Card className="overflow-hidden">
-          <DataTable columns={columns} rows={filtered} rowKey={(t) => t.id} minWidth={780} empty="تراکنشی یافت نشد" />
-        </Card>
+        <>
+          <Card className="overflow-hidden">
+            <DataTable columns={columns} rows={slice} rowKey={(t) => t.id} minWidth={780} empty="تراکنشی یافت نشد" />
+          </Card>
+          <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
+        </>
       )}
     </div>
   );

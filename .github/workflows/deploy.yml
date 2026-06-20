@@ -1,0 +1,33 @@
+name: Deploy
+
+# Continuous deployment to the production server over SSH. Inert until enabled:
+# set the repository variable DEPLOY_ENABLED=true and add the secrets/vars below
+# (Settings → Secrets and variables → Actions).
+#
+#   Secrets:  DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY
+#   Vars:     DEPLOY_ENABLED ("true"), DEPLOY_PATH (optional, default /opt/phonix)
+#
+# The server must already have the repo cloned and a populated .env (run scripts/install.sh once).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull and redeploy over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -e
+            cd "${{ vars.DEPLOY_PATH || '/opt/phonix' }}"
+            git pull --ff-only
+            docker compose up -d --build
+            docker image prune -f

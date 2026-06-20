@@ -320,6 +320,7 @@ public partial class StoreData
             MaintenanceMessage = "در حال ارتقای سرویس برای تجربه‌ای بهتر هستیم. لطفاً کمی بعد دوباره سر بزنید — به‌زودی برمی‌گردیم.",
             AnalyticsId = "",
             CustomHeadScript = "",
+            Terms = "قوانین و مقررات استفاده از سرویس را از پنل مدیریت اینجا بنویسید.",
         };
     }
 }

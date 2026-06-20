@@ -53,6 +53,7 @@ export type Product = {
   sku: string;
   description: string;
   warning: string;
+  deliveryTemplate: string;
   features: ProductFeature[];
   plans: ProductPlan[];
 };
@@ -69,6 +70,7 @@ export type ProductInput = {
   sku: string;
   description: string;
   warning: string;
+  deliveryTemplate: string;
   features: ProductFeature[];
   plans: ProductPlanInput[];
 };
@@ -242,6 +244,7 @@ export type AdvancedSettings = {
   maintenanceMessage: string;
   analyticsId: string;
   customHeadScript: string;
+  terms: string;
 };
 
 export type PaymentType = "Card" | "Crypto" | "Gateway";

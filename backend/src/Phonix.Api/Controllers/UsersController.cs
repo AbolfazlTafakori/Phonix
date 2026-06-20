@@ -20,6 +20,11 @@ public class UsersController : ControllerBase
     public IEnumerable<UserDto> Get([FromQuery] string? search, [FromQuery] UserRole? role, [FromQuery] bool? blocked) =>
         _store.GetUsers(search, role, blocked).Select(u => u.ToDto());
 
+    [HttpGet("page")]
+    public PagedResult<UserDto> GetPage([FromQuery] string? search, [FromQuery] UserRole? role,
+        [FromQuery] bool? blocked, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
+        PagedResult<UserDto>.From(_store.GetUsers(search, role, blocked).Select(u => u.ToDto()).ToList(), page, pageSize);
+
     [HttpGet("{id:int}")]
     public ActionResult<UserDto> Get(int id)
     {

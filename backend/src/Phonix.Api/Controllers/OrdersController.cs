@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
+using Phonix.Api.Dtos;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
 using Phonix.Api.Services;
@@ -24,9 +25,16 @@ public class OrdersController : ControllerBase
         _email = email;
     }
 
+    private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
+
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [HttpGet]
     public IEnumerable<Order> Get([FromQuery] OrderStatus? status) => _store.GetOrders(status);
+
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [HttpGet("page")]
+    public PagedResult<Order> GetPage([FromQuery] OrderStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
+        PagedResult<Order>.From(_store.GetOrders(status), page, pageSize);
 
     [HttpGet("user/{userId:int}")]
     public ActionResult<IEnumerable<Order>> ForUser(int userId)
@@ -90,10 +98,9 @@ public class OrdersController : ControllerBase
         {
             var user = _store.GetUser(order.UserId);
             var subject = string.IsNullOrWhiteSpace(input.EmailSubject) ? $"سفارش {order.Code} آماده شد" : input.EmailSubject!;
-            var body = string.IsNullOrWhiteSpace(input.EmailBody)
-                ? "سفارش شما آماده شد. برای مشاهده به حساب کاربری خود، بخش سفارش‌ها مراجعه کنید."
-                : input.EmailBody!;
-            if (user is not null) await _email.SendAsync(user.Email, subject, body);
+            var accountUrl = $"{FrontendUrl}/account";
+            var (text, html) = EmailTemplates.OrderDelivered(order.Code, accountUrl, input.EmailBody);
+            if (user is not null) await _email.SendAsync(user.Email, subject, text, html);
         }
 
         return order;
