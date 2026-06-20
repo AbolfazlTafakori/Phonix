@@ -24,7 +24,7 @@ export default function ProfilePage() {
     if (!user) return;
     (async () => {
       try {
-        const u = await api.users.get(user.id);
+        const u = await api.account.me();
         setData(u);
         setName(u.name);
         setEmail(u.email);
@@ -44,7 +44,7 @@ export default function ProfilePage() {
     setSaved(false);
     setError("");
     try {
-      const updated = await api.users.update(data.id, { name, email, phone });
+      const updated = await api.account.updateMe({ name, email, phone });
       setData(updated);
       setCurrentUser({ id: updated.id, name: updated.name, username: updated.username, email: updated.email });
       setSaved(true);

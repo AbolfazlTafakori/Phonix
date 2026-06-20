@@ -99,7 +99,7 @@ public partial class StoreData
     {
         AddPaymentMethod(new PaymentMethod { Type = PaymentType.Card, Title = "کارت بانکی", Holder = "علی محمدی", Value = "۶۰۳۷-۹۹۷۱-۲۳۴۵-۶۷۸۹", Network = "بانک ملی", Instructions = "مبلغ را به این کارت واریز و رسید را ارسال کنید.", SortOrder = 1 });
         AddPaymentMethod(new PaymentMethod { Type = PaymentType.Crypto, Title = "تتر (USDT)", Holder = "کیف پول فونیکس", Value = "TXk9...aZ2bQ", Network = "TRC20", Instructions = "فقط در شبکه TRC20 واریز کنید.", SortOrder = 2 });
-        AddPaymentMethod(new PaymentMethod { Type = PaymentType.Gateway, Title = "درگاه زرین‌پال", Holder = "Phoenix Verify", Value = "zp-merchant-0000", Network = "ZarinPal", Instructions = "پرداخت آنلاین با کارت‌های شتاب.", SortOrder = 3 });
+        AddPaymentMethod(new PaymentMethod { Type = PaymentType.Gateway, Title = "درگاه زرین‌پال", Holder = "Phoenix Verify", Value = "zp-merchant-0000", Network = "ZarinPal", Instructions = "پرداخت آنلاین با کارت‌های شتاب.", FeePercent = 3, SortOrder = 3 });
 
         _paymentSettings = new PaymentSettings
         {

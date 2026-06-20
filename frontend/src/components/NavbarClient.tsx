@@ -2,29 +2,46 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { SiteContent } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
+import { useCart } from "@/lib/cart";
 import { SearchIcon, CartIcon, UserIcon } from "./Icons";
 import NavLink from "./NavLink";
 
 type Props = { brand: SiteContent["brand"]; header: SiteContent["header"] };
 
-function SearchBox({ placeholder }: { placeholder: string }) {
+function SearchBox({ placeholder, onSubmit }: { placeholder: string; onSubmit?: () => void }) {
+  const router = useRouter();
+  const [term, setTerm] = useState("");
+
+  function submit(e: React.FormEvent) {
+    e.preventDefault();
+    const q = term.trim();
+    router.push(q ? `/films?q=${encodeURIComponent(q)}` : "/films");
+    onSubmit?.();
+  }
+
   return (
-    <div className="flex h-11 w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/60">
-      <SearchIcon className="h-4 w-4" />
+    <form onSubmit={submit} className="flex h-11 w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 text-white/60 transition focus-within:border-white/25">
+      <button type="submit" aria-label="جستجو" className="shrink-0 transition hover:text-white">
+        <SearchIcon className="h-4 w-4" />
+      </button>
       <input
         dir="rtl"
+        value={term}
+        onChange={(e) => setTerm(e.target.value)}
         placeholder={placeholder}
         className="w-full bg-transparent text-[15px] font-bold text-white placeholder:text-white/45 focus:outline-none"
       />
-    </div>
+    </form>
   );
 }
 
 export default function NavbarClient({ brand, header }: Props) {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
+  const { count } = useCart();
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-white/5 bg-ink/90 backdrop-blur">
@@ -55,13 +72,16 @@ export default function NavbarClient({ brand, header }: Props) {
 
         {/* desktop cart + account */}
         <div className="hidden items-center gap-3 lg:flex">
-          <a
-            href={header.cartLink}
-            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[15px] font-bold text-white/90 transition hover:bg-white/10 hover:text-white"
+          <Link
+            href="/cart"
+            className="relative flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[15px] font-bold text-white/90 transition hover:bg-white/10 hover:text-white"
           >
             <CartIcon className="h-5 w-5" />
             {header.cartLabel}
-          </a>
+            {count > 0 && (
+              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#e60053] px-1 text-[11px] font-bold text-white">{count}</span>
+            )}
+          </Link>
           {user ? (
             <div className="flex items-center gap-2">
               <Link
@@ -106,7 +126,7 @@ export default function NavbarClient({ brand, header }: Props) {
       {open && (
         <div className="border-t border-white/8 bg-ink/95 px-5 py-5 lg:hidden">
           <div className="mb-4">
-            <SearchBox placeholder={header.searchPlaceholder} />
+            <SearchBox placeholder={header.searchPlaceholder} onSubmit={() => setOpen(false)} />
           </div>
 
           <nav className="flex flex-col gap-1">
@@ -123,13 +143,15 @@ export default function NavbarClient({ brand, header }: Props) {
           </nav>
 
           <div className="mt-4 flex flex-col gap-3">
-            <a
-              href={header.cartLink}
+            <Link
+              href="/cart"
+              onClick={() => setOpen(false)}
               className="flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-3 font-bold text-white"
             >
               <CartIcon className="h-5 w-5" />
               {header.cartLabel}
-            </a>
+              {count > 0 && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#e60053] px-1 text-[11px] font-bold text-white">{count}</span>}
+            </Link>
             {user ? (
               <>
                 <Link

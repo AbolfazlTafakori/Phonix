@@ -1,19 +1,24 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
 using Phonix.Api.Models;
+using Phonix.Api.Security;
 
 namespace Phonix.Api.Controllers;
 
 [ApiController]
 [Route("api/hero")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class HeroController : ControllerBase
 {
     private readonly StoreData _store;
     public HeroController(StoreData store) => _store = store;
 
+    [AllowAnonymous]
     [HttpGet]
     public IEnumerable<HeroSlide> Get() => _store.GetHeroSlides();
 
+    [AllowAnonymous]
     [HttpGet("{id:int}")]
     public ActionResult<HeroSlide> Get(int id) => _store.GetHeroSlide(id) is { } s ? s : NotFound();
 
@@ -33,14 +38,17 @@ public class HeroController : ControllerBase
 
 [ApiController]
 [Route("api/home-categories")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class HomeCategoriesController : ControllerBase
 {
     private readonly StoreData _store;
     public HomeCategoriesController(StoreData store) => _store = store;
 
+    [AllowAnonymous]
     [HttpGet]
     public IEnumerable<HomeCategory> Get() => _store.GetHomeCategories();
 
+    [AllowAnonymous]
     [HttpGet("{id:int}")]
     public ActionResult<HomeCategory> Get(int id) => _store.GetHomeCategory(id) is { } c ? c : NotFound();
 
@@ -60,14 +68,17 @@ public class HomeCategoriesController : ControllerBase
 
 [ApiController]
 [Route("api/showcase")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class ShowcaseController : ControllerBase
 {
     private readonly StoreData _store;
     public ShowcaseController(StoreData store) => _store = store;
 
+    [AllowAnonymous]
     [HttpGet]
     public IEnumerable<Showcase> Get() => _store.GetShowcase();
 
+    [AllowAnonymous]
     [HttpGet("{id:int}")]
     public ActionResult<Showcase> Get(int id) => _store.GetShowcaseItem(id) is { } s ? s : NotFound();
 
@@ -87,14 +98,17 @@ public class ShowcaseController : ControllerBase
 
 [ApiController]
 [Route("api/blog")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class BlogController : ControllerBase
 {
     private readonly StoreData _store;
     public BlogController(StoreData store) => _store = store;
 
+    [AllowAnonymous]
     [HttpGet]
     public IEnumerable<BlogPost> Get() => _store.GetBlogPosts();
 
+    [AllowAnonymous]
     [HttpGet("{id:int}")]
     public ActionResult<BlogPost> Get(int id) => _store.GetBlogPost(id) is { } p ? p : NotFound();
 
@@ -114,11 +128,13 @@ public class BlogController : ControllerBase
 
 [ApiController]
 [Route("api/site-content")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class SiteContentController : ControllerBase
 {
     private readonly StoreData _store;
     public SiteContentController(StoreData store) => _store = store;
 
+    [AllowAnonymous]
     [HttpGet]
     public SiteContent Get() => _store.GetSiteContent();
 
@@ -132,11 +148,13 @@ public class SiteContentController : ControllerBase
 
 [ApiController]
 [Route("api/advanced-settings")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class AdvancedSettingsController : ControllerBase
 {
     private readonly StoreData _store;
     public AdvancedSettingsController(StoreData store) => _store = store;
 
+    [AllowAnonymous]
     [HttpGet]
     public AdvancedSettings Get() => _store.GetAdvancedSettings();
 

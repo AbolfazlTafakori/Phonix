@@ -11,17 +11,20 @@ public record CategoryInput(
 public record ProductDto(
     int Id, string Name, int CategoryId, string CategoryName, long Price, int DiscountPercent,
     long FinalPrice, long Stock, bool IsActive, bool Featured, string Image, string Sku, string Description,
-    List<ProductFeature> Features);
+    string Warning, List<ProductFeature> Features, List<ProductPlan> Plans);
 
 public record ProductInput(
     string Name, int CategoryId, long Price, int DiscountPercent, long Stock, bool IsActive,
-    bool Featured, string Image, string Sku, string Description, List<ProductFeature>? Features);
+    bool Featured, string Image, string Sku, string Description, string? Warning,
+    List<ProductFeature>? Features, List<ProductPlan>? Plans);
 
 public record PriceInput(long Price, int DiscountPercent);
 
 public record UserDto(
     int Id, string Code, string Name, string Username, string Email, string Phone, UserRole Role, int Orders,
-    long TotalSpent, long Wallet, bool Verified, bool Blocked, string JoinedAt, string? Note);
+    long TotalSpent, long Wallet, bool Verified, bool EmailVerified, bool Blocked, string JoinedAt, string? Note);
+
+public record AuthResultDto(string Token, UserDto User);
 
 public record UserUpdateInput(
     string? Name, string? Email, string? Phone, UserRole? Role, bool? Verified, bool? Blocked, string? Note);
@@ -40,11 +43,11 @@ public static class Mapping
 
     public static ProductDto ToDto(this Product p, string categoryName) =>
         new(p.Id, p.Name, p.CategoryId, categoryName, p.Price, p.DiscountPercent, p.FinalPrice,
-            p.Stock, p.IsActive, p.Featured, p.Image, p.Sku, p.Description, p.Features);
+            p.Stock, p.IsActive, p.Featured, p.Image, p.Sku, p.Description, p.Warning, p.Features, p.Plans);
 
     public static UserDto ToDto(this AppUser u) =>
         new(u.Id, u.Code, u.Name, u.Username, u.Email, u.Phone, u.Role, u.Orders, u.TotalSpent, u.Wallet,
-            u.Verified, u.Blocked, u.JoinedAt, u.Note);
+            u.Verified, u.EmailVerified, u.Blocked, u.JoinedAt, u.Note);
 
     public static PlanDto ToDto(this SubscriptionPlan p) =>
         new(p.Id, p.Label, p.Months, p.Price, p.DiscountPercent, p.FinalPrice);

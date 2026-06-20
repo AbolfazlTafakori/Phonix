@@ -5,6 +5,7 @@ public class PricingSettings
     public decimal ReferralCommissionPercent { get; set; }
     public decimal VatPercent { get; set; }
     public decimal GatewayFeePercent { get; set; }
+    public decimal CancellationPenaltyPercent { get; set; }
     public long MinWalletCharge { get; set; }
     public long MinWithdraw { get; set; }
     public string Currency { get; set; } = "تومان";

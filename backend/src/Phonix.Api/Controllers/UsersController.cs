@@ -1,12 +1,15 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
 using Phonix.Api.Dtos;
 using Phonix.Api.Models;
+using Phonix.Api.Security;
 
 namespace Phonix.Api.Controllers;
 
 [ApiController]
 [Route("api/users")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class UsersController : ControllerBase
 {
     private readonly StoreData _store;

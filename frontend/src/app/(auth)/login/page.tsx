@@ -22,8 +22,8 @@ export default function LoginPage() {
     setBusy(true);
     setError("");
     try {
-      const u = await api.auth.login({ identifier, password });
-      setCurrentUser({ id: u.id, name: u.name, username: u.username, email: u.email });
+      const { user } = await api.auth.login({ identifier, password });
+      setCurrentUser({ id: user.id, name: user.name, username: user.username, email: user.email });
       router.push("/account");
     } catch (err) {
       setError(err instanceof Error ? err.message : "خطا در ورود");

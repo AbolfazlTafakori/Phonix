@@ -1,18 +1,22 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
 using Phonix.Api.Dtos;
 using Phonix.Api.Models;
+using Phonix.Api.Security;
 
 namespace Phonix.Api.Controllers;
 
 [ApiController]
 [Route("api/products")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class ProductsController : ControllerBase
 {
     private readonly StoreData _store;
 
     public ProductsController(StoreData store) => _store = store;
 
+    [AllowAnonymous]
     [HttpGet]
     public IEnumerable<ProductDto> Get([FromQuery] int? categoryId, [FromQuery] string? search)
     {
@@ -21,6 +25,7 @@ public class ProductsController : ControllerBase
             .Select(p => p.ToDto(names.GetValueOrDefault(p.CategoryId, "")));
     }
 
+    [AllowAnonymous]
     [HttpGet("{id:int}")]
     public ActionResult<ProductDto> Get(int id)
     {
@@ -59,19 +64,30 @@ public class ProductsController : ControllerBase
 
     private static Product Map(Product target, ProductInput input)
     {
-        target.Name = input.Name;
+        target.Name = (input.Name ?? "").Trim();
         target.CategoryId = input.CategoryId;
-        target.Price = input.Price;
-        target.DiscountPercent = input.DiscountPercent;
-        target.Stock = input.Stock;
+        target.Price = Math.Max(0, input.Price);
+        target.DiscountPercent = Math.Clamp(input.DiscountPercent, 0, 100);
+        target.Stock = Math.Max(0, input.Stock);
         target.IsActive = input.IsActive;
         target.Featured = input.Featured;
-        target.Image = input.Image;
-        target.Sku = input.Sku;
-        target.Description = input.Description;
+        target.Image = input.Image ?? "";
+        target.Sku = input.Sku ?? "";
+        target.Description = input.Description ?? "";
+        target.Warning = input.Warning ?? "";
         target.Features = input.Features ?? new();
+        target.Plans = (input.Plans ?? new()).Select(NormalizePlan).ToList();
         return target;
     }
+
+    private static ProductPlan NormalizePlan(ProductPlan plan) => new()
+    {
+        Type = (plan.Type ?? "").Trim(),
+        Months = Math.Max(1, plan.Months),
+        Price = Math.Max(0, plan.Price),
+        DiscountPercent = Math.Clamp(plan.DiscountPercent, 0, 100),
+        IsActive = plan.IsActive,
+    };
 
     private Dictionary<int, string> CategoryNames() =>
         _store.GetCategories().ToDictionary(c => c.Id, c => c.Name);

@@ -1,9 +1,11 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { formatToman, formatNumber, toFa } from "@/lib/format";
-import type { Product, Plan, Comment } from "@/lib/types";
+import { formatNumber, toFa } from "@/lib/format";
+import type { Product, Comment } from "@/lib/types";
 import Stars from "@/components/Stars";
 import ReviewForm from "@/components/ReviewForm";
+import ProductPurchase from "@/components/ProductPurchase";
+import FavoriteButton from "@/components/FavoriteButton";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "جزئیات محصول | Phoenix Verify" };
@@ -23,30 +25,26 @@ const fallbackProduct: Product = {
   sku: "",
   description:
     "دسترسی کامل به کتابخانه‌ی نتفلیکس با کیفیت 4K، امکان تماشا روی چند دستگاه و تحویل آنی اطلاعات اکانت بلافاصله پس از پرداخت.",
+  warning: "",
   features: [
     { text: "تحویل آنی پس از پرداخت", included: true },
     { text: "کیفیت 4K Ultra HD", included: true },
     { text: "پشتیبانی ۲۴ ساعته", included: true },
     { text: "گارانتی بازگشت وجه", included: true },
   ],
+  plans: [],
 };
 
 export default async function ProductDetailPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const { id } = await searchParams;
 
   let product = fallbackProduct;
-  let plans: Plan[] = [];
   try {
     const products = await api.products.list();
     const wanted = id ? products.find((p) => p.id === Number(id)) : null;
     product = wanted ?? products.find((p) => p.isActive) ?? products[0] ?? fallbackProduct;
   } catch {
     // keep fallback
-  }
-  try {
-    plans = await api.pricing.getPlans();
-  } catch {
-    // optional
   }
 
   let comments: Comment[] = [];
@@ -71,11 +69,8 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
 
       <div className="grid gap-8 lg:grid-cols-2">
         {/* gallery */}
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-[#0d0d14]">
-          <div className="relative aspect-[4/3]">
-            <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
-          </div>
+        <div className="self-start overflow-hidden rounded-3xl border border-white/10">
+          <img src={product.image} alt={product.name} className="block w-full" />
         </div>
 
         {/* info */}
@@ -98,25 +93,10 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
 
           <p className="mt-4 text-sm leading-8 text-white/70">{product.description}</p>
 
-          {plans.length > 0 && (
-            <div className="mt-6 grid grid-cols-3 gap-3">
-              {plans.slice(0, 3).map((p, i) => (
-                <div key={p.id} className={`rounded-2xl border p-4 text-center transition ${i === 0 ? "border-[#3e3af2] bg-[#3e3af2]/10" : "border-white/10"}`}>
-                  <p className="text-sm font-bold text-white">{p.label}</p>
-                  <p className="mt-1 text-xs text-white/55">{formatToman(p.finalPrice)}</p>
-                </div>
-              ))}
-            </div>
-          )}
+          <ProductPurchase product={product} />
 
-          <div className="mt-6 flex items-center justify-between rounded-2xl border border-white/8 bg-[#15151f]/80 p-5">
-            <div>
-              <p className="text-xs text-white/45">قیمت نهایی</p>
-              <p className="text-2xl font-bold text-white">{formatToman(product.finalPrice)}</p>
-            </div>
-            <button className="h-12 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-10 text-base font-bold text-white shadow-[0_14px_40px_-12px_rgba(230,0,83,0.7)] transition hover:brightness-110">
-              افزودن به سبد خرید
-            </button>
+          <div className="mt-4">
+            <FavoriteButton productId={product.id} />
           </div>
 
           {product.features.length > 0 && (
@@ -137,6 +117,16 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
         <h2 className="mb-4 text-xl font-bold text-white">توضیحات محصول</h2>
         <p className="text-sm leading-8 text-white/70">{product.description}</p>
       </div>
+
+      {/* mandatory reading / warning */}
+      {product.warning && (
+        <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/[0.07] p-8">
+          <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-amber-300">
+            <span>⚠</span> مطالعه اجباری
+          </h2>
+          <p className="text-sm leading-8 text-amber-100/80">{product.warning}</p>
+        </div>
+      )}
 
       {/* reviews */}
       <section className="mt-12">

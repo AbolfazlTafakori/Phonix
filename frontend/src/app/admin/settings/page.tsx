@@ -1,72 +1,133 @@
-import { Card, PageHeader } from "@/components/admin/ui";
+"use client";
 
-export const metadata = { title: "تنظیمات | پنل مدیریت" };
-
-function Field({ label, value, type = "text" }: { label: string; value?: string; type?: string }) {
-  return (
-    <div>
-      <label className="mb-2 block text-sm text-white/70">{label}</label>
-      <input
-        type={type}
-        defaultValue={value}
-        className="h-11 w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 text-sm text-white outline-none transition focus:border-[#3a64f2]"
-      />
-    </div>
-  );
-}
-
-function Toggle({ label, on = false }: { label: string; on?: boolean }) {
-  return (
-    <label className="flex cursor-pointer items-center justify-between py-3">
-      <span className="text-sm text-white/80">{label}</span>
-      <span className={`relative h-6 w-11 rounded-full transition ${on ? "bg-[#e60053]" : "bg-white/15"}`}>
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? "right-0.5" : "right-[22px]"}`} />
-      </span>
-    </label>
-  );
-}
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
+import type { User } from "@/lib/types";
+import { Card, PageHeader, Spinner, Field, inputCls } from "@/components/admin/ui";
 
 export default function AdminSettingsPage() {
+  const [me, setMe] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
+  const [profileMsg, setProfileMsg] = useState("");
+
+  const [current, setCurrent] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [savingPw, setSavingPw] = useState(false);
+  const [pwMsg, setPwMsg] = useState("");
+  const [pwError, setPwError] = useState("");
+
+  useEffect(() => {
+    api.account
+      .me()
+      .then((u) => {
+        setMe(u);
+        setName(u.name);
+        setEmail(u.email);
+        setPhone(u.phone);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  async function saveProfile() {
+    setSavingProfile(true);
+    setProfileMsg("");
+    try {
+      const updated = await api.account.updateMe({ name, email, phone });
+      setMe(updated);
+      setProfileMsg("اطلاعات ذخیره شد.");
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  async function changePassword() {
+    setPwMsg("");
+    setPwError("");
+    if (next !== confirm) {
+      setPwError("تکرار گذرواژه مطابقت ندارد.");
+      return;
+    }
+    setSavingPw(true);
+    try {
+      await api.account.changePassword({ currentPassword: current, newPassword: next });
+      setCurrent("");
+      setNext("");
+      setConfirm("");
+      setPwMsg("گذرواژه با موفقیت تغییر کرد.");
+    } catch (e) {
+      setPwError(e instanceof Error ? e.message : "خطا در تغییر گذرواژه");
+    } finally {
+      setSavingPw(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div>
+        <PageHeader title="تنظیمات" desc="حساب مدیر" />
+        <div className="grid place-items-center py-24"><Spinner className="h-8 w-8" /></div>
+      </div>
+    );
+  }
+
   return (
     <div>
-      <PageHeader title="تنظیمات" desc="پیکربندی فروشگاه و حساب مدیر" />
+      <PageHeader title="تنظیمات" desc="مدیریت حساب کاربری مدیر" />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-6">
-          <h3 className="mb-5 text-lg font-bold text-white">اطلاعات فروشگاه</h3>
+          <h3 className="mb-5 text-lg font-bold text-white">اطلاعات حساب</h3>
           <div className="grid gap-5">
-            <Field label="نام فروشگاه" value="Phoenix Verify" />
-            <Field label="ایمیل پشتیبانی" value="support@phoenixverify.com" type="email" />
-            <Field label="شماره تماس" value="۰۲۱-۱۲۳۴۵۶۷۸" type="tel" />
-            <Field label="درصد پورسانت معرف" value="۱۰" />
+            <Field label="نام و نام خانوادگی">
+              <input value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="نام کاربری">
+              <input value={me?.username ?? ""} dir="ltr" disabled className={`${inputCls} text-left opacity-60`} />
+            </Field>
+            <Field label="ایمیل">
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" className={`${inputCls} text-left`} />
+            </Field>
+            <Field label="شماره تماس">
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" className={`${inputCls} text-left`} />
+            </Field>
           </div>
-          <button className="mt-6 h-11 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-8 text-sm font-bold text-white transition hover:brightness-110">
-            ذخیره تغییرات
-          </button>
+          <div className="mt-6 flex items-center gap-3">
+            <button onClick={saveProfile} disabled={savingProfile} className="flex h-11 items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60">
+              {savingProfile ? <Spinner /> : "ذخیره تغییرات"}
+            </button>
+            {profileMsg && <span className="text-sm font-medium text-emerald-400">{profileMsg}</span>}
+          </div>
         </Card>
 
-        <div className="space-y-6">
-          <Card className="p-6">
-            <h3 className="mb-3 text-lg font-bold text-white">حساب مدیر</h3>
-            <div className="grid gap-5">
-              <Field label="نام کاربری" value="admin" />
-              <Field label="رمز عبور جدید" type="password" />
-            </div>
-            <button className="mt-6 h-11 rounded-xl border border-white/10 px-8 text-sm font-bold text-white/85 transition hover:bg-white/5">
-              تغییر رمز
+        <Card className="p-6">
+          <h3 className="mb-5 text-lg font-bold text-white">تغییر گذرواژه</h3>
+          <div className="grid gap-5">
+            <Field label="گذرواژه فعلی">
+              <input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="گذرواژه جدید">
+              <input type="password" value={next} onChange={(e) => setNext(e.target.value)} className={inputCls} />
+            </Field>
+            <Field label="تکرار گذرواژه جدید">
+              <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} className={inputCls} />
+            </Field>
+            <p className="text-xs text-white/45">حداقل ۸ کاراکتر و ترکیبی از حروف و اعداد.</p>
+          </div>
+          <div className="mt-6 flex items-center gap-3">
+            <button onClick={changePassword} disabled={savingPw || !current || !next} className="flex h-11 items-center rounded-xl border border-white/10 px-8 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-60">
+              {savingPw ? <Spinner /> : "تغییر گذرواژه"}
             </button>
-          </Card>
-
-          <Card className="p-6">
-            <h3 className="mb-2 text-lg font-bold text-white">اعلان‌ها</h3>
-            <div className="divide-y divide-white/8">
-              <Toggle label="اعلان سفارش جدید" on />
-              <Toggle label="اعلان تیکت پشتیبانی" on />
-              <Toggle label="گزارش فروش هفتگی" />
-              <Toggle label="هشدار اتمام موجودی" on />
-            </div>
-          </Card>
-        </div>
+            {pwMsg && <span className="text-sm font-medium text-emerald-400">{pwMsg}</span>}
+            {pwError && <span className="text-sm text-rose-400">{pwError}</span>}
+          </div>
+        </Card>
       </div>
     </div>
   );

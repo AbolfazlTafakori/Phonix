@@ -21,7 +21,19 @@ public class AppUser
     public long TotalSpent { get; set; }
     public long Wallet { get; set; }
     public bool Verified { get; set; }
+    public bool EmailVerified { get; set; }
     public bool Blocked { get; set; }
     public string JoinedAt { get; set; } = "";
     public string? Note { get; set; }
+    public int? ReferredBy { get; set; }
+}
+
+public class ReferralEarning
+{
+    public int ReferrerId { get; set; }
+    public string ReferredName { get; set; } = "";
+    public string OrderCode { get; set; } = "";
+    public long OrderAmount { get; set; }
+    public long Commission { get; set; }
+    public string Date { get; set; } = "";
 }

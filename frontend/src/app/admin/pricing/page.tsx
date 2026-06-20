@@ -273,6 +273,7 @@ function FeesPanel({
     { key: "referralCommissionPercent", label: "پورسانت معرف", hint: "درصد پورسانت از خرید زیرمجموعه" },
     { key: "vatPercent", label: "مالیات بر ارزش افزوده", hint: "روی قیمت نهایی اعمال می‌شود" },
     { key: "gatewayFeePercent", label: "کارمزد درگاه پرداخت", hint: "درصد کارمزد درگاه" },
+    { key: "cancellationPenaltyPercent", label: "جریمه لغو سفارش", hint: "درصد کسرشده هنگام لغو و بازگشت به کیف پول" },
   ];
   const amountFields: { key: keyof PricingSettings; label: string; hint: string }[] = [
     { key: "minWalletCharge", label: "حداقل شارژ کیف پول", hint: "کمترین مبلغ مجاز برای شارژ" },

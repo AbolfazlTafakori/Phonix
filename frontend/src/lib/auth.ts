@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { api } from "./api";
 
 export type CurrentUser = { id: number; name: string; username: string; email: string };
 
@@ -23,6 +24,7 @@ export function setCurrentUser(user: CurrentUser) {
 }
 
 export function clearCurrentUser() {
+  api.auth.logout().catch(() => {});
   localStorage.removeItem(KEY);
   window.dispatchEvent(new Event(EVENT));
 }

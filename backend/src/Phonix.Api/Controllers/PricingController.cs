@@ -1,18 +1,22 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
 using Phonix.Api.Dtos;
 using Phonix.Api.Models;
+using Phonix.Api.Security;
 
 namespace Phonix.Api.Controllers;
 
 [ApiController]
 [Route("api/pricing")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class PricingController : ControllerBase
 {
     private readonly StoreData _store;
 
     public PricingController(StoreData store) => _store = store;
 
+    [AllowAnonymous]
     [HttpGet("settings")]
     public PricingSettings GetSettings() => _store.GetSettings();
 
@@ -23,6 +27,7 @@ public class PricingController : ControllerBase
         return _store.GetSettings();
     }
 
+    [AllowAnonymous]
     [HttpGet("plans")]
     public IEnumerable<PlanDto> GetPlans() => _store.GetPlans().Select(p => p.ToDto());
 

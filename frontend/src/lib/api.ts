@@ -23,6 +23,8 @@ import type {
   PaymentMethod,
   PaymentMethodInput,
   PaymentSettings,
+  EmailSettings,
+  TelegramSettings,
   Transaction,
   TxStatus,
   Comment,
@@ -31,17 +33,53 @@ import type {
   KycRequest,
   KycInput,
   KycStatus,
+  Order,
+  OrderStatus,
+  Ticket,
+  TicketStatus,
+  OverviewStats,
+  TopProductStat,
+  AuthResult,
+  ReferralReport,
+  DiscountCode,
+  DiscountCodeInput,
+  DiscountResult,
 } from "./types";
+import { getCsrfToken } from "./token";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5228";
 
+// A 401 means the server session is gone (expired, or the API restarted — sessions are in-memory).
+// The client may still hold a stale user in localStorage, so every guarded page would otherwise
+// surface a raw "خطای ارتباط با سرور (401)". Instead, clear that stale state and bounce to the
+// matching login once. Only the authenticated areas are touched; public pages are left alone.
+function handleUnauthorized() {
+  if (typeof window === "undefined") return;
+  const path = window.location.pathname;
+  if (path.startsWith("/admin")) {
+    if (path === "/admin/login") return;
+    try { localStorage.removeItem("phonix_admin"); } catch { /* ignore */ }
+    window.location.replace("/admin/login");
+  } else if (path.startsWith("/account")) {
+    try { localStorage.removeItem("phonix_user"); } catch { /* ignore */ }
+    window.location.replace("/login");
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const csrf = getCsrfToken();
   const res = await fetch(`${BASE}/api${path}`, {
-    headers: { "Content-Type": "application/json" },
     cache: "no-store",
+    credentials: "include",
     ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(csrf ? { "X-CSRF-Token": csrf } : {}),
+      ...init?.headers,
+    },
   });
   if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
     let msg = `خطای ارتباط با سرور (${res.status})`;
     try {
       const text = await res.text();
@@ -89,6 +127,29 @@ export const api = {
     adjustWallet: (id: number, body: WalletInput) => request<User>(`/users/${id}/wallet`, { method: "POST", body: json(body) }),
     remove: (id: number) => request<void>(`/users/${id}`, { method: "DELETE" }),
   },
+  account: {
+    me: () => request<User>("/account/me"),
+    updateMe: (body: { name?: string; email?: string; phone?: string }) =>
+      request<User>("/account/me", { method: "PUT", body: json(body) }),
+    transactions: () => request<Transaction[]>("/account/transactions"),
+    referrals: () => request<ReferralReport>("/account/referrals"),
+    changePassword: (body: { currentPassword: string; newPassword: string }) =>
+      request<void>("/account/password", { method: "PUT", body: json(body) }),
+  },
+  discounts: {
+    list: () => request<DiscountCode[]>("/discounts"),
+    create: (body: DiscountCodeInput) => request<DiscountCode>("/discounts", { method: "POST", body: json(body) }),
+    update: (id: number, body: DiscountCodeInput) => request<DiscountCode>(`/discounts/${id}`, { method: "PUT", body: json(body) }),
+    remove: (id: number) => request<void>(`/discounts/${id}`, { method: "DELETE" }),
+    validate: (code: string, subtotal: number) =>
+      request<DiscountResult>("/discounts/validate", { method: "POST", body: json({ code, subtotal }) }),
+  },
+  planTypes: {
+    list: () => request<string[]>("/plan-types"),
+    add: (name: string) => request<string[]>("/plan-types", { method: "POST", body: json({ name }) }),
+    rename: (oldName: string, newName: string) => request<string[]>("/plan-types/rename", { method: "PUT", body: json({ oldName, newName }) }),
+    remove: (name: string) => request<string[]>(`/plan-types/${encodeURIComponent(name)}`, { method: "DELETE" }),
+  },
   pricing: {
     getSettings: () => request<PricingSettings>("/pricing/settings"),
     updateSettings: (body: PricingSettings) => request<PricingSettings>("/pricing/settings", { method: "PUT", body: json(body) }),
@@ -121,6 +182,32 @@ export const api = {
     update: (id: number, body: BlogPostInput) => request<BlogPost>(`/blog/${id}`, { method: "PUT", body: json(body) }),
     remove: (id: number) => request<void>(`/blog/${id}`, { method: "DELETE" }),
   },
+  stats: {
+    overview: () => request<OverviewStats>("/stats/overview"),
+    topProducts: () => request<TopProductStat[]>("/stats/top-products"),
+  },
+  orders: {
+    list: (params?: { status?: OrderStatus }) => request<Order[]>(`/orders${qs(params)}`),
+    forUser: (userId: number) => request<Order[]>(`/orders/user/${userId}`),
+    get: (id: number) => request<Order>(`/orders/${id}`),
+    place: (body: { items: { productId: number; quantity: number; planId?: number | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null }) =>
+      request<Order>("/orders", { method: "POST", body: json(body) }),
+    approve: (id: number) => request<Order>(`/orders/${id}/approve`, { method: "POST" }),
+    complete: (id: number) => request<Order>(`/orders/${id}/complete`, { method: "POST" }),
+    cancel: (id: number) => request<Order>(`/orders/${id}/cancel`, { method: "POST" }),
+    deliver: (id: number, body: { content: string; email: boolean; emailSubject?: string; emailBody?: string }) =>
+      request<Order>(`/orders/${id}/deliver`, { method: "POST", body: json(body) }),
+  },
+  tickets: {
+    list: (params?: { status?: TicketStatus }) => request<Ticket[]>(`/tickets${qs(params)}`),
+    forUser: (userId: number) => request<Ticket[]>(`/tickets/user/${userId}`),
+    get: (id: number) => request<Ticket>(`/tickets/${id}`),
+    create: (body: { subject: string; department: string; body: string }) =>
+      request<Ticket>("/tickets", { method: "POST", body: json(body) }),
+    reply: (id: number, body: string, isAdmin: boolean) =>
+      request<Ticket>(`/tickets/${id}/reply`, { method: "POST", body: json({ body, isAdmin }) }),
+    close: (id: number) => request<void>(`/tickets/${id}/close`, { method: "POST" }),
+  },
   kyc: {
     list: (params?: { status?: KycStatus }) => request<KycRequest[]>(`/kyc${qs(params)}`),
     getForUser: (userId: number) => request<KycRequest | null>(`/kyc/user/${userId}`),
@@ -146,18 +233,48 @@ export const api = {
     get: () => request<PaymentSettings>("/payment-settings"),
     update: (body: PaymentSettings) => request<PaymentSettings>("/payment-settings", { method: "PUT", body: json(body) }),
   },
+  emailSettings: {
+    get: () => request<EmailSettings>("/email-settings"),
+    update: (body: EmailSettings) => request<EmailSettings>("/email-settings", { method: "PUT", body: json(body) }),
+    test: (to: string) => request<{ ok: boolean }>("/email-settings/test", { method: "POST", body: json({ to }) }),
+  },
+  backup: {
+    // cookie auth is SameSite=Strict + cross-origin, so a plain <a download> link wouldn't carry it — fetch as a blob.
+    download: async (): Promise<Blob> => {
+      const res = await fetch(`${BASE}/api/backup/export`, { credentials: "include", cache: "no-store" });
+      if (!res.ok) throw new Error(`خطا در دانلود پشتیبان (${res.status})`);
+      return res.blob();
+    },
+    restore: (snapshot: unknown) => request<{ ok: boolean }>("/backup/restore", { method: "POST", body: json(snapshot) }),
+    telegram: {
+      get: () => request<TelegramSettings>("/backup/telegram"),
+      update: (body: TelegramSettings) => request<TelegramSettings>("/backup/telegram", { method: "PUT", body: json(body) }),
+      test: () => request<{ ok: boolean }>("/backup/telegram/test", { method: "POST" }),
+    },
+  },
   transactions: {
     list: (params?: { status?: TxStatus }) => request<Transaction[]>(`/transactions${params?.status ? `?status=${params.status}` : ""}`),
-    create: (body: { userName: string; type: string; amount: number; method: string }) =>
+    create: (body: { type: string; amount: number; method: string }) =>
       request<Transaction>("/transactions", { method: "POST", body: json(body) }),
     approve: (id: number, note?: string) => request<Transaction>(`/transactions/${id}/approve`, { method: "POST", body: json({ note: note ?? null }) }),
     reject: (id: number, note?: string) => request<Transaction>(`/transactions/${id}/reject`, { method: "POST", body: json({ note: note ?? null }) }),
   },
   auth: {
-    register: (body: { name: string; username: string; email: string; phone: string; password: string }) =>
-      request<User>("/auth/register", { method: "POST", body: json(body) }),
+    register: (body: { name: string; username: string; email: string; phone: string; password: string; referralCode?: string }) =>
+      request<AuthResult>("/auth/register", { method: "POST", body: json(body) }),
     login: (body: { identifier: string; password: string }) =>
-      request<User>("/auth/login", { method: "POST", body: json(body) }),
+      request<AuthResult>("/auth/login", { method: "POST", body: json(body) }),
+    logout: () => request<void>("/auth/logout", { method: "POST" }),
+    forgot: (email: string) => request<{ ok: boolean }>("/auth/forgot", { method: "POST", body: json({ email }) }),
+    verifyEmail: (token: string) => request<{ ok: boolean }>("/auth/verify-email", { method: "POST", body: json({ token }) }),
+    resendVerification: () => request<{ ok: boolean }>("/auth/resend-verification", { method: "POST" }),
+    resetPassword: (token: string, newPassword: string) =>
+      request<{ ok: boolean }>("/auth/reset-password", { method: "POST", body: json({ token, newPassword }) }),
+  },
+  favorites: {
+    ids: (userId: number) => request<number[]>(`/favorites/user/${userId}`),
+    toggle: (productId: number) =>
+      request<{ favorited: boolean }>("/favorites/toggle", { method: "POST", body: json({ productId }) }),
   },
   comments: {
     list: (params?: { status?: CommentStatus; productId?: number }) => request<Comment[]>(`/comments${qs(params)}`),

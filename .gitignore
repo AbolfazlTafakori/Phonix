@@ -48,3 +48,7 @@ frontend/public/uploads/*
 Thumbs.db
 *.swp
 .idea/
+
+# runtime data store (created on first run / by installer)
+App_Data/
+*.json.tmp

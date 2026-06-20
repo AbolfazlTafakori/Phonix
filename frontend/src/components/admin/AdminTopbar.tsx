@@ -1,11 +1,16 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { adminMenu } from "@/data/admin";
+import { useAdminAuth } from "@/lib/adminAuth";
 import AdminIcon from "./AdminIcon";
+
+const roleLabel: Record<string, string> = { Admin: "مدیر کل", Support: "پشتیبانی" };
 
 export default function AdminTopbar({ onMenu }: { onMenu: () => void }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const { user, logout } = useAdminAuth();
   const current =
     [...adminMenu].sort((a, b) => b.href.length - a.href.length).find((m) =>
       m.href === "/admin" ? pathname === "/admin" : pathname.startsWith(m.href),
@@ -42,13 +47,22 @@ export default function AdminTopbar({ onMenu }: { onMenu: () => void }) {
 
         <div className="flex items-center gap-2.5">
           <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-sm font-bold text-white">
-            ا
+            {(user?.name || user?.username || "ا").charAt(0)}
           </div>
           <div className="hidden leading-tight sm:block">
-            <p className="text-sm font-bold text-white">ادمین</p>
-            <p className="text-xs text-white/40">مدیر کل</p>
+            <p className="text-sm font-bold text-white">{user?.name || user?.username}</p>
+            <p className="text-xs text-white/40">{user ? roleLabel[user.role] ?? "مدیر" : ""}</p>
           </div>
         </div>
+
+        <button
+          onClick={() => { logout(); router.replace("/admin/login"); }}
+          aria-label="خروج"
+          title="خروج"
+          className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/5 text-white/60 transition hover:border-rose-500/50 hover:text-rose-400"
+        >
+          <AdminIcon name="logout" className="h-5 w-5" />
+        </button>
       </div>
     </header>
   );

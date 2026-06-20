@@ -16,6 +16,7 @@ public class PaymentMethod : IContentItem
     public string Value { get; set; } = "";
     public string Network { get; set; } = "";
     public string Instructions { get; set; } = "";
+    public decimal FeePercent { get; set; }   // gateway tax/fee added when this method is used
     public bool IsActive { get; set; } = true;
     public int SortOrder { get; set; }
 }

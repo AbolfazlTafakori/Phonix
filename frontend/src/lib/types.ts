@@ -20,6 +20,24 @@ export type CategoryInput = {
 
 export type ProductFeature = { text: string; included: boolean };
 
+export type ProductPlan = {
+  id: number;
+  type: string;
+  months: number;
+  price: number;
+  discountPercent: number;
+  isActive: boolean;
+  finalPrice: number;
+};
+
+export type ProductPlanInput = {
+  type: string;
+  months: number;
+  price: number;
+  discountPercent: number;
+  isActive: boolean;
+};
+
 export type Product = {
   id: number;
   name: string;
@@ -34,7 +52,9 @@ export type Product = {
   image: string;
   sku: string;
   description: string;
+  warning: string;
   features: ProductFeature[];
+  plans: ProductPlan[];
 };
 
 export type ProductInput = {
@@ -48,7 +68,9 @@ export type ProductInput = {
   image: string;
   sku: string;
   description: string;
+  warning: string;
   features: ProductFeature[];
+  plans: ProductPlanInput[];
 };
 
 export type User = {
@@ -63,10 +85,43 @@ export type User = {
   totalSpent: number;
   wallet: number;
   verified: boolean;
+  emailVerified: boolean;
   blocked: boolean;
   joinedAt: string;
   note: string | null;
 };
+
+export type AuthResult = { token: string; user: User };
+
+export type ReferralEarning = {
+  referrerId: number;
+  referredName: string;
+  orderCode: string;
+  orderAmount: number;
+  commission: number;
+  date: string;
+};
+
+export type ReferralReport = { totalEarned: number; referredCount: number; earnings: ReferralEarning[] };
+
+export type DiscountType = "Percent" | "Fixed";
+
+export type DiscountCode = {
+  id: number;
+  code: string;
+  type: DiscountType;
+  value: number;
+  minOrder: number;
+  maxDiscount: number;
+  usageLimit: number;
+  usedCount: number;
+  isActive: boolean;
+  expiresAt: string | null;
+};
+
+export type DiscountCodeInput = Omit<DiscountCode, "id" | "usedCount">;
+
+export type DiscountResult = { valid: boolean; amount: number; finalTotal: number; message: string | null };
 
 export type UserUpdateInput = Partial<{
   name: string;
@@ -84,6 +139,7 @@ export type PricingSettings = {
   referralCommissionPercent: number;
   vatPercent: number;
   gatewayFeePercent: number;
+  cancellationPenaltyPercent: number;
   minWalletCharge: number;
   minWithdraw: number;
   currency: string;
@@ -198,11 +254,23 @@ export type PaymentMethod = {
   value: string;
   network: string;
   instructions: string;
+  feePercent: number;
   isActive: boolean;
   sortOrder: number;
 };
 
 export type PaymentMethodInput = Omit<PaymentMethod, "id">;
+
+export type EmailSettings = {
+  enabled: boolean;
+  host: string;
+  port: number;
+  username: string;
+  password: string;
+  fromEmail: string;
+  fromName: string;
+  useSsl: boolean;
+};
 
 export type PaymentSettings = {
   telegramEnabled: boolean;
@@ -210,6 +278,15 @@ export type PaymentSettings = {
   telegramChatId: string;
   requireReceipt: boolean;
   autoApproveUnder: number;
+};
+
+export type TelegramSettings = {
+  backupEnabled: boolean;
+  botToken: string;
+  chatId: string;
+  intervalHours: number;
+  lastBackupAtUtc: string | null;
+  lastBackupError: string;
 };
 
 export type CommentStatus = "Pending" | "Approved" | "Rejected";
@@ -228,11 +305,73 @@ export type Comment = {
 
 export type CommentInput = {
   productId: number;
-  userName: string;
   body: string;
   rating: number;
   parentId?: number | null;
 };
+
+export type OrderStatus = "PendingApproval" | "Preparing" | "Completed" | "Cancelled";
+
+export type OrderItem = {
+  productId: number;
+  name: string;
+  image: string;
+  plan: string | null;
+  unitPrice: number;
+  quantity: number;
+  lineTotal: number;
+};
+
+export type Order = {
+  id: number;
+  code: string;
+  userId: number;
+  userName: string;
+  items: OrderItem[];
+  subtotal: number;
+  discountCode: string | null;
+  discountAmount: number;
+  walletPaid: number;
+  feeAmount: number;
+  total: number;
+  status: OrderStatus;
+  paymentMethod: string;
+  date: string;
+  note: string | null;
+  deliveryContent: string | null;
+  deliveredAt: string | null;
+};
+
+export type TicketStatus = "Open" | "Answered" | "Closed";
+
+export type TicketMessage = { author: string; body: string; isAdmin: boolean; date: string };
+
+export type Ticket = {
+  id: number;
+  code: string;
+  userId: number;
+  userName: string;
+  subject: string;
+  department: string;
+  status: TicketStatus;
+  messages: TicketMessage[];
+  date: string;
+};
+
+export type OverviewStats = {
+  revenue: number;
+  ordersCount: number;
+  pendingOrders: number;
+  preparingOrders: number;
+  completedOrders: number;
+  usersCount: number;
+  productsCount: number;
+  openTickets: number;
+  pendingComments: number;
+  pendingKyc: number;
+};
+
+export type TopProductStat = { productId: number; name: string; image: string; sold: number; revenue: number };
 
 export type KycStatus = "Pending" | "Approved" | "Rejected";
 
@@ -250,7 +389,6 @@ export type KycRequest = {
 };
 
 export type KycInput = {
-  userId: number;
   fullName: string;
   nationalId: string;
   birthDate: string;

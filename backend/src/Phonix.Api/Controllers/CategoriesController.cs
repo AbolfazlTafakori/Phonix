@@ -1,22 +1,27 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
 using Phonix.Api.Dtos;
 using Phonix.Api.Models;
+using Phonix.Api.Security;
 
 namespace Phonix.Api.Controllers;
 
 [ApiController]
 [Route("api/categories")]
+[Authorize(Roles = AuthExtensions.StaffRoles)]
 public class CategoriesController : ControllerBase
 {
     private readonly StoreData _store;
 
     public CategoriesController(StoreData store) => _store = store;
 
+    [AllowAnonymous]
     [HttpGet]
     public IEnumerable<CategoryDto> Get() =>
         _store.GetCategories().Select(c => c.ToDto(_store.CountProducts(c.Id)));
 
+    [AllowAnonymous]
     [HttpGet("{id:int}")]
     public ActionResult<CategoryDto> Get(int id)
     {

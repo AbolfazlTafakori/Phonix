@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Product, ProductInput, Category, ProductFeature } from "@/lib/types";
+import type { Product, ProductInput, Category, ProductFeature, ProductPlanInput } from "@/lib/types";
 import { formatToman, formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner, Toggle, StatusBadge, Modal, DataTable, Field, inputCls, type Column } from "@/components/admin/ui";
 import ImageField from "@/components/admin/ImageField";
@@ -19,16 +19,21 @@ const emptyForm = (categoryId: number): ProductInput => ({
   image: "",
   sku: "",
   description: "",
+  warning: "",
   features: [
     { text: "تحویل آنی پس از پرداخت", included: true },
     { text: "پشتیبانی ۲۴ ساعته", included: true },
     { text: "گارانتی بازگشت وجه", included: true },
   ],
+  plans: [],
 });
+
+const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, discountPercent: 0, isActive: true });
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [planTypes, setPlanTypes] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -39,9 +44,10 @@ export default function AdminProductsPage() {
 
   async function load() {
     try {
-      const [p, c] = await Promise.all([api.products.list(), api.categories.list()]);
+      const [p, c, t] = await Promise.all([api.products.list(), api.categories.list(), api.planTypes.list()]);
       setProducts(p);
       setCategories(c);
+      setPlanTypes(t);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در بارگذاری");
     } finally {
@@ -72,7 +78,9 @@ export default function AdminProductsPage() {
       image: p.image,
       sku: p.sku,
       description: p.description,
+      warning: p.warning,
       features: p.features.map((f) => ({ ...f })),
+      plans: p.plans.map((pl) => ({ type: pl.type, months: pl.months, price: pl.price, discountPercent: pl.discountPercent, isActive: pl.isActive })),
     });
     setModalOpen(true);
   }
@@ -102,6 +110,12 @@ export default function AdminProductsPage() {
     setForm((f) => ({ ...f, features: f.features.map((ft, idx) => (idx === i ? { ...ft, [key]: value } : ft)) }));
   const addFeat = () => setForm((f) => ({ ...f, features: [...f.features, { text: "", included: true }] }));
   const removeFeat = (i: number) => setForm((f) => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }));
+
+  // plan editor helpers
+  const setPlan = <K extends keyof ProductPlanInput>(i: number, key: K, value: ProductPlanInput[K]) =>
+    setForm((f) => ({ ...f, plans: f.plans.map((pl, idx) => (idx === i ? { ...pl, [key]: value } : pl)) }));
+  const addPlan = () => setForm((f) => ({ ...f, plans: [...f.plans, emptyPlan(planTypes[0] ?? "")] }));
+  const removePlan = (i: number) => setForm((f) => ({ ...f, plans: f.plans.filter((_, idx) => idx !== i) }));
 
   const columns: Column<Product>[] = [
     {
@@ -161,7 +175,7 @@ export default function AdminProductsPage() {
         </Card>
       )}
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId === null ? "افزودن محصول" : "ویرایش محصول"}>
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId === null ? "افزودن محصول" : "ویرایش محصول"} size="3xl">
         <div className="grid max-h-[70vh] gap-5 overflow-y-auto pl-1">
           <ImageField label="تصویر محصول" aspect="wide" value={form.image} onChange={(v) => set("image", v)} className="w-48" />
 
@@ -190,6 +204,10 @@ export default function AdminProductsPage() {
 
           <Field label="توضیحات">
             <textarea rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} className={`${inputCls} h-auto py-3`} />
+          </Field>
+
+          <Field label="مطالعه اجباری / هشدار">
+            <textarea rows={2} value={form.warning} onChange={(e) => set("warning", e.target.value)} placeholder="مثلاً: از تغییر رمز اکانت خودداری کنید." className={`${inputCls} h-auto py-3`} />
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
@@ -227,6 +245,49 @@ export default function AdminProductsPage() {
                 </div>
               ))}
               {form.features.length === 0 && <p className="text-xs text-white/40">ویژگی‌ای اضافه نشده است</p>}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/8 p-4">
+            <div className="mb-1 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-white">پلن‌های قیمت‌گذاری</h4>
+              <button onClick={addPlan} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-white/80 transition hover:bg-white/5">
+                <AdminIcon name="plus" className="h-3.5 w-3.5" /> افزودن پلن
+              </button>
+            </div>
+            <p className="mb-3 text-xs text-white/40">نوع سرویس و مدت اشتراک را تعیین کنید؛ کاربر هنگام خرید یکی را انتخاب می‌کند.</p>
+            <div className="space-y-2">
+              {form.plans.map((pl, i) => (
+                <div key={i} className="rounded-xl border border-white/8 bg-white/[0.02] p-3 sm:p-4">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    <Field label="نوع سرویس">
+                      <select value={pl.type} onChange={(e) => setPlan(i, "type", e.target.value)} className={inputCls}>
+                        {planTypes.map((t) => <option key={t} value={t} className="bg-[#15151f]">{t}</option>)}
+                        {pl.type && !planTypes.includes(pl.type) && <option value={pl.type} className="bg-[#15151f]">{pl.type}</option>}
+                      </select>
+                    </Field>
+                    <Field label="مدت (ماه)">
+                      <input type="number" dir="ltr" min={1} value={pl.months} onChange={(e) => setPlan(i, "months", Math.max(1, Number(e.target.value)))} className={`${inputCls} text-left`} />
+                    </Field>
+                    <Field label="قیمت (تومان)">
+                      <input type="number" dir="ltr" value={pl.price} onChange={(e) => setPlan(i, "price", Number(e.target.value))} className={`${inputCls} text-left`} />
+                    </Field>
+                    <Field label="تخفیف (٪)">
+                      <input type="number" dir="ltr" min={0} max={100} value={pl.discountPercent} onChange={(e) => setPlan(i, "discountPercent", Math.min(100, Math.max(0, Number(e.target.value))))} className={`${inputCls} text-left`} />
+                    </Field>
+                  </div>
+                  <div className="mt-3 flex items-center justify-between border-t border-white/8 pt-3">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm text-white/75">
+                      <Toggle checked={pl.isActive} onChange={(v) => setPlan(i, "isActive", v)} />
+                      فعال
+                    </label>
+                    <button onClick={() => removePlan(i)} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-white/60 transition hover:border-rose-500/50 hover:text-rose-400">
+                      <AdminIcon name="trash" className="h-3.5 w-3.5" /> حذف پلن
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {form.plans.length === 0 && <p className="text-xs text-white/40">پلنی تعریف نشده است؛ در این حالت قیمت پایه محصول اعمال می‌شود.</p>}
             </div>
           </div>
 

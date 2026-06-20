@@ -65,6 +65,9 @@ const statusColors: Record<string, string> = {
   "بسته شده": "bg-white/10 text-white/60",
   "تایید شده": "bg-emerald-500/15 text-emerald-400",
   "رد شده": "bg-rose-500/15 text-rose-400",
+  "در انتظار تأیید": "bg-amber-500/15 text-amber-400",
+  "در حال آماده‌سازی": "bg-sky-500/15 text-sky-400",
+  "تکمیل شده": "bg-emerald-500/15 text-emerald-400",
   مدیر: "bg-[#a855f7]/15 text-[#c98bff]",
   پشتیبانی: "bg-[#3a64f2]/15 text-[#6f93ff]",
   کاربر: "bg-white/10 text-white/70",
@@ -164,22 +167,31 @@ export function Drawer({
   );
 }
 
+const modalSizes = {
+  lg: "max-w-lg",
+  xl: "max-w-xl",
+  "2xl": "max-w-2xl",
+  "3xl": "max-w-3xl",
+} as const;
+
 export function Modal({
   open,
   onClose,
   title,
   children,
+  size = "lg",
 }: {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
+  size?: keyof typeof modalSizes;
 }) {
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 grid place-items-center p-4">
       <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-[#15151f] shadow-2xl">
+      <div className={`relative w-full ${modalSizes[size]} overflow-hidden rounded-2xl border border-white/10 bg-[#15151f] shadow-2xl`}>
         <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
           <h3 className="text-lg font-bold text-white">{title}</h3>
           <button

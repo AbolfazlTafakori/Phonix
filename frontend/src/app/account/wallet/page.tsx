@@ -20,10 +20,15 @@ export default function WalletPage() {
 
   async function load() {
     if (!user) return;
-    const [u, all] = await Promise.all([api.users.get(user.id), api.transactions.list()]);
-    setBalance(u.wallet);
-    setTxs(all.filter((t) => t.userName === u.name));
-    setLoading(false);
+    try {
+      const [u, mine] = await Promise.all([api.account.me(), api.account.transactions()]);
+      setBalance(u.wallet);
+      setTxs(mine);
+    } catch {
+      // keep current values if the wallet can't be refreshed
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => {
     load();
@@ -44,7 +49,7 @@ export default function WalletPage() {
     setCharging(true);
     setMessage("");
     try {
-      const tx = await api.transactions.create({ userName: user.name, type: "شارژ کیف پول", amount: value, method: "درخواست کاربر" });
+      const tx = await api.transactions.create({ type: "شارژ کیف پول", amount: value, method: "درخواست کاربر" });
       setTxs((prev) => [tx, ...prev]);
       setAmount("");
       setMessage("درخواست شارژ ثبت شد و پس از تأیید پشتیبانی به کیف پول شما اضافه می‌شود.");

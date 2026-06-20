@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Script from "next/script";
+import { getAdvancedSettings } from "@/lib/content";
 import {
   Vazirmatn,
   Bigshot_One,
@@ -59,15 +61,24 @@ const display = Space_Grotesk({
   weight: ["400", "500", "600", "700"],
 });
 
-export const metadata: Metadata = {
-  title: "فونیکس ورفای | Phoenix Verify",
-  description:
-    "بزرگ‌ترین مرجع ارائه حساب‌های وریفای‌شده پلتفرم‌های محبوب. خرید امن، پشتیبانی آنلاین و بهترین تجربه خرید دیجیتال.",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const s = await getAdvancedSettings();
+  return {
+    title: s.metaTitle || "فونیکس ورفای | Phoenix Verify",
+    description:
+      s.metaDescription ||
+      "بزرگ‌ترین مرجع ارائه حساب‌های وریفای‌شده پلتفرم‌های محبوب. خرید امن، پشتیبانی آنلاین و بهترین تجربه خرید دیجیتال.",
+    keywords: s.metaKeywords || undefined,
+  };
+}
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const s = await getAdvancedSettings();
+  // GA/GTM ids are alphanumeric + dash; strip anything else so the value can never
+  // break out of the inline script string below.
+  const analyticsId = s.analyticsId.replace(/[^A-Za-z0-9-]/g, "");
   return (
     <html
       lang="fa"
@@ -84,7 +95,30 @@ export default function RootLayout({
         "antialiased",
       ].join(" ")}
     >
-      <body suppressHydrationWarning>{children}</body>
+      <body suppressHydrationWarning>
+        {children}
+
+        {analyticsId && (
+          <>
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${analyticsId}`} strategy="afterInteractive" />
+            <Script
+              id="ga-init"
+              strategy="afterInteractive"
+              dangerouslySetInnerHTML={{
+                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${analyticsId}');`,
+              }}
+            />
+          </>
+        )}
+
+        {s.customHeadScript && (
+          <Script
+            id="custom-script"
+            strategy="afterInteractive"
+            dangerouslySetInnerHTML={{ __html: s.customHeadScript.replace(/<\/?script[^>]*>/gi, "") }}
+          />
+        )}
+      </body>
     </html>
   );
 }

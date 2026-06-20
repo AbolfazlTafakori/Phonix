@@ -9,6 +9,7 @@ export const adminMenuGroups: AdminMenuGroup[] = [
     items: [
       { label: "محصولات", href: "/admin/products", icon: "box" },
       { label: "دسته‌بندی‌ها", href: "/admin/categories", icon: "grid" },
+      { label: "نوع سرویس (پلن‌ها)", href: "/admin/plan-types", icon: "tag" },
       { label: "سفارش‌ها", href: "/admin/orders", icon: "cart" },
     ],
   },
@@ -16,6 +17,7 @@ export const adminMenuGroups: AdminMenuGroup[] = [
     title: "مالی",
     items: [
       { label: "قیمت‌گذاری", href: "/admin/pricing", icon: "tag" },
+      { label: "کدهای تخفیف", href: "/admin/discounts", icon: "tag" },
       { label: "روش‌های پرداخت", href: "/admin/payments", icon: "card" },
       { label: "تراکنش‌ها", href: "/admin/transactions", icon: "wallet" },
       { label: "گزارش‌ها", href: "/admin/reports", icon: "chart" },
@@ -44,6 +46,8 @@ export const adminMenuGroups: AdminMenuGroup[] = [
     title: "تنظیمات",
     items: [
       { label: "تنظیمات عمومی", href: "/admin/settings", icon: "settings" },
+      { label: "تنظیمات ایمیل", href: "/admin/settings/email", icon: "bell" },
+      { label: "پشتیبان‌گیری و بازیابی", href: "/admin/backup", icon: "disk" },
       { label: "تنظیمات پیشرفته", href: "/admin/settings/advanced", icon: "cpu" },
     ],
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
@@ -19,18 +19,25 @@ function randomUsername() {
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [username, setUsername] = useState("");
+  const [username, setUsername] = useState(randomUsername);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [agree, setAgree] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [referralCode, setReferralCode] = useState("");
+
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get("ref");
+    if (ref) setReferralCode(ref.trim());
+  }, []);
 
   function validate(): string {
     if (!username.trim()) return "نام کاربری را وارد کنید.";
     if (!email.trim() || !email.includes("@")) return "یک ایمیل معتبر وارد کنید.";
-    if (!password) return "گذرواژه را وارد کنید.";
+    if (password.length < 8) return "گذرواژه باید حداقل ۸ کاراکتر باشد.";
+    if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) return "گذرواژه باید ترکیبی از حروف و اعداد باشد.";
     if (!agree) return "لطفاً قوانین را تأیید کنید.";
     return "";
   }
@@ -50,14 +57,15 @@ export default function SignupPage() {
     setBusy(true);
     setError("");
     try {
-      const u = await api.auth.register({
+      const { user } = await api.auth.register({
         name: name.trim(),
         username: username.trim(),
         email: email.trim(),
         phone: "",
         password,
+        referralCode: referralCode || undefined,
       });
-      setCurrentUser({ id: u.id, name: u.name, username: u.username, email: u.email });
+      setCurrentUser({ id: user.id, name: user.name, username: user.username, email: user.email });
       router.push("/account");
     } catch (err) {
       setConfirmOpen(false);
@@ -69,6 +77,11 @@ export default function SignupPage() {
 
   return (
     <AuthCard title="عضویت در سایت">
+      {referralCode && (
+        <div className="mb-5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+          شما با دعوت <span className="font-bold" dir="ltr">{referralCode}</span> در حال ثبت‌نام هستید.
+        </div>
+      )}
       <form onSubmit={openConfirm}>
         <div className="mb-5">
           <label className="mb-2 block text-sm font-medium text-white/85">نام <span className="text-white/45">(اختیاری)</span></label>
@@ -83,11 +96,11 @@ export default function SignupPage() {
               onClick={() => setUsername(randomUsername())}
               className="text-xs font-bold text-[#e60053] transition hover:underline"
             >
-              ساخت خودکار
+              پیشنهاد جدید
             </button>
           </div>
           <input value={username} onChange={(e) => setUsername(e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="Phonix..." />
-          <p className={hint}>این نام در نظرات شما نمایش داده می‌شود. می‌توانید روی «ساخت خودکار» بزنید.</p>
+          <p className={hint}>یک نام کاربری پیشنهادی برایتان ساخته شد؛ می‌توانید همین را نگه دارید، ویرایش کنید یا «پیشنهاد جدید» بگیرید.</p>
         </div>
 
         <div className="mb-5">
@@ -99,7 +112,7 @@ export default function SignupPage() {
         <div className="mb-5">
           <label className="mb-2 block text-sm font-medium text-white/85">گذرواژه</label>
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} />
-          <p className={hint}>گذرواژه‌ای امن انتخاب کنید و آن را به‌خاطر بسپارید.</p>
+          <p className={hint}>حداقل ۸ کاراکتر و ترکیبی از حروف و اعداد.</p>
         </div>
 
         <label className="mb-6 mt-1 flex items-start gap-3 text-sm leading-7 text-white/70">

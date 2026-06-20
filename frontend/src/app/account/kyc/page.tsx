@@ -54,7 +54,7 @@ export default function KycPage() {
     setSubmitting(true);
     setError("");
     try {
-      const k = await api.kyc.submit({ userId: user.id, fullName: fullName.trim(), nationalId: nationalId.trim(), birthDate: birthDate.trim(), cardImage, selfieImage });
+      const k = await api.kyc.submit({ fullName: fullName.trim(), nationalId: nationalId.trim(), birthDate: birthDate.trim(), cardImage, selfieImage });
       setKyc(k);
     } catch (err) {
       setError(err instanceof Error ? err.message : "خطا در ارسال");

@@ -119,10 +119,15 @@ function CategoriesPanel() {
 
   useEffect(() => {
     (async () => {
-      const data = await api.homeCategories.list();
-      setItems(data);
-      setDrafts(Object.fromEntries(data.map((c) => [c.id, stripId(c)])));
-      setLoading(false);
+      try {
+        const data = await api.homeCategories.list();
+        setItems(data);
+        setDrafts(Object.fromEntries(data.map((c) => [c.id, stripId(c)])));
+      } catch {
+        // leave the section empty if it can't load
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -210,10 +215,15 @@ function ShowcasePanel() {
 
   useEffect(() => {
     (async () => {
-      const data = await api.showcase.list();
-      setItems(data);
-      setDrafts(Object.fromEntries(data.map((s) => [s.id, stripId(s)])));
-      setLoading(false);
+      try {
+        const data = await api.showcase.list();
+        setItems(data);
+        setDrafts(Object.fromEntries(data.map((s) => [s.id, stripId(s)])));
+      } catch {
+        // leave the section empty if it can't load
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 

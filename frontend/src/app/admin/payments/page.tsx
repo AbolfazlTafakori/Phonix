@@ -71,6 +71,7 @@ export default function AdminPaymentsPage() {
         value: "",
         network: "",
         instructions: "",
+        feePercent: 0,
         isActive: true,
         sortOrder: methods.length + 1,
       });
@@ -135,6 +136,9 @@ export default function AdminPaymentsPage() {
                     </Field>
                     <Field label="راهنمای پرداخت">
                       <textarea rows={2} value={d.instructions} onChange={(e) => setField(m.id, "instructions", e.target.value)} className={`${inputCls} h-auto py-2.5`} />
+                    </Field>
+                    <Field label="کارمزد / مالیات (٪)">
+                      <input type="number" dir="ltr" min={0} value={d.feePercent} onChange={(e) => setField(m.id, "feePercent", Math.max(0, Number(e.target.value)))} className={`${inputCls} h-10 text-left`} />
                     </Field>
                     <div className="flex items-center gap-2">
                       <button

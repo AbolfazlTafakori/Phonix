@@ -1,4 +1,5 @@
 using Phonix.Api.Models;
+using Phonix.Api.Security;
 
 namespace Phonix.Api.Data;
 
@@ -19,7 +20,13 @@ public partial class StoreData
 
     public StoreData()
     {
-        Seed();
+        DataFilePath = Environment.GetEnvironmentVariable("PHONIX_DATA_FILE")
+            ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "store.json");
+        if (!TryLoad())
+        {
+            Seed();
+            Save();
+        }
     }
 
     // categories
@@ -104,6 +111,7 @@ public partial class StoreData
         lock (_gate)
         {
             product.Id = ++_productSeq;
+            NumberPlans(product.Plans);
             _products.Add(product);
             return product;
         }
@@ -125,8 +133,17 @@ public partial class StoreData
             existing.Image = product.Image;
             existing.Sku = product.Sku;
             existing.Description = product.Description;
+            existing.Warning = product.Warning;
+            existing.Features = product.Features;
+            NumberPlans(product.Plans);
+            existing.Plans = product.Plans;
             return true;
         }
+    }
+
+    private static void NumberPlans(List<ProductPlan> plans)
+    {
+        for (var i = 0; i < plans.Count; i++) plans[i].Id = i + 1;
     }
 
     public bool DeleteProduct(int id)
@@ -194,6 +211,11 @@ public partial class StoreData
         lock (_gate) return _users.Any(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
     }
 
+    public AppUser? GetUserByUsername(string username)
+    {
+        lock (_gate) return _users.FirstOrDefault(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
+    }
+
     public bool EmailExists(string email)
     {
         if (string.IsNullOrWhiteSpace(email)) return false;
@@ -216,6 +238,7 @@ public partial class StoreData
             user.Id = ++_userSeq;
             user.Code = $"U-{1000 + user.Id}";
             user.Role = UserRole.Customer;
+            user.EmailVerified = false; // must confirm their email before they can order
             if (string.IsNullOrWhiteSpace(user.JoinedAt)) user.JoinedAt = Today();
             _users.Add(user);
             return user;
@@ -284,7 +307,7 @@ public partial class StoreData
         AddCategory(new Category { Name = "بازی و سرگرمی", Slug = "games", Icon = "/figma/cat-games.png", IsActive = false, SortOrder = 6 });
         AddCategory(new Category { Name = "صرافی ارز دیجیتال", Slug = "exchange", Icon = "/figma/cat-exchange.png", SortOrder = 7 });
 
-        AddProduct(new Product { Name = "اشتراک نتفلیکس", CategoryId = 1, Price = 290_000, Stock = 142, Featured = true, Image = "/figma/prod-netflix.png", Sku = "NFX-PR", Description = "اکانت پریمیوم نتفلیکس با کیفیت 4K و تحویل آنی.", Features = new() { Feat("تحویل آنی پس از پرداخت"), Feat("کیفیت 4K Ultra HD"), Feat("پشتیبانی ۲۴ ساعته"), Feat("گارانتی بازگشت وجه") } });
+        AddProduct(new Product { Name = "اشتراک نتفلیکس", CategoryId = 1, Price = 290_000, Stock = 142, Featured = true, Image = "/figma/prod-netflix.png", Sku = "NFX-PR", Description = "اکانت پریمیوم نتفلیکس با کیفیت 4K و تحویل آنی.", Warning = "از تغییر ایمیل و رمز اکانت خودداری کنید. در صورت تغییر اطلاعات ورود، گارانتی باطل می‌شود.", Features = new() { Feat("تحویل آنی پس از پرداخت"), Feat("کیفیت 4K Ultra HD"), Feat("پشتیبانی ۲۴ ساعته"), Feat("گارانتی بازگشت وجه") }, Plans = new() { Plan("اشتراکی", 1, 290_000), Plan("اشتراکی", 3, 790_000, 10), Plan("اختصاصی", 1, 690_000), Plan("اختصاصی", 3, 1_850_000, 5) } });
         AddProduct(new Product { Name = "اسپاتیفای پریمیوم", CategoryId = 2, Price = 185_000, Stock = 88, Image = "/figma/prod-spotify.png", Sku = "SPT-PR", Description = "موسیقی نامحدود بدون تبلیغات.", Features = new() { Feat("تحویل آنی پس از پرداخت"), Feat("پخش بدون تبلیغات"), Feat("کیفیت صوتی بالا"), Feat("گارانتی بازگشت وجه", false) } });
         AddProduct(new Product { Name = "کانوا پرو", CategoryId = 3, Price = 210_000, DiscountPercent = 10, Stock = 53, Image = "/figma/prod-canva.png", Sku = "CNV-PRO", Description = "دسترسی کامل به ابزارها و قالب‌های حرفه‌ای کانوا.", Features = StdFeatures() });
         AddProduct(new Product { Name = "بایننس وریفای", CategoryId = 7, Price = 850_000, Stock = 0, IsActive = false, Image = "/figma/prod-binance.png", Sku = "BNB-VRF", Description = "احراز هویت کامل حساب بایننس.", Features = new() { Feat("تحویل ۲۴ تا ۴۸ ساعته"), Feat("احراز هویت کامل"), Feat("پشتیبانی ۲۴ ساعته") } });
@@ -305,6 +328,7 @@ public partial class StoreData
             ReferralCommissionPercent = 10m,
             VatPercent = 9m,
             GatewayFeePercent = 1.5m,
+            CancellationPenaltyPercent = 10m,
             MinWalletCharge = 50_000,
             MinWithdraw = 100_000,
             Currency = "تومان",
@@ -316,19 +340,31 @@ public partial class StoreData
         AddPlan(new SubscriptionPlan { Label = "۶ ماهه", Months = 6, Price = 1_500_000, DiscountPercent = 15 });
         AddPlan(new SubscriptionPlan { Label = "۱۲ ماهه", Months = 12, Price = 2_700_000, DiscountPercent = 25 });
 
+        AddPlanType("اشتراکی");
+        AddPlanType("اختصاصی");
+
+        AddDiscountCode(new DiscountCode { Code = "WELCOME10", Type = DiscountType.Percent, Value = 10, MaxDiscount = 100_000, IsActive = true });
+        AddDiscountCode(new DiscountCode { Code = "OFF50", Type = DiscountType.Fixed, Value = 50_000, MinOrder = 200_000, UsageLimit = 100, IsActive = true });
+
         SeedContent();
         SeedFinance();
         SeedEngagement();
         SeedKyc();
+        SeedOrders();
     }
 
     private void AddUser(AppUser user)
     {
         user.Id = ++_userSeq;
+        user.Password = PasswordHasher.Hash(user.Password);
+        user.EmailVerified = true; // seeded accounts are pre-verified
         _users.Add(user);
     }
 
     private static ProductFeature Feat(string text, bool included = true) => new() { Text = text, Included = included };
+
+    private static ProductPlan Plan(string type, int months, long price, int discountPercent = 0) =>
+        new() { Type = type, Months = months, Price = price, DiscountPercent = discountPercent };
 
     private static List<ProductFeature> StdFeatures() => new()
     {

@@ -23,7 +23,7 @@ export default function ReviewForm({ productId }: { productId: number }) {
     setSending(true);
     setError("");
     try {
-      await api.comments.submit({ productId, userName: user.username, body: body.trim(), rating });
+      await api.comments.submit({ productId, body: body.trim(), rating });
       setDone(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در ارسال نظر");
