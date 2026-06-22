@@ -14,6 +14,10 @@ RUN dotnet publish src/Phonix.Api/Phonix.Api.csproj -c Release -o /app/publish /
 # ---- runtime ----
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
+# curl is used by the compose healthcheck to probe /health.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/publish .
 
 # State (store.json) + rolling logs live here; mount a volume to persist across restarts/rebuilds.

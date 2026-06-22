@@ -10,6 +10,11 @@ type Props = {
   label?: string;
   aspect?: "square" | "wide" | "logo";
   className?: string;
+  // Opt-in secure mode for sensitive images (KYC, bank cards): `uploader` saves to protected storage and
+  // returns the stored id; `srcFor` resolves the stored value to a streamable (authenticated) URL. When
+  // omitted, the field keeps its default behaviour — public upload via /api/upload, value used as src.
+  uploader?: (file: File) => Promise<string>;
+  srcFor?: (value: string) => string;
 };
 
 const aspectCls: Record<NonNullable<Props["aspect"]>, string> = {
@@ -18,7 +23,7 @@ const aspectCls: Record<NonNullable<Props["aspect"]>, string> = {
   logo: "h-20",
 };
 
-export default function ImageField({ value, onChange, label, aspect = "square", className = "" }: Props) {
+export default function ImageField({ value, onChange, label, aspect = "square", className = "", uploader, srcFor }: Props) {
   const ref = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -27,12 +32,16 @@ export default function ImageField({ value, onChange, label, aspect = "square", 
     setBusy(true);
     setError("");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "خطا در آپلود");
-      onChange(data.url as string);
+      if (uploader) {
+        onChange(await uploader(file));
+      } else {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await fetch("/api/upload", { method: "POST", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "خطا در آپلود");
+        onChange(data.url as string);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در آپلود");
     } finally {
@@ -40,6 +49,8 @@ export default function ImageField({ value, onChange, label, aspect = "square", 
       if (ref.current) ref.current.value = "";
     }
   }
+
+  const displaySrc = value ? (srcFor ? srcFor(value) : value) : null;
 
   return (
     <div className={className}>
@@ -49,8 +60,8 @@ export default function ImageField({ value, onChange, label, aspect = "square", 
         onClick={() => !busy && ref.current?.click()}
         className={`group relative grid w-full cursor-pointer place-items-center overflow-hidden rounded-xl border border-dashed border-white/15 bg-[#0d0d15] transition hover:border-[#e60053]/50 ${aspectCls[aspect]}`}
       >
-        {value ? (
-          <img src={value} alt="" className="h-full w-full object-contain" />
+        {displaySrc ? (
+          <img src={displaySrc} alt="" className="h-full w-full object-contain" />
         ) : (
           <div className="flex flex-col items-center gap-1 text-white/35">
             <AdminIcon name="image" className="h-7 w-7" />

@@ -24,6 +24,7 @@ export default function BackupPage() {
   const [savingTg, setSavingTg] = useState(false);
   const [savedTg, setSavedTg] = useState(false);
   const [testingTg, setTestingTg] = useState(false);
+  const [testingAlert, setTestingAlert] = useState(false);
   const [tgNote, setTgNote] = useState<Note>(null);
 
   useEffect(() => {
@@ -115,6 +116,19 @@ export default function BackupPage() {
     }
   }
 
+  async function testAlertTg() {
+    setTestingAlert(true);
+    setTgNote(null);
+    try {
+      await api.backup.telegram.testAlert();
+      setTgNote({ ok: true, text: "هشدار آزمایشی به تلگرام ارسال شد. چت مقصد را بررسی کنید." });
+    } catch (e) {
+      setTgNote({ ok: false, text: e instanceof Error ? e.message : "ارسال ناموفق بود." });
+    } finally {
+      setTestingAlert(false);
+    }
+  }
+
   const lastBackup = tg?.lastBackupAtUtc
     ? new Date(tg.lastBackupAtUtc).toLocaleString("fa-IR", { dateStyle: "medium", timeStyle: "short" })
     : "هنوز انجام نشده";
@@ -170,9 +184,13 @@ export default function BackupPage() {
                 <h3 className="text-lg font-bold text-white">پشتیبان خودکار تلگرام</h3>
                 {savedTg && <span className="text-sm font-medium text-emerald-400">✓ ذخیره شد</span>}
               </div>
-              <label className="mb-5 flex cursor-pointer items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
+              <label className="mb-3 flex cursor-pointer items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
                 <span className="text-sm font-bold text-white/85">ارسال خودکار پشتیبان به تلگرام</span>
                 <Toggle checked={tg.backupEnabled} onChange={(v) => setField("backupEnabled", v)} />
+              </label>
+              <label className="mb-5 flex cursor-pointer items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
+                <span className="text-sm font-bold text-white/85">هشدار خطا و راه‌اندازی سرور در تلگرام</span>
+                <Toggle checked={tg.alertsEnabled} onChange={(v) => setField("alertsEnabled", v)} />
               </label>
               <div className="grid gap-4">
                 <Field label="توکن بات (از BotFather)">
@@ -192,6 +210,9 @@ export default function BackupPage() {
                 </button>
                 <button onClick={testTg} disabled={testingTg} className="flex h-11 items-center gap-2 rounded-xl border border-white/15 px-6 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-50">
                   {testingTg ? <Spinner /> : "ارسال پشتیبان آزمایشی"}
+                </button>
+                <button onClick={testAlertTg} disabled={testingAlert} className="flex h-11 items-center gap-2 rounded-xl border border-white/15 px-6 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-50">
+                  {testingAlert ? <Spinner /> : "ارسال هشدار آزمایشی"}
                 </button>
               </div>
               {tgNote && <p className={`mt-3 text-sm ${tgNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{tgNote.text}</p>}
@@ -217,6 +238,7 @@ export default function BackupPage() {
                 <li>• بات را به گروه/کانال مقصد اضافه کنید و شناسه‌ی آن چت را وارد کنید (برای دریافت Chat ID می‌توانید از <span dir="ltr">@userinfobot</span> کمک بگیرید).</li>
                 <li>• پس از ذخیره، با «ارسال پشتیبان آزمایشی» از درستی تنظیمات مطمئن شوید.</li>
                 <li>• ارسال خودکار طبق فاصله‌ی زمانی تعیین‌شده توسط سرور انجام می‌شود.</li>
+                <li>• با فعال‌کردن «هشدار خطا و راه‌اندازی»، هر خطای داخلی سرور و هر بار راه‌اندازی مجدد به همین چت اطلاع داده می‌شود (هشدارهای تکراری تا چند دقیقه یک‌بار ارسال می‌شوند).</li>
               </ul>
             </Card>
           </div>

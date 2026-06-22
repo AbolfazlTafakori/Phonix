@@ -34,6 +34,10 @@ public class Product
     public string Sku { get; set; } = "";
     public string Description { get; set; } = "";
     public string Warning { get; set; } = "";
+    // Minimum identity level required to buy this product (1 = bank card, 2 = national ID). Configured in
+    // the admin panel and never shown to customers; enforced at checkout. Defaults to 1 so level-0 users
+    // (registered only) can never purchase.
+    public int RequiredLevel { get; set; } = 1;
     // Pre-written delivery text for this product; prefills the admin deliver modal so staff
     // don't retype the same instructions for every order of the same product.
     public string DeliveryTemplate { get; set; } = "";

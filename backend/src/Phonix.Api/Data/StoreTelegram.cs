@@ -17,6 +17,7 @@ public partial class StoreData
         lock (_gate)
         {
             _telegramSettings.BackupEnabled = settings.BackupEnabled;
+            _telegramSettings.AlertsEnabled = settings.AlertsEnabled;
             _telegramSettings.BotToken = (settings.BotToken ?? "").Trim();
             _telegramSettings.ChatId = (settings.ChatId ?? "").Trim();
             _telegramSettings.IntervalHours = settings.IntervalHours < 1 ? 1 : settings.IntervalHours;

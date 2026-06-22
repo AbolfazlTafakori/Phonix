@@ -7,6 +7,7 @@ import type {
   UserRole,
   UserUpdateInput,
   WalletInput,
+  AdminNavGroup,
   PricingSettings,
   Plan,
   PlanInput,
@@ -27,6 +28,10 @@ import type {
   TelegramSettings,
   Transaction,
   TxStatus,
+  BankCard,
+  BankCardStatus,
+  Notification,
+  AdminNotification,
   Comment,
   CommentInput,
   CommentStatus,
@@ -49,10 +54,10 @@ import { getCsrfToken } from "./token";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5228";
 
-// A 401 means the server session is gone (expired, or the API restarted — sessions are in-memory).
-// The client may still hold a stale user in localStorage, so every guarded page would otherwise
-// surface a raw "خطای ارتباط با سرور (401)". Instead, clear that stale state and bounce to the
-// matching login once. Only the authenticated areas are touched; public pages are left alone.
+// A 401 means the session cookie is gone or no longer valid (expired, or the password changed and
+// rotated the security stamp). The client may still hold a stale user in localStorage, so every guarded
+// page would otherwise surface a raw "خطای ارتباط با سرور (401)". Instead, clear that stale state and
+// bounce to the matching login once. Only the authenticated areas are touched; public pages are left alone.
 function handleUnauthorized() {
   if (typeof window === "undefined") return;
   const path = window.location.pathname;
@@ -93,6 +98,40 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+// Uploads a single image as multipart/form-data to a protected endpoint (sends the CSRF header + cookie,
+// never sets Content-Type so the browser writes the multipart boundary).
+async function uploadForm<T>(path: string, file: File): Promise<T> {
+  const csrf = getCsrfToken();
+  const fd = new FormData();
+  fd.append("file", file);
+  const res = await fetch(`${BASE}/api${path}`, {
+    method: "POST",
+    cache: "no-store",
+    credentials: "include",
+    headers: { ...(csrf ? { "X-CSRF-Token": csrf } : {}) },
+    body: fd,
+  });
+  if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
+    let msg = `خطای ارتباط با سرور (${res.status})`;
+    try { const text = await res.text(); if (text) msg = text.replace(/^"|"$/g, ""); } catch { /* ignore */ }
+    throw new Error(msg);
+  }
+  return (await res.json()) as T;
+}
+
+// Builds the src for a stored identity image. New images are opaque ids streamed from the authenticated,
+// ownership-checked download endpoint (the cookie rides along — same site); legacy "/uploads/..." values
+// from before protected storage are returned as-is so old records still render.
+function protectedSrc(folder: "kyc" | "cards", value: string): string {
+  return /^(https?:|\/uploads\/)/.test(value) ? value : `${BASE}/api/${folder}/download/${encodeURIComponent(value)}`;
+}
+
+// Receipts use the same scheme but live under the transactions controller's receipt endpoint.
+function receiptSrc(value: string): string {
+  return /^(https?:|\/uploads\/)/.test(value) ? value : `${BASE}/api/transactions/receipt/${encodeURIComponent(value)}`;
+}
+
 function qs(params?: Record<string, string | number | boolean | undefined>): string {
   if (!params) return "";
   const search = new URLSearchParams();
@@ -119,6 +158,10 @@ export const api = {
     updatePrice: (id: number, body: { price: number; discountPercent: number }) =>
       request<Product>(`/products/${id}/price`, { method: "PUT", body: json(body) }),
     remove: (id: number) => request<void>(`/products/${id}`, { method: "DELETE" }),
+  },
+  admin: {
+    // Role-filtered sidebar + live badge counts for the signed-in staff member.
+    menu: () => request<AdminNavGroup[]>("/admin/menu"),
   },
   users: {
     list: (params?: { search?: string; role?: UserRole; blocked?: boolean }) => request<User[]>(`/users${qs(params)}`),
@@ -190,7 +233,7 @@ export const api = {
     list: (params?: { status?: OrderStatus }) => request<Order[]>(`/orders${qs(params)}`),
     forUser: (userId: number) => request<Order[]>(`/orders/user/${userId}`),
     get: (id: number) => request<Order>(`/orders/${id}`),
-    place: (body: { items: { productId: number; quantity: number; planId?: number | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null }) =>
+    place: (body: { items: { productId: number; quantity: number; planId?: number | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null; cardId?: number | null; receiptUrl?: string | null; trackingNumber?: string | null; paymentDate?: string | null; description?: string | null }) =>
       request<Order>("/orders", { method: "POST", body: json(body) }),
     approve: (id: number) => request<Order>(`/orders/${id}/approve`, { method: "POST" }),
     complete: (id: number) => request<Order>(`/orders/${id}/complete`, { method: "POST" }),
@@ -214,6 +257,9 @@ export const api = {
     submit: (body: KycInput) => request<KycRequest>("/kyc", { method: "POST", body: json(body) }),
     approve: (id: number) => request<KycRequest>(`/kyc/${id}/approve`, { method: "POST" }),
     reject: (id: number, note?: string) => request<KycRequest>(`/kyc/${id}/reject`, { method: "POST", body: json({ note: note ?? null }) }),
+    // uploads a KYC image to protected storage and returns its opaque id (stored as cardImage/selfieImage).
+    upload: (file: File) => uploadForm<{ id: string }>("/kyc/upload", file).then((r) => r.id),
+    imageSrc: (value: string) => protectedSrc("kyc", value),
   },
   siteContent: {
     get: () => request<SiteContent>("/site-content"),
@@ -250,14 +296,40 @@ export const api = {
       get: () => request<TelegramSettings>("/backup/telegram"),
       update: (body: TelegramSettings) => request<TelegramSettings>("/backup/telegram", { method: "PUT", body: json(body) }),
       test: () => request<{ ok: boolean }>("/backup/telegram/test", { method: "POST" }),
+      testAlert: () => request<{ ok: boolean }>("/backup/telegram/test-alert", { method: "POST" }),
     },
   },
   transactions: {
     list: (params?: { status?: TxStatus }) => request<Transaction[]>(`/transactions${params?.status ? `?status=${params.status}` : ""}`),
-    create: (body: { type: string; amount: number; method: string }) =>
+    create: (body: { amount: number; cardId: number; method?: string; receiptUrl?: string | null; trackingNumber: string; paymentDate: string; description?: string | null }) =>
       request<Transaction>("/transactions", { method: "POST", body: json(body) }),
+    withdraw: (body: { amount: number; destination: string }) =>
+      request<Transaction>("/transactions/withdraw", { method: "POST", body: json(body) }),
     approve: (id: number, note?: string) => request<Transaction>(`/transactions/${id}/approve`, { method: "POST", body: json({ note: note ?? null }) }),
     reject: (id: number, note?: string) => request<Transaction>(`/transactions/${id}/reject`, { method: "POST", body: json({ note: note ?? null }) }),
+    // uploads a bank-transfer receipt to protected storage and returns its opaque id (stored as receiptUrl).
+    uploadReceipt: (file: File) => uploadForm<{ id: string }>("/transactions/upload-receipt", file).then((r) => r.id),
+    receiptSrc: (value: string) => receiptSrc(value),
+  },
+  notifications: {
+    mine: () => request<Notification[]>("/notifications"),
+    unreadCount: () => request<number>("/notifications/unread-count"),
+    markRead: () => request<void>("/notifications/read", { method: "POST" }),
+    send: (body: { userId?: number | null; title: string; body: string; link?: string | null }) =>
+      request<AdminNotification>("/notifications", { method: "POST", body: json(body) }),
+    all: () => request<AdminNotification[]>("/notifications/all"),
+    remove: (id: number) => request<void>(`/notifications/${id}`, { method: "DELETE" }),
+  },
+  cards: {
+    forUser: (userId: number) => request<BankCard[]>(`/cards/user/${userId}`),
+    list: (params?: { status?: BankCardStatus }) => request<BankCard[]>(`/cards${qs(params)}`),
+    add: (body: { cardNumber: string; holderName: string; cardImage: string }) => request<BankCard>("/cards", { method: "POST", body: json(body) }),
+    remove: (id: number) => request<void>(`/cards/${id}`, { method: "DELETE" }),
+    approve: (id: number) => request<BankCard>(`/cards/${id}/approve`, { method: "POST" }),
+    reject: (id: number, note?: string) => request<BankCard>(`/cards/${id}/reject`, { method: "POST", body: json({ note: note ?? null }) }),
+    // uploads a bank-card photo to protected storage and returns its opaque id (stored as cardImage).
+    upload: (file: File) => uploadForm<{ id: string }>("/cards/upload", file).then((r) => r.id),
+    imageSrc: (value: string) => protectedSrc("cards", value),
   },
   auth: {
     register: (body: { name: string; username: string; email: string; phone: string; password: string; referralCode?: string }) =>

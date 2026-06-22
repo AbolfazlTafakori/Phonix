@@ -11,10 +11,19 @@ import AdminIcon from "@/components/admin/AdminIcon";
 const roleLabels: Record<UserRole, string> = { Customer: "کاربر", Support: "پشتیبانی", Admin: "مدیر" };
 const roleOptions: UserRole[] = ["Customer", "Support", "Admin"];
 
+// identity tier badge: 0 = just registered (red), 1 = bank card approved (yellow), 2 = full KYC (green).
+const levelStyles = ["bg-rose-500/15 text-rose-400", "bg-amber-500/15 text-amber-300", "bg-emerald-500/15 text-emerald-400"];
+const levelActiveStyles = [
+  "border-rose-500/50 bg-rose-500/15 text-rose-300",
+  "border-amber-500/50 bg-amber-500/15 text-amber-300",
+  "border-emerald-500/50 bg-emerald-500/15 text-emerald-300",
+];
+const levelLabel = (n: number) => `سطح ${["۰", "۱", "۲"][n] ?? n}`;
+
 type RoleFilter = UserRole | "all";
 type StatusFilter = "all" | "active" | "blocked";
 
-type Draft = { name: string; email: string; phone: string; role: UserRole; verified: boolean; blocked: boolean; note: string };
+type Draft = { name: string; email: string; phone: string; role: UserRole; verificationLevel: number; blocked: boolean; note: string };
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
@@ -89,9 +98,11 @@ export default function AdminUsersPage() {
             {u.name.charAt(0)}
           </span>
           <div>
-            <p className="flex items-center gap-1.5 font-medium">
+            <p className="flex items-center gap-2 font-medium">
               {u.name}
-              {u.verified && <span className="text-emerald-400" title="احراز هویت‌شده">✓</span>}
+              <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${levelStyles[u.verificationLevel] ?? levelStyles[0]}`}>
+                {levelLabel(u.verificationLevel)}
+              </span>
             </p>
             <p className="font-mono text-xs text-white/40">{u.code}</p>
           </div>
@@ -235,7 +246,7 @@ function UserDrawer({
         email: user.email,
         phone: user.phone,
         role: user.role,
-        verified: user.verified,
+        verificationLevel: user.verificationLevel,
         blocked: user.blocked,
         note: user.note ?? "",
       });
@@ -318,10 +329,26 @@ function UserDrawer({
           </div>
 
           <div className="grid gap-1 rounded-xl bg-white/[0.03] p-2">
-            <label className="flex cursor-pointer items-center justify-between px-2 py-2.5">
-              <span className="text-sm text-white/80">احراز هویت تأیید شده</span>
-              <Toggle checked={draft.verified} onChange={(v) => set("verified", v)} />
-            </label>
+            <div className="px-2 py-2.5">
+              <span className="mb-2 block text-sm text-white/80">سطح احراز هویت</span>
+              <div className="flex gap-2">
+                {[0, 1, 2].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    onClick={() => set("verificationLevel", n)}
+                    className={`flex-1 rounded-lg border px-2 py-2 text-xs font-bold transition ${
+                      draft.verificationLevel === n ? levelActiveStyles[n] : "border-white/10 text-white/55 hover:text-white"
+                    }`}
+                  >
+                    {levelLabel(n)}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] leading-5 text-white/40">
+                کاهش سطح، کارت یا احراز هویت تأییدشدهٔ مربوط را لغو می‌کند و کاربر باید دوباره احراز کند.
+              </p>
+            </div>
             <label className="flex cursor-pointer items-center justify-between px-2 py-2.5">
               <span className="text-sm text-white/80">حساب مسدود است</span>
               <Toggle checked={draft.blocked} onChange={(v) => set("blocked", v)} />

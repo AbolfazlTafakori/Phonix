@@ -17,6 +17,12 @@ public static class AuthExtensions
     public static bool IsStaff(this ControllerBase c) =>
         c.User.IsInRole(nameof(UserRole.Admin)) || c.User.IsInRole(nameof(UserRole.Support));
 
+    /// <summary>The caller's effective role, read from the authenticated session's role claim.</summary>
+    public static UserRole CurrentRole(this ControllerBase c) =>
+        c.User.IsInRole(nameof(UserRole.Admin)) ? UserRole.Admin
+        : c.User.IsInRole(nameof(UserRole.Support)) ? UserRole.Support
+        : UserRole.Customer;
+
     /// <summary>True when the caller is staff or is acting on their own resource.</summary>
     public static bool OwnsOrStaff(this ControllerBase c, int userId) =>
         c.IsStaff() || c.CurrentUserId() == userId;

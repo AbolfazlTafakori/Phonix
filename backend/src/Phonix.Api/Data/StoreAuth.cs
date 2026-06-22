@@ -1,53 +1,27 @@
 using System.Security.Cryptography;
-using Phonix.Api.Models;
 
 namespace Phonix.Api.Data;
 
 public partial class StoreData
 {
-    private sealed class Session
+    // A fresh per-user session nonce. Sessions are now stateless (encrypted cookies validated via Data
+    // Protection — see ISessionProtector), so there is no server-side session table to clear; rotating a
+    // user's stamp is what invalidates all of their outstanding cookies at once.
+    public static string NewStamp() => Convert.ToHexString(RandomNumberGenerator.GetBytes(16));
+
+    // Returns the new stamp so the caller can re-issue a fresh cookie for the current device if it wants
+    // to keep that one session alive (e.g. on a self-service password change).
+    public string RotateSecurityStamp(int userId)
     {
-        public int UserId { get; init; }
-        public DateTime ExpiresAt { get; set; }
-    }
-
-    // sessions expire after this much inactivity; each successful use slides the window.
-    private static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(3);
-
-    // opaque bearer token -> session. tokens are random and only resolvable server-side.
-    private readonly Dictionary<string, Session> _sessions = new();
-
-    public string CreateSession(AppUser user)
-    {
-        var token = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
-        lock (_gate) _sessions[token] = new Session { UserId = user.Id, ExpiresAt = DateTime.UtcNow + SessionLifetime };
-        return token;
-    }
-
-    public AppUser? ResolveSession(string? token)
-    {
-        if (string.IsNullOrWhiteSpace(token)) return null;
+        string stamp = NewStamp();
         lock (_gate)
         {
-            if (!_sessions.TryGetValue(token, out var session)) return null;
-
-            var user = _users.FirstOrDefault(u => u.Id == session.UserId);
-            // a blocked, deleted, or expired token is no longer valid.
-            if (user is null || user.Blocked || session.ExpiresAt <= DateTime.UtcNow)
-            {
-                _sessions.Remove(token);
-                return null;
-            }
-
-            session.ExpiresAt = DateTime.UtcNow + SessionLifetime;
-            return user;
+            var user = _users.FirstOrDefault(u => u.Id == userId);
+            if (user is null) return "";
+            user.SecurityStamp = stamp;
         }
-    }
-
-    public void RemoveSession(string? token)
-    {
-        if (string.IsNullOrWhiteSpace(token)) return;
-        lock (_gate) _sessions.Remove(token);
+        PersistNow(); // durable so the rotation can't be undone by a restart reloading the old stamp.
+        return stamp;
     }
 
     private sealed class OneTimeToken

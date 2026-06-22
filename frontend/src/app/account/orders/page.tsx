@@ -16,6 +16,7 @@ export default function OrdersPage() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [penalty, setPenalty] = useState(0);
   const [cancelling, setCancelling] = useState<number | null>(null);
   const [confirmOrder, setConfirmOrder] = useState<Order | null>(null);
@@ -29,6 +30,9 @@ export default function OrdersPage() {
           api.pricing.getSettings().then((s) => setPenalty(s.cancellationPenaltyPercent)).catch(() => {}),
         ]);
         setOrders(list);
+        setError("");
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "خطا در بارگذاری سفارش‌ها. لطفاً بعداً دوباره تلاش کنید.");
       } finally {
         setLoading(false);
       }
@@ -50,9 +54,11 @@ export default function OrdersPage() {
     }
   }
 
-  const confirmPaid = confirmOrder?.status === "Preparing";
-  const penaltyAmount = confirmOrder ? Math.round((confirmOrder.total * penalty) / 100) : 0;
-  const refundAmount = confirmOrder ? confirmOrder.total - penaltyAmount : 0;
+  // the amount actually collected so far: the full total once paid (Preparing), otherwise just the
+  // wallet portion already taken for a still-pending order. The cancellation penalty applies to it.
+  const collected = confirmOrder ? (confirmOrder.status === "Preparing" ? confirmOrder.total : confirmOrder.walletPaid) : 0;
+  const penaltyAmount = Math.round((collected * penalty) / 100);
+  const refundAmount = collected - penaltyAmount;
 
   return (
     <div>
@@ -62,6 +68,15 @@ export default function OrdersPage() {
         <Panel>
           <div className="grid h-24 place-items-center">
             <span className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-white/20 border-t-[#e60053]" />
+          </div>
+        </Panel>
+      ) : error ? (
+        <Panel>
+          <div className="py-8 text-center">
+            <p className="text-rose-400">{error}</p>
+            <button onClick={() => location.reload()} className="mt-4 inline-block rounded-xl border border-white/15 px-6 py-2.5 text-sm font-bold text-white/80 transition hover:bg-white/5">
+              تلاش مجدد
+            </button>
           </div>
         </Panel>
       ) : orders.length === 0 ? (
@@ -114,7 +129,12 @@ export default function OrdersPage() {
                 </div>
               )}
 
-              <div className="mt-3 flex flex-wrap justify-end gap-2">
+              <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
+                {o.status === "PendingApproval" && o.total - o.walletPaid > 0 && (
+                  <span className="rounded-xl bg-amber-500/15 px-4 py-2 text-sm font-bold text-amber-300">
+                    در انتظار تأیید پرداخت ({formatToman(o.total - o.walletPaid)})
+                  </span>
+                )}
                 <a
                   href={`/invoice?id=${o.id}`}
                   target="_blank"
@@ -145,15 +165,15 @@ export default function OrdersPage() {
             <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-rose-500/15 text-2xl text-rose-400">!</div>
             <h3 className="text-center text-lg font-bold text-white">لغو سفارش {confirmOrder.code}</h3>
 
-            {confirmPaid ? (
+            {collected > 0 ? (
               <>
                 <p className="mt-2 text-center text-sm leading-7 text-white/70">
-                  در صورت لغو این سفارش، مبلغ زیر از هزینه‌ی پرداختی شما کسر و باقیمانده به کیف پولتان بازمی‌گردد:
+                  در صورت لغو این سفارش، جریمه‌ی لغو از مبلغ پرداخت‌شده کسر و باقیمانده به کیف پولتان بازمی‌گردد:
                 </p>
                 <div className="mt-4 space-y-2 rounded-xl bg-white/[0.03] p-4 text-sm">
                   <div className="flex items-center justify-between">
-                    <span className="text-white/60">مبلغ پرداختی</span>
-                    <span className="text-white">{formatToman(confirmOrder.total)}</span>
+                    <span className="text-white/60">مبلغ پرداخت‌شده</span>
+                    <span className="text-white">{formatToman(collected)}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-white/60">جریمه‌ی لغو ({toFa(penalty)}٪)</span>
@@ -166,7 +186,9 @@ export default function OrdersPage() {
                 </div>
               </>
             ) : (
-              <p className="mt-3 text-center text-sm leading-7 text-white/70">آیا از لغو این سفارش مطمئن هستید؟</p>
+              <p className="mt-3 text-center text-sm leading-7 text-white/70">
+                هنوز مبلغی برای این سفارش از کیف پول شما کسر نشده است. آیا از لغو آن مطمئن هستید؟
+              </p>
             )}
 
             <div className="mt-6 flex gap-3">

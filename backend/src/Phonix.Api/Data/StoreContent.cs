@@ -269,7 +269,6 @@ public partial class StoreData
                 {
                     new() { Label = "خانه", Href = "/" },
                     new() { Label = "محصولات", Href = "/films", HasMenu = true },
-                    new() { Label = "بلاگ", Href = "/blog" },
                 },
             },
             Stats = new List<StatItem>

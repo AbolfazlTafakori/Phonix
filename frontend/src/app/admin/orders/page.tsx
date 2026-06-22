@@ -135,7 +135,14 @@ export default function AdminOrdersPage() {
                   <p className="font-mono text-sm text-white/70">{o.code}</p>
                   <p className="text-xs text-white/40">{o.userName} · {o.date} · {o.paymentMethod}</p>
                 </div>
-                <StatusBadge status={orderStatusLabel[o.status]} />
+                <div className="flex items-center gap-3">
+                  {o.receiptUrl && (
+                    <a href={api.transactions.receiptSrc(o.receiptUrl)} target="_blank" rel="noreferrer" className="text-xs font-bold text-[#6f93ff] transition hover:underline">
+                      مشاهده رسید
+                    </a>
+                  )}
+                  <StatusBadge status={orderStatusLabel[o.status]} />
+                </div>
               </div>
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">

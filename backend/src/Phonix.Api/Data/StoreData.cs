@@ -25,7 +25,60 @@ public partial class StoreData
         if (!TryLoad())
         {
             Seed();
+            RefreshAllUserOrderStats(); // make the seeded per-user order stats reflect the seeded orders
             Save();
+        }
+        else
+        {
+            RefreshAllUserOrderStats(); // heal any drift carried by an older store.json
+        }
+        HealVerificationLevels(); // older snapshots predate VerificationLevel — derive it from Verified/cards
+    }
+
+    // Reconciles each user's identity level from the evidence available, so a store.json saved before the
+    // level system (or restored from an old backup) doesn't drop verified users to level 0. Levels only
+    // rise here, never fall (upgrades are permanent), and Verified stays in sync with level 2.
+    public void HealVerificationLevels()
+    {
+        lock (_gate)
+        {
+            foreach (var u in _users)
+            {
+                var derived = u.Verified ? 2 : (_cards.Any(c => c.UserId == u.Id && c.Status == BankCardStatus.Approved) ? 1 : 0);
+                if (u.VerificationLevel < derived) u.VerificationLevel = derived;
+                if (u.VerificationLevel >= 2) u.Verified = true;
+            }
+        }
+    }
+
+    // Admin override of a user's identity tier. The approval flows only ever RAISE the level; this can also
+    // lower it — revoking verification. When the level drops, the evidence that backed the higher tier is
+    // rejected so the user must re-verify to climb back (and HealVerificationLevels won't re-raise it).
+    public AppUser? SetVerificationLevel(int userId, int level)
+    {
+        lock (_gate)
+        {
+            var user = _users.FirstOrDefault(u => u.Id == userId);
+            if (user is null) return null;
+            level = Math.Clamp(level, 0, 2);
+
+            // dropping below level 2 revokes the national-ID KYC; below level 1 also revokes the bank card.
+            if (level < 2)
+                foreach (var k in _kyc.Where(k => k.UserId == userId && k.Status == KycStatus.Approved))
+                {
+                    k.Status = KycStatus.Rejected;
+                    k.Note = "احراز هویت توسط مدیر لغو شد";
+                }
+            if (level < 1)
+                foreach (var c in _cards.Where(c => c.UserId == userId && c.Status == BankCardStatus.Approved))
+                {
+                    c.Status = BankCardStatus.Rejected;
+                    c.Note = "توسط مدیر لغو شد";
+                }
+
+            user.VerificationLevel = level;
+            user.Verified = level >= 2;
+            return user;
         }
     }
 
@@ -134,6 +187,7 @@ public partial class StoreData
             existing.Sku = product.Sku;
             existing.Description = product.Description;
             existing.Warning = product.Warning;
+            existing.RequiredLevel = product.RequiredLevel;
             existing.Features = product.Features;
             NumberPlans(product.Plans);
             existing.Plans = product.Plans;
@@ -238,6 +292,7 @@ public partial class StoreData
             user.Id = ++_userSeq;
             user.Code = $"U-{1000 + user.Id}";
             user.Role = UserRole.Customer;
+            user.SecurityStamp = NewStamp();
             user.EmailVerified = false; // must confirm their email before they can order
             if (string.IsNullOrWhiteSpace(user.JoinedAt)) user.JoinedAt = Today();
             _users.Add(user);
@@ -310,10 +365,10 @@ public partial class StoreData
         AddProduct(new Product { Name = "اشتراک نتفلیکس", CategoryId = 1, Price = 290_000, Stock = 142, Featured = true, Image = "/figma/prod-netflix.png", Sku = "NFX-PR", Description = "اکانت پریمیوم نتفلیکس با کیفیت 4K و تحویل آنی.", Warning = "از تغییر ایمیل و رمز اکانت خودداری کنید. در صورت تغییر اطلاعات ورود، گارانتی باطل می‌شود.", DeliveryTemplate = "ایمیل اکانت: \nرمز عبور: \nپروفایل اختصاصی شما: \n\nلطفاً از تغییر ایمیل و رمز اکانت خودداری کنید.", Features = new() { Feat("تحویل آنی پس از پرداخت"), Feat("کیفیت 4K Ultra HD"), Feat("پشتیبانی ۲۴ ساعته"), Feat("گارانتی بازگشت وجه") }, Plans = new() { Plan("اشتراکی", 1, 290_000), Plan("اشتراکی", 3, 790_000, 10), Plan("اختصاصی", 1, 690_000), Plan("اختصاصی", 3, 1_850_000, 5) } });
         AddProduct(new Product { Name = "اسپاتیفای پریمیوم", CategoryId = 2, Price = 185_000, Stock = 88, Image = "/figma/prod-spotify.png", Sku = "SPT-PR", Description = "موسیقی نامحدود بدون تبلیغات.", Features = new() { Feat("تحویل آنی پس از پرداخت"), Feat("پخش بدون تبلیغات"), Feat("کیفیت صوتی بالا"), Feat("گارانتی بازگشت وجه", false) } });
         AddProduct(new Product { Name = "کانوا پرو", CategoryId = 3, Price = 210_000, DiscountPercent = 10, Stock = 53, Image = "/figma/prod-canva.png", Sku = "CNV-PRO", Description = "دسترسی کامل به ابزارها و قالب‌های حرفه‌ای کانوا.", Features = StdFeatures() });
-        AddProduct(new Product { Name = "بایننس وریفای", CategoryId = 7, Price = 850_000, Stock = 0, IsActive = false, Image = "/figma/prod-binance.png", Sku = "BNB-VRF", Description = "احراز هویت کامل حساب بایننس.", Features = new() { Feat("تحویل ۲۴ تا ۴۸ ساعته"), Feat("احراز هویت کامل"), Feat("پشتیبانی ۲۴ ساعته") } });
+        AddProduct(new Product { Name = "بایننس وریفای", CategoryId = 7, Price = 850_000, Stock = 0, IsActive = false, RequiredLevel = 2, Image = "/figma/prod-binance.png", Sku = "BNB-VRF", Description = "احراز هویت کامل حساب بایننس.", Features = new() { Feat("تحویل ۲۴ تا ۴۸ ساعته"), Feat("احراز هویت کامل"), Feat("پشتیبانی ۲۴ ساعته") } });
         AddProduct(new Product { Name = "اپل موزیک", CategoryId = 2, Price = 165_000, Stock = 67, Image = "/figma/prod-applemusic.png", Sku = "APL-MUS", Description = "اشتراک اپل موزیک با تحویل سریع.", Features = StdFeatures() });
         AddProduct(new Product { Name = "فری‌لنسر اکانت", CategoryId = 4, Price = 320_000, Stock = 24, Image = "/figma/prod-freelancer.png", Sku = "FRL-ACC", Description = "اکانت آماده فری‌لنسر برای دریافت پروژه.", Features = StdFeatures() });
-        AddProduct(new Product { Name = "اینستاگرام وریفای", CategoryId = 5, Price = 450_000, DiscountPercent = 5, Stock = 18, Featured = true, Image = "/figma/prod-binance.png", Sku = "IG-VRF", Description = "تیک آبی و افزایش اعتبار پیج.", Features = StdFeatures() });
+        AddProduct(new Product { Name = "اینستاگرام وریفای", CategoryId = 5, Price = 450_000, DiscountPercent = 5, Stock = 18, Featured = true, RequiredLevel = 2, Image = "/figma/prod-binance.png", Sku = "IG-VRF", Description = "تیک آبی و افزایش اعتبار پیج.", Features = StdFeatures() });
         AddProduct(new Product { Name = "پابجی یوسی", CategoryId = 6, Price = 120_000, Stock = 200, IsActive = false, Image = "/figma/prod-canva.png", Sku = "PUBG-UC", Description = "شارژ یوسی بازی پابجی موبایل.", Features = StdFeatures() });
 
         AddUser(new AppUser { Code = "U-1024", Name = "علی محمدی", Username = "ali", Password = "1234", Email = "ali@example.com", Phone = "۰۹۱۲۱۱۱۲۲۳۳", Role = UserRole.Customer, Orders = 12, TotalSpent = 3_200_000, Wallet = 180_000, Verified = true, JoinedAt = "۱۴۰۳/۰۱/۱۵" });
@@ -358,6 +413,7 @@ public partial class StoreData
         user.Id = ++_userSeq;
         user.Password = PasswordHasher.Hash(user.Password);
         user.EmailVerified = true; // seeded accounts are pre-verified
+        user.VerificationLevel = user.Verified ? 2 : 0; // map the seed Verified flag onto the level system
         _users.Add(user);
     }
 

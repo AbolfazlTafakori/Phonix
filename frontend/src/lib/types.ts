@@ -53,6 +53,7 @@ export type Product = {
   sku: string;
   description: string;
   warning: string;
+  requiredLevel: number;
   deliveryTemplate: string;
   features: ProductFeature[];
   plans: ProductPlan[];
@@ -70,6 +71,7 @@ export type ProductInput = {
   sku: string;
   description: string;
   warning: string;
+  requiredLevel: number;
   deliveryTemplate: string;
   features: ProductFeature[];
   plans: ProductPlanInput[];
@@ -87,6 +89,7 @@ export type User = {
   totalSpent: number;
   wallet: number;
   verified: boolean;
+  verificationLevel: number;
   emailVerified: boolean;
   blocked: boolean;
   joinedAt: string;
@@ -133,9 +136,14 @@ export type UserUpdateInput = Partial<{
   verified: boolean;
   blocked: boolean;
   note: string;
+  verificationLevel: number;
 }>;
 
 export type WalletInput = { amount: number; reason?: string };
+
+// Admin sidebar served by GET /api/admin/menu — role-filtered and badge-counted server-side.
+export type AdminNavItem = { key: string; title: string; icon: string; route: string; comingSoon: boolean; badge: number };
+export type AdminNavGroup = { key: string; title: string; items: AdminNavItem[] };
 
 export type PricingSettings = {
   referralCommissionPercent: number;
@@ -256,6 +264,8 @@ export type PaymentMethod = {
   holder: string;
   value: string;
   network: string;
+  sheba: string;
+  accountNumber: string;
   instructions: string;
   feePercent: number;
   isActive: boolean;
@@ -285,6 +295,7 @@ export type PaymentSettings = {
 
 export type TelegramSettings = {
   backupEnabled: boolean;
+  alertsEnabled: boolean;
   botToken: string;
   chatId: string;
   intervalHours: number;
@@ -339,6 +350,7 @@ export type Order = {
   total: number;
   status: OrderStatus;
   paymentMethod: string;
+  receiptUrl: string | null;
   date: string;
   note: string | null;
   deliveryContent: string | null;
@@ -404,15 +416,56 @@ export type TxStatus = "Pending" | "Approved" | "Rejected";
 export type Transaction = {
   id: number;
   code: string;
+  userId: number;
   userName: string;
   type: string;
   amount: number;
   status: TxStatus;
   method: string;
   receiptUrl: string | null;
+  sourceCard: string | null;
+  trackingNumber: string | null;
+  paymentDate: string | null;
+  description: string | null;
   approvedVia: string | null;
   date: string;
   note: string | null;
+};
+
+export type Notification = {
+  id: number;
+  title: string;
+  body: string;
+  link: string | null;
+  isPublic: boolean;
+  isRead: boolean;
+  createdAtUtc: string;
+};
+
+export type AdminNotification = {
+  id: number;
+  userId: number | null;
+  title: string;
+  body: string;
+  link: string | null;
+  createdAtUtc: string;
+  readBy: number[];
+};
+
+export type BankCardStatus = "Pending" | "Approved" | "Rejected";
+
+export type BankCard = {
+  id: number;
+  userId: number;
+  userName: string;
+  cardNumber: string;
+  holderName: string;
+  cardImage: string;
+  bank: string;
+  sheba: string | null;
+  status: BankCardStatus;
+  note: string | null;
+  date: string;
 };
 
 export type HeroSlideInput = Omit<HeroSlide, "id">;

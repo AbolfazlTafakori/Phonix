@@ -2,6 +2,8 @@ using Phonix.Api.Models;
 
 namespace Phonix.Api.Data;
 
+public record WithdrawalResult(Transaction? Tx, string? Error);
+
 public partial class StoreData
 {
     private readonly List<PaymentMethod> _paymentMethods = new();
@@ -32,6 +34,8 @@ public partial class StoreData
             e.Holder = m.Holder;
             e.Value = m.Value;
             e.Network = m.Network;
+            e.Sheba = m.Sheba;
+            e.AccountNumber = m.AccountNumber;
             e.Instructions = m.Instructions;
             e.IsActive = m.IsActive;
             e.SortOrder = m.SortOrder;
@@ -70,6 +74,11 @@ public partial class StoreData
         lock (_gate) return _transactions.FirstOrDefault(t => t.Id == id);
     }
 
+    public IReadOnlyList<Transaction> GetUserTransactions(int userId)
+    {
+        lock (_gate) return _transactions.Where(t => t.UserId == userId).OrderByDescending(t => t.Id).ToList();
+    }
+
     public Transaction AddTransaction(Transaction t)
     {
         lock (_gate)
@@ -82,16 +91,115 @@ public partial class StoreData
         }
     }
 
+    // Approving/rejecting a transaction moves money (credits a top-up, refunds a withdrawal, advances an
+    // order's payment). Persist synchronously once the change is committed so it can survive a crash.
     public bool SetTransactionStatus(int id, TxStatus status, string via, string? note)
+    {
+        var changed = SetTransactionStatusCore(id, status, via, note);
+        if (changed) PersistNow();
+        return changed;
+    }
+
+    private bool SetTransactionStatusCore(int id, TxStatus status, string via, string? note)
     {
         lock (_gate)
         {
             var e = _transactions.FirstOrDefault(t => t.Id == id);
             if (e is null) return false;
+            var becomingApproved = e.Status != TxStatus.Approved && status == TxStatus.Approved;
+
+            // A wallet top-up credits the owner's balance exactly while it is approved. Applying the
+            // delta only on the approved↔not-approved transition means the first approval credits once,
+            // reversing an approval (Approved→Rejected) debits it back, and re-approving never double-credits.
+            if (e.Type == TxTypes.WalletTopUp && e.Amount > 0 && e.UserId > 0)
+            {
+                var wasApproved = e.Status == TxStatus.Approved;
+                var willBeApproved = status == TxStatus.Approved;
+                if (wasApproved != willBeApproved)
+                {
+                    var owner = _users.FirstOrDefault(x => x.Id == e.UserId);
+                    if (owner is not null)
+                        owner.Wallet = Math.Max(0, owner.Wallet + (willBeApproved ? e.Amount : -e.Amount));
+                }
+            }
+
+            // A withdrawal holds (debits) the balance the moment it is requested. Rejecting it returns the
+            // held funds; the refund flips only on the reject↔not-reject transition, so a re-reject never
+            // double-refunds and re-opening a rejected request re-holds the amount. Approving changes
+            // nothing here because the money already left the balance at request time.
+            if (e.Type == TxTypes.Withdraw && e.Amount < 0 && e.UserId > 0)
+            {
+                var wasRefunded = e.Status == TxStatus.Rejected;
+                var willBeRefunded = status == TxStatus.Rejected;
+                if (wasRefunded != willBeRefunded)
+                {
+                    var owner = _users.FirstOrDefault(x => x.Id == e.UserId);
+                    if (owner is not null)
+                        owner.Wallet = Math.Max(0, owner.Wallet + (willBeRefunded ? -e.Amount : e.Amount));
+                }
+            }
+
+            // Approving an order's card-to-card payment advances that order to preparing (it never touches
+            // a wallet balance). Applied on the not-approved → approved transition.
+            if (e.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(e.OrderCode) && e.Status != TxStatus.Approved && status == TxStatus.Approved)
+            {
+                var ord = _orders.FirstOrDefault(o => o.Code == e.OrderCode);
+                if (ord is not null && ord.Status == OrderStatus.PendingApproval)
+                {
+                    ord.Status = OrderStatus.Preparing;
+                    RefreshUserOrderStats(ord.UserId);
+                }
+            }
+
             e.Status = status;
             e.ApprovedVia = via;
             if (note is not null) e.Note = note;
+
+            // notify the owner when their payment is approved.
+            if (becomingApproved && e.UserId > 0)
+            {
+                if (e.Type == TxTypes.WalletTopUp)
+                    AddNotification(e.UserId, "شارژ کیف پول", $"کیف پول شما به مبلغ {e.Amount:N0} تومان شارژ شد.", "/account/wallet");
+                else if (e.Type == TxTypes.OrderPayment)
+                    AddNotification(e.UserId, "پرداخت تأیید شد", "پرداخت سفارش شما تأیید و سفارش در حال آماده‌سازی است.", "/account/orders");
+            }
             return true;
+        }
+    }
+
+    // Files a withdrawal request and holds the funds immediately: the balance is debited now so the same
+    // money can't also be spent while staff review it. Approval just confirms the payout; rejection
+    // refunds the held amount (see SetTransactionStatus).
+    public WithdrawalResult RequestWithdrawal(int userId, long amount, string destination)
+    {
+        var result = RequestWithdrawalCore(userId, amount, destination);
+        if (result.Error is null) PersistNow(); // the balance was just debited (held) — make it durable now.
+        return result;
+    }
+
+    private WithdrawalResult RequestWithdrawalCore(int userId, long amount, string destination)
+    {
+        lock (_gate)
+        {
+            var user = _users.FirstOrDefault(u => u.Id == userId);
+            if (user is null) return new WithdrawalResult(null, "کاربر یافت نشد.");
+            if (amount <= 0) return new WithdrawalResult(null, "مبلغ نامعتبر است.");
+            if (user.Wallet < amount) return new WithdrawalResult(null, "موجودی کیف پول برای این برداشت کافی نیست.");
+
+            user.Wallet -= amount;
+
+            var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
+            var tx = AddTransaction(new Transaction
+            {
+                UserId = userId,
+                UserName = name,
+                Type = TxTypes.Withdraw,
+                Amount = -amount,
+                Status = TxStatus.Pending,
+                Method = destination,
+                Date = Today(),
+            });
+            return new WithdrawalResult(tx, null);
         }
     }
 
@@ -110,10 +218,10 @@ public partial class StoreData
             AutoApproveUnder = 0,
         };
 
-        AddTransaction(new Transaction { Code = "TX-9912", UserName = "علی محمدی", Type = "شارژ کیف پول", Amount = 500_000, Status = TxStatus.Pending, Method = "کارت بانکی", Date = "۱۴۰۳/۰۳/۲۲" });
-        AddTransaction(new Transaction { Code = "TX-9911", UserName = "زهرا کریمی", Type = "خرید", Amount = -185_000, Status = TxStatus.Approved, Method = "کیف پول", ApprovedVia = "site", Date = "۱۴۰۳/۰۳/۲۲" });
-        AddTransaction(new Transaction { Code = "TX-9910", UserName = "رضا نوری", Type = "پورسانت", Amount = 85_000, Status = TxStatus.Approved, Method = "سیستمی", ApprovedVia = "site", Date = "۱۴۰۳/۰۳/۲۱" });
-        AddTransaction(new Transaction { Code = "TX-9909", UserName = "محمد رضایی", Type = "برداشت", Amount = -300_000, Status = TxStatus.Pending, Method = "کارت بانکی", Date = "۱۴۰۳/۰۳/۲۰" });
-        AddTransaction(new Transaction { Code = "TX-9908", UserName = "سارا احمدی", Type = "شارژ کیف پول", Amount = 250_000, Status = TxStatus.Rejected, Method = "تتر (USDT)", ApprovedVia = "site", Note = "رسید نامعتبر", Date = "۱۴۰۳/۰۳/۱۹" });
+        AddTransaction(new Transaction { Code = "TX-9912", UserId = 1, UserName = "علی محمدی", Type = TxTypes.WalletTopUp, Amount = 500_000, Status = TxStatus.Pending, Method = "کارت بانکی", Date = "۱۴۰۳/۰۳/۲۲" });
+        AddTransaction(new Transaction { Code = "TX-9911", UserId = 2, UserName = "زهرا کریمی", Type = TxTypes.Purchase, Amount = -185_000, Status = TxStatus.Approved, Method = "کیف پول", ApprovedVia = "site", Date = "۱۴۰۳/۰۳/۲۲" });
+        AddTransaction(new Transaction { Code = "TX-9910", UserId = 5, UserName = "رضا نوری", Type = TxTypes.Referral, Amount = 85_000, Status = TxStatus.Approved, Method = "سیستمی", ApprovedVia = "site", Date = "۱۴۰۳/۰۳/۲۱" });
+        AddTransaction(new Transaction { Code = "TX-9909", UserId = 3, UserName = "محمد رضایی", Type = TxTypes.Withdraw, Amount = -300_000, Status = TxStatus.Pending, Method = "کارت بانکی", Date = "۱۴۰۳/۰۳/۲۰" });
+        AddTransaction(new Transaction { Code = "TX-9908", UserId = 4, UserName = "سارا احمدی", Type = TxTypes.WalletTopUp, Amount = 250_000, Status = TxStatus.Rejected, Method = "تتر (USDT)", ApprovedVia = "site", Note = "رسید نامعتبر", Date = "۱۴۰۳/۰۳/۱۹" });
     }
 }

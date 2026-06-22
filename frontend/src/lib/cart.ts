@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { getCurrentUser, AUTH_EVENT } from "./auth";
 
 export type CartItem = {
   productId: number;
@@ -12,8 +13,25 @@ export type CartItem = {
   plan?: string | null;
 };
 
-const KEY = "phonix_cart";
+const BASE = "phonix_cart";
 const EVENT = "phonix-cart-change";
+
+// The cart is scoped per account so it never leaks between logins: each user keeps
+// their own basket and a logged-out visitor gets a separate "guest" basket.
+function cartKey(): string {
+  const user = getCurrentUser();
+  return `${BASE}:${user ? user.id : "guest"}`;
+}
+
+// One-time migration from the old global key (a single shared basket). Park any
+// leftover items in the guest basket so they don't surface inside a logged-in account.
+function migrateLegacy() {
+  const legacy = localStorage.getItem(BASE);
+  if (legacy === null) return;
+  const guestKey = `${BASE}:guest`;
+  if (localStorage.getItem(guestKey) === null) localStorage.setItem(guestKey, legacy);
+  localStorage.removeItem(BASE);
+}
 
 const sameLine = (item: CartItem, productId: number, planId?: number | null) =>
   item.productId === productId && (item.planId ?? null) === (planId ?? null);
@@ -21,7 +39,8 @@ const sameLine = (item: CartItem, productId: number, planId?: number | null) =>
 export function getCart(): CartItem[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = localStorage.getItem(KEY);
+    migrateLegacy();
+    const raw = localStorage.getItem(cartKey());
     return raw ? (JSON.parse(raw) as CartItem[]) : [];
   } catch {
     return [];
@@ -29,7 +48,7 @@ export function getCart(): CartItem[] {
 }
 
 function save(items: CartItem[]) {
-  localStorage.setItem(KEY, JSON.stringify(items));
+  localStorage.setItem(cartKey(), JSON.stringify(items));
   window.dispatchEvent(new Event(EVENT));
 }
 
@@ -65,9 +84,11 @@ export function useCart() {
     sync();
     setReady(true);
     window.addEventListener(EVENT, sync);
+    window.addEventListener(AUTH_EVENT, sync); // switch baskets when the account changes
     window.addEventListener("storage", sync);
     return () => {
       window.removeEventListener(EVENT, sync);
+      window.removeEventListener(AUTH_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
   }, []);

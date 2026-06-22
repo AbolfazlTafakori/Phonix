@@ -3,24 +3,40 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { adminMenuGroups, adminTickets, adminOrders } from "@/data/admin";
+import { useAdminMenu } from "@/lib/adminMenu";
+import type { AdminNavGroup, AdminNavItem } from "@/lib/types";
 import { toFa } from "@/lib/format";
 import AdminIcon from "./AdminIcon";
 
-const badges: Record<string, number> = {
-  "/admin/tickets": adminTickets.filter((t) => t.status === "باز").length,
-  "/admin/orders": adminOrders.filter((o) => o.status === "در انتظار").length,
-};
+const isActive = (route: string, pathname: string) =>
+  route === "/admin" ? pathname === "/admin" : pathname.startsWith(route);
 
-const isActive = (href: string, pathname: string) =>
-  href === "/admin" ? pathname === "/admin" : pathname.startsWith(href);
+function BadgePill({ value, active }: { value: number; active?: boolean }) {
+  if (!value) return null;
+  const label = value > 99 ? `${toFa(99)}+` : toFa(value);
+  return (
+    <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold ${active ? "bg-white/25 text-white" : "bg-[#e60053]/20 text-[#ff5a8a]"}`}>
+      {label}
+    </span>
+  );
+}
 
-function ItemLink({ item, pathname, onNavigate }: { item: { label: string; href: string; icon: string }; pathname: string; onNavigate?: () => void }) {
-  const active = isActive(item.href, pathname);
-  const badge = badges[item.href];
+function ItemRow({ item, pathname, onNavigate }: { item: AdminNavItem; pathname: string; onNavigate?: () => void }) {
+  // FUTURE FEATURE placeholder: visible for discoverability but not navigable until the page exists.
+  if (item.comingSoon) {
+    return (
+      <div className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium text-white/30" title="به‌زودی">
+        <AdminIcon name={item.icon} className="h-5 w-5 shrink-0" />
+        <span className="flex-1">{item.title}</span>
+        <span className="rounded-md bg-white/8 px-1.5 py-0.5 text-[10px] font-bold text-white/40">به‌زودی</span>
+      </div>
+    );
+  }
+
+  const active = isActive(item.route, pathname);
   return (
     <Link
-      href={item.href}
+      href={item.route}
       onClick={onNavigate}
       className={`flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition ${
         active
@@ -29,20 +45,16 @@ function ItemLink({ item, pathname, onNavigate }: { item: { label: string; href:
       }`}
     >
       <AdminIcon name={item.icon} className="h-5 w-5 shrink-0" />
-      <span className="flex-1">{item.label}</span>
-      {badge ? (
-        <span className={`grid h-5 min-w-5 place-items-center rounded-full px-1.5 text-[11px] font-bold ${active ? "bg-white/25 text-white" : "bg-[#e60053]/20 text-[#ff5a8a]"}`}>
-          {toFa(badge)}
-        </span>
-      ) : null}
+      <span className="flex-1">{item.title}</span>
+      <BadgePill value={item.badge} active={active} />
     </Link>
   );
 }
 
-function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
+function NavLinks({ groups, onNavigate }: { groups: AdminNavGroup[]; onNavigate?: () => void }) {
   const pathname = usePathname();
-  const activeGroup = adminMenuGroups.find((g) => g.title && g.items.some((it) => isActive(it.href, pathname)))?.title;
-  const [open, setOpen] = useState<Record<string, boolean>>(() => (activeGroup ? { [activeGroup]: true } : {}));
+  const activeGroup = groups.find((g) => g.items.some((it) => !it.comingSoon && isActive(it.route, pathname)))?.key;
+  const [open, setOpen] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (activeGroup) setOpen((p) => ({ ...p, [activeGroup]: true }));
@@ -50,25 +62,15 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-4">
-      {adminMenuGroups.map((group, gi) => {
-        if (!group.title) {
-          return (
-            <div key={gi} className="space-y-1">
-              {group.items.map((item) => (
-                <ItemLink key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
-              ))}
-            </div>
-          );
-        }
-
-        const isOpen = open[group.title] ?? false;
-        const groupActive = group.items.some((it) => isActive(it.href, pathname));
-        const groupBadge = group.items.reduce((sum, it) => sum + (badges[it.href] ?? 0), 0);
+      {groups.map((group) => {
+        const isOpen = open[group.key] ?? false;
+        const groupActive = group.items.some((it) => !it.comingSoon && isActive(it.route, pathname));
+        const groupBadge = group.items.reduce((sum, it) => sum + it.badge, 0);
 
         return (
-          <div key={group.title}>
+          <div key={group.key}>
             <button
-              onClick={() => setOpen((p) => ({ ...p, [group.title]: !p[group.title] }))}
+              onClick={() => setOpen((p) => ({ ...p, [group.key]: !p[group.key] }))}
               className={`flex w-full items-center gap-2 rounded-xl px-3.5 py-2.5 text-[11px] font-bold tracking-wider transition ${
                 groupActive ? "text-white" : "text-white/40 hover:text-white/70"
               }`}
@@ -94,7 +96,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 
             <div className={`mt-1 space-y-1 overflow-hidden pr-1 ${isOpen ? "block" : "hidden"}`}>
               {group.items.map((item) => (
-                <ItemLink key={item.href} item={item} pathname={pathname} onNavigate={onNavigate} />
+                <ItemRow key={item.key} item={item} pathname={pathname} onNavigate={onNavigate} />
               ))}
             </div>
           </div>
@@ -104,7 +106,7 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   );
 }
 
-function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
+function SidebarBody({ groups, onNavigate }: { groups: AdminNavGroup[]; onNavigate?: () => void }) {
   return (
     <>
       <Link href="/admin" onClick={onNavigate} className="flex h-[72px] items-center gap-2.5 border-b border-white/8 px-6">
@@ -117,7 +119,7 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
         <span className="mr-auto rounded-md bg-[#e60053]/15 px-2 py-0.5 text-[11px] font-bold text-[#e60053]">ادمین</span>
       </Link>
 
-      <NavLinks onNavigate={onNavigate} />
+      <NavLinks groups={groups} onNavigate={onNavigate} />
 
       <div className="border-t border-white/8 p-4">
         <Link
@@ -134,10 +136,12 @@ function SidebarBody({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 export default function AdminSidebar({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const groups = useAdminMenu();
+
   return (
     <>
       <aside className="fixed inset-y-0 right-0 z-30 hidden w-64 flex-col border-l border-white/8 bg-[#0d0d14] lg:flex">
-        <SidebarBody />
+        <SidebarBody groups={groups} />
       </aside>
 
       <div className={`fixed inset-0 z-40 lg:hidden ${open ? "" : "pointer-events-none"}`}>
@@ -150,7 +154,7 @@ export default function AdminSidebar({ open, onClose }: { open: boolean; onClose
             open ? "translate-x-0" : "translate-x-full"
           }`}
         >
-          <SidebarBody onNavigate={onClose} />
+          <SidebarBody groups={groups} onNavigate={onClose} />
         </aside>
       </div>
     </>

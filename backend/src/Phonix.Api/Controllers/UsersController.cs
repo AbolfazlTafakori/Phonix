@@ -45,7 +45,10 @@ public class UsersController : ControllerBase
             if (input.Blocked is bool blocked) u.Blocked = blocked;
             if (input.Note is not null) u.Note = input.Note;
         });
-        return ok ? _store.GetUser(id)!.ToDto() : NotFound();
+        if (!ok) return NotFound();
+        // identity tier goes through the dedicated path so a downgrade also revokes the backing card/KYC.
+        if (input.VerificationLevel is int level) _store.SetVerificationLevel(id, level);
+        return _store.GetUser(id)!.ToDto();
     }
 
     [HttpPost("{id:int}/wallet")]

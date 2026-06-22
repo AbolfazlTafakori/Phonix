@@ -140,12 +140,14 @@ export default function AdminKycPage() {
 }
 
 function Doc({ label, src }: { label: string; src: string }) {
+  // KYC images are streamed from the protected, staff-authorized download endpoint (never a public URL).
+  const resolved = src ? api.kyc.imageSrc(src) : "";
   return (
     <div>
       <p className="mb-1.5 text-xs text-white/45">{label}</p>
       {src ? (
-        <a href={src} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-white/10">
-          <img src={src} alt={label} className="h-32 w-full object-cover transition hover:opacity-80" />
+        <a href={resolved} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl border border-white/10">
+          <img src={resolved} alt={label} className="h-32 w-full object-cover transition hover:opacity-80" />
         </a>
       ) : (
         <div className="grid h-32 place-items-center rounded-xl border border-dashed border-white/10 text-xs text-white/30">ارسال نشده</div>

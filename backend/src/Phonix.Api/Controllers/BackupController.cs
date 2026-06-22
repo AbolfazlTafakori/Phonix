@@ -14,11 +14,13 @@ public class BackupController : ControllerBase
 {
     private readonly StoreData _store;
     private readonly ITelegramBackupSender _telegram;
+    private readonly ITelegramAlertSender _alerts;
 
-    public BackupController(StoreData store, ITelegramBackupSender telegram)
+    public BackupController(StoreData store, ITelegramBackupSender telegram, ITelegramAlertSender alerts)
     {
         _store = store;
         _telegram = telegram;
+        _alerts = alerts;
     }
 
     // download the full store as a timestamped file (identical to store.json on disk).
@@ -60,5 +62,15 @@ public class BackupController : ControllerBase
     {
         var (ok, error) = await _telegram.SendAsync("پشتیبان آزمایشی فونیکس", HttpContext.RequestAborted);
         return ok ? Ok(new { ok = true }) : BadRequest(error);
+    }
+
+    // send a sample alert message immediately (bypasses the alerts toggle) to verify wiring.
+    [HttpPost("telegram/test-alert")]
+    public async Task<IActionResult> TestAlert()
+    {
+        var ok = await _alerts.SendAlertAsync("🔔 هشدار آزمایشی فونیکس — اتصال هشدارها برقرار است.",
+            force: true, ct: HttpContext.RequestAborted);
+        return ok ? Ok(new { ok = true })
+                  : BadRequest("ارسال نشد. توکن بات و شناسه چت را بررسی کنید.");
     }
 }

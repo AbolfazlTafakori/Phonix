@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { getAdvancedSettings } from "@/lib/content";
 import {
@@ -61,6 +61,13 @@ const display = Space_Grotesk({
   weight: ["400", "500", "600", "700"],
 });
 
+// Declare the site as inherently dark so the browser (and extensions like Dark Reader)
+// don't re-theme it and inject attributes that break React hydration.
+export const viewport: Viewport = {
+  colorScheme: "dark",
+  themeColor: "#0b0b12",
+};
+
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getAdvancedSettings();
   return {
@@ -83,6 +90,7 @@ export default async function RootLayout({
     <html
       lang="fa"
       dir="rtl"
+      suppressHydrationWarning
       className={[
         vazirmatn.variable,
         bigshot.variable,

@@ -85,9 +85,24 @@ journalctl -u phonix        # لاگ راه‌اندازی
 
 برای HTTPS یک reverse proxy (مثلاً Caddy یا nginx) جلوی سرویس بگذارید که دامنه را به `frontend:3000` و مسیر `/api` را به `backend:5228` پراکسی کند، سپس در `.env` دو گزینه‌ی `PHONIX_BEHIND_PROXY` و `PHONIX_FORCE_HTTPS` را `true` کنید و فرانت را با `NEXT_PUBLIC_API_URL=https://<domain>/api` دوباره build کنید.
 
+## مانیتورینگ و هشدار
+
+- **Health check:** بک‌اند مسیر `GET /health` را دارد (وضعیت + بررسی بارگذاری store، خروجی JSON). هم Docker از آن برای healthcheck استفاده می‌کند و هم می‌توانید یک مانیتور بیرونی (مثل UptimeRobot) را روی همین آدرس تنظیم کنید.
+- **Docker healthcheck:** هر دو سرویس healthcheck دارند؛ فرانت تا زمانی که بک‌اند `healthy` نشود بالا نمی‌آید و کانتینرِ ناسالم طبق سیاست `restart` راه‌اندازی مجدد می‌شود.
+- **هشدار تلگرام:** در پنل `/admin/backup` گزینه‌ی «هشدار خطا و راه‌اندازی سرور» را روشن کنید (از همان توکن بات و چت بکاپ استفاده می‌کند). با فعال‌بودن، هر خطای داخلی سرور (۵۰۰) و هر بار راه‌اندازی مجدد به تلگرام اطلاع داده می‌شود؛ هشدارهای تکراری حداکثر هر ۵ دقیقه یک‌بار ارسال می‌شوند. با دکمه‌ی «ارسال هشدار آزمایشی» اتصال را بسنجید.
+
+## تست خودکار
+
+```bash
+cd backend
+dotnet test
+```
+
+پوشه‌ی `backend/tests/Phonix.Api.Tests` شامل تست‌های واحد (هش گذرواژه، صفحه‌بندی، منطق سفارش/تخفیف/لغو و کنترل موجودی) و تست‌های یکپارچه‌ی HTTP (ورود، حساب مسدود، سلامت سرویس) است. این تست‌ها در CI هم اجرا می‌شوند.
+
 ## CI/CD
 
-- **CI** (`.github/workflows/ci.yml`): با هر push/PR روی `main`، بک‌اند (Release) و فرانت (type-check + build) و هر دو ایمیج Docker ساخته می‌شوند.
+- **CI** (`.github/workflows/ci.yml`): با هر push/PR روی `main`، بک‌اند (Release) + **تست‌های خودکار** و فرانت (type-check + build) و هر دو ایمیج Docker ساخته/اجرا می‌شوند.
 - **CD** (`.github/workflows/deploy.yml`): غیرفعال است تا زمانی که فعالش کنید. در Settings → Secrets and variables → Actions:
   - متغیر (Variable): `DEPLOY_ENABLED=true` و در صورت نیاز `DEPLOY_PATH`
   - Secretها: `DEPLOY_HOST`، `DEPLOY_USER`، `DEPLOY_SSH_KEY`

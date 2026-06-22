@@ -17,7 +17,12 @@ public record ReferralReportDto(long TotalEarned, int ReferredCount, IReadOnlyLi
 public class AccountController : ControllerBase
 {
     private readonly StoreData _store;
-    public AccountController(StoreData store) => _store = store;
+    private readonly ISessionProtector _sessions;
+    public AccountController(StoreData store, ISessionProtector sessions)
+    {
+        _store = store;
+        _sessions = sessions;
+    }
 
     [HttpGet("me")]
     public ActionResult<UserDto> Me()
@@ -44,10 +49,8 @@ public class AccountController : ControllerBase
     [HttpGet("transactions")]
     public IEnumerable<Transaction> MyTransactions()
     {
-        var user = this.CurrentUserId() is int id ? _store.GetUser(id) : null;
-        if (user is null) return Enumerable.Empty<Transaction>();
-        var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
-        return _store.GetTransactions().Where(t => t.UserName == name);
+        if (this.CurrentUserId() is not int id) return Enumerable.Empty<Transaction>();
+        return _store.GetUserTransactions(id);
     }
 
     [HttpGet("referrals")]
@@ -71,6 +74,11 @@ public class AccountController : ControllerBase
 
         var hash = PasswordHasher.Hash(input.NewPassword);
         _store.UpdateUser(id, u => u.Password = hash);
+        // Rotate the stamp so every other session (other devices, a leaked cookie) is invalidated, then
+        // re-issue a fresh cookie for THIS device so the user who just changed their password stays signed in.
+        _store.RotateSecurityStamp(id);
+        if (_store.GetUser(id) is { } refreshed)
+            AuthCookies.Issue(Response, _sessions.Protect(refreshed), Request.IsHttps);
         return NoContent();
     }
 }

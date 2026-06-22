@@ -58,8 +58,14 @@ public partial class StoreData
             req.Status = status;
             req.Note = note;
 
+            // approving the national-ID KYC lifts the user to level 2 (full access, permanent). A rejection
+            // never lowers an already-granted level.
             var user = _users.FirstOrDefault(u => u.Id == req.UserId);
-            if (user is not null) user.Verified = status == KycStatus.Approved;
+            if (user is not null && status == KycStatus.Approved)
+            {
+                user.VerificationLevel = 2;
+                user.Verified = true;
+            }
             return req;
         }
     }

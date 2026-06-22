@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Phonix.Api.Data;
@@ -54,6 +55,17 @@ try
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<ITelegramBackupSender, TelegramBackupSender>();
     builder.Services.AddHostedService<TelegramBackupWorker>();
+    builder.Services.AddSingleton<ITelegramAlertSender, TelegramAlertSender>();
+    // Identity images (KYC docs, selfies, card photos) are stored outside the web root and only ever
+    // streamed back through the authenticated, ownership-checked KYC/Cards download endpoints.
+    builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
+    builder.Services.AddHealthChecks().AddCheck<StoreHealthCheck>("store");
+
+    // Stateless sessions: claims are encrypted into the httpOnly cookie and validated via a PERSISTED Data
+    // Protection key ring (App_Data/keys), so logins survive a restart without an in-memory session table.
+    var keysDir = Environment.GetEnvironmentVariable("PHONIX_KEYS_DIR")
+        ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "keys");
+    builder.Services.AddPhonixSessions(keysDir);
 
     builder.Services.AddAuthentication(TokenAuthenticationHandler.SchemeName)
         .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.SchemeName, null);
@@ -117,6 +129,9 @@ try
         app.UseForwardedHeaders(fwd);
     }
 
+    // Resolved once (singleton): pushes operational alerts to Telegram when enabled.
+    var alerts = app.Services.GetRequiredService<ITelegramAlertSender>();
+
     // Catch-all: log unhandled exceptions with full context and never leak internals to the client.
     app.Use(async (context, next) =>
     {
@@ -128,6 +143,8 @@ try
         {
             Log.Error(ex, "Unhandled exception processing {Method} {Path}",
                 context.Request.Method, context.Request.Path.Value);
+            // Fire-and-forget so alerting never delays the response or throws from the error path.
+            _ = alerts.SendAlertAsync($"🔴 خطای داخلی سرور در {context.Request.Method} {context.Request.Path.Value}");
             if (!context.Response.HasStarted)
             {
                 context.Response.Clear();
@@ -211,7 +228,24 @@ try
 
     app.MapControllers();
 
+    // Liveness/readiness for Docker healthchecks + external uptime monitors (anonymous, JSON).
+    app.MapHealthChecks("/health", new HealthCheckOptions
+    {
+        ResponseWriter = async (ctx, report) =>
+        {
+            ctx.Response.ContentType = "application/json";
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                status = report.Status.ToString(),
+                checks = report.Entries.ToDictionary(e => e.Key, e => e.Value.Status.ToString()),
+                totalDurationMs = report.TotalDuration.TotalMilliseconds,
+            });
+        },
+    });
+
     Log.Information("Phonix API starting up (logs → {LogDir})", logDir);
+    // Heads-up that the service (re)started — useful after a deploy or an unexpected restart.
+    _ = alerts.SendAlertAsync("✅ سرور فونیکس راه‌اندازی شد.");
     app.Run();
 }
 catch (Exception ex)
@@ -222,3 +256,6 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+// Exposed so the test project can boot the app in-memory via WebApplicationFactory<Program>.
+public partial class Program { }

@@ -22,11 +22,13 @@ public class AuthController : ControllerBase
 {
     private readonly StoreData _store;
     private readonly IEmailSender _email;
+    private readonly ISessionProtector _sessions;
     private readonly ILogger<AuthController> _logger;
-    public AuthController(StoreData store, IEmailSender email, ILogger<AuthController> logger)
+    public AuthController(StoreData store, IEmailSender email, ISessionProtector sessions, ILogger<AuthController> logger)
     {
         _store = store;
         _email = email;
+        _sessions = sessions;
         _logger = logger;
     }
 
@@ -73,7 +75,7 @@ public class AuthController : ControllerBase
         await SendVerification(user);
         _logger.LogInformation("New account registered: {Username} (#{UserId}) from {ClientIp}",
             user.Username, user.Id, ClientIp);
-        var token = _store.CreateSession(user);
+        var token = _sessions.Protect(user);
         AuthCookies.Issue(Response, token, Request.IsHttps);
         return new AuthResultDto(token, user.ToDto());
     }
@@ -124,6 +126,8 @@ public class AuthController : ControllerBase
             return BadRequest("لینک بازنشانی نامعتبر یا منقضی شده است.");
         var hash = PasswordHasher.Hash(input.NewPassword);
         _store.UpdateUser(userId, u => u.Password = hash);
+        // invalidate every existing session for this account — a reset must lock out anyone holding an old token.
+        _store.RotateSecurityStamp(userId);
         _logger.LogInformation("Password reset completed for user #{UserId} from {ClientIp}", userId, ClientIp);
         return Ok(new { ok = true });
     }
@@ -144,22 +148,19 @@ public class AuthController : ControllerBase
                 user.Username, user.Id, ClientIp);
             return StatusCode(403, "حساب شما مسدود شده است.");
         }
-        var token = _store.CreateSession(user);
+        var token = _sessions.Protect(user);
         AuthCookies.Issue(Response, token, Request.IsHttps);
         _logger.LogInformation("Login: {Username} (#{UserId}) from {ClientIp}",
             user.Username, user.Id, ClientIp);
         return new AuthResultDto(token, user.ToDto());
     }
 
+    // Sessions are stateless, so logout simply clears the cookie on this device. To force-revoke a token
+    // everywhere (e.g. a stolen cookie), change the password — that rotates the security stamp.
     [Authorize]
     [HttpPost("logout")]
     public IActionResult Logout()
     {
-        string? header = Request.Headers.Authorization;
-        if (header is not null && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
-            _store.RemoveSession(header["Bearer ".Length..].Trim());
-        else if (Request.Cookies.TryGetValue(AuthCookies.Token, out var cookieToken))
-            _store.RemoveSession(cookieToken);
         AuthCookies.Clear(Response);
         return NoContent();
     }

@@ -14,6 +14,13 @@ const paths: Record<string, React.ReactNode> = {
       <circle cx="17" cy="14" r="1.3" fill="currentColor" stroke="none" />
     </>
   ),
+  card: (
+    <>
+      <rect x="2.5" y="5" width="19" height="14" rx="2.5" />
+      <path d="M2.5 9.5h19" />
+      <path d="M6 14.5h4" />
+    </>
+  ),
   orders: (
     <>
       <path d="M3 7l9-4 9 4-9 4-9-4Z" />
@@ -50,6 +57,43 @@ const paths: Record<string, React.ReactNode> = {
     <>
       <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
       <path d="M10 17l-5-5 5-5M4 12h11" />
+    </>
+  ),
+  home: (
+    <>
+      <path d="M4 11 12 4l8 7" />
+      <path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9" />
+      <path d="M10 20v-5h4v5" />
+    </>
+  ),
+  box: (
+    <>
+      <rect x="3" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5" />
+      <rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5" />
+      <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5" />
+    </>
+  ),
+  blog: (
+    <>
+      <rect x="3.5" y="4.5" width="17" height="15" rx="2" />
+      <path d="M7 9h10M7 12.5h10M7 16h6" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.6 9.3a2.4 2.4 0 1 1 3.3 2.2c-.7.4-.9.9-.9 1.6" />
+      <circle cx="12" cy="16.4" r="0.6" fill="currentColor" stroke="none" />
+    </>
+  ),
+  phone: (
+    <path d="M6.5 4.5h3l1.4 3.8-2 1.3a11 11 0 0 0 4.7 4.7l1.3-2 3.8 1.4v3a2 2 0 0 1-2.2 2A14.5 14.5 0 0 1 4.5 6.7 2 2 0 0 1 6.5 4.5Z" />
+  ),
+  telegram: (
+    <>
+      <path d="M21 4 14.2 20l-3.4-6.4L4 10.6 21 4Z" />
+      <path d="m21 4-10.2 9.6" />
     </>
   ),
 };

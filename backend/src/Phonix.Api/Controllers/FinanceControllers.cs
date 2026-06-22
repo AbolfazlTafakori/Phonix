@@ -4,6 +4,7 @@ using Phonix.Api.Data;
 using Phonix.Api.Dtos;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
+using Phonix.Api.Services;
 
 namespace Phonix.Api.Controllers;
 
@@ -57,13 +58,46 @@ public class PaymentSettingsController : ControllerBase
 }
 
 public record TxActionInput(string? Note);
+public record WithdrawInput(long Amount, string? Destination);
+public record TopUpInput(long Amount, int? CardId, string? Method, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
 
 [ApiController]
 [Route("api/transactions")]
 public class TransactionsController : ControllerBase
 {
     private readonly StoreData _store;
-    public TransactionsController(StoreData store) => _store = store;
+    private readonly IFileStorageService _files;
+    public TransactionsController(StoreData store, IFileStorageService files)
+    {
+        _store = store;
+        _files = files;
+    }
+
+    // Uploads a bank-transfer receipt to protected storage (outside the web root) and returns its opaque
+    // id, which the client then submits as the deposit/checkout receiptUrl. Owner is taken from the session.
+    [Authorize]
+    [HttpPost("upload-receipt")]
+    [RequestSizeLimit(8_000_000)]
+    public async Task<ActionResult<FileUploadResult>> UploadReceipt(IFormFile? file)
+    {
+        if (this.CurrentUserId() is not int userId) return Unauthorized();
+        var result = await _files.SaveAsync(userId, "receipts", file);
+        if (result.Error is not null) return BadRequest(result.Error);
+        return new FileUploadResult(result.Id!);
+    }
+
+    // Streams a stored receipt. The uploader is encoded in the id; a customer may only read their own
+    // receipts, staff may read anyone's — otherwise 403.
+    [Authorize]
+    [HttpGet("receipt/{id}")]
+    public IActionResult Receipt(string id)
+    {
+        if (_files.OwnerOf(id) is not int ownerId) return BadRequest("شناسه فایل نامعتبر است.");
+        if (!this.OwnsOrStaff(ownerId)) return Forbid();
+        var stored = _files.Open("receipts", id);
+        if (stored is null) return NotFound();
+        return File(stored.Content, stored.ContentType);
+    }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [HttpGet]
@@ -78,20 +112,76 @@ public class TransactionsController : ControllerBase
     [HttpGet("{id:int}")]
     public ActionResult<Transaction> Get(int id) => _store.GetTransaction(id) is { } t ? t : NotFound();
 
+    // Files an offline (card-to-card) wallet top-up request. It is created PENDING and credited to the
+    // wallet ONLY when an admin approves it — the user transfers the money out of band, staff confirm
+    // it, then approve. Nothing here can credit a balance, so a customer can never top up for free. The
+    // payment must come from one of the user's own Approved registered cards, and the type, identity,
+    // status and approval are all fixed server-side (never trusted from the client).
     [Authorize]
     [HttpPost]
-    public ActionResult<Transaction> Create(Transaction input)
+    public ActionResult<Transaction> Create(TopUpInput input)
     {
-        var userId = this.CurrentUserId();
-        var user = userId is int uid ? _store.GetUser(uid) : null;
+        var user = this.CurrentUserId() is int uid ? _store.GetUser(uid) : null;
         if (user is null) return Unauthorized();
-        // a request always starts pending; status/approval are never taken from the client.
-        input.Id = 0;
-        input.Status = TxStatus.Pending;
-        input.ApprovedVia = null;
-        input.Note = null;
-        input.UserName = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
-        return _store.AddTransaction(input);
+
+        var amount = Math.Abs(input.Amount);
+        var min = _store.GetSettings().MinWalletCharge;
+        if (amount < min) return BadRequest($"حداقل مبلغ شارژ کیف پول {min:N0} تومان است.");
+
+        // the deposit must be paid from one of the user's own Approved cards (card-to-card only).
+        if (input.CardId is not int cardId) return BadRequest("یک کارت بانکی ثبت‌شده را انتخاب کنید.");
+        var card = _store.GetCard(cardId);
+        if (card is null || card.UserId != user.Id || card.Status != BankCardStatus.Approved)
+            return BadRequest("کارت انتخاب‌شده معتبر یا تأییدشده نیست.");
+
+        var tracking = (input.TrackingNumber ?? "").Trim();
+        if (tracking.Length == 0) return BadRequest("شماره پیگیری واریز را وارد کنید.");
+        var payDate = (input.PaymentDate ?? "").Trim();
+        if (payDate.Length == 0) return BadRequest("تاریخ پرداخت را وارد کنید.");
+
+        // The receipt is the proof of the out-of-band transfer; when the store requires it, a top-up
+        // can't be filed without one so staff always have something to verify against.
+        var receipt = string.IsNullOrWhiteSpace(input.ReceiptUrl) ? null : input.ReceiptUrl.Trim();
+        if (_store.GetPaymentSettings().RequireReceipt && receipt is null)
+            return BadRequest("بارگذاری رسید واریز الزامی است.");
+
+        var tx = new Transaction
+        {
+            Type = TxTypes.WalletTopUp,
+            Amount = amount,
+            Method = string.IsNullOrWhiteSpace(input.Method) ? "واریز آفلاین" : input.Method.Trim(),
+            Status = TxStatus.Pending,
+            UserId = user.Id,
+            UserName = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name,
+            ReceiptUrl = receipt,
+            SourceCard = card.CardNumber,
+            TrackingNumber = tracking,
+            PaymentDate = payDate,
+            Description = string.IsNullOrWhiteSpace(input.Description) ? null : input.Description.Trim(),
+        };
+        return _store.AddTransaction(tx);
+    }
+
+    // Files a withdrawal request. The amount must meet the configured minimum and be covered by the
+    // balance; the funds are held immediately (see StoreData.RequestWithdrawal) and paid out only after
+    // an admin approves. Identity is taken from the session, never the client.
+    [Authorize]
+    [HttpPost("withdraw")]
+    public ActionResult<Transaction> Withdraw(WithdrawInput input)
+    {
+        var user = this.CurrentUserId() is int uid ? _store.GetUser(uid) : null;
+        if (user is null) return Unauthorized();
+
+        var amount = Math.Abs(input.Amount);
+        var min = _store.GetSettings().MinWithdraw;
+        if (amount < min) return BadRequest($"حداقل مبلغ برداشت {min:N0} تومان است.");
+
+        var destination = (input.Destination ?? "").Trim();
+        if (destination.Length == 0) return BadRequest("شماره کارت یا شبای مقصد را وارد کنید.");
+
+        var result = _store.RequestWithdrawal(user.Id, amount, destination);
+        if (result.Error is not null) return BadRequest(result.Error);
+        return result.Tx!;
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]

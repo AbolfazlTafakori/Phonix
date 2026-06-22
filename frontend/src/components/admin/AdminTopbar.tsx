@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { adminMenu } from "@/data/admin";
+import { useAdminMenu } from "@/lib/adminMenu";
 import { useAdminAuth } from "@/lib/adminAuth";
 import AdminIcon from "./AdminIcon";
 
@@ -11,10 +11,12 @@ export default function AdminTopbar({ onMenu }: { onMenu: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAdminAuth();
-  const current =
-    [...adminMenu].sort((a, b) => b.href.length - a.href.length).find((m) =>
-      m.href === "/admin" ? pathname === "/admin" : pathname.startsWith(m.href),
-    ) ?? adminMenu[0];
+  // Page title comes from the same (role-filtered) menu the sidebar uses — one source of truth.
+  const items = useAdminMenu().flatMap((g) => g.items);
+  const current = [...items]
+    .sort((a, b) => b.route.length - a.route.length)
+    .find((m) => (m.route === "/admin" ? pathname === "/admin" : pathname.startsWith(m.route)));
+  const title = current?.title ?? "پنل مدیریت";
 
   return (
     <header className="sticky top-0 z-20 flex h-[72px] items-center gap-4 border-b border-white/8 bg-[#0b0b12]/90 px-5 backdrop-blur lg:px-8">
@@ -27,7 +29,7 @@ export default function AdminTopbar({ onMenu }: { onMenu: () => void }) {
       </button>
 
       <div>
-        <h1 className="text-lg font-bold text-white">{current.label}</h1>
+        <h1 className="text-lg font-bold text-white">{title}</h1>
         <p className="text-xs text-white/40">پنل مدیریت فونیکس ورفای</p>
       </div>
 

@@ -9,7 +9,7 @@ using Phonix.Api.Services;
 namespace Phonix.Api.Controllers;
 
 public record OrderLineInput(int ProductId, int Quantity, int? PlanId);
-public record PlaceOrderInput(List<OrderLineInput> Items, string PaymentMethod, bool FromWallet, string? DiscountCode, int? PaymentMethodId);
+public record PlaceOrderInput(List<OrderLineInput> Items, string PaymentMethod, bool FromWallet, string? DiscountCode, int? PaymentMethodId, int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
 public record DeliverInput(string Content, bool Email, string? EmailSubject, string? EmailBody);
 
 [ApiController]
@@ -70,7 +70,9 @@ public class OrdersController : ControllerBase
             input.PaymentMethod,
             input.FromWallet,
             input.DiscountCode,
-            input.PaymentMethodId);
+            input.PaymentMethodId,
+            new RemainderPayment(input.CardId, input.ReceiptUrl, input.TrackingNumber, input.PaymentDate, input.Description),
+            customerCheckout: true);
         if (result.Error is not null) return BadRequest(result.Error);
         return result.Order!;
     }

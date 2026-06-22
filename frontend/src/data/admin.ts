@@ -28,6 +28,8 @@ export const adminMenuGroups: AdminMenuGroup[] = [
     items: [
       { label: "مدیریت کاربران", href: "/admin/users", icon: "users" },
       { label: "احراز هویت", href: "/admin/kyc", icon: "shield" },
+      { label: "کارت‌های بانکی", href: "/admin/cards", icon: "card" },
+      { label: "پیام‌ها و اعلان‌ها", href: "/admin/notifications", icon: "bell" },
       { label: "نظرات و امتیازها", href: "/admin/comments", icon: "chat" },
       { label: "تیکت‌های پشتیبانی", href: "/admin/tickets", icon: "ticket" },
     ],

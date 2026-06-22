@@ -20,9 +20,11 @@ public class StoreSnapshot
     public List<Comment> Comments { get; set; } = new();
     public List<PaymentMethod> PaymentMethods { get; set; } = new();
     public List<Transaction> Transactions { get; set; } = new();
+    public List<BankCard> Cards { get; set; } = new();
     public List<KycRequest> Kyc { get; set; } = new();
     public List<Order> Orders { get; set; } = new();
     public List<Ticket> Tickets { get; set; } = new();
+    public List<Notification> Notifications { get; set; } = new();
     public List<ReferralEarning> ReferralEarnings { get; set; } = new();
     public List<DiscountCode> DiscountCodes { get; set; } = new();
     public List<string> PlanTypes { get; set; } = new();
@@ -50,9 +52,11 @@ public class StoreSnapshot
         public int Comment { get; set; }
         public int Payment { get; set; }
         public int Tx { get; set; }
+        public int Card { get; set; }
         public int Kyc { get; set; }
         public int Order { get; set; }
         public int Ticket { get; set; }
+        public int Notification { get; set; }
         public int Discount { get; set; }
     }
 }
@@ -67,6 +71,9 @@ public partial class StoreData
 
     public string DataFilePath { get; private set; } = "";
     private string _lastSavedHash = "";
+    // serializes all disk writes so the periodic flush and the shutdown save can never race on the
+    // same file (which previously collided on a shared ".tmp" and threw / risked a corrupt store).
+    private readonly object _saveGate = new();
 
     public StoreSnapshot CaptureSnapshot()
     {
@@ -85,9 +92,11 @@ public partial class StoreData
                 Comments = _comments.ToList(),
                 PaymentMethods = _paymentMethods.ToList(),
                 Transactions = _transactions.ToList(),
+                Cards = _cards.ToList(),
                 Kyc = _kyc.ToList(),
                 Orders = _orders.ToList(),
                 Tickets = _tickets.ToList(),
+                Notifications = _notifications.ToList(),
                 ReferralEarnings = _referralEarnings.ToList(),
                 DiscountCodes = _discountCodes.ToList(),
                 PlanTypes = _planTypes.ToList(),
@@ -111,9 +120,11 @@ public partial class StoreData
                     Comment = _commentSeq,
                     Payment = _paymentSeq,
                     Tx = _txSeq,
+                    Card = _cardSeq,
                     Kyc = _kycSeq,
                     Order = _orderSeq,
                     Ticket = _ticketSeq,
+                    Notification = _notificationSeq,
                     Discount = _discountSeq,
                 },
             };
@@ -135,9 +146,11 @@ public partial class StoreData
             Replace(_comments, s.Comments);
             Replace(_paymentMethods, s.PaymentMethods);
             Replace(_transactions, s.Transactions);
+            Replace(_cards, s.Cards);
             Replace(_kyc, s.Kyc);
             Replace(_orders, s.Orders);
             Replace(_tickets, s.Tickets);
+            Replace(_notifications, s.Notifications);
             Replace(_referralEarnings, s.ReferralEarnings);
             Replace(_discountCodes, s.DiscountCodes);
             Replace(_planTypes, s.PlanTypes);
@@ -163,9 +176,11 @@ public partial class StoreData
             _commentSeq = s.Seq.Comment;
             _paymentSeq = s.Seq.Payment;
             _txSeq = s.Seq.Tx;
+            _cardSeq = s.Seq.Card;
             _kycSeq = s.Seq.Kyc;
             _orderSeq = s.Seq.Order;
             _ticketSeq = s.Seq.Ticket;
+            _notificationSeq = s.Seq.Notification;
             _discountSeq = s.Seq.Discount;
         }
     }
@@ -199,28 +214,50 @@ public partial class StoreData
 
     public void Save()
     {
-        var json = JsonSerializer.Serialize(CaptureSnapshot(), PersistOptions);
-        WriteAtomic(json);
-        _lastSavedHash = Hash(json);
+        lock (_saveGate)
+        {
+            var json = JsonSerializer.Serialize(CaptureSnapshot(), PersistOptions);
+            WriteAtomic(json);
+            _lastSavedHash = Hash(json);
+        }
     }
+
+    // Durably persists the current state right now (atomic write, only if changed). The financial units of
+    // work call this AFTER fully committing their in-memory mutation under _gate, so a crash can't lose a
+    // money-moving change that the 10-second periodic flush hadn't written yet. Because each money method
+    // validates before it mutates, the on-disk store only ever reflects a complete operation or none of it.
+    public void PersistNow() => SaveIfChanged();
 
     // periodic flush helper: only touches disk when the data actually changed.
     public void SaveIfChanged()
     {
-        var json = JsonSerializer.Serialize(CaptureSnapshot(), PersistOptions);
-        var hash = Hash(json);
-        if (hash == _lastSavedHash) return;
-        WriteAtomic(json);
-        _lastSavedHash = hash;
+        lock (_saveGate)
+        {
+            var json = JsonSerializer.Serialize(CaptureSnapshot(), PersistOptions);
+            var hash = Hash(json);
+            if (hash == _lastSavedHash) return;
+            WriteAtomic(json);
+            _lastSavedHash = hash;
+        }
     }
 
+    // callers hold _saveGate. Writes to a unique temp file then atomically swaps it into place, so a
+    // crash mid-write can never leave a half-written store.json and stray temps never collide.
     private void WriteAtomic(string json)
     {
         var dir = Path.GetDirectoryName(DataFilePath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
-        var tmp = DataFilePath + ".tmp";
-        File.WriteAllText(tmp, json);
-        File.Move(tmp, DataFilePath, overwrite: true);
+        var tmp = $"{DataFilePath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllText(tmp, json);
+            File.Move(tmp, DataFilePath, overwrite: true);
+        }
+        catch
+        {
+            if (File.Exists(tmp)) { try { File.Delete(tmp); } catch { /* best effort cleanup */ } }
+            throw;
+        }
     }
 
     private static string Hash(string value) =>

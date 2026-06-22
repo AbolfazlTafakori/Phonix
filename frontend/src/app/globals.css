@@ -30,6 +30,11 @@ body {
   color: #fff;
 }
 
+/* the site is dark by design — keeps the browser/extensions from re-theming it */
+html {
+  color-scheme: dark;
+}
+
 body {
   font-family: var(--font-vazir), system-ui, sans-serif;
   overflow-x: hidden;

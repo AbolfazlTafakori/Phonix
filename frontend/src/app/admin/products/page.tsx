@@ -20,6 +20,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   sku: "",
   description: "",
   warning: "",
+  requiredLevel: 1,
   deliveryTemplate: "",
   features: [
     { text: "تحویل آنی پس از پرداخت", included: true },
@@ -80,6 +81,7 @@ export default function AdminProductsPage() {
       sku: p.sku,
       description: p.description,
       warning: p.warning,
+      requiredLevel: p.requiredLevel,
       deliveryTemplate: p.deliveryTemplate,
       features: p.features.map((f) => ({ ...f })),
       plans: p.plans.map((pl) => ({ type: pl.type, months: pl.months, price: pl.price, discountPercent: pl.discountPercent, isActive: pl.isActive })),
@@ -210,6 +212,14 @@ export default function AdminProductsPage() {
 
           <Field label="مطالعه اجباری / هشدار">
             <textarea rows={2} value={form.warning} onChange={(e) => set("warning", e.target.value)} placeholder="مثلاً: از تغییر رمز اکانت خودداری کنید." className={`${inputCls} h-auto py-3`} />
+          </Field>
+
+          <Field label="سطح احراز هویت موردنیاز">
+            <select value={form.requiredLevel} onChange={(e) => set("requiredLevel", Number(e.target.value))} className={`${inputCls} h-12`}>
+              <option value={1} className="bg-[#15151f]">سطح ۱ — کارت بانکی</option>
+              <option value={2} className="bg-[#15151f]">سطح ۲ — کارت ملی</option>
+            </select>
+            <p className="mt-1.5 text-xs text-white/45">برای خرید این محصول، کاربر باید حداقل این سطح احراز هویت را داشته باشد. (به کاربر نمایش داده نمی‌شود)</p>
           </Field>
 
           <Field label="قالب پیش‌فرض تحویل (اختیاری)">

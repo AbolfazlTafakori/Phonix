@@ -75,6 +75,7 @@ public class ProductsController : ControllerBase
         target.Sku = input.Sku ?? "";
         target.Description = input.Description ?? "";
         target.Warning = input.Warning ?? "";
+        target.RequiredLevel = Math.Clamp(input.RequiredLevel ?? 1, 1, 2);
         target.DeliveryTemplate = input.DeliveryTemplate ?? "";
         target.Features = input.Features ?? new();
         target.Plans = (input.Plans ?? new()).Select(NormalizePlan).ToList();

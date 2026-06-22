@@ -3,10 +3,10 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 
-export type CurrentUser = { id: number; name: string; username: string; email: string };
+export type CurrentUser = { id: number; name: string; username: string; email: string; phone?: string };
 
 const KEY = "phonix_user";
-const EVENT = "phonix-auth-change";
+export const AUTH_EVENT = "phonix-auth-change";
 
 export function getCurrentUser(): CurrentUser | null {
   if (typeof window === "undefined") return null;
@@ -20,13 +20,13 @@ export function getCurrentUser(): CurrentUser | null {
 
 export function setCurrentUser(user: CurrentUser) {
   localStorage.setItem(KEY, JSON.stringify(user));
-  window.dispatchEvent(new Event(EVENT));
+  window.dispatchEvent(new Event(AUTH_EVENT));
 }
 
 export function clearCurrentUser() {
   api.auth.logout().catch(() => {});
   localStorage.removeItem(KEY);
-  window.dispatchEvent(new Event(EVENT));
+  window.dispatchEvent(new Event(AUTH_EVENT));
 }
 
 export function useAuth() {
@@ -37,10 +37,10 @@ export function useAuth() {
     const sync = () => setUser(getCurrentUser());
     sync();
     setReady(true);
-    window.addEventListener(EVENT, sync);
+    window.addEventListener(AUTH_EVENT, sync);
     window.addEventListener("storage", sync);
     return () => {
-      window.removeEventListener(EVENT, sync);
+      window.removeEventListener(AUTH_EVENT, sync);
       window.removeEventListener("storage", sync);
     };
   }, []);

@@ -21,11 +21,17 @@ public class AppUser
     public long TotalSpent { get; set; }
     public long Wallet { get; set; }
     public bool Verified { get; set; }
+    // identity tier: 0 = just registered (can't purchase), 1 = bank card approved, 2 = national-ID approved.
+    // Kept in sync so Verified == (VerificationLevel >= 2). Upgrades are permanent.
+    public int VerificationLevel { get; set; }
     public bool EmailVerified { get; set; }
     public bool Blocked { get; set; }
     public string JoinedAt { get; set; } = "";
     public string? Note { get; set; }
     public int? ReferredBy { get; set; }
+    // Nonce embedded in every issued (stateless) session token. Rotating it invalidates all of this
+    // user's outstanding cookies at once — e.g. after a password change. Empty is a valid initial value.
+    public string SecurityStamp { get; set; } = "";
 }
 
 public class ReferralEarning

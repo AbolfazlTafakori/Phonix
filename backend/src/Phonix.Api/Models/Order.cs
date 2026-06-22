@@ -34,6 +34,8 @@ public class Order
     public long Total { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.PendingApproval;
     public string PaymentMethod { get; set; } = "";
+    // receipt for the gateway/card remainder paid out of band at checkout (proof staff verify before approval).
+    public string? ReceiptUrl { get; set; }
     public string Date { get; set; } = "";
     public string? Note { get; set; }
     public string? DeliveryContent { get; set; }

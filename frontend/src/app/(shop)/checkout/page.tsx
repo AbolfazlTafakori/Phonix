@@ -4,15 +4,18 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useCart, clearCart } from "@/lib/cart";
+import { useCart, clearCart, removeFromCart } from "@/lib/cart";
 import { formatToman } from "@/lib/format";
-import type { PaymentMethod, DiscountResult } from "@/lib/types";
+import type { PaymentMethod, BankCard, DiscountResult } from "@/lib/types";
+import { CardToCardForm, emptyCardToCard, isCardToCardComplete, type CardToCardValue } from "@/components/account/CardToCardForm";
 
 export default function CheckoutPage() {
   const { user, ready } = useAuth();
   const { items, total, ready: cartReady } = useCart();
   const [methods, setMethods] = useState<PaymentMethod[]>([]);
   const [methodId, setMethodId] = useState<number | null>(null);
+  const [cards, setCards] = useState<BankCard[]>([]);
+  const [pay, setPay] = useState<CardToCardValue>(emptyCardToCard);
   const [wallet, setWallet] = useState<number | null>(null);
   const [useWallet, setUseWallet] = useState(false);
   const [emailVerified, setEmailVerified] = useState(true);
@@ -22,6 +25,10 @@ export default function CheckoutPage() {
   const [error, setError] = useState("");
   const [doneCode, setDoneCode] = useState("");
   const [donePaid, setDonePaid] = useState(false);
+  // identity-level gate: the user's level + each product's required level (productId → requiredLevel).
+  const [userLevel, setUserLevel] = useState(0);
+  const [levelMap, setLevelMap] = useState<Record<number, number>>({});
+  const [levelModal, setLevelModal] = useState(false);
 
   const [codeInput, setCodeInput] = useState("");
   const [discount, setDiscount] = useState<DiscountResult | null>(null);
@@ -38,22 +45,41 @@ export default function CheckoutPage() {
   const fee = Math.round((remainder * feePercent) / 100);
   const finalPayable = remainder + fee;
 
+  // cart lines whose product needs a higher identity level than the user currently has.
+  const overLevelItems = items.filter((i) => (levelMap[i.productId] ?? 1) > userLevel);
+
+  const patchPay = (p: Partial<CardToCardValue>) => setPay((cur) => ({ ...cur, ...p }));
+
   useEffect(() => {
     (async () => {
       try {
-        const [m, me] = await Promise.all([api.paymentMethods.list(), api.account.me().catch(() => null)]);
-        const active = m.filter((x) => x.isActive);
-        setMethods(active);
+        const [m, me, prods] = await Promise.all([
+          api.paymentMethods.list(),
+          api.account.me().catch(() => null),
+          api.products.list().catch(() => []),
+        ]);
+        setMethods(m.filter((x) => x.isActive));
+        setLevelMap(Object.fromEntries(prods.map((p) => [p.id, p.requiredLevel])));
         if (me) {
           setWallet(me.wallet);
           setEmailVerified(me.emailVerified);
+          setUserLevel(me.verificationLevel);
+          const myCards = await api.cards.forUser(me.id).catch(() => [] as BankCard[]);
+          const approved = myCards.filter((c) => c.status === "Approved");
+          setCards(approved);
+          setPay((cur) => (cur.cardId === null && approved[0] ? { ...cur, cardId: approved[0].id } : cur));
         }
-        setMethodId(active[0]?.id ?? null);
+        // no auto-selection of a method: when a remainder is due the buyer consciously picks one.
       } catch {
         // ignore
       }
     })();
   }, []);
+
+  // once the user removes every over-level item, dismiss the upgrade modal automatically.
+  useEffect(() => {
+    if (levelModal && overLevelItems.length === 0) setLevelModal(false);
+  }, [levelModal, overLevelItems.length]);
 
   async function applyCode() {
     const code = codeInput.trim();
@@ -93,11 +119,27 @@ export default function CheckoutPage() {
 
   async function placeOrder() {
     if (!user || items.length === 0) return;
+    // identity-level gate: if any cart item needs a higher level, show the upgrade/remove modal.
+    if (overLevelItems.length > 0) {
+      setLevelModal(true);
+      return;
+    }
+    // a remainder is due → the buyer must pick a method and complete the card-to-card payment (card,
+    // tracking, date, receipt) before the order can be filed; staff then verify and approve it.
+    if (needsMethod) {
+      if (methodId === null) {
+        setError("یک روش پرداخت برای مبلغ باقیمانده انتخاب کنید.");
+        return;
+      }
+      if (!isCardToCardComplete(pay)) {
+        setError("اطلاعات پرداخت باقیمانده (کارت، شماره پیگیری، تاریخ و فیش) را کامل کنید.");
+        return;
+      }
+    }
     setPlacing(true);
     setError("");
     try {
-      const method = methods.find((m) => m.id === methodId);
-      const methodLabel = method?.title ?? "نامشخص";
+      const methodLabel = selectedMethod?.title ?? "نامشخص";
       const paymentMethod = remainder === 0 ? "کیف پول" : walletUse > 0 ? `کیف پول + ${methodLabel}` : methodLabel;
       const order = await api.orders.place({
         items: items.map((i) => ({ productId: i.productId, quantity: i.quantity, planId: i.planId ?? null })),
@@ -105,13 +147,18 @@ export default function CheckoutPage() {
         fromWallet: useWallet,
         discountCode: discount?.valid ? codeInput.trim() : null,
         paymentMethodId: needsMethod ? methodId : null,
+        cardId: needsMethod ? pay.cardId : null,
+        receiptUrl: needsMethod ? pay.receiptUrl : null,
+        trackingNumber: needsMethod ? pay.tracking.trim() : null,
+        paymentDate: needsMethod ? pay.payDate.trim() : null,
+        description: needsMethod ? pay.desc.trim() || null : null,
       });
-      clearCart();
+      // wallet covered the whole order → already paid; otherwise the payment is now pending review.
       setDonePaid(order.status === "Preparing");
+      clearCart();
       setDoneCode(order.code);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در ثبت سفارش");
-    } finally {
       setPlacing(false);
     }
   }
@@ -126,7 +173,7 @@ export default function CheckoutPage() {
           <br />
           {donePaid
             ? "مبلغ از کیف پول شما کسر شد و سفارش به مرحله‌ی آماده‌سازی رفت."
-            : "سفارش شما در وضعیت «در انتظار تأیید» قرار گرفت و پس از تأیید نهایی توسط پشتیبانی، به مرحله‌ی آماده‌سازی می‌رود."}
+            : "سفارش شما ثبت شد و رسید پرداخت شما در انتظار تأیید پشتیبانی است؛ پس از تأیید، سفارش به مرحله‌ی آماده‌سازی می‌رود."}
         </p>
         <Link href="/account/orders" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
           مشاهده سفارش‌های من
@@ -183,6 +230,45 @@ export default function CheckoutPage() {
           <div className="rounded-2xl border border-white/8 bg-[#15151f]/80 p-5">
             <h3 className="mb-4 text-lg font-bold text-white">روش پرداخت</h3>
 
+            {overLevelItems.length > 0 ? (
+              /* identity-level gate: hide every payment destination (card number, wallet
+                 address, gateway) until the account reaches the level the cart requires. */
+              <div className="space-y-4">
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4">
+                  <p className="font-bold text-amber-300">نیاز به ارتقای سطح حساب</p>
+                  <p className="mt-1 text-sm leading-7 text-amber-100/80">
+                    {overLevelItems.length === 1 ? (
+                      <>
+                        محصول <span className="font-bold text-amber-200">«{overLevelItems[0].name}»</span> برای سطح فعلی حساب شما قابل خرید نیست.
+                      </>
+                    ) : (
+                      "محصول‌های زیر برای سطح فعلی حساب شما قابل خرید نیستند."
+                    )}{" "}
+                    تا زمانی که سطح حساب خود را ارتقا ندهید، اطلاعات پرداخت (شماره کارت، آدرس کیف پول و درگاه) نمایش داده نمی‌شود. {overLevelItems.length === 1 ? "این محصول را" : "این محصول‌ها را"} از سبد حذف کنید یا سطح حساب خود را ارتقا دهید.
+                  </p>
+                </div>
+                <ul className="space-y-2">
+                  {overLevelItems.map((i) => (
+                    <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <img src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
+                        <span className="truncate text-sm text-white/85">{i.name}</span>
+                      </div>
+                      <button
+                        onClick={() => removeFromCart(i.productId, i.planId ?? null)}
+                        className="shrink-0 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-bold text-rose-400 transition hover:bg-rose-500/10"
+                      >
+                        حذف از سبد
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+                <Link href="/account/kyc" className="grid h-11 place-items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-sm font-bold text-white transition hover:brightness-110">
+                  ارتقای سطح حساب
+                </Link>
+              </div>
+            ) : (
+              <>
             {wallet !== null && walletBalance > 0 && (
               <button
                 type="button"
@@ -201,26 +287,46 @@ export default function CheckoutPage() {
             )}
 
             {needsMethod ? (
-              <div className="space-y-2">
-                <p className="text-xs text-white/45">{walletUse > 0 ? "باقیمانده را با یکی از روش‌های زیر پرداخت کنید:" : "روش پرداخت را انتخاب کنید:"}</p>
-                {methods.length === 0 ? (
-                  <p className="text-sm text-white/45">روش پرداختی تعریف نشده است.</p>
-                ) : (
-                  methods.map((m) => (
-                    <label key={m.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${methodId === m.id ? "border-[#e60053]/50 bg-[#e60053]/10" : "border-white/10 hover:bg-white/5"}`}>
-                      <input type="radio" name="method" checked={methodId === m.id} onChange={() => setMethodId(m.id)} className="accent-[#e60053]" />
-                      <div>
-                        <p className="text-sm font-bold text-white">{m.title}</p>
-                        {m.instructions && <p className="text-xs text-white/45">{m.instructions}</p>}
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <p className="text-xs text-white/45">{walletUse > 0 ? "مبلغ باقیمانده را با یکی از روش‌های زیر پرداخت کنید:" : "روش پرداخت را انتخاب کنید:"}</p>
+                  {methods.length === 0 ? (
+                    <p className="text-sm text-white/45">روش پرداختی تعریف نشده است.</p>
+                  ) : (
+                    methods.map((m) => (
+                      <label key={m.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${methodId === m.id ? "border-[#e60053]/50 bg-[#e60053]/10" : "border-white/10 hover:bg-white/5"}`}>
+                        <input type="radio" name="method" checked={methodId === m.id} onChange={() => setMethodId(m.id)} className="accent-[#e60053]" />
+                        <div>
+                          <p className="text-sm font-bold text-white">{m.title}</p>
+                          {m.instructions && <p className="text-xs text-white/45">{m.instructions}</p>}
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+
+                {selectedMethod && (
+                  <CardToCardForm
+                    destMethod={selectedMethod}
+                    cards={cards}
+                    amountSlot={
+                      <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm">
+                        <span className="text-white/55">مبلغ قابل پرداخت</span>
+                        <span className="font-bold text-emerald-400">{formatToman(finalPayable)}</span>
                       </div>
-                    </label>
-                  ))
+                    }
+                    value={pay}
+                    onChange={patchPay}
+                    onError={setError}
+                  />
                 )}
               </div>
             ) : (
               <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
                 کل مبلغ از کیف پول شما پرداخت می‌شود.
               </div>
+            )}
+              </>
             )}
           </div>
         </div>
@@ -298,13 +404,50 @@ export default function CheckoutPage() {
           {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
           <button
             onClick={placeOrder}
-            disabled={placing || items.length === 0 || !emailVerified || (needsMethod && methodId === null)}
+            disabled={placing || items.length === 0 || !emailVerified || (needsMethod && (methodId === null || !isCardToCardComplete(pay)))}
             className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
           >
             {placing ? "در حال ثبت..." : "پرداخت و ثبت سفارش"}
           </button>
         </div>
       </div>
+
+      {levelModal && (
+        <div className="fixed inset-0 z-50 grid place-items-center p-4">
+          <div onClick={() => setLevelModal(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#16161f] p-6 shadow-2xl">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-amber-500/15 text-2xl text-amber-300">!</div>
+            <h3 className="text-center text-lg font-bold text-white">نیاز به ارتقای سطح حساب</h3>
+            <p className="mt-2 text-center text-sm leading-7 text-white/60">
+              این محصول(ها) برای سطح فعلی حساب شما در دسترس نیستند. می‌توانید آن‌ها را از سبد حذف کنید یا سطح حساب خود را ارتقا دهید:
+            </p>
+            <ul className="mt-4 space-y-2">
+              {overLevelItems.map((i) => (
+                <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <img src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
+                    <span className="truncate text-sm text-white/85">{i.name}</span>
+                  </div>
+                  <button
+                    onClick={() => removeFromCart(i.productId, i.planId ?? null)}
+                    className="shrink-0 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-bold text-rose-400 transition hover:bg-rose-500/10"
+                  >
+                    حذف از سبد
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="mt-6 flex gap-3">
+              <Link href="/account/kyc" className="grid h-11 flex-1 place-items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-sm font-bold text-white transition hover:brightness-110">
+                ارتقای سطح حساب
+              </Link>
+              <button onClick={() => setLevelModal(false)} className="h-11 rounded-xl border border-white/10 px-6 text-sm font-bold text-white/80 transition hover:bg-white/5">
+                بستن
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

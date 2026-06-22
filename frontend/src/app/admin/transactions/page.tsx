@@ -11,6 +11,12 @@ import AdminIcon from "@/components/admin/AdminIcon";
 const statusLabel: Record<TxStatus, string> = { Pending: "در انتظار", Approved: "تایید شده", Rejected: "رد شده" };
 type Filter = "all" | TxStatus;
 
+function formatCard(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 16);
+  const grouped = digits.replace(/(.{4})/g, "$1-").replace(/-$/, "");
+  return grouped.replace(/\d/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
+}
+
 export default function AdminTransactionsPage() {
   const [items, setItems] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +71,30 @@ export default function AdminTransactionsPage() {
         </span>
       ),
     },
-    { header: "روش", td: "text-white/65", cell: (t) => t.method },
+    {
+      header: "روش",
+      td: "text-white/65",
+      cell: (t) => (
+        <div>
+          <div className="flex items-center gap-2">
+            <span>{t.method}</span>
+            {t.receiptUrl && (
+              <a href={api.transactions.receiptSrc(t.receiptUrl)} target="_blank" rel="noreferrer" className="shrink-0 text-xs font-bold text-[#6f93ff] transition hover:underline">
+                رسید
+              </a>
+            )}
+          </div>
+          {(t.sourceCard || t.trackingNumber || t.paymentDate) && (
+            <div className="mt-0.5 space-y-0.5 text-[11px] text-white/40">
+              {t.sourceCard && <p dir="ltr" className="font-mono">{formatCard(t.sourceCard)}</p>}
+              {(t.trackingNumber || t.paymentDate) && (
+                <p>{t.trackingNumber ? `پیگیری: ${t.trackingNumber}` : ""}{t.trackingNumber && t.paymentDate ? " · " : ""}{t.paymentDate ?? ""}</p>
+              )}
+            </div>
+          )}
+        </div>
+      ),
+    },
     { header: "وضعیت", cell: (t) => <StatusBadge status={statusLabel[t.status]} /> },
     {
       header: "عملیات",

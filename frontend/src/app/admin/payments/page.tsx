@@ -70,6 +70,8 @@ export default function AdminPaymentsPage() {
         holder: "",
         value: "",
         network: "",
+        sheba: "",
+        accountNumber: "",
         instructions: "",
         feePercent: 0,
         isActive: true,
@@ -134,6 +136,16 @@ export default function AdminPaymentsPage() {
                     <Field label={valueLabel[d.type]}>
                       <input value={d.value} onChange={(e) => setField(m.id, "value", e.target.value)} dir="ltr" className={`${inputCls} h-10 text-left`} />
                     </Field>
+                    {d.type === "Card" && (
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="شماره شبا (اختیاری)">
+                          <input value={d.sheba} onChange={(e) => setField(m.id, "sheba", e.target.value)} dir="ltr" placeholder="IR..." className={`${inputCls} h-10 text-left`} />
+                        </Field>
+                        <Field label="شماره حساب (اختیاری)">
+                          <input value={d.accountNumber} onChange={(e) => setField(m.id, "accountNumber", e.target.value)} dir="ltr" className={`${inputCls} h-10 text-left`} />
+                        </Field>
+                      </div>
+                    )}
                     <Field label="راهنمای پرداخت">
                       <textarea rows={2} value={d.instructions} onChange={(e) => setField(m.id, "instructions", e.target.value)} className={`${inputCls} h-auto py-2.5`} />
                     </Field>

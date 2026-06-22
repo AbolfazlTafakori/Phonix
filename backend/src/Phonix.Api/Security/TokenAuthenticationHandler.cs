@@ -10,18 +10,23 @@ public class TokenAuthenticationHandler : AuthenticationHandler<AuthenticationSc
 {
     public const string SchemeName = "Bearer";
     private readonly StoreData _store;
+    private readonly ISessionProtector _sessions;
 
     public TokenAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
-        StoreData store)
+        StoreData store,
+        ISessionProtector sessions)
         : base(options, logger, encoder)
-        => _store = store;
+    {
+        _store = store;
+        _sessions = sessions;
+    }
 
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
-        // browsers send the token in an httpOnly cookie; API clients may use a Bearer header.
+        // browsers send the encrypted session token in an httpOnly cookie; API clients may use a Bearer header.
         string? token = null;
         string? header = Request.Headers.Authorization;
         if (!string.IsNullOrWhiteSpace(header) && header.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
@@ -32,9 +37,19 @@ public class TokenAuthenticationHandler : AuthenticationHandler<AuthenticationSc
         if (string.IsNullOrWhiteSpace(token))
             return Task.FromResult(AuthenticateResult.NoResult());
 
-        var user = _store.ResolveSession(token);
-        if (user is null)
+        // The token is self-contained: decrypt and validate it with the persisted Data Protection key ring
+        // rather than an in-memory table, so a session stays valid across server restarts.
+        var payload = _sessions.Unprotect(token);
+        if (payload is null)
             return Task.FromResult(AuthenticateResult.Fail("توکن نامعتبر است."));
+
+        // Re-check the live user on every request so a ban, deletion, or password change (which rotates the
+        // security stamp) takes effect immediately, even though the token itself carries no server state.
+        var user = _store.GetUser(payload.UserId);
+        if (user is null || user.Blocked)
+            return Task.FromResult(AuthenticateResult.Fail("نشست نامعتبر است."));
+        if (!string.Equals(user.SecurityStamp ?? "", payload.SecurityStamp, StringComparison.Ordinal))
+            return Task.FromResult(AuthenticateResult.Fail("نشست منقضی شده است."));
 
         var claims = new[]
         {

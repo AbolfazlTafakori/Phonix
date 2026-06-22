@@ -26,6 +26,7 @@ const fallbackProduct: Product = {
   description:
     "دسترسی کامل به کتابخانه‌ی نتفلیکس با کیفیت 4K، امکان تماشا روی چند دستگاه و تحویل آنی اطلاعات اکانت بلافاصله پس از پرداخت.",
   warning: "",
+  requiredLevel: 1,
   deliveryTemplate: "",
   features: [
     { text: "تحویل آنی پس از پرداخت", included: true },
