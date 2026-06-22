@@ -18,5 +18,8 @@ public class KycRequest
     public string SelfieImage { get; set; } = "";
     public KycStatus Status { get; set; } = KycStatus.Pending;
     public string? Note { get; set; }
+    // Explicit reason shown to the user when their KYC is rejected (so they know what to fix). Set on
+    // reject, cleared on approve/resubmit. Mirrors Note for backward compatibility.
+    public string? RejectionReason { get; set; }
     public string Date { get; set; } = "";
 }

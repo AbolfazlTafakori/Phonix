@@ -211,6 +211,53 @@ public partial class StoreData
         }
     }
 
+    // reusable per-product delivery templates
+
+    public IReadOnlyList<ProductDeliveryTemplate> GetDeliveryTemplates(int productId)
+    {
+        lock (_gate)
+        {
+            var p = _products.FirstOrDefault(x => x.Id == productId);
+            return p is null ? Array.Empty<ProductDeliveryTemplate>() : p.DeliveryTemplates.ToList();
+        }
+    }
+
+    // Adds a named template to a product. The id is unique within the product and stays stable when other
+    // templates are deleted (max existing + 1), so the deliver-modal dropdown and delete-by-id stay correct.
+    public ProductDeliveryTemplate? AddDeliveryTemplate(int productId, string title, string content)
+    {
+        ProductDeliveryTemplate? tpl;
+        lock (_gate)
+        {
+            var p = _products.FirstOrDefault(x => x.Id == productId);
+            if (p is null) return null;
+            tpl = new ProductDeliveryTemplate
+            {
+                Id = (p.DeliveryTemplates.Count == 0 ? 0 : p.DeliveryTemplates.Max(x => x.Id)) + 1,
+                ProductId = productId,
+                Title = title.Trim(),
+                TemplateContent = content,
+            };
+            p.DeliveryTemplates.Add(tpl);
+        }
+        PersistNow(); // admin config change — make it durable immediately.
+        return tpl;
+    }
+
+    public bool DeleteDeliveryTemplate(int productId, int templateId)
+    {
+        bool removed;
+        lock (_gate)
+        {
+            var p = _products.FirstOrDefault(x => x.Id == productId);
+            var tpl = p?.DeliveryTemplates.FirstOrDefault(x => x.Id == templateId);
+            if (p is null || tpl is null) return false;
+            removed = p.DeliveryTemplates.Remove(tpl);
+        }
+        if (removed) PersistNow();
+        return removed;
+    }
+
     // users
 
     public IReadOnlyList<AppUser> GetUsers(string? search = null, UserRole? role = null, bool? blocked = null)
@@ -310,6 +357,9 @@ public partial class StoreData
     public void UpdateSettings(PricingSettings settings)
     {
         lock (_gate) _settings = settings;
+        // Settings take effect instantly (every read goes through _gate and sees the new object). Flush
+        // synchronously so a crash/restart/deploy right after the change can never lose it.
+        PersistNow();
     }
 
     public IReadOnlyList<SubscriptionPlan> GetPlans()

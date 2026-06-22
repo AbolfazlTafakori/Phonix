@@ -95,6 +95,7 @@ public partial class StoreData
                     Name = p.Name,
                     Image = p.Image,
                     Plan = plan is null ? null : $"{plan.Type} · {plan.Months} ماهه",
+                    PlanMonths = plan?.Months,   // machine-readable duration → drives renewal-reminder expiry
                     UnitPrice = plan?.FinalPrice ?? p.FinalPrice,
                     Quantity = Math.Min(quantity, 100),
                 });
@@ -229,21 +230,24 @@ public partial class StoreData
         }
     }
 
-    public Order? SetOrderStatus(int id, OrderStatus status)
+    public Order? SetOrderStatus(int id, OrderStatus status, string? changedBy = null, string? reason = null)
     {
-        var o = SetOrderStatusCore(id, status);
+        var o = SetOrderStatusCore(id, status, changedBy, reason);
         if (o is not null) PersistNow();
         return o;
     }
 
-    private Order? SetOrderStatusCore(int id, OrderStatus status)
+    private Order? SetOrderStatusCore(int id, OrderStatus status, string? changedBy = null, string? reason = null)
     {
         lock (_gate)
         {
             var o = _orders.FirstOrDefault(x => x.Id == id);
             if (o is null) return null;
+            var from = o.Status;
             var wasCompleted = o.Status == OrderStatus.Completed;
             o.Status = status;
+            // stamp the real delivery moment the first time the order is completed (drives expiry math).
+            if (status == OrderStatus.Completed) o.DeliveredAtUtc ??= DateTime.UtcNow;
             // keep the linked card-to-card payment in sync: approving the order marks its payment verified too.
             if (status == OrderStatus.Preparing)
             {
@@ -251,30 +255,34 @@ public partial class StoreData
                 if (tx is not null) tx.Status = TxStatus.Approved;
             }
             if (status == OrderStatus.Completed && !wasCompleted) CreditReferral(o);
+            if (from != status) AppendOrderHistory(o, from, status, changedBy, reason);
             RefreshUserOrderStats(o.UserId);
             return o;
         }
     }
 
     // records the in-site delivery content for an order and marks it completed.
-    public Order? DeliverOrder(int id, string content)
+    public Order? DeliverOrder(int id, string content, string? changedBy = null)
     {
-        var o = DeliverOrderCore(id, content);
+        var o = DeliverOrderCore(id, content, changedBy);
         if (o is not null) PersistNow();
         return o;
     }
 
-    private Order? DeliverOrderCore(int id, string content)
+    private Order? DeliverOrderCore(int id, string content, string? changedBy = null)
     {
         lock (_gate)
         {
             var o = _orders.FirstOrDefault(x => x.Id == id);
             if (o is null) return null;
+            var from = o.Status;
             o.DeliveryContent = content;
             o.DeliveredAt = Today();
+            o.DeliveredAtUtc ??= DateTime.UtcNow; // real timestamp for subscription expiry
             var wasCompleted = o.Status == OrderStatus.Completed;
             o.Status = OrderStatus.Completed;
             if (!wasCompleted) CreditReferral(o);
+            if (from != OrderStatus.Completed) AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تحویل سفارش");
             RefreshUserOrderStats(o.UserId);
             AddNotification(o.UserId, "سفارش شما آماده شد", $"سفارش {o.Code} آماده و قابل مشاهده در حساب شماست.", "/account/orders");
             return o;
@@ -283,14 +291,14 @@ public partial class StoreData
 
     // cancels an order: restores stock and, if it was already paid, refunds the wallet
     // minus the configured cancellation penalty.
-    public OrderActionResult CancelOrder(int id)
+    public OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null)
     {
-        var result = CancelOrderCore(id);
+        var result = CancelOrderCore(id, changedBy, reason);
         if (result.Error is null) PersistNow(); // stock restored + (possible) refund credited — persist now.
         return result;
     }
 
-    private OrderActionResult CancelOrderCore(int id)
+    private OrderActionResult CancelOrderCore(int id, string? changedBy = null, string? reason = null)
     {
         lock (_gate)
         {
@@ -298,6 +306,7 @@ public partial class StoreData
             if (o is null) return new OrderActionResult(null, "سفارش یافت نشد.");
             if (o.Status == OrderStatus.Cancelled) return new OrderActionResult(null, "این سفارش قبلاً لغو شده است.");
             if (o.Status == OrderStatus.Completed) return new OrderActionResult(null, "سفارش تکمیل‌شده قابل لغو نیست.");
+            var from = o.Status;
 
             foreach (var line in o.Items)
             {
@@ -325,9 +334,77 @@ public partial class StoreData
             }
 
             o.Status = OrderStatus.Cancelled;
+            AppendOrderHistory(o, from, OrderStatus.Cancelled, changedBy, reason ?? "لغو سفارش");
             RefreshUserOrderStats(o.UserId);
             return new OrderActionResult(o, null);
         }
+    }
+
+    // Appends one audit entry for an order status transition. Caller holds _gate. The id is unique within
+    // the order's own history list.
+    private static void AppendOrderHistory(Order o, OrderStatus from, OrderStatus to, string? changedBy, string? reason)
+    {
+        o.History.Add(new OrderStatusHistory
+        {
+            Id = (o.History.Count == 0 ? 0 : o.History.Max(h => h.Id)) + 1,
+            OrderId = o.Id,
+            ChangedByUsername = string.IsNullOrWhiteSpace(changedBy) ? "سیستم" : changedBy!.Trim(),
+            FromStatus = from,
+            ToStatus = to,
+            Reason = string.IsNullOrWhiteSpace(reason) ? null : reason!.Trim(),
+            ChangedAtUtc = DateTime.UtcNow,
+        });
+    }
+
+    // Formats a UTC moment as a Persian-digit Jalali date (yyyy/MM/dd), matching how dates display elsewhere.
+    private static string JalaliDate(DateTime dt)
+    {
+        var pc = new System.Globalization.PersianCalendar();
+        var s = $"{pc.GetYear(dt):0000}/{pc.GetMonth(dt):00}/{pc.GetDayOfMonth(dt):00}";
+        return new string(s.Select(ch => char.IsDigit(ch) ? (char)('۰' + (ch - '0')) : ch).ToArray());
+    }
+
+    // A subscription due for a renewal reminder. ExpiresFa is the Jalali expiry date for display.
+    public sealed record RenewalReminder(int UserId, string Email, string OrderCode, string ExpiresFa);
+
+    // Atomically finds completed time-based orders whose subscription expires within `hoursBefore` hours and
+    // hasn't been reminded yet: marks each as reminded, fires the in-app bell notification, and returns the
+    // list so the caller (the background worker) can send the emails outside the lock. The
+    // RenewalReminderSentUtc flag guarantees a given order is never reminded twice, and the result is
+    // persisted immediately so a restart can't resend.
+    public IReadOnlyList<RenewalReminder> CollectDueRenewalReminders(int hoursBefore)
+    {
+        var due = new List<RenewalReminder>();
+        if (hoursBefore <= 0) return due;
+        lock (_gate)
+        {
+            var now = DateTime.UtcNow;
+            var window = TimeSpan.FromHours(hoursBefore);
+            foreach (var o in _orders)
+            {
+                if (o.Status != OrderStatus.Completed) continue;
+                if (o.DeliveredAtUtc is not DateTime delivered) continue;    // legacy/undelivered → skip
+                if (o.RenewalReminderSentUtc is not null) continue;           // already reminded
+                // the order stays "active" until its longest time-based plan expires.
+                var months = o.Items.Where(i => i.PlanMonths is int m && m > 0).Select(i => i.PlanMonths!.Value).DefaultIfEmpty(0).Max();
+                if (months <= 0) continue;                                    // not a time-based subscription
+                var expires = delivered.AddMonths(months);
+                var remaining = expires - now;
+                if (remaining <= TimeSpan.Zero || remaining > window) continue; // expired, or not yet in window
+
+                var user = _users.FirstOrDefault(u => u.Id == o.UserId);
+                if (user is null) continue;
+
+                o.RenewalReminderSentUtc = now;
+                var expiresFa = JalaliDate(expires);
+                AddNotification(user.Id, "یادآوری تمدید اشتراک",
+                    $"اشتراک سفارش {o.Code} شما در تاریخ {expiresFa} منقضی می‌شود. برای جلوگیری از قطع سرویس، آن را تمدید کنید.",
+                    "/account/orders");
+                due.Add(new RenewalReminder(user.Id, user.Email, o.Code, expiresFa));
+            }
+        }
+        if (due.Count > 0) PersistNow();
+        return due;
     }
 
     // pays the referrer their commission once a referred buyer's order is completed.

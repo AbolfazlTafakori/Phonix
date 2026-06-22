@@ -7,6 +7,8 @@ using Phonix.Api.Security;
 
 namespace Phonix.Api.Controllers;
 
+public record DeliveryTemplateInput(string Title, string Content);
+
 [ApiController]
 [Route("api/products")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
@@ -61,6 +63,31 @@ public class ProductsController : ControllerBase
 
     [HttpDelete("{id:int}")]
     public IActionResult Delete(int id) => _store.DeleteProduct(id) ? NoContent() : NotFound();
+
+    // ── Reusable delivery templates per product (staff only — class-level auth applies) ──
+
+    // Lists the saved templates for a product, to populate the dropdown in the deliver modal.
+    [HttpGet("{id:int}/templates")]
+    public ActionResult<IEnumerable<ProductDeliveryTemplate>> GetTemplates(int id)
+    {
+        if (_store.GetProduct(id) is null) return NotFound();
+        return Ok(_store.GetDeliveryTemplates(id));
+    }
+
+    // Saves a new named template on the product.
+    [HttpPost("{id:int}/templates")]
+    public ActionResult<ProductDeliveryTemplate> AddTemplate(int id, DeliveryTemplateInput input)
+    {
+        if (string.IsNullOrWhiteSpace(input.Title)) return BadRequest("عنوان قالب الزامی است.");
+        if (string.IsNullOrWhiteSpace(input.Content)) return BadRequest("متن قالب الزامی است.");
+        var tpl = _store.AddDeliveryTemplate(id, input.Title, input.Content);
+        return tpl is null ? NotFound() : tpl;
+    }
+
+    // Removes a template from the product by its (product-scoped) id.
+    [HttpDelete("{id:int}/templates/{templateId:int}")]
+    public IActionResult DeleteTemplate(int id, int templateId) =>
+        _store.DeleteDeliveryTemplate(id, templateId) ? NoContent() : NotFound();
 
     private static Product Map(Product target, ProductInput input)
     {

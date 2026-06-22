@@ -8,6 +8,9 @@ public class PricingSettings
     public decimal CancellationPenaltyPercent { get; set; }
     public long MinWalletCharge { get; set; }
     public long MinWithdraw { get; set; }
+    // How many hours before a subscription expires the renewal reminder is sent. Admin-configurable and
+    // read dynamically by SubscriptionExpiryWorker each cycle; 0 (or less) disables reminders entirely.
+    public int SubscriptionReminderHoursBefore { get; set; } = 48;
     public string Currency { get; set; } = "تومان";
     public bool ShowOriginalPrice { get; set; } = true;
 }

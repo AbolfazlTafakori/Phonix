@@ -22,5 +22,8 @@ public class BankCard
     public string? Sheba { get; set; }
     public BankCardStatus Status { get; set; } = BankCardStatus.Pending;
     public string? Note { get; set; }
+    // Explicit reason shown to the user when their card is rejected. Set on reject, cleared on approve.
+    // Mirrors Note for backward compatibility.
+    public string? RejectionReason { get; set; }
     public string Date { get; set; } = "";
 }

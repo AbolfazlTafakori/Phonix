@@ -72,6 +72,8 @@ public partial class StoreData
             if (card is null) return null;
             card.Status = status;
             card.Note = note;
+            // surface an explicit rejection reason to the user; clear it when not a rejection.
+            card.RejectionReason = status == BankCardStatus.Rejected ? note : null;
             // approving a bank card lifts the owner to level 1 (permanent — never lowered) and, on that
             // first rise, sends them a private congratulation notification (per-user, not a broadcast).
             if (status == BankCardStatus.Approved)

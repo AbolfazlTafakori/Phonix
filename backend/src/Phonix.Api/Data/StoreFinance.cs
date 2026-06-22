@@ -20,30 +20,43 @@ public partial class StoreData
 
     public PaymentMethod AddPaymentMethod(PaymentMethod m)
     {
-        lock (_gate) { m.Id = ++_paymentSeq; _paymentMethods.Add(m); return m; }
+        lock (_gate) { m.Id = ++_paymentSeq; _paymentMethods.Add(m); }
+        PersistNow(); // payment destinations are settings — persist instantly so a restart keeps them.
+        return m;
     }
 
     public bool UpdatePaymentMethod(PaymentMethod m)
     {
+        bool ok;
         lock (_gate)
         {
             var e = _paymentMethods.FirstOrDefault(x => x.Id == m.Id);
-            if (e is null) return false;
-            e.Type = m.Type;
-            e.Title = m.Title;
-            e.Holder = m.Holder;
-            e.Value = m.Value;
-            e.Network = m.Network;
-            e.Sheba = m.Sheba;
-            e.AccountNumber = m.AccountNumber;
-            e.Instructions = m.Instructions;
-            e.IsActive = m.IsActive;
-            e.SortOrder = m.SortOrder;
-            return true;
+            if (e is null) { ok = false; }
+            else
+            {
+                e.Type = m.Type;
+                e.Title = m.Title;
+                e.Holder = m.Holder;
+                e.Value = m.Value;
+                e.Network = m.Network;
+                e.Sheba = m.Sheba;
+                e.AccountNumber = m.AccountNumber;
+                e.Instructions = m.Instructions;
+                e.IsActive = m.IsActive;
+                e.SortOrder = m.SortOrder;
+                ok = true;
+            }
         }
+        if (ok) PersistNow();
+        return ok;
     }
 
-    public bool DeletePaymentMethod(int id) => DeleteItem(_paymentMethods, id);
+    public bool DeletePaymentMethod(int id)
+    {
+        var ok = DeleteItem(_paymentMethods, id);
+        if (ok) PersistNow();
+        return ok;
+    }
 
     // payment settings
 
@@ -55,6 +68,7 @@ public partial class StoreData
     public void UpdatePaymentSettings(PaymentSettings s)
     {
         lock (_gate) _paymentSettings = s;
+        PersistNow();
     }
 
     // transactions
@@ -147,6 +161,7 @@ public partial class StoreData
                 if (ord is not null && ord.Status == OrderStatus.PendingApproval)
                 {
                     ord.Status = OrderStatus.Preparing;
+                    AppendOrderHistory(ord, OrderStatus.PendingApproval, OrderStatus.Preparing, "سیستم (تأیید پرداخت)", "تأیید پرداخت سفارش");
                     RefreshUserOrderStats(ord.UserId);
                 }
             }

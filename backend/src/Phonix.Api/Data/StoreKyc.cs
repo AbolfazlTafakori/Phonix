@@ -57,6 +57,8 @@ public partial class StoreData
             if (req is null) return null;
             req.Status = status;
             req.Note = note;
+            // surface an explicit rejection reason to the user; clear it when not a rejection.
+            req.RejectionReason = status == KycStatus.Rejected ? note : null;
 
             // approving the national-ID KYC lifts the user to level 2 (full access, permanent). A rejection
             // never lowers an already-granted level.

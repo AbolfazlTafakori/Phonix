@@ -70,4 +70,13 @@ public static class EmailTemplates
             + Button("مشاهده‌ی سفارش‌ها", accountUrl));
         return (text, html);
     }
+
+    public static (string text, string html) SubscriptionReminder(string orderCode, string expiresFa, string renewUrl)
+    {
+        var text = $"یادآوری تمدید اشتراک\nاشتراک سفارش {orderCode} شما در تاریخ {expiresFa} منقضی می‌شود. برای جلوگیری از قطع سرویس، آن را تمدید کنید.\n{renewUrl}";
+        var html = Shell("یادآوری تمدید اشتراک ⏳",
+            $"<p>اشتراک سفارش <b>{WebUtility.HtmlEncode(orderCode)}</b> شما به‌زودی و در تاریخ <b>{WebUtility.HtmlEncode(expiresFa)}</b> منقضی می‌شود. برای اینکه سرویس شما بدون وقفه ادامه پیدا کند، همین حالا آن را تمدید کنید.</p>"
+            + Button("تمدید اشتراک", renewUrl));
+        return (text, html);
+    }
 }

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.ModelBinding;
 using Phonix.Api.Data;
 using Phonix.Api.Dtos;
 using Phonix.Api.Models;
@@ -11,6 +12,7 @@ namespace Phonix.Api.Controllers;
 public record OrderLineInput(int ProductId, int Quantity, int? PlanId);
 public record PlaceOrderInput(List<OrderLineInput> Items, string PaymentMethod, bool FromWallet, string? DiscountCode, int? PaymentMethodId, int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
 public record DeliverInput(string Content, bool Email, string? EmailSubject, string? EmailBody);
+public record CancelOrderInput(string? Reason);
 
 [ApiController]
 [Route("api/orders")]
@@ -80,12 +82,12 @@ public class OrdersController : ControllerBase
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [HttpPost("{id:int}/approve")]
     public ActionResult<Order> Approve(int id) =>
-        _store.SetOrderStatus(id, OrderStatus.Preparing) is { } o ? o : NotFound();
+        _store.SetOrderStatus(id, OrderStatus.Preparing, User.Identity?.Name, "تأیید سفارش") is { } o ? o : NotFound();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [HttpPost("{id:int}/complete")]
     public ActionResult<Order> Complete(int id) =>
-        _store.SetOrderStatus(id, OrderStatus.Completed) is { } o ? o : NotFound();
+        _store.SetOrderStatus(id, OrderStatus.Completed, User.Identity?.Name, "تکمیل سفارش") is { } o ? o : NotFound();
 
     // delivers the order: stores the in-site content (shown in the buyer's account) and,
     // when requested, emails the buyer the (manually written) message.
@@ -93,7 +95,7 @@ public class OrdersController : ControllerBase
     [HttpPost("{id:int}/deliver")]
     public async Task<ActionResult<Order>> Deliver(int id, DeliverInput input)
     {
-        var order = _store.DeliverOrder(id, (input.Content ?? "").Trim());
+        var order = _store.DeliverOrder(id, (input.Content ?? "").Trim(), User.Identity?.Name);
         if (order is null) return NotFound();
 
         if (input.Email)
@@ -109,12 +111,16 @@ public class OrdersController : ControllerBase
     }
 
     [HttpPost("{id:int}/cancel")]
-    public ActionResult<Order> Cancel(int id)
+    public ActionResult<Order> Cancel(int id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] CancelOrderInput? input)
     {
         var order = _store.GetOrder(id);
         if (order is null) return NotFound();
         if (!this.OwnsOrStaff(order.UserId)) return Forbid();
-        var result = _store.CancelOrder(id);
+        // a staff cancellation can carry an explicit reason; a customer self-cancel falls back to a default.
+        var reason = string.IsNullOrWhiteSpace(input?.Reason)
+            ? (this.IsStaff() ? "لغو توسط پشتیبانی" : "لغو توسط کاربر")
+            : input!.Reason;
+        var result = _store.CancelOrder(id, User.Identity?.Name, reason);
         if (result.Error is not null) return BadRequest(result.Error);
         return result.Order!;
     }

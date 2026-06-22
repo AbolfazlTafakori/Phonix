@@ -39,8 +39,12 @@ public class Product
     // (registered only) can never purchase.
     public int RequiredLevel { get; set; } = 1;
     // Pre-written delivery text for this product; prefills the admin deliver modal so staff
-    // don't retype the same instructions for every order of the same product.
+    // don't retype the same instructions for every order of the same product. (Legacy single template,
+    // kept for backward compatibility; the multi-template system below supersedes it.)
     public string DeliveryTemplate { get; set; } = "";
+    // Multiple named, reusable delivery templates the admin can pick from in the deliver modal. Managed via
+    // the product templates endpoints and persisted with the product.
+    public List<ProductDeliveryTemplate> DeliveryTemplates { get; set; } = new();
     public List<ProductFeature> Features { get; set; } = new();
     public List<ProductPlan> Plans { get; set; } = new();
 

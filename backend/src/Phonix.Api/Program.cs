@@ -59,6 +59,9 @@ try
     // Identity images (KYC docs, selfies, card photos) are stored outside the web root and only ever
     // streamed back through the authenticated, ownership-checked KYC/Cards download endpoints.
     builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
+    // Sends subscription renewal reminders (bell notification + HTML email) before time-based plans expire,
+    // on an admin-configured threshold read dynamically each cycle.
+    builder.Services.AddHostedService<SubscriptionExpiryWorker>();
     builder.Services.AddHealthChecks().AddCheck<StoreHealthCheck>("store");
 
     // Stateless sessions: claims are encrypted into the httpOnly cookie and validated via a PERSISTED Data
