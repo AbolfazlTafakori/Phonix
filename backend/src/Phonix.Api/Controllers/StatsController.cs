@@ -15,6 +15,7 @@ public record TopProductDto(int ProductId, string Name, string Image, long Sold,
 [ApiController]
 [Route("api/stats")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("reports")]
 public class StatsController : ControllerBase
 {
     private readonly StoreData _store;

@@ -30,10 +30,12 @@ public class OrdersController : ControllerBase
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders")]
     [HttpGet]
     public IEnumerable<Order> Get([FromQuery] OrderStatus? status) => _store.GetOrders(status);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders")]
     [HttpGet("page")]
     public PagedResult<Order> GetPage([FromQuery] OrderStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
         PagedResult<Order>.From(_store.GetOrders(status), page, pageSize);
@@ -80,11 +82,13 @@ public class OrdersController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders")]
     [HttpPost("{id:int}/approve")]
     public ActionResult<Order> Approve(int id) =>
         _store.SetOrderStatus(id, OrderStatus.Preparing, User.Identity?.Name, "تأیید سفارش") is { } o ? o : NotFound();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders")]
     [HttpPost("{id:int}/complete")]
     public ActionResult<Order> Complete(int id) =>
         _store.SetOrderStatus(id, OrderStatus.Completed, User.Identity?.Name, "تکمیل سفارش") is { } o ? o : NotFound();
@@ -92,6 +96,7 @@ public class OrdersController : ControllerBase
     // delivers the order: stores the in-site content (shown in the buyer's account) and,
     // when requested, emails the buyer the (manually written) message.
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders")]
     [HttpPost("{id:int}/deliver")]
     public async Task<ActionResult<Order>> Deliver(int id, DeliverInput input)
     {

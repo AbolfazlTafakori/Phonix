@@ -72,6 +72,7 @@ public static class SessionProtectionExtensions
             .PersistKeysToFileSystem(new DirectoryInfo(keyRingPath))
             .SetApplicationName("Phonix");
         services.AddSingleton<ISessionProtector, SessionProtector>();
+        services.AddSingleton<ITwoFactorChallenge, TwoFactorChallenge>();
         return services;
     }
 }

@@ -48,6 +48,7 @@ public class CardsController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("cards")]
     [HttpGet]
     public IEnumerable<BankCard> Get([FromQuery] BankCardStatus? status) => _store.GetAllCards(status);
 
@@ -72,6 +73,7 @@ public class CardsController : ControllerBase
     // Only staff can delete a card. A user may register a card but cannot remove it themselves — once
     // submitted it stays on record for the support team to verify or revoke.
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("cards")]
     [HttpDelete("{id:int}")]
     public IActionResult Delete(int id)
     {
@@ -80,11 +82,13 @@ public class CardsController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("cards")]
     [HttpPost("{id:int}/approve")]
     public ActionResult<BankCard> Approve(int id) =>
         _store.SetCardStatus(id, BankCardStatus.Approved, null) is { } c ? c : NotFound();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("cards")]
     [HttpPost("{id:int}/reject")]
     public ActionResult<BankCard> Reject(int id, CardActionInput? input) =>
         _store.SetCardStatus(id, BankCardStatus.Rejected, input?.Note) is { } c ? c : NotFound();

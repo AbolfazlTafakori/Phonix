@@ -45,6 +45,7 @@ public class NotificationsController : ControllerBase
 
     // staff: send a private message to one user (UserId set) or broadcast to everyone (UserId null).
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("notifications")]
     [HttpPost]
     public ActionResult<Notification> Send(SendNotificationInput input)
     {
@@ -57,10 +58,12 @@ public class NotificationsController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("notifications")]
     [HttpGet("all")]
     public IEnumerable<Notification> All() => _store.GetAllNotifications();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("notifications")]
     [HttpDelete("{id:int}")]
     public IActionResult Delete(int id) => _store.DeleteNotification(id) ? NoContent() : NotFound();
 }

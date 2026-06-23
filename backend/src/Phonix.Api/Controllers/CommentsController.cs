@@ -17,6 +17,7 @@ public class CommentsController : ControllerBase
     public CommentsController(StoreData store) => _store = store;
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("comments")]
     [HttpGet]
     public IEnumerable<Comment> Get([FromQuery] CommentStatus? status, [FromQuery] int? productId) =>
         _store.GetComments(productId, status);
@@ -42,14 +43,17 @@ public class CommentsController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("comments")]
     [HttpPost("{id:int}/approve")]
     public IActionResult Approve(int id) => _store.SetCommentStatus(id, CommentStatus.Approved) ? NoContent() : NotFound();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("comments")]
     [HttpPost("{id:int}/reject")]
     public IActionResult Reject(int id) => _store.SetCommentStatus(id, CommentStatus.Rejected) ? NoContent() : NotFound();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("comments")]
     [HttpPost("{id:int}/reply")]
     public ActionResult<Comment> Reply(int id, ReplyInput input)
     {
@@ -59,6 +63,7 @@ public class CommentsController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("comments")]
     [HttpDelete("{id:int}")]
     public IActionResult Delete(int id) => _store.DeleteComment(id) ? NoContent() : NotFound();
 

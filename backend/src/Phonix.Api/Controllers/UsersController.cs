@@ -10,6 +10,7 @@ namespace Phonix.Api.Controllers;
 [ApiController]
 [Route("api/users")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("users")]
 public class UsersController : ControllerBase
 {
     private readonly StoreData _store;
@@ -35,10 +36,12 @@ public class UsersController : ControllerBase
     [HttpPut("{id:int}")]
     public ActionResult<UserDto> Update(int id, UserUpdateInput input)
     {
+        // email is a unique identity handle — guard it before the rest of the mutation.
+        if (input.Email is not null && _store.SetEmail(id, input.Email) is string emailError)
+            return BadRequest(emailError);
         var ok = _store.UpdateUser(id, u =>
         {
             if (input.Name is not null) u.Name = input.Name;
-            if (input.Email is not null) u.Email = input.Email;
             if (input.Phone is not null) u.Phone = input.Phone;
             if (input.Role is UserRole role) u.Role = role;
             if (input.Verified is bool verified) u.Verified = verified;

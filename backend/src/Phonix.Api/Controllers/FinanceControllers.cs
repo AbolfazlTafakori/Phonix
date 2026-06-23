@@ -11,6 +11,7 @@ namespace Phonix.Api.Controllers;
 [ApiController]
 [Route("api/payment-methods")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("payments")]
 public class PaymentMethodsController : ControllerBase
 {
     private readonly StoreData _store;
@@ -41,6 +42,7 @@ public class PaymentMethodsController : ControllerBase
 [ApiController]
 [Route("api/payment-settings")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("payments")]
 public class PaymentSettingsController : ControllerBase
 {
     private readonly StoreData _store;
@@ -100,15 +102,18 @@ public class TransactionsController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("transactions")]
     [HttpGet]
     public IEnumerable<Transaction> Get([FromQuery] TxStatus? status) => _store.GetTransactions(status);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("transactions")]
     [HttpGet("page")]
     public PagedResult<Transaction> GetPage([FromQuery] TxStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
         PagedResult<Transaction>.From(_store.GetTransactions(status), page, pageSize);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("transactions")]
     [HttpGet("{id:int}")]
     public ActionResult<Transaction> Get(int id) => _store.GetTransaction(id) is { } t ? t : NotFound();
 
@@ -185,11 +190,13 @@ public class TransactionsController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("transactions")]
     [HttpPost("{id:int}/approve")]
     public ActionResult<Transaction> Approve(int id, TxActionInput? input) =>
         _store.SetTransactionStatus(id, TxStatus.Approved, "site", input?.Note) ? _store.GetTransaction(id)! : NotFound();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("transactions")]
     [HttpPost("{id:int}/reject")]
     public ActionResult<Transaction> Reject(int id, TxActionInput? input) =>
         _store.SetTransactionStatus(id, TxStatus.Rejected, "site", input?.Note) ? _store.GetTransaction(id)! : NotFound();

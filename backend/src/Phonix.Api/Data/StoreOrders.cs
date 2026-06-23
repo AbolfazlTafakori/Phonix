@@ -502,6 +502,36 @@ public partial class StoreData
         }
     }
 
+    // Opens a ticket ON BEHALF OF a user: support starts the conversation, so the opening message is from
+    // staff and the ticket lands in the user's account already "Answered". The owner is notified so the
+    // thread surfaces for them just like a reply would.
+    public Ticket CreateTicketForUser(int userId, string userName, string subject, string department, string body,
+        string authorName, TicketPriority priority = TicketPriority.Medium, string attachment = "")
+    {
+        Ticket t;
+        lock (_gate)
+        {
+            t = new Ticket
+            {
+                Id = ++_ticketSeq,
+                UserId = userId,
+                UserName = userName,
+                Subject = subject,
+                Department = department,
+                Priority = priority,
+                Attachment = attachment ?? "",
+                Status = TicketStatus.Answered,
+                Date = Today(),
+            };
+            t.Code = $"T-{5800 + t.Id}";
+            t.Messages.Add(new TicketMessage { Author = authorName, Body = body, IsAdmin = true, Date = Today() });
+            _tickets.Add(t);
+            AddNotification(userId, "تیکت جدید از پشتیبانی", $"پشتیبانی فونیکس برای شما تیکت «{subject}» باز کرد.", "/account/tickets");
+        }
+        PersistNow();
+        return t;
+    }
+
     public Ticket? ReplyTicket(int id, string author, string body, bool isAdmin)
     {
         lock (_gate)

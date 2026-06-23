@@ -9,11 +9,14 @@ using Phonix.Api.Services;
 
 namespace Phonix.Api.Controllers;
 
-public record RegisterInput(string Name, string Username, string Email, string Phone, string Password, string? ReferralCode);
-public record LoginInput(string Identifier, string Password);
+public record RegisterInput(string Name, string Username, string Email, string Phone, string Password, string? ReferralCode, string? CaptchaId, string? CaptchaText);
+public record LoginInput(string Identifier, string Password, string? CaptchaId, string? CaptchaText);
 public record ForgotInput(string Email);
 public record TokenInput(string Token);
 public record ResetPasswordInput(string Token, string NewPassword);
+public record TwoFactorVerifyInput(string Token, string Code);
+// A login either completes (Token + User) or stops at the second factor (RequiresTwoFactor + ChallengeToken).
+public record LoginResultDto(bool RequiresTwoFactor, string? ChallengeToken, string? Token, UserDto? User);
 
 [ApiController]
 [Route("api/auth")]
@@ -23,16 +26,50 @@ public class AuthController : ControllerBase
     private readonly StoreData _store;
     private readonly IEmailSender _email;
     private readonly ISessionProtector _sessions;
+    private readonly ITwoFactorChallenge _twoFactor;
+    private readonly ITelegramAlertSender _alerts;
+    private readonly ICaptchaService _captcha;
     private readonly ILogger<AuthController> _logger;
-    public AuthController(StoreData store, IEmailSender email, ISessionProtector sessions, ILogger<AuthController> logger)
+    public AuthController(StoreData store, IEmailSender email, ISessionProtector sessions,
+        ITwoFactorChallenge twoFactor, ITelegramAlertSender alerts, ICaptchaService captcha, ILogger<AuthController> logger)
     {
         _store = store;
         _email = email;
         _sessions = sessions;
+        _twoFactor = twoFactor;
+        _alerts = alerts;
+        _captcha = captcha;
         _logger = logger;
     }
 
+    // The image CAPTCHA is on by default; set PHONIX_REQUIRE_CAPTCHA=false to disable (e.g. in tests).
+    private static bool CaptchaRequired => Environment.GetEnvironmentVariable("PHONIX_REQUIRE_CAPTCHA") != "false";
+
     private string ClientIp => HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
+    private static bool IsStaff(AppUser user) => user.Role is UserRole.Admin or UserRole.Support;
+
+    private static string RoleFa(UserRole role) => role == UserRole.Admin ? "مدیر" : "پشتیبان";
+
+    // Burns several seconds before a failed-credential response so high-throughput credential-stuffing
+    // tools stall. Disabled in the test host so the suite stays fast.
+    private static async Task TarpitAsync()
+    {
+        if (Environment.GetEnvironmentVariable("PHONIX_DISABLE_TARPIT") == "true") return;
+        await Task.Delay(Random.Shared.Next(3000, 5001));
+    }
+
+    // Issues the session cookie and, for staff, fires a Telegram login alert with IP, time and username.
+    private LoginResultDto IssueSession(AppUser user)
+    {
+        var token = _sessions.Protect(user);
+        AuthCookies.Issue(Response, token, Request.IsHttps);
+        _logger.LogInformation("Login: {Username} (#{UserId}) from {ClientIp}", user.Username, user.Id, ClientIp);
+        if (IsStaff(user))
+            _ = _alerts.SendAlertAsync(
+                $"🔐 ورود {RoleFa(user.Role)} به پنل\nکاربر: {user.Username}\nIP: {ClientIp}\nزمان: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        return new LoginResultDto(false, null, token, user.ToDto());
+    }
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
 
@@ -47,6 +84,8 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<ActionResult<AuthResultDto>> Register(RegisterInput input)
     {
+        if (CaptchaRequired && !_captcha.Validate(input.CaptchaId, input.CaptchaText))
+            return BadRequest("کد امنیتی تصویر نادرست است. دوباره تلاش کنید.");
         if (string.IsNullOrWhiteSpace(input.Username) || string.IsNullOrWhiteSpace(input.Password))
             return BadRequest("نام کاربری و گذرواژه الزامی است.");
         if (string.IsNullOrWhiteSpace(input.Email))
@@ -133,13 +172,18 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("login")]
-    public ActionResult<AuthResultDto> Login(LoginInput input)
+    public async Task<ActionResult<LoginResultDto>> Login(LoginInput input)
     {
+        // Image CAPTCHA first — blocks automated credential-stuffing before any password work happens.
+        if (CaptchaRequired && !_captcha.Validate(input.CaptchaId, input.CaptchaText))
+            return BadRequest("کد امنیتی تصویر نادرست است. دوباره تلاش کنید.");
+
         var user = _store.FindByLogin(input.Identifier?.Trim() ?? "");
         if (user is null || !PasswordHasher.Verify(input.Password ?? "", user.Password))
         {
             _logger.LogWarning("Failed login for {Identifier} from {ClientIp}",
                 input.Identifier?.Trim(), ClientIp);
+            await TarpitAsync();
             return Unauthorized("نام کاربری یا گذرواژه نادرست است.");
         }
         if (user.Blocked)
@@ -148,11 +192,29 @@ public class AuthController : ControllerBase
                 user.Username, user.Id, ClientIp);
             return StatusCode(403, "حساب شما مسدود شده است.");
         }
-        var token = _sessions.Protect(user);
-        AuthCookies.Issue(Response, token, Request.IsHttps);
-        _logger.LogInformation("Login: {Username} (#{UserId}) from {ClientIp}",
-            user.Username, user.Id, ClientIp);
-        return new AuthResultDto(token, user.ToDto());
+        // Staff with 2FA active complete a second step before any session is issued; the challenge token
+        // proves the password check passed without re-sending the credentials.
+        if (IsStaff(user) && user.TwoFactorEnabled)
+            return new LoginResultDto(true, _twoFactor.Issue(user.Id), null, null);
+
+        return IssueSession(user);
+    }
+
+    [HttpPost("2fa/verify")]
+    public async Task<ActionResult<LoginResultDto>> VerifyTwoFactor(TwoFactorVerifyInput input)
+    {
+        if (_twoFactor.Resolve(input.Token) is not int userId)
+            return Unauthorized("نشست تأیید دو‌مرحله‌ای نامعتبر یا منقضی شده است. دوباره وارد شوید.");
+        var user = _store.GetUser(userId);
+        if (user is null || user.Blocked) return Unauthorized("نشست نامعتبر است.");
+        if (!user.TwoFactorEnabled || !TotpService.Verify(user.TwoFactorSecret, input.Code ?? ""))
+        {
+            _logger.LogWarning("Failed 2FA for {Username} (#{UserId}) from {ClientIp}",
+                user.Username, user.Id, ClientIp);
+            await TarpitAsync();
+            return Unauthorized("کد تأیید نادرست است.");
+        }
+        return IssueSession(user);
     }
 
     // Sessions are stateless, so logout simply clears the cookie on this device. To force-revoke a token

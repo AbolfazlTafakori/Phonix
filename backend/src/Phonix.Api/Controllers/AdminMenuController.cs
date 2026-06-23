@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Admin;
 using Phonix.Api.Data;
+using Phonix.Api.Models;
 using Phonix.Api.Security;
 
 namespace Phonix.Api.Controllers;
@@ -25,12 +26,17 @@ public class AdminMenuController : ControllerBase
     {
         var role = this.CurrentRole();
         var counts = _store.GetAdminBadgeCounts();
+        var user = this.CurrentUserId() is int uid ? _store.GetUser(uid) : null;
+
+        // Admin sees everything; a limited Support member sees the dashboard plus only its granted sections.
+        bool Allowed(AdminMenuItem item) =>
+            role == UserRole.Admin || AdminMenu.AlwaysAvailableKeys.Contains(item.Key) || (user?.Permissions.Contains(item.Key) ?? false);
 
         return AdminMenu.Groups
             .Where(g => role.IsAtLeast(g.MinRole))
             .Select(g => new MenuGroupDto(g.Key, g.Title,
                 g.Items
-                    .Where(i => role.IsAtLeast(i.MinRole))
+                    .Where(i => role.IsAtLeast(i.MinRole) && Allowed(i))
                     .Select(i => new MenuItemDto(i.Key, i.Title, i.Icon, i.Route, i.ComingSoon, counts.For(i.Badge)))
                     .ToList()))
             .Where(g => g.Items.Count > 0)

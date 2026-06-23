@@ -11,6 +11,7 @@ public record RenamePlanTypeInput(string OldName, string NewName);
 [ApiController]
 [Route("api/plan-types")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("products")]
 public class PlanTypesController : ControllerBase
 {
     private readonly StoreData _store;

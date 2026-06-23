@@ -33,6 +33,13 @@ public class AppUser
     // Nonce embedded in every issued (stateless) session token. Rotating it invalidates all of this
     // user's outstanding cookies at once — e.g. after a password change. Empty is a valid initial value.
     public string SecurityStamp { get; set; } = "";
+    // TOTP two-factor authentication. The secret is provisioned during setup and only becomes active once
+    // the owner confirms a code (TwoFactorEnabled). Staff accounts are then challenged for a code on login.
+    public bool TwoFactorEnabled { get; set; }
+    public string TwoFactorSecret { get; set; } = "";
+    // Section keys a limited (Support) staff member may access in the admin panel. Ignored for Admin, who
+    // always has full access. Empty = a Support account that can only see the dashboard.
+    public List<string> Permissions { get; set; } = new();
 }
 
 public class ReferralEarning

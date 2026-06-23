@@ -6,6 +6,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { setCurrentUser } from "@/lib/auth";
 import AuthCard from "@/components/auth/AuthCard";
+import { useCaptcha, CaptchaField } from "@/components/auth/Captcha";
 
 const inputCls =
   "h-12 w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 text-sm text-white outline-none transition placeholder:text-white/35 focus:border-[#3e3af2] focus:ring-2 focus:ring-[#3e3af2]/20";
@@ -27,6 +28,7 @@ export default function SignupPage() {
   const [busy, setBusy] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [referralCode, setReferralCode] = useState("");
+  const captcha = useCaptcha();
 
   useEffect(() => {
     const ref = new URLSearchParams(window.location.search).get("ref");
@@ -38,6 +40,7 @@ export default function SignupPage() {
     if (!email.trim() || !email.includes("@")) return "یک ایمیل معتبر وارد کنید.";
     if (password.length < 8) return "گذرواژه باید حداقل ۸ کاراکتر باشد.";
     if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) return "گذرواژه باید ترکیبی از حروف و اعداد باشد.";
+    if (!captcha.text.trim()) return "کد امنیتی تصویر را وارد کنید.";
     if (!agree) return "لطفاً قوانین را تأیید کنید.";
     return "";
   }
@@ -64,12 +67,15 @@ export default function SignupPage() {
         phone: "",
         password,
         referralCode: referralCode || undefined,
+        captchaId: captcha.id,
+        captchaText: captcha.text,
       });
       setCurrentUser({ id: user.id, name: user.name, username: user.username, email: user.email });
       router.push("/account");
     } catch (err) {
       setConfirmOpen(false);
       setError(err instanceof Error ? err.message : "خطا در ثبت‌نام");
+      captcha.refresh(); // single-use challenge consumed; show a fresh one
     } finally {
       setBusy(false);
     }
@@ -114,6 +120,8 @@ export default function SignupPage() {
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} className={inputCls} />
           <p className={hint}>حداقل ۸ کاراکتر و ترکیبی از حروف و اعداد.</p>
         </div>
+
+        <CaptchaField captcha={captcha} />
 
         <label className="mb-6 mt-1 flex items-start gap-3 text-sm leading-7 text-white/70">
           <input

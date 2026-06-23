@@ -9,6 +9,7 @@ namespace Phonix.Api.Controllers;
 [ApiController]
 [Route("api/hero")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("layout")]
 public class HeroController : ControllerBase
 {
     private readonly StoreData _store;
@@ -39,6 +40,7 @@ public class HeroController : ControllerBase
 [ApiController]
 [Route("api/home-categories")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("layout")]
 public class HomeCategoriesController : ControllerBase
 {
     private readonly StoreData _store;
@@ -69,6 +71,7 @@ public class HomeCategoriesController : ControllerBase
 [ApiController]
 [Route("api/showcase")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("layout")]
 public class ShowcaseController : ControllerBase
 {
     private readonly StoreData _store;
@@ -99,6 +102,7 @@ public class ShowcaseController : ControllerBase
 [ApiController]
 [Route("api/blog")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("blog")]
 public class BlogController : ControllerBase
 {
     private readonly StoreData _store;
@@ -129,6 +133,7 @@ public class BlogController : ControllerBase
 [ApiController]
 [Route("api/site-content")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("layout")]
 public class SiteContentController : ControllerBase
 {
     private readonly StoreData _store;
@@ -149,6 +154,7 @@ public class SiteContentController : ControllerBase
 [ApiController]
 [Route("api/advanced-settings")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("pages")]
 public class AdvancedSettingsController : ControllerBase
 {
     private readonly StoreData _store;

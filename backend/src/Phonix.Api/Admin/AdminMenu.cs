@@ -38,9 +38,14 @@ public sealed record AdminMenuGroup(
     UserRole MinRole,
     IReadOnlyList<AdminMenuItem> Items);
 
+// One assignable panel section a limited (Support) staff member can be granted.
+public sealed record AdminPermissionInfo(string Key, string Title, string Group);
+
 public static class AdminMenu
 {
     // Declaration order == display order: high-frequency daily ops first, low-frequency system settings last.
+    // NOTE: declared before AssignableKeys so the static initializer that reads it (below) sees a populated list —
+    // static fields initialize in declaration order, and AssignableKeys depends on this one.
     public static readonly IReadOnlyList<AdminMenuGroup> Groups = new AdminMenuGroup[]
     {
         new("ops", "عملیات اصلی", UserRole.Support, new AdminMenuItem[]
@@ -78,14 +83,39 @@ public static class AdminMenu
             new("blog",     "وبلاگ و مقالات",         "news",    "/admin/blog"),
             new("pages",    "صفحات ثابت و قوانین",    "columns", "/admin/rules"),
         }),
+        // Personal account security — available to EVERY staff member regardless of level or granted sections,
+        // so any admin (full or limited) can protect their own login with 2FA. Not an assignable permission.
+        new("account", "حساب کاربری من", UserRole.Support, new AdminMenuItem[]
+        {
+            new("security", "امنیت و ورود دو‌مرحله‌ای", "shield", "/admin/settings/2fa"),
+        }),
         // ── Strict Admin-only: DevOps & System Settings. Support never receives this group. ──
         new("system", "دواپس و تنظیمات سیستم", UserRole.Admin, new AdminMenuItem[]
         {
-            new("staff",    "مدیریت کارکنان و نقش‌ها",     "shield",   "/admin/staff",          UserRole.Admin, ComingSoon: true),
+            new("staff",    "مدیریت کارکنان و نقش‌ها",     "shield",   "/admin/staff",          UserRole.Admin),
             new("audit",    "لاگ‌های ممیزی سیستم",         "search",   "/admin/audit",          UserRole.Admin, ComingSoon: true),
             new("backup",   "پشتیبان‌گیری و ربات تلگرام",  "disk",     "/admin/backup",         UserRole.Admin),
             new("email",    "تنظیمات ایمیل و پیامک",       "bell",     "/admin/settings/email", UserRole.Admin),
             new("settings", "تنظیمات عمومی و پیشرفته",     "settings", "/admin/settings",       UserRole.Admin),
         }),
     };
+
+    // Sections every staff member can always reach, so they're neither permission-gated nor assignable:
+    // the dashboard landing page and personal 2FA security.
+    public static readonly HashSet<string> AlwaysAvailableKeys =
+        new(new[] { "dashboard", "security" }, StringComparer.Ordinal);
+
+    // The sections an Admin may grant to a limited staff account: every real (non-"coming soon") item in a
+    // Support-reachable group, except the always-available dashboard. The Admin-only system group is never
+    // assignable. Drives both the staff-management checklist and server-side permission validation.
+    public static IReadOnlyList<AdminPermissionInfo> AssignablePermissions() =>
+        Groups
+            .Where(g => g.MinRole == UserRole.Support)
+            .SelectMany(g => g.Items
+                .Where(i => !i.ComingSoon && i.MinRole == UserRole.Support && !AlwaysAvailableKeys.Contains(i.Key))
+                .Select(i => new AdminPermissionInfo(i.Key, i.Title, g.Title)))
+            .ToList();
+
+    public static readonly HashSet<string> AssignableKeys =
+        AssignablePermissions().Select(p => p.Key).ToHashSet(StringComparer.Ordinal);
 }

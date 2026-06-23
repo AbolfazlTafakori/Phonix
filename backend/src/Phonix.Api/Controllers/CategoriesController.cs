@@ -10,6 +10,7 @@ namespace Phonix.Api.Controllers;
 [ApiController]
 [Route("api/categories")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("categories")]
 public class CategoriesController : ControllerBase
 {
     private readonly StoreData _store;

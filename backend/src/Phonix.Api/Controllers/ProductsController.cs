@@ -12,6 +12,7 @@ public record DeliveryTemplateInput(string Title, string Content);
 [ApiController]
 [Route("api/products")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("products")]
 public class ProductsController : ControllerBase
 {
     private readonly StoreData _store;

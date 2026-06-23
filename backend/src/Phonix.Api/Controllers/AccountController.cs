@@ -41,10 +41,12 @@ public class AccountController : ControllerBase
         // Data is keyed by the immutable Id, so a rename keeps every order/ticket/transaction attached.
         if (input.Username is not null && _store.SetUsername(id, input.Username) is string usernameError)
             return BadRequest(usernameError);
+        // email, like username, must stay unique to one account.
+        if (input.Email is not null && _store.SetEmail(id, input.Email) is string emailError)
+            return BadRequest(emailError);
         var ok = _store.UpdateUser(id, u =>
         {
             if (input.Name is not null) u.Name = input.Name.Trim();
-            if (input.Email is not null) u.Email = input.Email.Trim();
             if (input.Phone is not null) u.Phone = input.Phone.Trim();
             if (input.Avatar is not null) u.Avatar = input.Avatar.Trim();
         });

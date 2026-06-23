@@ -48,6 +48,7 @@ public class KycController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("kyc")]
     [HttpGet]
     public IEnumerable<KycRequest> Get([FromQuery] KycStatus? status) => _store.GetAllKyc(status);
 
@@ -83,11 +84,13 @@ public class KycController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("kyc")]
     [HttpPost("{id:int}/approve")]
     public ActionResult<KycRequest> Approve(int id) =>
         _store.SetKycStatus(id, KycStatus.Approved, null) is { } k ? k : NotFound();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("kyc")]
     [HttpPost("{id:int}/reject")]
     public ActionResult<KycRequest> Reject(int id, KycActionInput? input) =>
         _store.SetKycStatus(id, KycStatus.Rejected, input?.Note) is { } k ? k : NotFound();

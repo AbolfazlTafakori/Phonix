@@ -99,6 +99,30 @@ export type User = {
 
 export type AuthResult = { token: string; user: User };
 
+export type LoginResult = {
+  requiresTwoFactor: boolean;
+  challengeToken: string | null;
+  token: string | null;
+  user: User | null;
+};
+
+export type TwoFactorStatus = { enabled: boolean };
+export type TwoFactorSetup = { secret: string; otpAuthUri: string };
+
+export type StaffMember = {
+  id: number;
+  code: string;
+  name: string;
+  username: string;
+  email: string;
+  role: UserRole;
+  blocked: boolean;
+  twoFactorEnabled: boolean;
+  permissions: string[];
+};
+
+export type PermissionInfo = { key: string; title: string; group: string };
+
 export type ReferralEarning = {
   referrerId: number;
   referredName: string;

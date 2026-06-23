@@ -11,7 +11,7 @@ public record TestEmailInput(string To);
 
 [ApiController]
 [Route("api/email-settings")]
-[Authorize(Roles = AuthExtensions.StaffRoles)]
+[Authorize(Roles = nameof(UserRole.Admin))]
 public class EmailSettingsController : ControllerBase
 {
     private readonly StoreData _store;

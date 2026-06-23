@@ -7,6 +7,7 @@ using Phonix.Api.Security;
 namespace Phonix.Api.Controllers;
 
 public record CreateTicketInput(string Subject, string Department, string Body, TicketPriority? Priority, string? Attachment);
+public record AdminCreateTicketInput(int UserId, string Subject, string Department, string Body, TicketPriority? Priority);
 public record TicketReplyInput(string Body, bool IsAdmin);
 
 [ApiController]
@@ -18,6 +19,7 @@ public class TicketsController : ControllerBase
     public TicketsController(StoreData store) => _store = store;
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("tickets")]
     [HttpGet]
     public IEnumerable<Ticket> Get([FromQuery] TicketStatus? status) => _store.GetTickets(status);
 
@@ -50,6 +52,22 @@ public class TicketsController : ControllerBase
             input.Priority ?? TicketPriority.Medium, input.Attachment ?? "");
     }
 
+    // Staff opens a ticket ON BEHALF OF a user: the thread appears in that user's account, already answered
+    // by support. Gated to staff with the "tickets" section, same as the rest of the support inbox.
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("tickets")]
+    [HttpPost("admin")]
+    public ActionResult<Ticket> CreateForUser(AdminCreateTicketInput input)
+    {
+        var target = _store.GetUser(input.UserId);
+        if (target is null) return NotFound("کاربر یافت نشد.");
+        if (string.IsNullOrWhiteSpace(input.Subject) || string.IsNullOrWhiteSpace(input.Body))
+            return BadRequest("موضوع و متن پیام الزامی است.");
+        var name = string.IsNullOrWhiteSpace(target.Name) ? target.Username : target.Name;
+        return _store.CreateTicketForUser(target.Id, name, input.Subject, input.Department, input.Body,
+            "پشتیبانی فونیکس", input.Priority ?? TicketPriority.Medium);
+    }
+
     [HttpPost("{id:int}/reply")]
     public ActionResult<Ticket> Reply(int id, TicketReplyInput input)
     {
@@ -66,6 +84,7 @@ public class TicketsController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("tickets")]
     [HttpPost("{id:int}/close")]
     public IActionResult Close(int id) => _store.SetTicketStatus(id, TicketStatus.Closed) ? NoContent() : NotFound();
 }

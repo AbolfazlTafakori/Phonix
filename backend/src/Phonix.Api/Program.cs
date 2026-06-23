@@ -56,6 +56,10 @@ try
     builder.Services.AddSingleton<ITelegramBackupSender, TelegramBackupSender>();
     builder.Services.AddHostedService<TelegramBackupWorker>();
     builder.Services.AddSingleton<ITelegramAlertSender, TelegramAlertSender>();
+    // Honeypot IP bans live in memory (ephemeral, like sessions) so they never bloat store.json.
+    builder.Services.AddMemoryCache();
+    builder.Services.AddSingleton<IpBanService>();
+    builder.Services.AddSingleton<ICaptchaService, CaptchaService>();
     // Identity images (KYC docs, selfies, card photos) are stored outside the web root and only ever
     // streamed back through the authenticated, ownership-checked KYC/Cards download endpoints.
     builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
@@ -76,6 +80,9 @@ try
 
     // throttle auth endpoints per client IP to blunt credential brute-forcing.
     const string authRateLimit = "auth";
+    // Per-IP login/register attempts per minute. Configurable so test runs (which share one IP across many
+    // cases) and high-traffic deployments can tune it; defaults to a tight 10 for abuse protection.
+    var authPermitLimit = int.TryParse(Environment.GetEnvironmentVariable("PHONIX_AUTH_RATE_LIMIT"), out var apl) && apl > 0 ? apl : 10;
     builder.Services.AddRateLimiter(options =>
     {
         options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -95,7 +102,7 @@ try
                 _ => new FixedWindowRateLimiterOptions
                 {
                     Window = TimeSpan.FromMinutes(1),
-                    PermitLimit = 10,
+                    PermitLimit = authPermitLimit,
                     QueueLimit = 0,
                 }));
     });
@@ -157,6 +164,10 @@ try
             }
         }
     });
+
+    // Trap scanners hitting decoy admin/CMS paths and reject already-banned IPs. Runs after forwarded
+    // headers (real client IP) and before routing so banned traffic never touches the app.
+    app.UseMiddleware<HoneypotMiddleware>();
 
     // One structured summary line per request (method, path, status, duration), enriched with caller identity.
     app.UseSerilogRequestLogging(options =>
@@ -228,6 +239,11 @@ try
 
     app.UseAuthentication();
     app.UseAuthorization();
+
+    // Mandatory 2FA enrollment for staff (on by default; set PHONIX_REQUIRE_ADMIN_2FA=false to opt out).
+    // Runs after auth so the user's identity/role and id claims are available to the gate.
+    if (Environment.GetEnvironmentVariable("PHONIX_REQUIRE_ADMIN_2FA") != "false")
+        app.UseMiddleware<TwoFactorSetupGate>();
 
     app.MapControllers();
 

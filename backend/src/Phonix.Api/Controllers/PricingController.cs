@@ -10,6 +10,7 @@ namespace Phonix.Api.Controllers;
 [ApiController]
 [Route("api/pricing")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
+[AdminPermission("pricing")]
 public class PricingController : ControllerBase
 {
     private readonly StoreData _store;

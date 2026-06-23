@@ -46,6 +46,11 @@ import type {
   OverviewStats,
   TopProductStat,
   AuthResult,
+  LoginResult,
+  TwoFactorStatus,
+  TwoFactorSetup,
+  StaffMember,
+  PermissionInfo,
   ReferralReport,
   DiscountCode,
   DiscountCodeInput,
@@ -59,6 +64,11 @@ const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5228";
 // rotated the security stamp). The client may still hold a stale user in localStorage, so every guarded
 // page would otherwise surface a raw "خطای ارتباط با سرور (401)". Instead, clear that stale state and
 // bounce to the matching login once. Only the authenticated areas are touched; public pages are left alone.
+function handleTwoFactorRequired() {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname !== "/admin/settings/2fa") window.location.replace("/admin/settings/2fa");
+}
+
 function handleUnauthorized() {
   if (typeof window === "undefined") return;
   const path = window.location.pathname;
@@ -89,7 +99,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let msg = `خطای ارتباط با سرور (${res.status})`;
     try {
       const text = await res.text();
-      if (text) msg = text.replace(/^"|"$/g, "");
+      if (text) {
+        // The mandatory-2FA gate blocks staff actions until they enrol; bounce them to the security page.
+        if (res.status === 403 && text.includes("requiresTwoFactorSetup")) handleTwoFactorRequired();
+        msg = text.replace(/^"|"$/g, "");
+      }
     } catch {
       // ignore
     }
@@ -163,6 +177,20 @@ export const api = {
   admin: {
     // Role-filtered sidebar + live badge counts for the signed-in staff member.
     menu: () => request<AdminNavGroup[]>("/admin/menu"),
+  },
+  staff: {
+    list: () => request<StaffMember[]>("/staff"),
+    permissions: () => request<PermissionInfo[]>("/staff/permissions"),
+    // Grants staff access to an EXISTING account by username — no new email/password is created here.
+    create: (body: { username: string; role: UserRole; permissions: string[] }) =>
+      request<StaffMember>("/staff", { method: "POST", body: json(body) }),
+    update: (id: number, body: { name?: string; email?: string; role?: UserRole; blocked?: boolean; permissions?: string[] }) =>
+      request<StaffMember>(`/staff/${id}`, { method: "PUT", body: json(body) }),
+    resetPassword: (id: number, password: string) =>
+      request<void>(`/staff/${id}/password`, { method: "POST", body: json({ password }) }),
+    // Owner rescue when a staff member loses their authenticator: turn their 2FA off without a code.
+    disableTwoFactor: (id: number) => request<void>(`/staff/${id}/2fa/disable`, { method: "POST" }),
+    remove: (id: number) => request<void>(`/staff/${id}`, { method: "DELETE" }),
   },
   users: {
     list: (params?: { search?: string; role?: UserRole; blocked?: boolean }) => request<User[]>(`/users${qs(params)}`),
@@ -248,6 +276,9 @@ export const api = {
     get: (id: number) => request<Ticket>(`/tickets/${id}`),
     create: (body: { subject: string; department: string; body: string; priority?: TicketPriority; attachment?: string }) =>
       request<Ticket>("/tickets", { method: "POST", body: json(body) }),
+    // Staff opens a ticket on behalf of a user; it lands in that user's account already answered.
+    createForUser: (body: { userId: number; subject: string; department: string; body: string; priority?: TicketPriority }) =>
+      request<Ticket>("/tickets/admin", { method: "POST", body: json(body) }),
     reply: (id: number, body: string, isAdmin: boolean) =>
       request<Ticket>(`/tickets/${id}/reply`, { method: "POST", body: json({ body, isAdmin }) }),
     close: (id: number) => request<void>(`/tickets/${id}/close`, { method: "POST" }),
@@ -335,11 +366,22 @@ export const api = {
     upload: (file: File) => uploadForm<{ id: string }>("/cards/upload", file).then((r) => r.id),
     imageSrc: (value: string) => protectedSrc("cards", value),
   },
+  captcha: {
+    get: () => request<{ id: string; image: string }>("/captcha"),
+  },
   auth: {
-    register: (body: { name: string; username: string; email: string; phone: string; password: string; referralCode?: string }) =>
+    register: (body: { name: string; username: string; email: string; phone: string; password: string; referralCode?: string; captchaId?: string; captchaText?: string }) =>
       request<AuthResult>("/auth/register", { method: "POST", body: json(body) }),
-    login: (body: { identifier: string; password: string }) =>
-      request<AuthResult>("/auth/login", { method: "POST", body: json(body) }),
+    login: (body: { identifier: string; password: string; captchaId?: string; captchaText?: string }) =>
+      request<LoginResult>("/auth/login", { method: "POST", body: json(body) }),
+    verifyTwoFactor: (token: string, code: string) =>
+      request<LoginResult>("/auth/2fa/verify", { method: "POST", body: json({ token, code }) }),
+    twoFactor: {
+      status: () => request<TwoFactorStatus>("/auth/2fa/status"),
+      setup: () => request<TwoFactorSetup>("/auth/2fa/setup", { method: "POST" }),
+      enable: (code: string) => request<void>("/auth/2fa/enable", { method: "POST", body: json({ code }) }),
+      disable: (code: string) => request<void>("/auth/2fa/disable", { method: "POST", body: json({ code }) }),
+    },
     logout: () => request<void>("/auth/logout", { method: "POST" }),
     forgot: (email: string) => request<{ ok: boolean }>("/auth/forgot", { method: "POST", body: json({ email }) }),
     verifyEmail: (token: string) => request<{ ok: boolean }>("/auth/verify-email", { method: "POST", body: json({ token }) }),

@@ -5,7 +5,8 @@ import { api } from "@/lib/api";
 import type { Ticket, TicketStatus } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
 import { ticketStatusLabel } from "@/lib/labels";
-import { Card, PageHeader, Spinner, StatusBadge } from "@/components/admin/ui";
+import { Card, PageHeader, Spinner, StatusBadge, inputCls } from "@/components/admin/ui";
+import AdminIcon from "@/components/admin/AdminIcon";
 
 type Filter = "all" | TicketStatus;
 
@@ -17,6 +18,7 @@ export default function AdminTicketsPage() {
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
+  const [composing, setComposing] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -74,9 +76,32 @@ export default function AdminTicketsPage() {
     { key: "all", label: "همه" },
   ];
 
+  function onCreated(t: Ticket) {
+    setTickets((p) => [t, ...p]);
+    setComposing(false);
+    setFilter("all");
+    setSelected(t);
+  }
+
   return (
     <div>
-      <PageHeader title="تیکت‌های پشتیبانی" desc="پاسخ به کاربران و مدیریت تیکت‌ها" />
+      <PageHeader
+        title="تیکت‌های پشتیبانی"
+        desc="پاسخ به کاربران و مدیریت تیکت‌ها"
+        action={
+          !selected && (
+            <button
+              onClick={() => setComposing((v) => !v)}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+            >
+              <AdminIcon name="plus" className="h-4 w-4" />
+              تیکت جدید برای کاربر
+            </button>
+          )
+        }
+      />
+
+      {composing && !selected && <NewTicketForm onCreated={onCreated} onCancel={() => setComposing(false)} />}
 
       {selected ? (
         <Card className="p-5">
@@ -147,5 +172,73 @@ export default function AdminTicketsPage() {
         </>
       )}
     </div>
+  );
+}
+
+function NewTicketForm({ onCreated, onCancel }: { onCreated: (t: Ticket) => void; onCancel: () => void }) {
+  const [username, setUsername] = useState("");
+  const [subject, setSubject] = useState("");
+  const [department, setDepartment] = useState("عمومی");
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit() {
+    setError("");
+    if (!username.trim() || !subject.trim() || !body.trim()) {
+      setError("نام کاربری، موضوع و متن پیام الزامی است.");
+      return;
+    }
+    setBusy(true);
+    try {
+      // resolve the username to a user id (exact, case-insensitive match) before opening the ticket.
+      const matches = await api.users.list({ search: username.trim() });
+      const user = matches.find((u) => u.username.toLowerCase() === username.trim().toLowerCase());
+      if (!user) {
+        setError("کاربری با این نام کاربری پیدا نشد.");
+        return;
+      }
+      const ticket = await api.tickets.createForUser({ userId: user.id, subject: subject.trim(), department, body: body.trim() });
+      onCreated(ticket);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطا در ایجاد تیکت");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="mb-5 space-y-4 p-5">
+      <div className="flex items-center justify-between">
+        <p className="font-bold text-white">باز کردن تیکت برای یک کاربر</p>
+        <button onClick={onCancel} className="text-sm text-white/50 hover:text-white">انصراف</button>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label>
+          <span className="mb-2 block text-sm text-white/70">نام کاربری گیرنده</span>
+          <input value={username} onChange={(e) => setUsername(e.target.value)} dir="ltr" placeholder="username" className={`${inputCls} text-left`} />
+        </label>
+        <label>
+          <span className="mb-2 block text-sm text-white/70">دپارتمان</span>
+          <input value={department} onChange={(e) => setDepartment(e.target.value)} className={inputCls} />
+        </label>
+      </div>
+      <label className="block">
+        <span className="mb-2 block text-sm text-white/70">موضوع</span>
+        <input value={subject} onChange={(e) => setSubject(e.target.value)} className={inputCls} />
+      </label>
+      <label className="block">
+        <span className="mb-2 block text-sm text-white/70">متن پیام</span>
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} className="w-full rounded-xl border border-white/10 bg-[#0d0d15] px-3 py-2 text-sm text-white outline-none focus:border-[#3a64f2]" />
+      </label>
+      {error && <p className="text-sm text-rose-400">{error}</p>}
+      <button
+        onClick={submit}
+        disabled={busy}
+        className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60 sm:w-auto sm:px-8"
+      >
+        {busy ? <Spinner /> : "ارسال تیکت به کاربر"}
+      </button>
+    </Card>
   );
 }

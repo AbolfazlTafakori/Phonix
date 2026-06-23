@@ -352,6 +352,25 @@ public partial class StoreData
         lock (_gate) return _users.Any(u => string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));
     }
 
+    // Changes a user's email with a global uniqueness guard: an email may belong to AT MOST one account.
+    // Names may repeat across users, but email (like username) is a unique identity handle. Returns null on
+    // success, else a Persian error. Comparison is case-insensitive; an unchanged value is a no-op.
+    public string? SetEmail(int userId, string email)
+    {
+        lock (_gate)
+        {
+            var user = _users.FirstOrDefault(u => u.Id == userId);
+            if (user is null) return "کاربر یافت نشد.";
+            var mail = (email ?? "").Trim();
+            if (string.Equals(mail, user.Email, StringComparison.OrdinalIgnoreCase)) return null; // unchanged
+            if (!string.IsNullOrWhiteSpace(mail) &&
+                _users.Any(x => x.Id != userId && string.Equals(x.Email, mail, StringComparison.OrdinalIgnoreCase)))
+                return "این ایمیل قبلاً برای حساب دیگری ثبت شده است.";
+            user.Email = mail;
+            return null;
+        }
+    }
+
     public AppUser? FindByLogin(string identifier)
     {
         lock (_gate)

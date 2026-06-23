@@ -14,6 +14,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, ready } = useAdminAuth();
   const isLogin = pathname === "/admin/login";
+  const isTwoFactorPage = pathname === "/admin/settings/2fa";
 
   useEffect(() => {
     if (isLogin || !ready) return;
@@ -27,13 +28,22 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     let cancelled = false;
     api.account
       .me()
-      .then((me) => {
+      .then(async (me) => {
         if (cancelled) return;
-        if (adminRoles.includes(me.role)) setVerified(true);
-        else {
+        if (!adminRoles.includes(me.role)) {
           clearAdminUser();
           router.replace("/admin/login");
+          return;
         }
+        // Mandatory 2FA: a staff member who hasn't enrolled is forced onto the security page and can do
+        // nothing else until it's active (the server gate enforces this too — this is the UX side).
+        const { enabled } = await api.auth.twoFactor.status();
+        if (cancelled) return;
+        if (!enabled && !isTwoFactorPage) {
+          router.replace("/admin/settings/2fa");
+          return;
+        }
+        setVerified(true);
       })
       .catch(() => {
         if (!cancelled) router.replace("/admin/login");
@@ -41,7 +51,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [ready, user, isLogin, router]);
+  }, [ready, user, isLogin, isTwoFactorPage, router]);
 
   // login page renders standalone, without the admin chrome
   if (isLogin) return <>{children}</>;

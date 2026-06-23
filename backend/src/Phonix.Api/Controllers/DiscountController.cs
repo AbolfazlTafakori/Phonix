@@ -18,10 +18,12 @@ public class DiscountController : ControllerBase
     public DiscountController(StoreData store) => _store = store;
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("discounts")]
     [HttpGet]
     public IEnumerable<DiscountCode> Get() => _store.GetDiscountCodes();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("discounts")]
     [HttpPost]
     public ActionResult<DiscountCode> Create(DiscountCode input)
     {
@@ -31,6 +33,7 @@ public class DiscountController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("discounts")]
     [HttpPut("{id:int}")]
     public ActionResult<DiscountCode> Update(int id, DiscountCode input)
     {
@@ -42,6 +45,7 @@ public class DiscountController : ControllerBase
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("discounts")]
     [HttpDelete("{id:int}")]
     public IActionResult Delete(int id) => _store.DeleteDiscountCode(id) ? NoContent() : NotFound();
 
