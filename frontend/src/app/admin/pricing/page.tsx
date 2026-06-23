@@ -343,6 +343,17 @@ function FeesPanel({
           <option className="bg-[#15151f]">ریال</option>
         </select>
 
+        <label className="mb-2 mt-5 block text-sm text-white/70">یادآوری تمدید اشتراک (ساعت پیش از انقضا)</label>
+        <input
+          type="number"
+          dir="ltr"
+          min={0}
+          value={draft.subscriptionReminderHoursBefore}
+          onChange={(e) => set("subscriptionReminderHoursBefore", Math.max(0, Number(e.target.value)) as never)}
+          className={`${inputCls} text-left`}
+        />
+        <p className="mt-1.5 text-xs text-white/40">۰ = غیرفعال · پیش‌فرض ۴۸ ساعت</p>
+
         <label className="mt-5 flex cursor-pointer items-center justify-between">
           <span className="text-sm text-white/80">نمایش قیمت قبل از تخفیف</span>
           <Toggle checked={draft.showOriginalPrice} onChange={(v) => set("showOriginalPrice", v)} />

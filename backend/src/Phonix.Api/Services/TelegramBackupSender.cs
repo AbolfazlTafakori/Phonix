@@ -36,8 +36,11 @@ public class TelegramBackupSender : ITelegramBackupSender
         try
         {
             var json = _store.SerializeSnapshot();
-            var bytes = Encoding.UTF8.GetBytes(json);
-            var fileName = $"phonix-backup-{DateTime.Now:yyyy-MM-dd-HHmm}.json";
+            var stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
+            var encrypted = BackupCrypto.IsEnabled;
+            var payload = encrypted ? BackupCrypto.Encrypt(json) : json;
+            var bytes = Encoding.UTF8.GetBytes(payload);
+            var fileName = encrypted ? $"phonix-backup-{stamp}.phxbak" : $"phonix-backup-{stamp}.json";
 
             using var form = new MultipartFormDataContent
             {
@@ -46,7 +49,7 @@ public class TelegramBackupSender : ITelegramBackupSender
             if (!string.IsNullOrWhiteSpace(caption)) form.Add(new StringContent(caption), "caption");
 
             var file = new ByteArrayContent(bytes);
-            file.Headers.ContentType = new MediaTypeHeaderValue("application/json");
+            file.Headers.ContentType = new MediaTypeHeaderValue(encrypted ? "application/octet-stream" : "application/json");
             form.Add(file, "document", fileName);
 
             using var http = _httpFactory.CreateClient();

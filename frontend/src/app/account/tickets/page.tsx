@@ -6,9 +6,16 @@ import { useAuth } from "@/lib/auth";
 import { ticketStatusLabel } from "@/lib/labels";
 import { PageTitle, Panel } from "@/components/account/Panel";
 import { StatusBadge } from "@/components/admin/ui";
-import type { Ticket } from "@/lib/types";
+import ImageField from "@/components/admin/ImageField";
+import type { Ticket, TicketPriority } from "@/lib/types";
 
 const departments = ["فنی", "مالی", "فروش"];
+const priorities: { value: TicketPriority; label: string }[] = [
+  { value: "Low", label: "کم" },
+  { value: "Medium", label: "متوسط" },
+  { value: "High", label: "زیاد" },
+];
+const priorityLabel: Record<TicketPriority, string> = { Low: "کم", Medium: "متوسط", High: "زیاد" };
 const inputCls = "h-11 w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 text-sm text-white outline-none focus:border-[#3e3af2]";
 
 export default function TicketsPage() {
@@ -20,6 +27,8 @@ export default function TicketsPage() {
 
   const [subject, setSubject] = useState("");
   const [department, setDepartment] = useState(departments[0]);
+  const [priority, setPriority] = useState<TicketPriority>("Medium");
+  const [attachment, setAttachment] = useState("");
   const [body, setBody] = useState("");
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,10 +51,12 @@ export default function TicketsPage() {
     if (!user || !subject.trim() || !body.trim()) return;
     setBusy(true);
     try {
-      const t = await api.tickets.create({ subject: subject.trim(), department, body: body.trim() });
+      const t = await api.tickets.create({ subject: subject.trim(), department, body: body.trim(), priority, attachment: attachment || undefined });
       setTickets((p) => [t, ...p]);
       setSubject("");
       setBody("");
+      setAttachment("");
+      setPriority("Medium");
       setOpenForm(false);
       setSelected(t);
     } finally {
@@ -84,6 +95,20 @@ export default function TicketsPage() {
                 {departments.map((d) => <option key={d} className="bg-[#15151f]">{d}</option>)}
               </select>
             </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm text-white/70">سطح اهمیت</label>
+                <select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)} className={inputCls}>
+                  {priorities.map((p) => <option key={p.value} value={p.value} className="bg-[#15151f]">{p.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-white/70">فایل پیوست (اختیاری)</label>
+                <div className="w-[120px]">
+                  <ImageField value={attachment} onChange={setAttachment} aspect="square" />
+                </div>
+              </div>
+            </div>
             <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="شرح مشکل یا سوال خود را بنویسید..." className="w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 py-3 text-sm text-white outline-none focus:border-[#3e3af2]" />
             <button onClick={create} disabled={busy} className="h-11 w-fit rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60">
               {busy ? "در حال ارسال..." : "ارسال تیکت"}
@@ -100,10 +125,18 @@ export default function TicketsPage() {
           <div className="flex items-center justify-between border-b border-white/8 pb-3">
             <div>
               <p className="font-bold text-white">{selected.subject}</p>
-              <p className="text-xs text-white/40">{selected.code} · {selected.department}</p>
+              <p className="text-xs text-white/40">
+                {selected.code} · {selected.department} · اهمیت: {priorityLabel[selected.priority] ?? "متوسط"}
+              </p>
             </div>
             <StatusBadge status={ticketStatusLabel[selected.status]} />
           </div>
+
+          {selected.attachment && (
+            <a href={selected.attachment} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-[#6f93ff] transition hover:bg-white/5">
+              مشاهده فایل پیوست
+            </a>
+          )}
 
           <div className="mt-4 space-y-3">
             {selected.messages.map((m, i) => (

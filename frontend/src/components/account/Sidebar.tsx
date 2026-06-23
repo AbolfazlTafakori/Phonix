@@ -4,22 +4,34 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { accountMenu } from "@/data/account";
 import { useAuth } from "@/lib/auth";
+import { useMe, levelBadge } from "@/lib/useMe";
 import MenuIcon from "./MenuIcon";
 
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
+  const { me } = useMe(); // live snapshot → avatar + verification level update instantly within the session
+  const name = me?.name || user?.name || "کاربر";
+  const username = me?.username || user?.username || "";
+  const avatar = me?.avatar || "";
+  const level = levelBadge(me?.verificationLevel ?? 0);
 
   return (
     <aside className="h-fit rounded-2xl border border-white/8 bg-[#15151f]/80 p-5 lg:sticky lg:top-24">
       <div className="mb-6 flex items-center gap-3 border-b border-white/8 pb-5">
-        <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-lg font-bold text-white">
-          {(user?.name || user?.username || "؟").charAt(0)}
-        </div>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-white">{user?.name || "کاربر"}</p>
-          <p className="truncate text-xs text-white/50" dir="ltr">@{user?.username || ""}</p>
+        {avatar ? (
+          <img src={avatar} alt={name} className="h-12 w-12 shrink-0 rounded-full object-cover" />
+        ) : (
+          <div className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-lg font-bold text-white">
+            {(name || username || "؟").charAt(0)}
+          </div>
+        )}
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+          <p className="truncate text-sm font-bold text-white">{name}</p>
+          <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold ${level.cls}`}>
+            {level.label}
+          </span>
         </div>
       </div>
 

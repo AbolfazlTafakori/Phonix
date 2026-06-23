@@ -6,7 +6,7 @@ using Phonix.Api.Security;
 
 namespace Phonix.Api.Controllers;
 
-public record CreateTicketInput(string Subject, string Department, string Body);
+public record CreateTicketInput(string Subject, string Department, string Body, TicketPriority? Priority, string? Attachment);
 public record TicketReplyInput(string Body, bool IsAdmin);
 
 [ApiController]
@@ -46,7 +46,8 @@ public class TicketsController : ControllerBase
         if (string.IsNullOrWhiteSpace(input.Subject) || string.IsNullOrWhiteSpace(input.Body))
             return BadRequest("موضوع و متن پیام الزامی است.");
         var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
-        return _store.CreateTicket(user.Id, name, input.Subject, input.Department, input.Body);
+        return _store.CreateTicket(user.Id, name, input.Subject, input.Department, input.Body,
+            input.Priority ?? TicketPriority.Medium, input.Attachment ?? "");
     }
 
     [HttpPost("{id:int}/reply")]

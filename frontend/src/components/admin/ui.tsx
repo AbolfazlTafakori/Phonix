@@ -189,19 +189,20 @@ export function Modal({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center p-4">
+    <div className="fixed inset-0 z-50 grid place-items-center p-3 sm:p-4">
       <div onClick={onClose} className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-      <div className={`relative w-full ${modalSizes[size]} overflow-hidden rounded-2xl border border-white/10 bg-[#15151f] shadow-2xl`}>
-        <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
+      {/* cap the height and scroll the body so a tall modal (product form, KYC) never clips on short screens. */}
+      <div className={`relative flex max-h-[92dvh] w-full ${modalSizes[size]} flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#15151f] shadow-2xl`}>
+        <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-5 py-4 sm:px-6">
           <h3 className="text-lg font-bold text-white">{title}</h3>
           <button
             onClick={onClose}
-            className="grid h-9 w-9 place-items-center rounded-full border border-white/10 text-white/60 transition hover:text-white"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 text-white/60 transition hover:text-white"
           >
             ✕
           </button>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="overflow-y-auto overscroll-contain p-5 sm:p-6">{children}</div>
       </div>
     </div>
   );
@@ -241,12 +242,14 @@ export function DataTable<T>({
 
   return (
     <>
-      <div className="hidden overflow-x-auto md:block">
+      {/* Table only from lg up — that's where the sidebar appears and there's real horizontal room.
+          Below lg (tablets incl. iPad portrait) we fall back to cards so columns never overflow. */}
+      <div className="hidden overflow-x-auto overscroll-x-contain lg:block">
         <table className="w-full text-right" style={{ minWidth }}>
           <thead>
             <tr className="border-b border-white/8 text-sm text-white/45">
               {columns.map((c, i) => (
-                <th key={i} className={`px-6 py-4 font-medium ${c.th ?? ""}`}>{c.header}</th>
+                <th key={i} className={`px-4 py-4 font-medium xl:px-6 ${c.th ?? ""}`}>{c.header}</th>
               ))}
             </tr>
           </thead>
@@ -260,7 +263,7 @@ export function DataTable<T>({
                 }`}
               >
                 {columns.map((c, i) => (
-                  <td key={i} className={`px-6 py-3 ${c.td ?? ""}`}>{c.cell(row)}</td>
+                  <td key={i} className={`px-4 py-3.5 xl:px-6 ${c.td ?? ""}`}>{c.cell(row)}</td>
                 ))}
               </tr>
             ))}
@@ -268,18 +271,18 @@ export function DataTable<T>({
         </table>
       </div>
 
-      <div className="divide-y divide-white/5 md:hidden">
+      <div className="divide-y divide-white/5 lg:hidden">
         {rows.map((row) => (
           <div
             key={rowKey(row)}
             onClick={onRowClick ? () => onRowClick(row) : undefined}
-            className={`p-4 ${onRowClick ? "cursor-pointer active:bg-white/[0.03]" : ""}`}
+            className={`p-4 sm:p-5 ${onRowClick ? "cursor-pointer active:bg-white/[0.03]" : ""}`}
           >
             {primary && <div className="mb-3">{primary.cell(row)}</div>}
             <div className="grid gap-x-4 gap-y-2.5">
               {secondary.map((c, i) =>
                 c.full ? (
-                  <div key={i} className="pt-1">{c.cell(row)}</div>
+                  <div key={i} className="pt-2">{c.cell(row)}</div>
                 ) : (
                   <div key={i} className="flex items-center justify-between gap-3">
                     {!c.hideLabel && <span className="shrink-0 text-xs text-white/40">{c.header}</span>}

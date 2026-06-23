@@ -101,18 +101,18 @@ export default function AdminTransactionsPage() {
       full: true,
       cell: (t) =>
         t.status === "Pending" ? (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => act(t, "approve")}
               disabled={busy === t.id}
-              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/15 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25 md:flex-none md:px-4"
+              className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/15 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25 active:scale-[0.98] lg:h-9 lg:flex-none lg:px-4"
             >
               {busy === t.id ? <Spinner /> : <><AdminIcon name="check" className="h-4 w-4" /> تایید</>}
             </button>
             <button
               onClick={() => act(t, "reject")}
               disabled={busy === t.id}
-              className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-500/15 text-xs font-bold text-rose-400 transition hover:bg-rose-500/25 md:flex-none md:px-4"
+              className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-500/15 text-xs font-bold text-rose-400 transition hover:bg-rose-500/25 active:scale-[0.98] lg:h-9 lg:flex-none lg:px-4"
             >
               <AdminIcon name="close" className="h-4 w-4" /> رد
             </button>

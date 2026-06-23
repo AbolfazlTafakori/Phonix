@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
+using SkiaSharp;
 
 namespace Phonix.Api.Services;
 
@@ -52,15 +53,66 @@ public sealed partial class LocalFileStorageService : IFileStorageService
 
         try
         {
-            await using var dest = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            await file.CopyToAsync(dest, ct);
+            await WriteReencodedAsync(file, ext, path, ct);
         }
         catch (Exception)
         {
             if (File.Exists(path)) { try { File.Delete(path); } catch { /* best-effort cleanup */ } }
-            return new FileSaveResult(null, "ذخیره فایل ناموفق بود.");
+            // a failure here means the bytes were not a decodable image — reject rather than store anything.
+            return new FileSaveResult(null, "تصویر نامعتبر است یا قابل پردازش نیست.");
         }
         return new FileSaveResult(id, null);
+    }
+
+    // Decodes the upload and re-encodes it from raw pixels, which drops all metadata (EXIF geolocation,
+    // ICC, etc.) and neutralizes any non-image payload smuggled into the file — nothing the user supplied
+    // is written to disk verbatim. Oversized images are clamped so a decoded bitmap can't exhaust memory.
+    // Throws when the bytes aren't a valid image, so the caller can reject the upload.
+    private static async Task WriteReencodedAsync(IFormFile file, string ext, string path, CancellationToken ct)
+    {
+        byte[] bytes;
+        await using (var input = file.OpenReadStream())
+        using (var buffer = new MemoryStream())
+        {
+            await input.CopyToAsync(buffer, ct);
+            bytes = buffer.ToArray();
+        }
+
+        using var decoded = SKBitmap.Decode(bytes)
+            ?? throw new InvalidDataException("Unsupported or corrupt image.");
+
+        const int maxEdge = 2400;
+        SKBitmap? resized = null;
+        var bitmap = decoded;
+        if (decoded.Width > maxEdge || decoded.Height > maxEdge)
+        {
+            var scale = (double)maxEdge / Math.Max(decoded.Width, decoded.Height);
+            var info = new SKImageInfo(
+                Math.Max(1, (int)Math.Round(decoded.Width * scale)),
+                Math.Max(1, (int)Math.Round(decoded.Height * scale)));
+            resized = decoded.Resize(info, SKFilterQuality.High);
+            if (resized is not null) bitmap = resized;
+        }
+
+        try
+        {
+            var format = ext switch
+            {
+                ".png" => SKEncodedImageFormat.Png,
+                ".webp" => SKEncodedImageFormat.Webp,
+                _ => SKEncodedImageFormat.Jpeg,
+            };
+            var quality = format == SKEncodedImageFormat.Png ? 100 : 88;
+            using var data = bitmap.Encode(format, quality)
+                ?? throw new InvalidDataException("Image could not be encoded.");
+
+            await using var dest = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            data.SaveTo(dest);
+        }
+        finally
+        {
+            resized?.Dispose();
+        }
     }
 
     public StoredFile? Open(string category, string id)

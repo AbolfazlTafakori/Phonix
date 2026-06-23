@@ -121,12 +121,12 @@ export default function AdminKycPage() {
 
               <div className="flex items-center gap-2 border-t border-white/8 pt-4">
                 {k.status !== "Approved" && (
-                  <button onClick={() => approve(k)} disabled={busy === k.id} className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/15 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25">
+                  <button onClick={() => approve(k)} disabled={busy === k.id} className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/15 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25 active:scale-[0.98] lg:h-9">
                     {busy === k.id ? <Spinner /> : <><AdminIcon name="check" className="h-4 w-4" /> تأیید هویت</>}
                   </button>
                 )}
                 {k.status !== "Rejected" && (
-                  <button onClick={() => reject(k)} disabled={busy === k.id} className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-500/15 text-xs font-bold text-rose-400 transition hover:bg-rose-500/25">
+                  <button onClick={() => reject(k)} disabled={busy === k.id} className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-500/15 text-xs font-bold text-rose-400 transition hover:bg-rose-500/25 active:scale-[0.98] lg:h-9">
                     <AdminIcon name="close" className="h-4 w-4" /> رد
                   </button>
                 )}

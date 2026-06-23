@@ -7,6 +7,13 @@ public enum TicketStatus
     Closed,
 }
 
+public enum TicketPriority
+{
+    Low,
+    Medium,
+    High,
+}
+
 public class TicketMessage
 {
     public string Author { get; set; } = "";
@@ -23,6 +30,8 @@ public class Ticket
     public string UserName { get; set; } = "";
     public string Subject { get; set; } = "";
     public string Department { get; set; } = "";
+    public TicketPriority Priority { get; set; } = TicketPriority.Medium;
+    public string Attachment { get; set; } = ""; // optional public URL of a user-uploaded supporting file
     public TicketStatus Status { get; set; } = TicketStatus.Open;
     public List<TicketMessage> Messages { get; set; } = new();
     public string Date { get; set; } = "";

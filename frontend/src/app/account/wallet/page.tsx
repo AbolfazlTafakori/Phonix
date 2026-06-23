@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import type { Transaction, TxStatus, PaymentMethod, BankCard } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
@@ -28,6 +29,7 @@ export default function WalletPage() {
   const [cards, setCards] = useState<BankCard[]>([]);
   const [minWithdraw, setMinWithdraw] = useState(0);
   const [minCharge, setMinCharge] = useState(0);
+  const [level, setLevel] = useState(0);
   const [loading, setLoading] = useState(true);
 
   // deposit (واریز)
@@ -56,6 +58,7 @@ export default function WalletPage() {
         api.pricing.getSettings().catch(() => null),
       ]);
       setBalance(u.wallet);
+      setLevel(u.verificationLevel);
       setTxs(mine);
       setMethods(pm.filter((m) => m.isActive));
       const approved = myCards.filter((c) => c.status === "Approved");
@@ -73,6 +76,15 @@ export default function WalletPage() {
   }
   useEffect(() => {
     load();
+    // instant KYC propagation: re-check the level (and balance) when the tab regains focus, so an admin
+    // lowering the user to level 0 immediately re-gates the wallet within the active session.
+    const sync = () => load();
+    window.addEventListener("focus", sync);
+    document.addEventListener("visibilitychange", sync);
+    return () => {
+      window.removeEventListener("focus", sync);
+      document.removeEventListener("visibilitychange", sync);
+    };
   }, [user]);
 
   const totals = useMemo(() => {
@@ -164,6 +176,21 @@ export default function WalletPage() {
         <StatCard label="درآمد معرفی" value={formatToman(totals.referral)} accent="#e60053" />
       </div>
 
+      {level === 0 ? (
+        <Panel className="mb-6">
+          {/* KYC gate: a level-0 account never sees destination card numbers or deposit details. */}
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-5">
+            <p className="font-bold text-amber-300">برای واریز و برداشت ابتدا احراز هویت کنید</p>
+            <p className="mt-1.5 text-sm leading-7 text-amber-100/80">
+              حساب شما در سطح ۰ است. برای مشاهده‌ی اطلاعات واریز و امکان شارژ یا برداشت کیف پول، ابتدا کارت بانکی خود را ثبت و تأیید کنید تا به سطح ۱ ارتقا یابید.
+            </p>
+            <Link href="/account/kyc" className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 py-3 text-sm font-bold text-white transition hover:brightness-110">
+              رفتن به احراز هویت
+            </Link>
+          </div>
+        </Panel>
+      ) : (
+        <>
       <Panel className="mb-6">
         <h2 className="mb-4 text-lg font-bold text-white">واریز و افزایش موجودی</h2>
 
@@ -249,6 +276,8 @@ export default function WalletPage() {
         </button>
         {wNote && <p className={`mt-3 text-sm ${wNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{wNote.text}</p>}
       </Panel>
+        </>
+      )}
 
       <Panel>
         <h2 className="mb-4 text-lg font-bold text-white">تراکنش‌های اخیر</h2>

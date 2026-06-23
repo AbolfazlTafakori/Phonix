@@ -46,11 +46,11 @@ export default function BackupPage() {
     setDownloading(true);
     setDownloadNote(null);
     try {
-      const blob = await api.backup.download();
+      const { blob, filename } = await api.backup.download();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `phonix-backup-${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.json`;
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -69,14 +69,16 @@ export default function BackupPage() {
     setRestoring(true);
     setRestoreNote(null);
     try {
-      const text = await restoreFile.text();
-      let snapshot: unknown;
-      try {
-        snapshot = JSON.parse(text);
-      } catch {
-        throw new Error("فایل انتخاب‌شده یک JSON معتبر نیست.");
+      const text = (await restoreFile.text()).trim();
+      // encrypted backups start with the container prefix; plain backups must be valid JSON.
+      if (!text.startsWith("PHX1.")) {
+        try {
+          JSON.parse(text);
+        } catch {
+          throw new Error("فایل انتخاب‌شده معتبر نیست (نه JSON و نه فایل پشتیبان رمزنگاری‌شده).");
+        }
       }
-      await api.backup.restore(snapshot);
+      await api.backup.restore(text);
       setRestoreNote({ ok: true, text: "بازیابی با موفقیت انجام شد. برای دیدن داده‌های جدید، صفحه را تازه‌سازی کنید." });
       setRestoreFile(null);
       if (fileRef.current) fileRef.current.value = "";
@@ -166,7 +168,7 @@ export default function BackupPage() {
               <input
                 ref={fileRef}
                 type="file"
-                accept="application/json,.json"
+                accept="application/json,.json,.phxbak"
                 onChange={(e) => { setRestoreFile(e.target.files?.[0] ?? null); setRestoreNote(null); }}
                 className="block w-full text-sm text-white/70 file:ml-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-white/15"
               />

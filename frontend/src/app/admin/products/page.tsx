@@ -180,7 +180,8 @@ export default function AdminProductsPage() {
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId === null ? "افزودن محصول" : "ویرایش محصول"} size="3xl">
-        <div className="grid max-h-[70vh] gap-5 overflow-y-auto pl-1">
+        {/* the shared Modal now caps height and scrolls its own body, so no inner scroll container is needed. */}
+        <div className="grid gap-5">
           <ImageField label="تصویر محصول" aspect="wide" value={form.image} onChange={(v) => set("image", v)} className="w-48" />
 
           <div className="grid gap-4 sm:grid-cols-2">

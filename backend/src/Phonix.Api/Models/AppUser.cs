@@ -16,6 +16,7 @@ public class AppUser
     public string Password { get; set; } = "";
     public string Email { get; set; } = "";
     public string Phone { get; set; } = "";
+    public string Avatar { get; set; } = ""; // public URL of the user's uploaded profile picture; empty = render the initial
     public UserRole Role { get; set; } = UserRole.Customer;
     public int Orders { get; set; }
     public long TotalSpent { get; set; }

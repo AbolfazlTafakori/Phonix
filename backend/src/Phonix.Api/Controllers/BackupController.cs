@@ -23,19 +23,45 @@ public class BackupController : ControllerBase
         _alerts = alerts;
     }
 
-    // download the full store as a timestamped file (identical to store.json on disk).
+    // download the full store as a timestamped file. When PHONIX_BACKUP_KEY is set the payload is encrypted
+    // (AES-256-GCM, .phxbak); otherwise it is plain store.json.
     [HttpGet("export")]
     public IActionResult Export()
     {
-        var bytes = Encoding.UTF8.GetBytes(_store.SerializeSnapshot());
-        var name = $"phonix-backup-{DateTime.Now:yyyy-MM-dd-HHmm}.json";
-        return File(bytes, "application/json", name);
+        var stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
+        var json = _store.SerializeSnapshot();
+        if (BackupCrypto.IsEnabled)
+            return File(Encoding.UTF8.GetBytes(BackupCrypto.Encrypt(json)), "application/octet-stream", $"phonix-backup-{stamp}.phxbak");
+        return File(Encoding.UTF8.GetBytes(json), "application/json", $"phonix-backup-{stamp}.json");
     }
 
-    // replace the entire store with an uploaded backup.
+    // replace the entire store with an uploaded backup. Accepts both the encrypted container and plain JSON
+    // (so older plain backups still import); reads the raw body to support either.
     [HttpPost("restore")]
-    public IActionResult Restore([FromBody] StoreSnapshot? snapshot)
+    public async Task<IActionResult> Restore()
     {
+        using var reader = new StreamReader(Request.Body, Encoding.UTF8);
+        var raw = (await reader.ReadToEndAsync()).Trim();
+        if (string.IsNullOrEmpty(raw))
+            return BadRequest("فایل پشتیبان نامعتبر است.");
+
+        string? json = raw;
+        if (BackupCrypto.LooksEncrypted(raw))
+        {
+            json = BackupCrypto.Decrypt(raw);
+            if (json is null)
+                return BadRequest("رمزگشایی فایل پشتیبان ناموفق بود. کلید پشتیبان (PHONIX_BACKUP_KEY) را بررسی کنید.");
+        }
+
+        StoreSnapshot? snapshot;
+        try
+        {
+            snapshot = _store.DeserializeSnapshot(json);
+        }
+        catch
+        {
+            return BadRequest("فایل پشتیبان نامعتبر است.");
+        }
         if (snapshot is null)
             return BadRequest("فایل پشتیبان نامعتبر است.");
         if (snapshot.Users.Count == 0)

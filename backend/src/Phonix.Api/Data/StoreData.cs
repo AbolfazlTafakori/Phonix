@@ -13,6 +13,12 @@ public partial class StoreData
     private readonly List<SubscriptionPlan> _plans = new();
     private PricingSettings _settings = new();
 
+    // Lock-free read views for the hottest anonymous traffic (the public catalog). They are immutable
+    // array snapshots, rebuilt under _gate whenever the product/category set changes and published through
+    // a volatile reference, so storefront reads never contend on the write lock that mutations hold.
+    private volatile IReadOnlyList<Product> _productsView = Array.Empty<Product>();
+    private volatile IReadOnlyList<Category> _categoriesView = Array.Empty<Category>();
+
     private int _categorySeq;
     private int _productSeq;
     private int _userSeq;
@@ -33,6 +39,15 @@ public partial class StoreData
             RefreshAllUserOrderStats(); // heal any drift carried by an older store.json
         }
         HealVerificationLevels(); // older snapshots predate VerificationLevel — derive it from Verified/cards
+        RebuildCatalogView();
+    }
+
+    // Caller holds _gate (except the constructor, which runs single-threaded). Republishes the lock-free
+    // catalog snapshots after the product/category set changes.
+    private void RebuildCatalogView()
+    {
+        _productsView = _products.ToArray();
+        _categoriesView = _categories.ToArray();
     }
 
     // Reconciles each user's identity level from the evidence available, so a store.json saved before the
@@ -84,20 +99,12 @@ public partial class StoreData
 
     // categories
 
-    public IReadOnlyList<Category> GetCategories()
-    {
-        lock (_gate) return _categories.OrderBy(c => c.SortOrder).ToList();
-    }
+    public IReadOnlyList<Category> GetCategories() =>
+        _categoriesView.OrderBy(c => c.SortOrder).ToList();
 
-    public Category? GetCategory(int id)
-    {
-        lock (_gate) return _categories.FirstOrDefault(c => c.Id == id);
-    }
+    public Category? GetCategory(int id) => _categoriesView.FirstOrDefault(c => c.Id == id);
 
-    public int CountProducts(int categoryId)
-    {
-        lock (_gate) return _products.Count(p => p.CategoryId == categoryId);
-    }
+    public int CountProducts(int categoryId) => _productsView.Count(p => p.CategoryId == categoryId);
 
     public Category AddCategory(Category category)
     {
@@ -105,6 +112,7 @@ public partial class StoreData
         {
             category.Id = ++_categorySeq;
             _categories.Add(category);
+            RebuildCatalogView();
             return category;
         }
     }
@@ -120,6 +128,7 @@ public partial class StoreData
             existing.Icon = category.Icon;
             existing.IsActive = category.IsActive;
             existing.SortOrder = category.SortOrder;
+            RebuildCatalogView();
             return true;
         }
     }
@@ -131,6 +140,7 @@ public partial class StoreData
             var existing = _categories.FirstOrDefault(c => c.Id == id);
             if (existing is null) return false;
             _categories.Remove(existing);
+            RebuildCatalogView();
             return true;
         }
     }
@@ -139,25 +149,19 @@ public partial class StoreData
 
     public IReadOnlyList<Product> GetProducts(int? categoryId = null, string? search = null)
     {
-        lock (_gate)
+        IEnumerable<Product> query = _productsView;
+        if (categoryId is int cid) query = query.Where(p => p.CategoryId == cid);
+        if (!string.IsNullOrWhiteSpace(search))
         {
-            IEnumerable<Product> query = _products;
-            if (categoryId is int cid) query = query.Where(p => p.CategoryId == cid);
-            if (!string.IsNullOrWhiteSpace(search))
-            {
-                var term = search.Trim();
-                query = query.Where(p =>
-                    p.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
-                    p.Sku.Contains(term, StringComparison.OrdinalIgnoreCase));
-            }
-            return query.OrderBy(p => p.Id).ToList();
+            var term = search.Trim();
+            query = query.Where(p =>
+                p.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                p.Sku.Contains(term, StringComparison.OrdinalIgnoreCase));
         }
+        return query.OrderBy(p => p.Id).ToList();
     }
 
-    public Product? GetProduct(int id)
-    {
-        lock (_gate) return _products.FirstOrDefault(p => p.Id == id);
-    }
+    public Product? GetProduct(int id) => _productsView.FirstOrDefault(p => p.Id == id);
 
     public Product AddProduct(Product product)
     {
@@ -166,6 +170,7 @@ public partial class StoreData
             product.Id = ++_productSeq;
             NumberPlans(product.Plans);
             _products.Add(product);
+            RebuildCatalogView();
             return product;
         }
     }
@@ -188,9 +193,11 @@ public partial class StoreData
             existing.Description = product.Description;
             existing.Warning = product.Warning;
             existing.RequiredLevel = product.RequiredLevel;
+            existing.DeliveryTemplate = product.DeliveryTemplate;
             existing.Features = product.Features;
             NumberPlans(product.Plans);
             existing.Plans = product.Plans;
+            RebuildCatalogView();
             return true;
         }
     }
@@ -207,6 +214,7 @@ public partial class StoreData
             var existing = _products.FirstOrDefault(p => p.Id == id);
             if (existing is null) return false;
             _products.Remove(existing);
+            RebuildCatalogView();
             return true;
         }
     }
@@ -315,6 +323,27 @@ public partial class StoreData
     public AppUser? GetUserByUsername(string username)
     {
         lock (_gate) return _users.FirstOrDefault(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
+    }
+
+    // Changes the LOGIN handle (which is also the referral code). Every piece of the user's data — orders,
+    // transactions, tickets, cards, KYC, referrals (ReferredBy) — is keyed by the immutable integer Id, so a
+    // rename re-points the handle without orphaning anything. Returns null on success, else a Persian error.
+    public string? SetUsername(int userId, string username)
+    {
+        lock (_gate)
+        {
+            var user = _users.FirstOrDefault(u => u.Id == userId);
+            if (user is null) return "کاربر یافت نشد.";
+            var u = (username ?? "").Trim();
+            if (string.Equals(u, user.Username, StringComparison.Ordinal)) return null; // unchanged
+            if (u.Length is < 3 or > 20) return "نام کاربری باید بین ۳ تا ۲۰ کاراکتر باشد.";
+            if (!u.All(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')))
+                return "نام کاربری فقط می‌تواند شامل حروف و اعداد انگلیسی باشد (بدون فاصله و خط تیره).";
+            if (_users.Any(x => x.Id != userId && string.Equals(x.Username, u, StringComparison.OrdinalIgnoreCase)))
+                return "این نام کاربری قبلاً گرفته شده است.";
+            user.Username = u;
+            return null;
+        }
     }
 
     public bool EmailExists(string email)

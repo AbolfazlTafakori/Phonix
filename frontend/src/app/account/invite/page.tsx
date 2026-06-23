@@ -17,8 +17,10 @@ export default function InvitePage() {
     api.pricing.getSettings().then((s) => setCommission(s.referralCommissionPercent)).catch(() => {});
   }, []);
 
-  const code = user ? `PHX-${user.username}` : "—";
-  const link = user ? `${origin}/signup?ref=${user.username}` : "";
+  // The referral code IS the username (alphanumeric, no dashes — enforced on the profile). It must match
+  // exactly so the register form (which resolves the referrer via GetUserByUsername) links correctly.
+  const code = user?.username || "—";
+  const link = user && origin ? `${origin}/signup?ref=${user.username}` : "";
 
   function copy() {
     navigator.clipboard?.writeText(link);

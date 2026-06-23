@@ -182,6 +182,7 @@ public partial class StoreData
             _ticketSeq = s.Seq.Ticket;
             _notificationSeq = s.Seq.Notification;
             _discountSeq = s.Seq.Discount;
+            RebuildCatalogView();
         }
     }
 
@@ -211,6 +212,9 @@ public partial class StoreData
 
     // the exact on-disk store format (used by the backup export so a download equals store.json).
     public string SerializeSnapshot() => JsonSerializer.Serialize(CaptureSnapshot(), PersistOptions);
+
+    // parses a snapshot from raw JSON using the persistence options (matching enum handling).
+    public StoreSnapshot? DeserializeSnapshot(string json) => JsonSerializer.Deserialize<StoreSnapshot>(json, PersistOptions);
 
     public void Save()
     {

@@ -16,12 +16,14 @@ public class OrderTests
         var startStock = store.GetProduct(1)!.Stock;
         var unit = store.GetProduct(1)!.FinalPrice;
         var user = store.GetUser(1)!;
+        var vat = Vat(store, unit * 2);
 
         var res = store.PlaceOrder(user, new[] { (1, 2, (int?)null) }, "کارت به کارت", fromWallet: false);
 
         Assert.Null(res.Error);
         Assert.NotNull(res.Order);
-        Assert.Equal(unit * 2, res.Order!.Total);
+        Assert.Equal(vat, res.Order!.VatAmount);
+        Assert.Equal(unit * 2 + vat, res.Order.Total);
         Assert.Equal(startStock - 2, store.GetProduct(1)!.Stock);
         Assert.Equal(OrderStatus.PendingApproval, res.Order.Status);
     }
@@ -47,13 +49,14 @@ public class OrderTests
         var user = store.GetUser(5)!; // reza has enough balance
         var startWallet = user.Wallet;
         var price = store.GetProduct(1)!.FinalPrice;
+        var payable = price + Vat(store, price);
 
         var res = store.PlaceOrder(user, new[] { (1, 1, (int?)null) }, "wallet", fromWallet: true);
 
         Assert.Null(res.Error);
-        Assert.Equal(price, res.Order!.WalletPaid);
+        Assert.Equal(payable, res.Order!.WalletPaid);
         Assert.Equal(OrderStatus.Preparing, res.Order.Status); // no remainder → no approval needed
-        Assert.Equal(startWallet - price, store.GetUser(5)!.Wallet);
+        Assert.Equal(startWallet - payable, store.GetUser(5)!.Wallet);
     }
 
     [Fact]
@@ -66,9 +69,10 @@ public class OrderTests
 
         var res = store.PlaceOrder(user, new[] { (1, 1, (int?)null) }, "کارت", fromWallet: false, discountCode: "WELCOME10");
 
+        var goods = unit - expectedDiscount;
         Assert.Null(res.Error);
         Assert.Equal(expectedDiscount, res.Order!.DiscountAmount);
-        Assert.Equal(unit - expectedDiscount, res.Order.Total);
+        Assert.Equal(goods + Vat(store, goods), res.Order.Total);
     }
 
     [Fact]
@@ -115,7 +119,7 @@ public class OrderTests
         Assert.Null(res.Error);
         var o = res.Order!;
         Assert.Equal(startWallet, o.WalletPaid);                       // whole wallet consumed, no more
-        var goodsRemainder = price * 2 - startWallet;
+        var goodsRemainder = price * 2 + Vat(store, price * 2) - startWallet;
         var expectedFee = (long)Math.Round(goodsRemainder * 3 / 100.0, MidpointRounding.AwayFromZero);
         Assert.Equal(expectedFee, o.FeeAmount);
         Assert.Equal(goodsRemainder + expectedFee, o.Total - o.WalletPaid); // the exact figure the buyer pays at the gateway
@@ -226,7 +230,7 @@ public class OrderTests
     {
         var store = TestStore.Create();
         Assert.Equal(0, store.GetUser(6)!.VerificationLevel);
-        var card = store.AddCard(6, "6037997123456789", "نگار شریفی", "/uploads/c.png").Card!;
+        var card = store.AddCard(6, "6037991234567893", "نگار شریفی", "/uploads/c.png").Card!;
         store.SetCardStatus(card.Id, BankCardStatus.Approved, null);
         Assert.Equal(1, store.GetUser(6)!.VerificationLevel);
     }
@@ -235,7 +239,7 @@ public class OrderTests
     public void A_level_two_product_is_blocked_for_level_one_and_allowed_for_level_two()
     {
         var store = TestStore.Create();
-        var card = store.AddCard(6, "6037997123456789", "نگار شریفی", "/uploads/c.png").Card!;
+        var card = store.AddCard(6, "6037991234567893", "نگار شریفی", "/uploads/c.png").Card!;
         store.SetCardStatus(card.Id, BankCardStatus.Approved, null);   // user 6 → level 1
 
         var blocked = store.PlaceOrder(store.GetUser(6)!, new[] { (7, 1, (int?)null) }, "کارت بانکی", fromWallet: false);
@@ -251,7 +255,7 @@ public class OrderTests
     public void Admin_revoking_a_level_two_user_resets_the_level_and_rejects_the_evidence()
     {
         var store = TestStore.Create();
-        var card = store.AddCard(6, "6037997123456789", "نگار شریفی", "/uploads/c.png").Card!;
+        var card = store.AddCard(6, "6037991234567893", "نگار شریفی", "/uploads/c.png").Card!;
         store.SetCardStatus(card.Id, BankCardStatus.Approved, null);                       // → level 1
         var kyc = store.SubmitKyc(new KycRequest { UserId = 6, FullName = "نگار", NationalId = "001" });
         store.SetKycStatus(kyc.Id, KycStatus.Approved, null);                              // → level 2
@@ -273,7 +277,7 @@ public class OrderTests
     public void Admin_lowering_to_level_one_keeps_the_card_but_revokes_the_kyc()
     {
         var store = TestStore.Create();
-        var card = store.AddCard(6, "6037997123456789", "نگار شریفی", "/uploads/c.png").Card!;
+        var card = store.AddCard(6, "6037991234567893", "نگار شریفی", "/uploads/c.png").Card!;
         store.SetCardStatus(card.Id, BankCardStatus.Approved, null);
         var kyc = store.SubmitKyc(new KycRequest { UserId = 6, FullName = "نگار", NationalId = "001" });
         store.SetKycStatus(kyc.Id, KycStatus.Approved, null);
@@ -287,9 +291,12 @@ public class OrderTests
         Assert.Equal(KycStatus.Rejected, store.GetKycForUser(6)!.Status);      // level-2 evidence revoked
     }
 
+    private static long Vat(StoreData store, long goods) =>
+        (long)Math.Round(goods * (double)store.GetSettings().VatPercent / 100.0, MidpointRounding.AwayFromZero);
+
     private static int ApprovedCard(StoreData store, int userId)
     {
-        var card = store.AddCard(userId, "6037997123456789", "علی محمدی", "/uploads/card.png").Card!;
+        var card = store.AddCard(userId, "6037991234567893", "علی محمدی", "/uploads/card.png").Card!;
         store.SetCardStatus(card.Id, BankCardStatus.Approved, null);
         return card.Id;
     }

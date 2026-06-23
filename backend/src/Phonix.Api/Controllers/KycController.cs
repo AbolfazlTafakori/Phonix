@@ -69,6 +69,8 @@ public class KycController : ControllerBase
             return BadRequest("برای احراز هویت سطح ۲ ابتدا باید کارت بانکی شما ثبت و تأیید شود (سطح ۱).");
         if (string.IsNullOrWhiteSpace(input.FullName) || string.IsNullOrWhiteSpace(input.NationalId))
             return BadRequest("نام کامل و کد ملی الزامی است.");
+        if (!InputValidation.IsValidNationalId(input.NationalId))
+            return BadRequest("کد ملی واردشده معتبر نیست.");
         return _store.SubmitKyc(new KycRequest
         {
             UserId = userId,

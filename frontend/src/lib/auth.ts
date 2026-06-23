@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { api } from "./api";
 
-export type CurrentUser = { id: number; name: string; username: string; email: string; phone?: string };
+export type CurrentUser = { id: number; name: string; username: string; email: string; phone?: string; avatar?: string };
 
 const KEY = "phonix_user";
 export const AUTH_EVENT = "phonix-auth-change";

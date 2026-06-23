@@ -117,7 +117,7 @@ public class Phase9FeatureTests
     public void Rejecting_a_card_sets_an_explicit_reason_that_clears_on_approval()
     {
         var store = TestStore.Create();
-        var card = store.AddCard(6, "6037997123456789", "نگار شریفی", "/uploads/c.png").Card!;
+        var card = store.AddCard(6, "6037991234567893", "نگار شریفی", "/uploads/c.png").Card!;
 
         store.SetCardStatus(card.Id, BankCardStatus.Rejected, "تصویر کارت ناخوانا است");
         Assert.Equal("تصویر کارت ناخوانا است", store.GetCard(card.Id)!.RejectionReason);

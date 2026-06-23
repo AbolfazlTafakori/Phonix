@@ -58,6 +58,7 @@ export default function AdminBlogPage() {
 
   async function add() {
     setAdding(true);
+    setError("");
     try {
       const created = await api.blog.create({
         slug: `post-${Date.now()}`,
@@ -70,8 +71,13 @@ export default function AdminBlogPage() {
         sortOrder: posts.length + 1,
         isActive: true,
       });
-      setPosts((prev) => [...prev, created]);
+      // show the new (empty) post at the TOP and scroll up to it, so it's immediately visible and editable
+      // instead of being appended to the bottom of a long list.
+      setPosts((prev) => [created, ...prev]);
       setDrafts((prev) => ({ ...prev, [created.id]: toInput(created) }));
+      if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطا در ایجاد مطلب جدید");
     } finally {
       setAdding(false);
     }
@@ -94,12 +100,14 @@ export default function AdminBlogPage() {
         }
       />
 
+      {error && (
+        <Card className="mb-5 p-4 text-center text-rose-400">{error}</Card>
+      )}
+
       {loading ? (
         <div className="grid place-items-center py-24">
           <Spinner className="h-8 w-8" />
         </div>
-      ) : error ? (
-        <Card className="p-8 text-center text-rose-400">{error}</Card>
       ) : (
         <div className="grid gap-5 lg:grid-cols-2">
           {posts.map((p) => {

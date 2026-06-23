@@ -1,4 +1,5 @@
 using Phonix.Api.Models;
+using Phonix.Api.Security;
 
 namespace Phonix.Api.Data;
 
@@ -39,8 +40,9 @@ public partial class StoreData
             var user = _users.FirstOrDefault(u => u.Id == userId);
             if (user is null) return new AddCardResult(null, "کاربر یافت نشد.");
 
-            var digits = new string((cardNumber ?? "").Where(char.IsDigit).ToArray());
+            var digits = InputValidation.DigitsOnly(cardNumber);
             if (digits.Length != 16) return new AddCardResult(null, "شماره کارت باید ۱۶ رقم باشد.");
+            if (!InputValidation.PassesLuhn(digits)) return new AddCardResult(null, "شماره کارت نامعتبر است.");
             var name = (holderName ?? "").Trim();
             if (name.Length == 0) return new AddCardResult(null, "نام صاحب کارت را وارد کنید.");
             if (string.IsNullOrWhiteSpace(cardImage)) return new AddCardResult(null, "تصویر کارت بانکی را بارگذاری کنید.");

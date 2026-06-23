@@ -42,6 +42,7 @@ import type {
   OrderStatus,
   Ticket,
   TicketStatus,
+  TicketPriority,
   OverviewStats,
   TopProductStat,
   AuthResult,
@@ -172,7 +173,7 @@ export const api = {
   },
   account: {
     me: () => request<User>("/account/me"),
-    updateMe: (body: { name?: string; email?: string; phone?: string }) =>
+    updateMe: (body: { name?: string; email?: string; phone?: string; username?: string; avatar?: string }) =>
       request<User>("/account/me", { method: "PUT", body: json(body) }),
     transactions: () => request<Transaction[]>("/account/transactions"),
     referrals: () => request<ReferralReport>("/account/referrals"),
@@ -245,7 +246,7 @@ export const api = {
     list: (params?: { status?: TicketStatus }) => request<Ticket[]>(`/tickets${qs(params)}`),
     forUser: (userId: number) => request<Ticket[]>(`/tickets/user/${userId}`),
     get: (id: number) => request<Ticket>(`/tickets/${id}`),
-    create: (body: { subject: string; department: string; body: string }) =>
+    create: (body: { subject: string; department: string; body: string; priority?: TicketPriority; attachment?: string }) =>
       request<Ticket>("/tickets", { method: "POST", body: json(body) }),
     reply: (id: number, body: string, isAdmin: boolean) =>
       request<Ticket>(`/tickets/${id}/reply`, { method: "POST", body: json({ body, isAdmin }) }),
@@ -286,12 +287,15 @@ export const api = {
   },
   backup: {
     // cookie auth is SameSite=Strict + cross-origin, so a plain <a download> link wouldn't carry it — fetch as a blob.
-    download: async (): Promise<Blob> => {
+    // The server names the file (.json or, when encrypted, .phxbak); honor that name on the download.
+    download: async (): Promise<{ blob: Blob; filename: string }> => {
       const res = await fetch(`${BASE}/api/backup/export`, { credentials: "include", cache: "no-store" });
       if (!res.ok) throw new Error(`خطا در دانلود پشتیبان (${res.status})`);
-      return res.blob();
+      const match = (res.headers.get("Content-Disposition") ?? "").match(/filename\*?="?([^";]+)"?/i);
+      return { blob: await res.blob(), filename: match?.[1] ?? "phonix-backup.json" };
     },
-    restore: (snapshot: unknown) => request<{ ok: boolean }>("/backup/restore", { method: "POST", body: json(snapshot) }),
+    // sends the raw file content (plain JSON or an encrypted .phxbak container); the server detects which.
+    restore: (content: string) => request<{ ok: boolean }>("/backup/restore", { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }),
     telegram: {
       get: () => request<TelegramSettings>("/backup/telegram"),
       update: (body: TelegramSettings) => request<TelegramSettings>("/backup/telegram", { method: "PUT", body: json(body) }),

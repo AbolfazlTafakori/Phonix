@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useAdminMenu } from "@/lib/adminMenu";
 import { useAdminAuth } from "@/lib/adminAuth";
+import { useMe } from "@/lib/useMe";
 import AdminIcon from "./AdminIcon";
 
 const roleLabel: Record<string, string> = { Admin: "مدیر کل", Support: "پشتیبانی" };
@@ -11,6 +12,9 @@ export default function AdminTopbar({ onMenu }: { onMenu: () => void }) {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAdminAuth();
+  // Live profile of the signed-in staff member, so the avatar they set on the normal site shows here too
+  // (and updates on focus without a re-login).
+  const { me } = useMe();
   // Page title comes from the same (role-filtered) menu the sidebar uses — one source of truth.
   const items = useAdminMenu().flatMap((g) => g.items);
   const current = [...items]
@@ -48,11 +52,15 @@ export default function AdminTopbar({ onMenu }: { onMenu: () => void }) {
         </button>
 
         <div className="flex items-center gap-2.5">
-          <div className="grid h-10 w-10 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-sm font-bold text-white">
-            {(user?.name || user?.username || "ا").charAt(0)}
-          </div>
+          {me?.avatar ? (
+            <img src={me.avatar} alt={me.name || me.username} className="h-10 w-10 shrink-0 rounded-full object-cover" />
+          ) : (
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-sm font-bold text-white">
+              {(me?.name || user?.name || user?.username || "ا").charAt(0)}
+            </div>
+          )}
           <div className="hidden leading-tight sm:block">
-            <p className="text-sm font-bold text-white">{user?.name || user?.username}</p>
+            <p className="text-sm font-bold text-white">{me?.name || user?.name || user?.username}</p>
             <p className="text-xs text-white/40">{user ? roleLabel[user.role] ?? "مدیر" : ""}</p>
           </div>
         </div>

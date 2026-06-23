@@ -36,7 +36,7 @@ public record ProductInput(
 public record PriceInput(long Price, int DiscountPercent);
 
 public record UserDto(
-    int Id, string Code, string Name, string Username, string Email, string Phone, UserRole Role, int Orders,
+    int Id, string Code, string Name, string Username, string Email, string Phone, string Avatar, UserRole Role, int Orders,
     long TotalSpent, long Wallet, bool Verified, int VerificationLevel, bool EmailVerified, bool Blocked, string JoinedAt, string? Note);
 
 public record AuthResultDto(string Token, UserDto User);
@@ -63,7 +63,7 @@ public static class Mapping
             p.DeliveryTemplate);
 
     public static UserDto ToDto(this AppUser u) =>
-        new(u.Id, u.Code, u.Name, u.Username, u.Email, u.Phone, u.Role, u.Orders, u.TotalSpent, u.Wallet,
+        new(u.Id, u.Code, u.Name, u.Username, u.Email, u.Phone, u.Avatar, u.Role, u.Orders, u.TotalSpent, u.Wallet,
             u.Verified, u.VerificationLevel, u.EmailVerified, u.Blocked, u.JoinedAt, u.Note);
 
     public static PlanDto ToDto(this SubscriptionPlan p) =>

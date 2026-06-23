@@ -7,7 +7,7 @@ using Phonix.Api.Security;
 
 namespace Phonix.Api.Controllers;
 
-public record ProfileUpdateInput(string? Name, string? Email, string? Phone);
+public record ProfileUpdateInput(string? Name, string? Email, string? Phone, string? Username, string? Avatar);
 public record ChangePasswordInput(string CurrentPassword, string NewPassword);
 public record ReferralReportDto(long TotalEarned, int ReferredCount, IReadOnlyList<ReferralEarning> Earnings);
 
@@ -32,16 +32,21 @@ public class AccountController : ControllerBase
         return user is null ? Unauthorized() : user.ToDto();
     }
 
-    // a customer may only edit their own contact details — never role, balance, or status.
+    // a customer may only edit their own contact details, username and avatar — never role, balance, or status.
     [HttpPut("me")]
     public ActionResult<UserDto> UpdateMe(ProfileUpdateInput input)
     {
         if (this.CurrentUserId() is not int id) return Unauthorized();
+        // username is the login handle + referral code; validate/uniqueness-check before touching anything else.
+        // Data is keyed by the immutable Id, so a rename keeps every order/ticket/transaction attached.
+        if (input.Username is not null && _store.SetUsername(id, input.Username) is string usernameError)
+            return BadRequest(usernameError);
         var ok = _store.UpdateUser(id, u =>
         {
             if (input.Name is not null) u.Name = input.Name.Trim();
             if (input.Email is not null) u.Email = input.Email.Trim();
             if (input.Phone is not null) u.Phone = input.Phone.Trim();
+            if (input.Avatar is not null) u.Avatar = input.Avatar.Trim();
         });
         return ok ? _store.GetUser(id)!.ToDto() : Unauthorized();
     }

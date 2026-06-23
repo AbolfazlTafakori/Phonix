@@ -56,10 +56,10 @@ export default function AdminShell({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-[#0b0b12] text-white lg:pr-64">
+    <div className="min-h-screen bg-[#0b0b12] text-white transition-[padding] duration-300 ease-out lg:pr-64">
       <AdminSidebar open={open} onClose={() => setOpen(false)} />
       <AdminTopbar onMenu={() => setOpen(true)} />
-      <main className="p-5 lg:p-8">{children}</main>
+      <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">{children}</main>
     </div>
   );
 }

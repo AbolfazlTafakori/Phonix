@@ -99,26 +99,26 @@ export default function AdminCardsPage() {
               <button
                 onClick={() => act(c, "approve")}
                 disabled={busy === c.id}
-                className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/15 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25 md:flex-none md:px-4"
+                className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/15 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25 active:scale-[0.98] lg:h-9 lg:flex-none lg:px-4"
               >
                 {busy === c.id ? <Spinner /> : <><AdminIcon name="check" className="h-4 w-4" /> تایید</>}
               </button>
               <button
                 onClick={() => act(c, "reject")}
                 disabled={busy === c.id}
-                className="flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-500/15 text-xs font-bold text-rose-400 transition hover:bg-rose-500/25 md:flex-none md:px-4"
+                className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-lg bg-rose-500/15 text-xs font-bold text-rose-400 transition hover:bg-rose-500/25 active:scale-[0.98] lg:h-9 lg:flex-none lg:px-4"
               >
                 <AdminIcon name="close" className="h-4 w-4" /> رد
               </button>
             </>
           ) : (
-            <span className="flex-1 text-xs text-white/40 md:flex-none">{c.status === "Rejected" && c.note ? c.note : c.date}</span>
+            <span className="flex-1 text-xs text-white/40 lg:flex-none">{c.status === "Rejected" && c.note ? c.note : c.date}</span>
           )}
           <button
             onClick={() => del(c)}
             disabled={busy === c.id}
             title="حذف کارت"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 text-white/45 transition hover:border-rose-500/50 hover:text-rose-400 disabled:opacity-60"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-white/45 transition hover:border-rose-500/50 hover:text-rose-400 disabled:opacity-60 md:h-9 md:w-9"
           >
             <AdminIcon name="trash" className="h-4 w-4" />
           </button>

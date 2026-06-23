@@ -34,6 +34,7 @@ public class Order
     public string? DiscountCode { get; set; }
     public long DiscountAmount { get; set; }
     public long WalletPaid { get; set; }
+    public long VatAmount { get; set; }
     public long FeeAmount { get; set; }
     public long Total { get; set; }
     public OrderStatus Status { get; set; } = OrderStatus.PendingApproval;

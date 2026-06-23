@@ -94,9 +94,13 @@ export default function AdminUsersPage() {
       primary: true,
       cell: (u) => (
         <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-sm font-bold text-white">
-            {u.name.charAt(0)}
-          </span>
+          {u.avatar ? (
+            <img src={u.avatar} alt={u.name} className="h-10 w-10 shrink-0 rounded-full object-cover" />
+          ) : (
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-sm font-bold text-white">
+              {u.name.charAt(0)}
+            </span>
+          )}
           <div>
             <p className="flex items-center gap-2 font-medium">
               {u.name}
@@ -128,7 +132,7 @@ export default function AdminUsersPage() {
       cell: (u) => (
         <button
           onClick={() => setSelected(u)}
-          className="w-full rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-white/75 transition hover:border-[#3a64f2]/50 hover:text-[#6f93ff] md:w-auto md:py-1.5"
+          className="w-full rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-white/75 transition hover:border-[#3a64f2]/50 hover:text-[#6f93ff] lg:w-auto lg:py-1.5"
         >
           مدیریت
         </button>
@@ -285,9 +289,13 @@ function UserDrawer({
       {user && draft && (
         <div className="space-y-6">
           <div className="flex items-center gap-3">
-            <span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-lg font-bold text-white">
-              {user.name.charAt(0)}
-            </span>
+            {user.avatar ? (
+              <img src={user.avatar} alt={user.name} className="h-14 w-14 shrink-0 rounded-full object-cover" />
+            ) : (
+              <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-lg font-bold text-white">
+                {user.name.charAt(0)}
+              </span>
+            )}
             <div>
               <p className="text-lg font-bold text-white">{user.name}</p>
               <p className="font-mono text-xs text-white/40">{user.code} · عضویت {user.joinedAt}</p>

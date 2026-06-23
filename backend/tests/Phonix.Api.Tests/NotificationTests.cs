@@ -61,7 +61,7 @@ public class NotificationTests
     public void Approving_a_card_privately_congratulates_only_that_user()
     {
         var store = TestStore.Create();
-        var card = store.AddCard(6, "6037997123456789", "نگار شریفی", "/uploads/c.png").Card!; // user 6 = negar, level 0
+        var card = store.AddCard(6, "6037991234567893", "نگار شریفی", "/uploads/c.png").Card!; // user 6 = negar, level 0
         var before6 = store.GetUserNotifications(6).Count;
         var before1 = store.GetUserNotifications(1).Count;
 

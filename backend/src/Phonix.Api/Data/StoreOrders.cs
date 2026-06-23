@@ -128,9 +128,15 @@ public partial class StoreData
             if (discount.Error is not null) return new PlaceOrderResult(null, discount.Error);
             var goodsTotal = subtotal - discount.Amount;
 
+            // VAT is charged on the discounted goods; payable is what the customer actually owes for the order.
+            var vat = _settings.VatPercent > 0
+                ? (long)Math.Round(goodsTotal * (double)_settings.VatPercent / 100.0, MidpointRounding.AwayFromZero)
+                : 0;
+            var payable = goodsTotal + vat;
+
             // wallet can cover the order fully or partially; the rest is paid by the chosen method.
-            var walletUsed = fromWallet ? Math.Min(user.Wallet, goodsTotal) : 0;
-            var remainder = goodsTotal - walletUsed;
+            var walletUsed = fromWallet ? Math.Min(user.Wallet, payable) : 0;
+            var remainder = payable - walletUsed;
 
             // When a real customer checks out and the wallet doesn't cover the whole order, the leftover is
             // a card-to-card payment from one of their own approved cards: they must pick a method, choose
@@ -155,15 +161,20 @@ public partial class StoreData
                     return new PlaceOrderResult(null, "رسید پرداخت مبلغ باقیمانده را بارگذاری کنید.");
             }
 
-            // the gateway tax/fee (if any) only applies to the amount paid through that method.
+            // the gateway tax/fee only applies to the amount paid through that method. Each method may set
+            // its own FeePercent; when it doesn't, the global GatewayFeePercent from pricing settings applies.
             long fee = 0;
             if (paymentMethodId is int methodId && remainder > 0)
             {
                 var pm = _paymentMethods.FirstOrDefault(x => x.Id == methodId);
-                if (pm is not null && pm.FeePercent > 0)
-                    // AwayFromZero matches the frontend's Math.round so the charged fee equals the
-                    // amount shown at checkout to the toman (no banker's-rounding off-by-one).
-                    fee = (long)Math.Round(remainder * (double)pm.FeePercent / 100.0, MidpointRounding.AwayFromZero);
+                if (pm is not null)
+                {
+                    var feePercent = pm.FeePercent > 0 ? pm.FeePercent : _settings.GatewayFeePercent;
+                    if (feePercent > 0)
+                        // AwayFromZero matches the frontend's Math.round so the charged fee equals the
+                        // amount shown at checkout to the toman (no banker's-rounding off-by-one).
+                        fee = (long)Math.Round(remainder * (double)feePercent / 100.0, MidpointRounding.AwayFromZero);
+                }
             }
 
             var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
@@ -178,8 +189,9 @@ public partial class StoreData
                 DiscountCode = discount.Code?.Code,
                 DiscountAmount = discount.Amount,
                 WalletPaid = walletUsed,
+                VatAmount = vat,
                 FeeAmount = fee,
-                Total = goodsTotal + fee,
+                Total = goodsTotal + vat + fee,
                 ReceiptUrl = remainder > 0 && !string.IsNullOrWhiteSpace(payment?.ReceiptUrl) ? payment.ReceiptUrl.Trim() : null,
                 Date = Today(),
             };
@@ -466,7 +478,8 @@ public partial class StoreData
         lock (_gate) return _tickets.FirstOrDefault(t => t.Id == id);
     }
 
-    public Ticket CreateTicket(int userId, string userName, string subject, string department, string body)
+    public Ticket CreateTicket(int userId, string userName, string subject, string department, string body,
+        TicketPriority priority = TicketPriority.Medium, string attachment = "")
     {
         lock (_gate)
         {
@@ -477,6 +490,8 @@ public partial class StoreData
                 UserName = userName,
                 Subject = subject,
                 Department = department,
+                Priority = priority,
+                Attachment = attachment ?? "",
                 Status = TicketStatus.Open,
                 Date = Today(),
             };

@@ -84,6 +84,7 @@ export type User = {
   username: string;
   email: string;
   phone: string;
+  avatar: string;
   role: UserRole;
   orders: number;
   totalSpent: number;
@@ -152,6 +153,7 @@ export type PricingSettings = {
   cancellationPenaltyPercent: number;
   minWalletCharge: number;
   minWithdraw: number;
+  subscriptionReminderHoursBefore: number;
   currency: string;
   showOriginalPrice: boolean;
 };
@@ -336,6 +338,16 @@ export type OrderItem = {
   lineTotal: number;
 };
 
+export type OrderStatusHistory = {
+  id: number;
+  orderId: number;
+  changedByUsername: string;
+  fromStatus: OrderStatus;
+  toStatus: OrderStatus;
+  reason: string | null;
+  changedAtUtc: string;
+};
+
 export type Order = {
   id: number;
   code: string;
@@ -346,6 +358,7 @@ export type Order = {
   discountCode: string | null;
   discountAmount: number;
   walletPaid: number;
+  vatAmount: number;
   feeAmount: number;
   total: number;
   status: OrderStatus;
@@ -355,9 +368,13 @@ export type Order = {
   note: string | null;
   deliveryContent: string | null;
   deliveredAt: string | null;
+  deliveredAtUtc: string | null;
+  renewalReminderSentUtc: string | null;
+  history: OrderStatusHistory[];
 };
 
 export type TicketStatus = "Open" | "Answered" | "Closed";
+export type TicketPriority = "Low" | "Medium" | "High";
 
 export type TicketMessage = { author: string; body: string; isAdmin: boolean; date: string };
 
@@ -368,6 +385,8 @@ export type Ticket = {
   userName: string;
   subject: string;
   department: string;
+  priority: TicketPriority;
+  attachment: string;
   status: TicketStatus;
   messages: TicketMessage[];
   date: string;

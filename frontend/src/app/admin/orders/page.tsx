@@ -8,6 +8,7 @@ import { orderStatusLabel } from "@/lib/labels";
 import { Card, PageHeader, Spinner, StatusBadge, Modal, Field, Toggle, inputCls } from "@/components/admin/ui";
 import { Pagination, usePaged } from "@/components/admin/Pagination";
 import AdminIcon from "@/components/admin/AdminIcon";
+import OrderHistory from "@/components/admin/OrderHistory";
 
 type Filter = "all" | OrderStatus;
 
@@ -160,29 +161,31 @@ export default function AdminOrdersPage() {
 
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-white/8 pt-4">
                 <span className="font-bold text-emerald-400">{formatToman(o.total)}</span>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                   {o.status === "PendingApproval" && (
-                    <button onClick={() => act(o, "approve")} disabled={busy === o.id} className="flex h-9 items-center gap-1.5 rounded-lg bg-sky-500/15 px-4 text-xs font-bold text-sky-400 transition hover:bg-sky-500/25">
+                    <button onClick={() => act(o, "approve")} disabled={busy === o.id} className="flex h-10 items-center gap-1.5 rounded-lg bg-sky-500/15 px-4 text-xs font-bold text-sky-400 transition hover:bg-sky-500/25 active:scale-[0.98] md:h-9">
                       {busy === o.id ? <Spinner /> : <><AdminIcon name="check" className="h-4 w-4" /> تأیید نهایی (آماده‌سازی)</>}
                     </button>
                   )}
                   {o.status === "Preparing" && (
-                    <button onClick={() => openDeliver(o)} className="flex h-9 items-center gap-1.5 rounded-lg bg-emerald-500/15 px-4 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25">
+                    <button onClick={() => openDeliver(o)} className="flex h-10 items-center gap-1.5 rounded-lg bg-emerald-500/15 px-4 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25 active:scale-[0.98] md:h-9">
                       <AdminIcon name="check" className="h-4 w-4" /> تکمیل و تحویل
                     </button>
                   )}
                   {o.status === "Completed" && (
-                    <button onClick={() => openDeliver(o)} className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 px-4 text-xs font-bold text-white/70 transition hover:bg-white/5">
+                    <button onClick={() => openDeliver(o)} className="flex h-10 items-center gap-1.5 rounded-lg border border-white/10 px-4 text-xs font-bold text-white/70 transition hover:bg-white/5 active:scale-[0.98] md:h-9">
                       <AdminIcon name="edit" className="h-4 w-4" /> {o.deliveryContent ? "ویرایش/ارسال مجدد" : "ثبت تحویل"}
                     </button>
                   )}
                   {(o.status === "PendingApproval" || o.status === "Preparing") && (
-                    <button onClick={() => act(o, "cancel")} disabled={busy === o.id} className="flex h-9 items-center gap-1.5 rounded-lg bg-rose-500/15 px-4 text-xs font-bold text-rose-400 transition hover:bg-rose-500/25">
+                    <button onClick={() => act(o, "cancel")} disabled={busy === o.id} className="flex h-10 items-center gap-1.5 rounded-lg bg-rose-500/15 px-4 text-xs font-bold text-rose-400 transition hover:bg-rose-500/25 active:scale-[0.98] md:h-9">
                       <AdminIcon name="close" className="h-4 w-4" /> لغو
                     </button>
                   )}
                 </div>
               </div>
+
+              <OrderHistory history={o.history} />
             </Card>
           ))}
           <Pagination page={page} totalPages={totalPages} total={total} pageSize={pageSize} onPage={setPage} />
