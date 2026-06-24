@@ -67,14 +67,15 @@ The result is a system that boots from a single binary + one `store.json`, survi
 
 ## 🚀 Deployment (Production)
 
-On a fresh Ubuntu/Debian server:
+On a fresh Ubuntu/Debian server, one command does everything:
 
 ```bash
-git clone https://github.com/AbolfazlTafakori/Phonix.git /opt/phoenix/repo
-sudo bash /opt/phoenix/repo/deploy/install.sh
+sudo bash <(curl -Ls https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh)
 ```
 
-The installer will interactively prompt for the domain, owner credentials, and Let's Encrypt email, then build, wire up systemd, secure the site with HTTPS, and print your `PHONIX_BACKUP_KEY` **once** — store it offline immediately.
+> Use the `bash <(…)` process-substitution form, **not** `curl | bash` — the installer is interactive and needs your terminal for the prompts.
+
+The installer will interactively prompt for the domain, owner credentials, and Let's Encrypt email, then install dependencies, build, wire up systemd, secure the site with HTTPS, and print your `PHONIX_BACKUP_KEY` **once** — store it offline immediately.
 
 Day-two operations run through the management CLI:
 
