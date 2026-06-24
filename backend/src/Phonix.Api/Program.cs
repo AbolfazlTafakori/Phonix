@@ -181,6 +181,18 @@ try
         app.UseForwardedHeaders(fwd);
     }
 
+    // Temporary load-test telemetry: count in-flight requests for the diagnostics endpoint. Only wired when
+    // PHONIX_ENABLE_DIAGNOSTICS=true, so production never pays for it. Registered first to wrap everything.
+    if (string.Equals(Environment.GetEnvironmentVariable("PHONIX_ENABLE_DIAGNOSTICS"), "true", StringComparison.OrdinalIgnoreCase))
+    {
+        app.Use(async (context, next) =>
+        {
+            Phonix.Api.Controllers.InFlightRequestCounter.Increment();
+            try { await next(); }
+            finally { Phonix.Api.Controllers.InFlightRequestCounter.Decrement(); }
+        });
+    }
+
     // Resolved once (singleton): pushes operational alerts to Telegram when enabled.
     var alerts = app.Services.GetRequiredService<ITelegramAlertSender>();
 
