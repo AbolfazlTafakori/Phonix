@@ -37,7 +37,7 @@ export default function AdminLoginPage() {
     setBusy(true);
     setError("");
     try {
-      const res = await api.auth.login({ identifier, password, captchaId: captcha.id, captchaText: captcha.text });
+      const res = await api.auth.login({ identifier, password, captchaId: captcha.id, captchaText: captcha.text, admin: true });
       if (res.requiresTwoFactor && res.challengeToken) {
         setChallengeToken(res.challengeToken);
       } else if (res.user) {

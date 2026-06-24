@@ -10,7 +10,9 @@ using Phonix.Api.Services;
 namespace Phonix.Api.Controllers;
 
 public record RegisterInput(string Name, string Username, string Email, string Phone, string Password, string? ReferralCode, string? CaptchaId, string? CaptchaText);
-public record LoginInput(string Identifier, string Password, string? CaptchaId, string? CaptchaText);
+public record LoginInput(string Identifier, string Password, string? CaptchaId, string? CaptchaText, bool? Admin);
+// What the admin shell reads to confirm the current session may use the panel (admin-scoped staff).
+public record AdminContextDto(int Id, string Name, string Username, UserRole Role);
 public record ForgotInput(string Email);
 public record TokenInput(string Token);
 public record ResetPasswordInput(string Token, string NewPassword);
@@ -59,13 +61,16 @@ public class AuthController : ControllerBase
         await Task.Delay(Random.Shared.Next(3000, 5001));
     }
 
-    // Issues the session cookie and, for staff, fires a Telegram login alert with IP, time and username.
-    private LoginResultDto IssueSession(AppUser user)
+    // Issues the session cookie. adminScope=true marks a panel session (password + 2FA satisfied) and is the
+    // only kind that may act as staff; a main-site login passes false. The Telegram "staff entered the panel"
+    // alert fires only for an admin-scoped login.
+    private LoginResultDto IssueSession(AppUser user, bool adminScope)
     {
-        var token = _sessions.Protect(user);
+        var token = _sessions.Protect(user, adminScope);
         AuthCookies.Issue(Response, token, Request.IsHttps);
-        _logger.LogInformation("Login: {Username} (#{UserId}) from {ClientIp}", user.Username, user.Id, ClientIp);
-        if (IsStaff(user))
+        _logger.LogInformation("Login: {Username} (#{UserId}) adminScope={AdminScope} from {ClientIp}",
+            user.Username, user.Id, adminScope, ClientIp);
+        if (adminScope && IsStaff(user))
             _ = _alerts.SendAlertAsync(
                 $"🔐 ورود {RoleFa(user.Role)} به پنل\nکاربر: {user.Username}\nIP: {ClientIp}\nزمان: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
         return new LoginResultDto(false, null, token, user.ToDto());
@@ -114,9 +119,22 @@ public class AuthController : ControllerBase
         await SendVerification(user);
         _logger.LogInformation("New account registered: {Username} (#{UserId}) from {ClientIp}",
             user.Username, user.Id, ClientIp);
-        var token = _sessions.Protect(user);
+        // Registration is a main-site action → a plain customer session, never admin-scoped.
+        var token = _sessions.Protect(user, adminScope: false);
         AuthCookies.Issue(Response, token, Request.IsHttps);
         return new AuthResultDto(token, user.ToDto());
+    }
+
+    // The admin shell calls this to confirm the live session is genuinely admin-scoped staff. A main-site
+    // session (even an admin's) carries the Customer role claim, so this returns 403 and the shell bounces
+    // the user to the panel login. Exempt from the mandatory-2FA gate (it's under /api/auth), so a not-yet-
+    // enrolled admin can still load the shell and be sent to the setup page.
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [HttpGet("admin-context")]
+    public ActionResult<AdminContextDto> AdminContext()
+    {
+        if (this.CurrentUserId() is not int id || _store.GetUser(id) is not { } user) return Unauthorized();
+        return new AdminContextDto(user.Id, user.Name, user.Username, user.Role);
     }
 
     [HttpPost("forgot")]
@@ -192,12 +210,21 @@ public class AuthController : ControllerBase
                 user.Username, user.Id, ClientIp);
             return StatusCode(403, "حساب شما مسدود شده است.");
         }
-        // Staff with 2FA active complete a second step before any session is issued; the challenge token
-        // proves the password check passed without re-sending the credentials.
-        if (IsStaff(user) && user.TwoFactorEnabled)
-            return new LoginResultDto(true, _twoFactor.Issue(user.Id), null, null);
 
-        return IssueSession(user);
+        var adminLogin = input.Admin == true;
+        if (!adminLogin)
+            // Main-site login: never a second factor, never an admin-scoped session — even for an admin.
+            return IssueSession(user, adminScope: false);
+
+        // ── Admin-panel login from here on ──
+        if (!IsStaff(user))
+            return StatusCode(403, "این حساب به پنل مدیریت دسترسی ندارد.");
+        // 2FA is required to ENTER THE PANEL: complete the second step before any admin-scoped session exists.
+        // The challenge token proves the password passed without re-sending credentials.
+        if (user.TwoFactorEnabled)
+            return new LoginResultDto(true, _twoFactor.Issue(user.Id), null, null);
+        // Staff who haven't enrolled yet get an admin-scoped session so they can reach the mandatory setup.
+        return IssueSession(user, adminScope: true);
     }
 
     [HttpPost("2fa/verify")]
@@ -214,7 +241,9 @@ public class AuthController : ControllerBase
             await TarpitAsync();
             return Unauthorized("کد تأیید نادرست است.");
         }
-        return IssueSession(user);
+        // The second factor is only ever requested during an admin-panel login, so a verified challenge
+        // always yields an admin-scoped session.
+        return IssueSession(user, adminScope: true);
     }
 
     // Sessions are stateless, so logout simply clears the cookie on this device. To force-revoke a token

@@ -109,9 +109,11 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
         Assert.Contains("deliveryTemplate", await res.Content.ReadAsStringAsync());
     }
 
-    private async Task<string> LoginTokenAsync(string identifier, string password)
+    // admin=true performs an admin-PANEL login (yields an admin-scoped session that may use the panel);
+    // admin=false is a plain main-site login. Most tests drive the panel, so it defaults to true.
+    private async Task<string> LoginTokenAsync(string identifier, string password, bool admin = true)
     {
-        var res = await _client.PostAsJsonAsync("/api/auth/login", new { identifier, password });
+        var res = await _client.PostAsJsonAsync("/api/auth/login", new { identifier, password, admin });
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var body = await res.Content.ReadFromJsonAsync<LoginResponse>();
         Assert.NotNull(body!.Token);
@@ -235,8 +237,8 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
         var ticket = await create.Content.ReadAsStringAsync();
         Assert.Contains("\"answered\"", ticket.ToLowerInvariant());
 
-        // It surfaces in that user's own ticket list.
-        var user = await LoginTokenAsync("tickuser", "pass1234");
+        // It surfaces in that user's own ticket list (a plain main-site login — not staff).
+        var user = await LoginTokenAsync("tickuser", "pass1234", admin: false);
         var mine = await (await _client.SendAsync(Authed(HttpMethod.Get, $"/api/tickets/user/{userId}", user))).Content.ReadAsStringAsync();
         Assert.Contains("اطلاع‌رسانی", mine);
     }
@@ -255,16 +257,16 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
         var enable = await _client.SendAsync(Authed(HttpMethod.Post, "/api/auth/2fa/enable", staff, new { code = TestTotp.Code(setup!.Secret) }));
         Assert.Equal(HttpStatusCode.NoContent, enable.StatusCode);
 
-        // Now a fresh login requires the second factor.
-        var locked = await _client.PostAsJsonAsync("/api/auth/login", new { identifier = "twofa1", password = "pass1234" });
+        // Now a fresh PANEL login requires the second factor.
+        var locked = await _client.PostAsJsonAsync("/api/auth/login", new { identifier = "twofa1", password = "pass1234", admin = true });
         Assert.Contains("\"requiresTwoFactor\":true", await locked.Content.ReadAsStringAsync());
 
         // The owner disables it (no code needed) — rescue for a lost authenticator.
         var disable = await _client.SendAsync(Authed(HttpMethod.Post, $"/api/staff/{staffId}/2fa/disable", admin));
         Assert.Equal(HttpStatusCode.NoContent, disable.StatusCode);
 
-        // Login no longer demands a code.
-        var open = await _client.PostAsJsonAsync("/api/auth/login", new { identifier = "twofa1", password = "pass1234" });
+        // Panel login no longer demands a code.
+        var open = await _client.PostAsJsonAsync("/api/auth/login", new { identifier = "twofa1", password = "pass1234", admin = true });
         Assert.Contains("\"requiresTwoFactor\":false", await open.Content.ReadAsStringAsync());
 
         // An admin can't disable their own this way.
@@ -279,6 +281,25 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
     }
 
     private record SetupDto(string Secret, string OtpAuthUri);
+
+    [Fact]
+    public async Task Main_site_login_does_not_grant_panel_access_but_panel_login_does()
+    {
+        // A plain main-site login by an admin: succeeds, but the session is NOT admin-scoped.
+        var mainSession = await LoginTokenAsync("reza", "1234", admin: false);
+        Assert.Equal(HttpStatusCode.Forbidden, (await _client.SendAsync(Authed(HttpMethod.Get, "/api/users", mainSession))).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await _client.SendAsync(Authed(HttpMethod.Get, "/api/auth/admin-context", mainSession))).StatusCode);
+
+        // The admin-panel login yields an admin-scoped session that the panel accepts.
+        var panelSession = await LoginTokenAsync("reza", "1234", admin: true);
+        Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(Authed(HttpMethod.Get, "/api/auth/admin-context", panelSession))).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(Authed(HttpMethod.Get, "/api/users", panelSession))).StatusCode);
+
+        // A non-staff account is refused at the panel login itself.
+        await RegisterAsync("plainuser", "plainuser@example.com", "pass1234");
+        var refused = await _client.PostAsJsonAsync("/api/auth/login", new { identifier = "plainuser", password = "pass1234", admin = true });
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+    }
 }
 
 // Dedicated host with the mandatory-2FA gate ENABLED (the default), isolated from the main suite.
@@ -363,7 +384,7 @@ public class MandatoryTwoFactorTests : IClassFixture<MandatoryTwoFactorAppFactor
 
     private async Task<string> LoginAsync(string id, string pw)
     {
-        var res = await _client.PostAsJsonAsync("/api/auth/login", new { identifier = id, password = pw });
+        var res = await _client.PostAsJsonAsync("/api/auth/login", new { identifier = id, password = pw, admin = true });
         return (await res.Content.ReadFromJsonAsync<TokenHolder>())!.Token!;
     }
 

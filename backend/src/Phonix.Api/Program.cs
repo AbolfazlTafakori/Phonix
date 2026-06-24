@@ -1,3 +1,4 @@
+using System.Net;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json.Serialization;
@@ -43,7 +44,11 @@ try
 
     // Add services to the container.
 
-    builder.Services.AddControllers().AddJsonOptions(options =>
+    builder.Services.AddControllers(options =>
+    {
+        // Auto-records every mutating staff request into the admin audit trail (see AuditActionFilter).
+        options.Filters.Add<AuditActionFilter>();
+    }).AddJsonOptions(options =>
     {
         options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
@@ -51,6 +56,10 @@ try
     builder.Services.AddSwaggerGen();
     builder.Services.AddSingleton<StoreData>();
     builder.Services.AddHostedService<StorePersistenceWorker>();
+    // Audit trail lives in its OWN store/file (audit_store.json) so it never bloats the main store.json.
+    // Registered as a singleton (shared state) with a dedicated background flusher on its own schedule.
+    builder.Services.AddSingleton<AuditStore>();
+    builder.Services.AddHostedService<AuditPersistenceWorker>();
     builder.Services.AddSingleton<IEmailSender, EmailSender>();
     builder.Services.AddHttpClient();
     builder.Services.AddSingleton<ITelegramBackupSender, TelegramBackupSender>();
@@ -125,17 +134,45 @@ try
 
     var app = builder.Build();
 
-    // Behind a reverse proxy (nginx/Caddy terminating TLS), trust its X-Forwarded-* so the real
-    // client IP (rate-limiting/logs) and HTTPS scheme (Secure cookies) are accurate. Off by default
-    // because the proxy hop would otherwise let a directly-exposed port spoof the client IP.
+    // Behind a reverse proxy (nginx/Caddy terminating TLS), trust its X-Forwarded-* so the real client IP
+    // (rate-limiting/logs/audit trail) and HTTPS scheme (Secure cookies) are accurate.
+    //
+    // SECURITY: only headers from EXPLICITLY trusted proxies are honoured. Trusting every upstream (the old
+    // cleared KnownProxies/KnownNetworks) lets anyone able to reach the app port forge X-Forwarded-For and
+    // spoof their client IP — poisoning the audit trail, evading the rate limiter, and forging honeypot
+    // bans. Set PHONIX_TRUSTED_PROXIES to a comma/space-separated list of the reverse proxy IP(s).
     if (Environment.GetEnvironmentVariable("PHONIX_BEHIND_PROXY") == "true")
     {
         var fwd = new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+            // Exactly one proxy hop is trusted; the entry it appended is the real client.
+            ForwardLimit = 1,
         };
         fwd.KnownNetworks.Clear();
         fwd.KnownProxies.Clear();
+
+        var trustedRaw = Environment.GetEnvironmentVariable("PHONIX_TRUSTED_PROXIES") ?? "";
+        var trustedCount = 0;
+        foreach (var entry in trustedRaw.Split(new[] { ',', ';', ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (IPAddress.TryParse(entry, out var ip))
+            {
+                fwd.KnownProxies.Add(ip);
+                trustedCount++;
+            }
+            else
+            {
+                Log.Warning("Ignoring invalid PHONIX_TRUSTED_PROXIES entry: {Entry}", entry);
+            }
+        }
+
+        if (trustedCount == 0)
+            Log.Warning("PHONIX_BEHIND_PROXY=true but no valid PHONIX_TRUSTED_PROXIES configured; " +
+                        "X-Forwarded-* headers will be ignored and the direct connection IP used instead.");
+        else
+            Log.Information("Forwarded headers enabled for {Count} trusted proxy address(es).", trustedCount);
+
         app.UseForwardedHeaders(fwd);
     }
 
@@ -153,8 +190,11 @@ try
         {
             Log.Error(ex, "Unhandled exception processing {Method} {Path}",
                 context.Request.Method, context.Request.Path.Value);
-            // Fire-and-forget so alerting never delays the response or throws from the error path.
-            _ = alerts.SendAlertAsync($"🔴 خطای داخلی سرور در {context.Request.Method} {context.Request.Path.Value}");
+            // Fire-and-forget so alerting never delays the response or throws from the error path; observe
+            // any fault so it surfaces in the log instead of becoming an unobserved task exception.
+            _ = alerts.SendAlertAsync($"🔴 خطای داخلی سرور در {context.Request.Method} {context.Request.Path.Value}")
+                .ContinueWith(t => Log.Warning(t.Exception, "Failed to send error alert"),
+                    TaskContinuationOptions.OnlyOnFaulted);
             if (!context.Response.HasStarted)
             {
                 context.Response.Clear();
@@ -264,7 +304,9 @@ try
 
     Log.Information("Phonix API starting up (logs → {LogDir})", logDir);
     // Heads-up that the service (re)started — useful after a deploy or an unexpected restart.
-    _ = alerts.SendAlertAsync("✅ سرور فونیکس راه‌اندازی شد.");
+    _ = alerts.SendAlertAsync("✅ سرور فونیکس راه‌اندازی شد.")
+        .ContinueWith(t => Log.Warning(t.Exception, "Failed to send startup alert"),
+            TaskContinuationOptions.OnlyOnFaulted);
     app.Run();
 }
 catch (Exception ex)

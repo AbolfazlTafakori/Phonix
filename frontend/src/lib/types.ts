@@ -123,6 +123,36 @@ export type StaffMember = {
 
 export type PermissionInfo = { key: string; title: string; group: string };
 
+export type ChatMessage = {
+  id: number;
+  fromAdmin: boolean;
+  authorName: string;
+  body: string;
+  createdAtUtc: string;
+};
+
+export type ChatConversation = {
+  id: number;
+  userId: number;
+  userName: string;
+  status: "Open" | "Closed";
+  createdAtUtc: string;
+  lastMessageAtUtc: string;
+  userReadUpTo: number;
+  adminReadUpTo: number;
+  messages: ChatMessage[];
+};
+
+export type ConversationSummary = {
+  id: number;
+  userId: number;
+  userName: string;
+  status: string;
+  lastMessageAtUtc: string;
+  lastPreview: string;
+  unread: number;
+};
+
 export type ReferralEarning = {
   referrerId: number;
   referredName: string;
@@ -279,6 +309,43 @@ export type AdvancedSettings = {
   analyticsId: string;
   customHeadScript: string;
   terms: string;
+};
+
+// Admin audit trail (GET /api/admin/audit-logs). ActionType drives the row badge colour.
+export type AuditAction = "Create" | "Update" | "Delete" | "Other";
+
+export type AuditLog = {
+  id: number;
+  actionType: AuditAction;
+  entity: string;
+  entityId: string | null;
+  actorId: number | null;
+  actorName: string;
+  actorRole: string;
+  method: string;
+  path: string;
+  ip: string;
+  statusCode: number;
+  success: boolean;
+  timestamp: string;
+};
+
+export type AuditLogPage = {
+  items: AuditLog[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
+// Live process metrics for the dashboard server-status widget (GET /api/admin/server-status).
+export type ServerStatus = {
+  cpuPercent: number;
+  ramUsedMb: number;
+  ramTotalMb: number;
+  uptimeDays: number;
+  uptimeHours: number;
+  status: string;
 };
 
 export type PaymentType = "Card" | "Crypto" | "Gateway";

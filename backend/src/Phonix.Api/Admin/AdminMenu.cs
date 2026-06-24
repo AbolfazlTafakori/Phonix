@@ -21,6 +21,7 @@ public enum AdminBadge
     PendingKyc,
     PendingCards,
     PendingComments,
+    UnreadChats,
 }
 
 public sealed record AdminMenuItem(
@@ -54,6 +55,7 @@ public static class AdminMenu
             new("orders",       "مدیریت سفارش‌ها",      "cart",      "/admin/orders",       Badge: AdminBadge.PendingOrders),
             new("transactions", "تراکنش‌ها و کیف پول",  "wallet",    "/admin/transactions", Badge: AdminBadge.PendingTransactions),
             new("tickets",      "تیکت‌های پشتیبانی",    "ticket",    "/admin/tickets",      Badge: AdminBadge.OpenTickets),
+            new("chat",         "گفتگوی زنده",          "chat",      "/admin/chat",         Badge: AdminBadge.UnreadChats),
         }),
         new("users", "کاربران و احراز هویت", UserRole.Support, new AdminMenuItem[]
         {
@@ -65,6 +67,7 @@ public static class AdminMenu
         new("catalog", "محصولات و انبار", UserRole.Support, new AdminMenuItem[]
         {
             new("products",   "محصولات و پلن‌ها",           "box",     "/admin/products"),
+            new("plan-types", "نوع سرویس (پلن‌ها)",          "tag",     "/admin/plan-types"),
             new("stock-pool", "انبار مجازی / استخر اکانت",  "grid",    "/admin/stock", ComingSoon: true),
             new("categories", "دسته‌بندی‌ها",               "columns", "/admin/categories"),
         }),
@@ -80,6 +83,9 @@ public static class AdminMenu
         {
             new("comments", "نظرات و دیدگاه‌ها",      "chat",    "/admin/comments", Badge: AdminBadge.PendingComments),
             new("layout",   "مدیریت چیدمان و محتوا",  "layout",  "/admin/home"),
+            new("banners",  "اسلایدر اصلی",           "image",   "/admin/banners"),
+            new("header",   "هدر و منو",              "layout",  "/admin/header"),
+            new("footer",   "فوتر",                   "columns", "/admin/footer"),
             new("blog",     "وبلاگ و مقالات",         "news",    "/admin/blog"),
             new("pages",    "صفحات ثابت و قوانین",    "columns", "/admin/rules"),
         }),
@@ -93,7 +99,7 @@ public static class AdminMenu
         new("system", "دواپس و تنظیمات سیستم", UserRole.Admin, new AdminMenuItem[]
         {
             new("staff",    "مدیریت کارکنان و نقش‌ها",     "shield",   "/admin/staff",          UserRole.Admin),
-            new("audit",    "لاگ‌های ممیزی سیستم",         "search",   "/admin/audit",          UserRole.Admin, ComingSoon: true),
+            new("audit",    "لاگ‌های ممیزی سیستم",         "search",   "/admin/audit-logs",     UserRole.Admin),
             new("backup",   "پشتیبان‌گیری و ربات تلگرام",  "disk",     "/admin/backup",         UserRole.Admin),
             new("email",    "تنظیمات ایمیل و پیامک",       "bell",     "/admin/settings/email", UserRole.Admin),
             new("settings", "تنظیمات عمومی و پیشرفته",     "settings", "/admin/settings",       UserRole.Admin),

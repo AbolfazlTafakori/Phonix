@@ -51,11 +51,16 @@ public class TokenAuthenticationHandler : AuthenticationHandler<AuthenticationSc
         if (!string.Equals(user.SecurityStamp ?? "", payload.SecurityStamp, StringComparison.Ordinal))
             return Task.FromResult(AuthenticateResult.Fail("نشست منقضی شده است."));
 
+        // A staff member only carries their elevated role when the session is admin-scoped (panel login +
+        // 2FA). On a plain main-site session the same person is just a Customer, so the panel stays closed
+        // until they sign in through the admin login — even if they paste a panel URL directly.
+        var effectiveRole = payload.AdminScope ? user.Role : Models.UserRole.Customer;
         var claims = new[]
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
-            new Claim(ClaimTypes.Role, user.Role.ToString()),
+            new Claim(ClaimTypes.Role, effectiveRole.ToString()),
+            new Claim(AuthExtensions.AdminScopeClaim, payload.AdminScope ? "true" : "false"),
         };
         var principal = new ClaimsPrincipal(new ClaimsIdentity(claims, SchemeName));
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName)));

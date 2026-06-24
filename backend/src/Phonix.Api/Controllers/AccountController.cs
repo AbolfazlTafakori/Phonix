@@ -85,7 +85,7 @@ public class AccountController : ControllerBase
         // re-issue a fresh cookie for THIS device so the user who just changed their password stays signed in.
         _store.RotateSecurityStamp(id);
         if (_store.GetUser(id) is { } refreshed)
-            AuthCookies.Issue(Response, _sessions.Protect(refreshed), Request.IsHttps);
+            AuthCookies.Issue(Response, _sessions.Protect(refreshed, this.IsAdminScope()), Request.IsHttps);
         return NoContent();
     }
 }

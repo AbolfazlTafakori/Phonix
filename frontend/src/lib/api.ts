@@ -45,12 +45,16 @@ import type {
   TicketPriority,
   OverviewStats,
   TopProductStat,
+  ServerStatus,
+  AuditLogPage,
   AuthResult,
   LoginResult,
   TwoFactorStatus,
   TwoFactorSetup,
   StaffMember,
   PermissionInfo,
+  ChatConversation,
+  ConversationSummary,
   ReferralReport,
   DiscountCode,
   DiscountCodeInput,
@@ -178,6 +182,17 @@ export const api = {
     // Role-filtered sidebar + live badge counts for the signed-in staff member.
     menu: () => request<AdminNavGroup[]>("/admin/menu"),
   },
+  chat: {
+    mine: () => request<ChatConversation | null>("/chat/me"),
+    myUnread: () => request<number>("/chat/me/unread"),
+    send: (body: string) => request<ChatConversation>("/chat/me/messages", { method: "POST", body: json({ body }) }),
+    readMine: () => request<void>("/chat/me/read", { method: "POST" }),
+    list: () => request<ConversationSummary[]>("/chat"),
+    get: (id: number) => request<ChatConversation>(`/chat/${id}`),
+    reply: (id: number, body: string) => request<ChatConversation>(`/chat/${id}/messages`, { method: "POST", body: json({ body }) }),
+    read: (id: number) => request<void>(`/chat/${id}/read`, { method: "POST" }),
+    close: (id: number) => request<void>(`/chat/${id}/close`, { method: "POST" }),
+  },
   staff: {
     list: () => request<StaffMember[]>("/staff"),
     permissions: () => request<PermissionInfo[]>("/staff/permissions"),
@@ -257,6 +272,19 @@ export const api = {
   stats: {
     overview: () => request<OverviewStats>("/stats/overview"),
     topProducts: () => request<TopProductStat[]>("/stats/top-products"),
+  },
+  serverStatus: {
+    get: () => request<ServerStatus>("/admin/server-status"),
+  },
+  auditLogs: {
+    list: (params?: {
+      search?: string;
+      action?: string;
+      from?: string;
+      to?: string;
+      page?: number;
+      pageSize?: number;
+    }) => request<AuditLogPage>(`/admin/audit-logs${qs(params)}`),
   },
   orders: {
     list: (params?: { status?: OrderStatus }) => request<Order[]>(`/orders${qs(params)}`),
@@ -372,8 +400,12 @@ export const api = {
   auth: {
     register: (body: { name: string; username: string; email: string; phone: string; password: string; referralCode?: string; captchaId?: string; captchaText?: string }) =>
       request<AuthResult>("/auth/register", { method: "POST", body: json(body) }),
-    login: (body: { identifier: string; password: string; captchaId?: string; captchaText?: string }) =>
+    // `admin: true` marks an admin-PANEL login (requires 2FA, yields an admin-scoped session). The main-site
+    // login omits it, so an admin signing into the public site is never asked for a second factor.
+    login: (body: { identifier: string; password: string; captchaId?: string; captchaText?: string; admin?: boolean }) =>
       request<LoginResult>("/auth/login", { method: "POST", body: json(body) }),
+    // Confirms the current session is admin-scoped staff (403 otherwise). The admin shell uses this as its gate.
+    adminContext: () => request<{ id: number; name: string; username: string; role: UserRole }>("/auth/admin-context"),
     verifyTwoFactor: (token: string, code: string) =>
       request<LoginResult>("/auth/2fa/verify", { method: "POST", body: json({ token, code }) }),
     twoFactor: {

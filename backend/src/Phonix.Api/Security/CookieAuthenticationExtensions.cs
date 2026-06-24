@@ -8,12 +8,15 @@ namespace Phonix.Api.Security;
 // The decrypted contents of a session cookie. Everything needed to authenticate a request is carried
 // inside the encrypted cookie itself, so there is no server-side session table and logins survive a
 // process restart.
-public sealed record SessionPayload(int UserId, string Username, UserRole Role, string SecurityStamp);
+// AdminScope marks a session that was established through the ADMIN PANEL login (password + 2FA). Only such
+// a session may act as staff; a plain main-site login carries AdminScope=false, so the same admin browsing
+// the public site is treated as an ordinary customer and can't reach the panel without a fresh panel login.
+public sealed record SessionPayload(int UserId, string Username, UserRole Role, string SecurityStamp, bool AdminScope = false);
 
 public interface ISessionProtector
 {
     // Builds the encrypted, time-limited token to place in the auth cookie for this user.
-    string Protect(AppUser user);
+    string Protect(AppUser user, bool adminScope = false);
 
     // Decrypts and validates a token, returning its payload — or null when the token is missing,
     // tampered with, signed under a rotated/absent key, or expired.
@@ -38,9 +41,9 @@ public sealed class SessionProtector : ISessionProtector
     public SessionProtector(IDataProtectionProvider provider)
         => _protector = provider.CreateProtector(Purpose).ToTimeLimitedDataProtector();
 
-    public string Protect(AppUser user)
+    public string Protect(AppUser user, bool adminScope = false)
     {
-        var payload = new SessionPayload(user.Id, user.Username, user.Role, user.SecurityStamp ?? "");
+        var payload = new SessionPayload(user.Id, user.Username, user.Role, user.SecurityStamp ?? "", adminScope);
         return _protector.Protect(JsonSerializer.Serialize(payload, Json), Lifetime);
     }
 

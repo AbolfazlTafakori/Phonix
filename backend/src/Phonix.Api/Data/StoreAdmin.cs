@@ -10,7 +10,8 @@ public sealed record AdminBadgeCounts(
     int OpenTickets,
     int PendingKyc,
     int PendingCards,
-    int PendingComments)
+    int PendingComments,
+    int UnreadChats)
 {
     public int For(AdminBadge badge) => badge switch
     {
@@ -20,6 +21,7 @@ public sealed record AdminBadgeCounts(
         AdminBadge.PendingKyc          => PendingKyc,
         AdminBadge.PendingCards        => PendingCards,
         AdminBadge.PendingComments     => PendingComments,
+        AdminBadge.UnreadChats         => UnreadChats,
         _ => 0,
     };
 }
@@ -37,6 +39,7 @@ public partial class StoreData
                 OpenTickets:         _tickets.Count(t => t.Status == TicketStatus.Open),
                 PendingKyc:          _kyc.Count(k => k.Status == KycStatus.Pending),
                 PendingCards:        _cards.Count(c => c.Status == BankCardStatus.Pending),
-                PendingComments:     _comments.Count(c => c.Status == CommentStatus.Pending));
+                PendingComments:     _comments.Count(c => c.Status == CommentStatus.Pending),
+                UnreadChats:         _conversations.Count(c => c.Messages.Any(m => !m.FromAdmin && m.Id > c.AdminReadUpTo)));
     }
 }

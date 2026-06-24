@@ -1,9 +1,44 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import type { User } from "@/lib/types";
 import { Card, PageHeader, Spinner, Field, inputCls } from "@/components/admin/ui";
+
+// Settings is split across sibling routes; this sub-nav keeps them reachable from one place
+// (the general/advanced pages were previously orphaned with no link into them).
+const settingsTabs: { href: string; label: string }[] = [
+  { href: "/admin/settings", label: "حساب مدیر" },
+  { href: "/admin/settings/advanced", label: "تنظیمات پیشرفته" },
+  { href: "/admin/settings/email", label: "ایمیل و پیامک" },
+  { href: "/admin/settings/2fa", label: "ورود دو‌مرحله‌ای" },
+];
+
+function SettingsTabs() {
+  const pathname = usePathname();
+  return (
+    <div className="mb-6 flex flex-wrap gap-2">
+      {settingsTabs.map((t) => {
+        const active = pathname === t.href;
+        return (
+          <Link
+            key={t.href}
+            href={t.href}
+            className={`rounded-xl border px-5 py-2 text-sm font-bold transition ${
+              active
+                ? "border-transparent bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white"
+                : "border-white/10 text-white/60 hover:text-white"
+            }`}
+          >
+            {t.label}
+          </Link>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function AdminSettingsPage() {
   const [me, setMe] = useState<User | null>(null);
@@ -72,6 +107,7 @@ export default function AdminSettingsPage() {
     return (
       <div>
         <PageHeader title="تنظیمات" desc="حساب مدیر" />
+        <SettingsTabs />
         <div className="grid place-items-center py-24"><Spinner className="h-8 w-8" /></div>
       </div>
     );
@@ -80,6 +116,7 @@ export default function AdminSettingsPage() {
   return (
     <div>
       <PageHeader title="تنظیمات" desc="مدیریت حساب کاربری مدیر" />
+      <SettingsTabs />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card className="p-6">

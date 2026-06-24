@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { getAdvancedSettings } from "@/lib/content";
+import LiveChat from "@/components/LiveChat";
 import {
   Vazirmatn,
   Bigshot_One,
@@ -105,6 +106,8 @@ export default async function RootLayout({
     >
       <body suppressHydrationWarning>
         {children}
+
+        <LiveChat />
 
         {analyticsId && (
           <>

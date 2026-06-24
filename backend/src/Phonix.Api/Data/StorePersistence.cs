@@ -25,6 +25,7 @@ public class StoreSnapshot
     public List<Order> Orders { get; set; } = new();
     public List<Ticket> Tickets { get; set; } = new();
     public List<Notification> Notifications { get; set; } = new();
+    public List<ChatConversation> Conversations { get; set; } = new();
     public List<ReferralEarning> ReferralEarnings { get; set; } = new();
     public List<DiscountCode> DiscountCodes { get; set; } = new();
     public List<string> PlanTypes { get; set; } = new();
@@ -58,6 +59,8 @@ public class StoreSnapshot
         public int Ticket { get; set; }
         public int Notification { get; set; }
         public int Discount { get; set; }
+        public int Conversation { get; set; }
+        public int ChatMessage { get; set; }
     }
 }
 
@@ -70,10 +73,27 @@ public partial class StoreData
     };
 
     public string DataFilePath { get; private set; } = "";
-    private string _lastSavedHash = "";
+
     // serializes all disk writes so the periodic flush and the shutdown save can never race on the
     // same file (which previously collided on a shared ".tmp" and threw / risked a corrupt store).
     private readonly object _saveGate = new();
+
+    // ── O(1) dirty tracking ──────────────────────────────────────────────────────────────────────────
+    // MarkDirty() bumps _version on every change wired to it (PersistNow and the chat/notification paths).
+    // The periodic flush persists immediately whenever _version advances, so idle ticks never serialize or
+    // hash. Because most mutators rely on the periodic flush rather than calling PersistNow, a pure version
+    // counter alone could miss an unsignaled change; the low-frequency safety re-hash below (≈ once per
+    // minute) catches anything that didn't call MarkDirty(), and the unconditional shutdown Save() is the
+    // final backstop. Net effect: the heavy WriteIndented serialization + SHA-256 no longer run on every
+    // 10-second tick while the store is idle.
+    private long _version;                              // bumped on every signaled mutation
+    private long _savedVersion = -1;                    // last version written; -1 forces the first flush
+    private string _lastSavedHash = "";                 // last on-disk content hash (safety-net comparison)
+    private int _idleHashCountdown = SafetyHashInterval; // ticks until the next idle safety re-hash
+    private const int SafetyHashInterval = 6;            // ≈ 60s at the worker's 10s cadence
+
+    // Signals that durable state changed. Cheap and lock-free; safe to call with or without _gate held.
+    public void MarkDirty() => Interlocked.Increment(ref _version);
 
     public StoreSnapshot CaptureSnapshot()
     {
@@ -97,6 +117,21 @@ public partial class StoreData
                 Orders = _orders.ToList(),
                 Tickets = _tickets.ToList(),
                 Notifications = _notifications.ToList(),
+                // Deep-copy each conversation AND its Messages list. The snapshot is serialized OUTSIDE _gate,
+                // so a shallow _conversations.ToList() would leave the nested Messages lists shared with the
+                // live store and let a concurrent AppendMessage corrupt the serializer's enumeration.
+                Conversations = _conversations.Select(c => new ChatConversation
+                {
+                    Id = c.Id,
+                    UserId = c.UserId,
+                    UserName = c.UserName,
+                    Status = c.Status,
+                    CreatedAtUtc = c.CreatedAtUtc,
+                    LastMessageAtUtc = c.LastMessageAtUtc,
+                    UserReadUpTo = c.UserReadUpTo,
+                    AdminReadUpTo = c.AdminReadUpTo,
+                    Messages = new List<ChatMessage>(c.Messages),
+                }).ToList(),
                 ReferralEarnings = _referralEarnings.ToList(),
                 DiscountCodes = _discountCodes.ToList(),
                 PlanTypes = _planTypes.ToList(),
@@ -126,6 +161,8 @@ public partial class StoreData
                     Ticket = _ticketSeq,
                     Notification = _notificationSeq,
                     Discount = _discountSeq,
+                    Conversation = _conversationSeq,
+                    ChatMessage = _chatMessageSeq,
                 },
             };
         }
@@ -151,6 +188,7 @@ public partial class StoreData
             Replace(_orders, s.Orders);
             Replace(_tickets, s.Tickets);
             Replace(_notifications, s.Notifications);
+            Replace(_conversations, s.Conversations);
             Replace(_referralEarnings, s.ReferralEarnings);
             Replace(_discountCodes, s.DiscountCodes);
             Replace(_planTypes, s.PlanTypes);
@@ -182,6 +220,8 @@ public partial class StoreData
             _ticketSeq = s.Seq.Ticket;
             _notificationSeq = s.Seq.Notification;
             _discountSeq = s.Seq.Discount;
+            _conversationSeq = s.Seq.Conversation;
+            _chatMessageSeq = s.Seq.ChatMessage;
             RebuildCatalogView();
         }
     }
@@ -202,6 +242,10 @@ public partial class StoreData
             if (snapshot is null) return false;
             LoadSnapshot(snapshot);
             _lastSavedHash = Hash(json);
+            // In-memory state now matches disk; align the saved version so the first flush is a no-op
+            // unless something actually mutates afterwards.
+            _savedVersion = Interlocked.Read(ref _version);
+            _idleHashCountdown = SafetyHashInterval;
             return true;
         }
         catch
@@ -216,32 +260,61 @@ public partial class StoreData
     // parses a snapshot from raw JSON using the persistence options (matching enum handling).
     public StoreSnapshot? DeserializeSnapshot(string json) => JsonSerializer.Deserialize<StoreSnapshot>(json, PersistOptions);
 
+    // Unconditional flush (seed bootstrap + shutdown). Always writes and re-aligns the dirty trackers.
     public void Save()
     {
         lock (_saveGate)
         {
+            var version = Interlocked.Read(ref _version);
             var json = JsonSerializer.Serialize(CaptureSnapshot(), PersistOptions);
             WriteAtomic(json);
+            _savedVersion = version;
             _lastSavedHash = Hash(json);
+            _idleHashCountdown = SafetyHashInterval;
         }
     }
 
-    // Durably persists the current state right now (atomic write, only if changed). The financial units of
-    // work call this AFTER fully committing their in-memory mutation under _gate, so a crash can't lose a
-    // money-moving change that the 10-second periodic flush hadn't written yet. Because each money method
-    // validates before it mutates, the on-disk store only ever reflects a complete operation or none of it.
-    public void PersistNow() => SaveIfChanged();
+    // Durably persists the current state right now (atomic write). The financial units of work call this
+    // AFTER fully committing their in-memory mutation under _gate, so a crash can't lose a money-moving
+    // change that the 10-second periodic flush hadn't written yet. MarkDirty() guarantees the subsequent
+    // SaveIfChanged() observes the change and writes immediately.
+    public void PersistNow()
+    {
+        MarkDirty();
+        SaveIfChanged();
+    }
 
-    // periodic flush helper: only touches disk when the data actually changed.
+    // Periodic flush helper. Idle ticks are O(1) (a version compare); a signaled change writes without the
+    // SHA-256; and a periodic safety re-hash catches any mutation that didn't call MarkDirty().
     public void SaveIfChanged()
     {
         lock (_saveGate)
         {
-            var json = JsonSerializer.Serialize(CaptureSnapshot(), PersistOptions);
-            var hash = Hash(json);
+            // Read the version BEFORE capturing so that, if a mutation slips in between, we under-report
+            // (savedVersion stays low) and simply write again next tick — never the other way round.
+            var version = Interlocked.Read(ref _version);
+
+            if (version != _savedVersion)
+            {
+                var json = JsonSerializer.Serialize(CaptureSnapshot(), PersistOptions);
+                WriteAtomic(json);
+                _savedVersion = version;
+                _lastSavedHash = Hash(json);
+                _idleHashCountdown = SafetyHashInterval;
+                return;
+            }
+
+            // No signaled change. Most idle ticks return here in O(1).
+            if (--_idleHashCountdown > 0) return;
+            _idleHashCountdown = SafetyHashInterval;
+
+            // Safety net (≈ once per minute): detect any change made by a path not wired to MarkDirty().
+            var snapshotJson = JsonSerializer.Serialize(CaptureSnapshot(), PersistOptions);
+            var hash = Hash(snapshotJson);
             if (hash == _lastSavedHash) return;
-            WriteAtomic(json);
+            WriteAtomic(snapshotJson);
             _lastSavedHash = hash;
+            _savedVersion = version;
         }
     }
 

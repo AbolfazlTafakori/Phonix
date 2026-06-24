@@ -22,15 +22,15 @@ export default function AdminShell({ children }: { children: ReactNode }) {
       router.replace("/admin/login");
       return;
     }
-    // Don't trust the stored admin marker alone: re-check the live session's role with the server so a
-    // hand-edited localStorage entry can't even render the panel. (Every admin API call is gated too;
-    // this just stops a non-staff user from entering the section at all.)
+    // The panel requires an ADMIN-SCOPED session (panel login + 2FA), not just any logged-in admin. A plain
+    // main-site session — even an admin's — fails admin-context (403), so pasting a panel URL bounces back to
+    // the panel login. This is also the server's rule; every admin API call is gated the same way.
     let cancelled = false;
-    api.account
-      .me()
-      .then(async (me) => {
+    api.auth
+      .adminContext()
+      .then(async (ctx) => {
         if (cancelled) return;
-        if (!adminRoles.includes(me.role)) {
+        if (!adminRoles.includes(ctx.role)) {
           clearAdminUser();
           router.replace("/admin/login");
           return;
