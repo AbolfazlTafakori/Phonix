@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { ChatConversation } from "@/lib/types";
+import type { CustomerChatThread } from "@/lib/types";
 
 function timeOf(iso: string): string {
   const d = new Date(iso);
@@ -16,7 +16,7 @@ export default function LiveChat() {
   const pathname = usePathname();
   const { user, ready } = useAuth();
   const [open, setOpen] = useState(false);
-  const [conv, setConv] = useState<ChatConversation | null>(null);
+  const [conv, setConv] = useState<CustomerChatThread | null>(null);
   const [unread, setUnread] = useState(0);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);

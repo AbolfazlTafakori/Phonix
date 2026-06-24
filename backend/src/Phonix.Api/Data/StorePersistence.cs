@@ -1,7 +1,9 @@
+using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Extensions.Logging;
 using Phonix.Api.Models;
 
 namespace Phonix.Api.Data;
@@ -92,13 +94,27 @@ public partial class StoreData
     private int _idleHashCountdown = SafetyHashInterval; // ticks until the next idle safety re-hash
     private const int SafetyHashInterval = 6;            // ≈ 60s at the worker's 10s cadence
 
+    // Proactive-warning thresholds (see CaptureSnapshot / WriteAtomic): surface lock contention and runaway
+    // store growth as warnings before they turn into latency or disk problems.
+    private const int GateWaitWarnMs = 250;                      // slow acquisition of the store write lock
+    private const long GrowthWarnFloorBytes = 5L * 1024 * 1024;  // ignore growth noise below this size
+    private long _lastWrittenBytes;                             // last persisted size, for sharp-growth detection
+
     // Signals that durable state changed. Cheap and lock-free; safe to call with or without _gate held.
     public void MarkDirty() => Interlocked.Increment(ref _version);
 
     public StoreSnapshot CaptureSnapshot()
     {
-        lock (_gate)
+        var sw = Stopwatch.StartNew();
+        var lockTaken = false;
+        Monitor.Enter(_gate, ref lockTaken);
+        sw.Stop();
+        try
         {
+            if (sw.ElapsedMilliseconds >= GateWaitWarnMs)
+                _logger.LogWarning("store.json write lock contended: waited {WaitMs}ms to acquire _gate for a snapshot",
+                    sw.ElapsedMilliseconds);
+
             return new StoreSnapshot
             {
                 Categories = _categories.ToList(),
@@ -165,6 +181,10 @@ public partial class StoreData
                     ChatMessage = _chatMessageSeq,
                 },
             };
+        }
+        finally
+        {
+            if (lockTaken) Monitor.Exit(_gate);
         }
     }
 
@@ -324,11 +344,18 @@ public partial class StoreData
     {
         var dir = Path.GetDirectoryName(DataFilePath);
         if (!string.IsNullOrEmpty(dir)) Directory.CreateDirectory(dir);
+
+        var bytes = Encoding.UTF8.GetByteCount(json);
+        if (_lastWrittenBytes > 0 && bytes > GrowthWarnFloorBytes && bytes > _lastWrittenBytes * 2)
+            _logger.LogWarning("store.json grew sharply in one flush: {PreviousKb}KB → {CurrentKb}KB",
+                _lastWrittenBytes / 1024, bytes / 1024);
+
         var tmp = $"{DataFilePath}.{Guid.NewGuid():N}.tmp";
         try
         {
             File.WriteAllText(tmp, json);
             File.Move(tmp, DataFilePath, overwrite: true);
+            _lastWrittenBytes = bytes;
         }
         catch
         {

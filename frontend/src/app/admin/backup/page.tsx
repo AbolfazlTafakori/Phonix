@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { TelegramSettings } from "@/lib/types";
-import { Card, PageHeader, Spinner, Toggle, Field, inputCls } from "@/components/admin/ui";
+import { Card, PageHeader, Spinner, Toggle, Field, Modal, inputCls } from "@/components/admin/ui";
 import AdminIcon from "@/components/admin/AdminIcon";
 
 type Note = { ok: boolean; text: string } | null;
@@ -20,6 +20,9 @@ export default function BackupPage() {
   const [restoreFile, setRestoreFile] = useState<File | null>(null);
   const [restoring, setRestoring] = useState(false);
   const [restoreNote, setRestoreNote] = useState<Note>(null);
+  const [restoreModal, setRestoreModal] = useState(false);
+  const [restoreKey, setRestoreKey] = useState("");
+  const [restoreOtp, setRestoreOtp] = useState("");
 
   const [savingTg, setSavingTg] = useState(false);
   const [savedTg, setSavedTg] = useState(false);
@@ -63,24 +66,29 @@ export default function BackupPage() {
     }
   }
 
-  async function restore() {
+  function openRestore() {
     if (!restoreFile) return;
-    if (!confirm("هشدار: بازیابی، تمام داده‌های فعلی فروشگاه را با محتوای این فایل جایگزین می‌کند و قابل بازگشت نیست. ادامه می‌دهید؟")) return;
+    setRestoreNote(null);
+    setRestoreKey("");
+    setRestoreOtp("");
+    setRestoreModal(true);
+  }
+
+  async function confirmRestore() {
+    if (!restoreFile) return;
+    if (!restoreKey.trim() || restoreOtp.trim().length !== 6) {
+      setRestoreNote({ ok: false, text: "کلید پشتیبان و کد ۶ رقمی دو‌مرحله‌ای الزامی است." });
+      return;
+    }
     setRestoring(true);
     setRestoreNote(null);
     try {
-      const text = (await restoreFile.text()).trim();
-      // encrypted backups start with the container prefix; plain backups must be valid JSON.
-      if (!text.startsWith("PHX1.")) {
-        try {
-          JSON.parse(text);
-        } catch {
-          throw new Error("فایل انتخاب‌شده معتبر نیست (نه JSON و نه فایل پشتیبان رمزنگاری‌شده).");
-        }
-      }
-      await api.backup.restore(text);
+      await api.backup.restore(restoreFile, restoreKey.trim(), restoreOtp.trim());
+      setRestoreModal(false);
       setRestoreNote({ ok: true, text: "بازیابی با موفقیت انجام شد. برای دیدن داده‌های جدید، صفحه را تازه‌سازی کنید." });
       setRestoreFile(null);
+      setRestoreKey("");
+      setRestoreOtp("");
       if (fileRef.current) fileRef.current.value = "";
     } catch (e) {
       setRestoreNote({ ok: false, text: e instanceof Error ? e.message : "بازیابی ناموفق بود." });
@@ -172,8 +180,8 @@ export default function BackupPage() {
                 onChange={(e) => { setRestoreFile(e.target.files?.[0] ?? null); setRestoreNote(null); }}
                 className="block w-full text-sm text-white/70 file:ml-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-white/15"
               />
-              <button onClick={restore} disabled={!restoreFile || restoring} className="mt-4 flex h-11 items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-6 text-sm font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-40">
-                {restoring ? <Spinner /> : "بازیابی و جایگزینی داده‌ها"}
+              <button onClick={openRestore} disabled={!restoreFile} className="mt-4 flex h-11 items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-6 text-sm font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-40">
+                بازیابی و جایگزینی داده‌ها
               </button>
               {restoreNote && <p className={`mt-3 text-sm ${restoreNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{restoreNote.text}</p>}
             </Card>
@@ -246,6 +254,56 @@ export default function BackupPage() {
           </div>
         </div>
       )}
+
+      <Modal open={restoreModal} onClose={() => !restoring && setRestoreModal(false)} title="تأیید امنیتی بازیابی">
+        <div className="space-y-4">
+          <p className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm leading-7 text-amber-300/85">
+            ⚠ این عملیات تمام داده‌های فعلی را برای همیشه با فایل انتخاب‌شده جایگزین می‌کند. برای ادامه، کلید پشتیبان سرور و کد دو‌مرحله‌ای فعلی خود را وارد کنید.
+          </p>
+          {restoreFile && (
+            <p dir="ltr" className="truncate text-left font-mono text-xs text-white/50">{restoreFile.name}</p>
+          )}
+          <Field label="کلید پشتیبان (PHONIX_BACKUP_KEY)">
+            <input
+              type="password"
+              value={restoreKey}
+              onChange={(e) => setRestoreKey(e.target.value)}
+              dir="ltr"
+              autoComplete="off"
+              placeholder="کلید ذخیره‌شده‌ی آفلاین"
+              className={`${inputCls} text-left`}
+            />
+          </Field>
+          <Field label="کد دو‌مرحله‌ای (۶ رقم)">
+            <input
+              value={restoreOtp}
+              onChange={(e) => setRestoreOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+              dir="ltr"
+              autoComplete="one-time-code"
+              placeholder="------"
+              className={`${inputCls} text-center tracking-[0.5em]`}
+            />
+          </Field>
+          {restoreNote && !restoreNote.ok && <p className="text-sm text-rose-400">{restoreNote.text}</p>}
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              onClick={() => setRestoreModal(false)}
+              disabled={restoring}
+              className="h-11 rounded-xl border border-white/10 px-5 text-sm font-medium text-white/70 transition hover:text-white disabled:opacity-50"
+            >
+              انصراف
+            </button>
+            <button
+              onClick={confirmRestore}
+              disabled={restoring || !restoreKey.trim() || restoreOtp.length !== 6}
+              className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40"
+            >
+              {restoring ? <Spinner /> : "تأیید و بازیابی"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

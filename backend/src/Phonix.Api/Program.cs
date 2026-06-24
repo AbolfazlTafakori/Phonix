@@ -75,6 +75,11 @@ try
     // Sends subscription renewal reminders (bell notification + HTML email) before time-based plans expire,
     // on an admin-configured threshold read dynamically each cycle.
     builder.Services.AddHostedService<SubscriptionExpiryWorker>();
+    // Read-only access to the Serilog output directory for the admin "system logs" page (list + download).
+    builder.Services.AddSingleton(new LogFileService(logDir));
+    // Background CPU sampler: one owner produces the rate, the dashboard endpoint reads it lock-free.
+    builder.Services.AddSingleton<ServerMetricsCollector>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<ServerMetricsCollector>());
     builder.Services.AddHealthChecks().AddCheck<StoreHealthCheck>("store");
 
     // Stateless sessions: claims are encrypted into the httpOnly cookie and validated via a PERSISTED Data

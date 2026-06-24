@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Caching.Memory;
 using Phonix.Api.Data;
 using Phonix.Api.Dtos;
 using Phonix.Api.Models;
@@ -31,9 +32,11 @@ public class AuthController : ControllerBase
     private readonly ITwoFactorChallenge _twoFactor;
     private readonly ITelegramAlertSender _alerts;
     private readonly ICaptchaService _captcha;
+    private readonly IMemoryCache _cache;
     private readonly ILogger<AuthController> _logger;
     public AuthController(StoreData store, IEmailSender email, ISessionProtector sessions,
-        ITwoFactorChallenge twoFactor, ITelegramAlertSender alerts, ICaptchaService captcha, ILogger<AuthController> logger)
+        ITwoFactorChallenge twoFactor, ITelegramAlertSender alerts, ICaptchaService captcha,
+        IMemoryCache cache, ILogger<AuthController> logger)
     {
         _store = store;
         _email = email;
@@ -41,7 +44,23 @@ public class AuthController : ControllerBase
         _twoFactor = twoFactor;
         _alerts = alerts;
         _captcha = captcha;
+        _cache = cache;
         _logger = logger;
+    }
+
+    // Per-IP failed-attempt counter (sliding 10-minute window). Once a client crosses the threshold a single
+    // warning is emitted each subsequent failure, so a brute-force / credential-stuffing run is visible in
+    // the logs before the rate limiter or a lockout would otherwise hide it.
+    private const int AuthFailureWarnThreshold = 5;
+
+    private void NoteAuthFailure(string stage, string? identifier)
+    {
+        var key = $"auth-fail:{stage}:{ClientIp}";
+        var count = (_cache.TryGetValue<int>(key, out var existing) ? existing : 0) + 1;
+        _cache.Set(key, count, new MemoryCacheEntryOptions { SlidingExpiration = TimeSpan.FromMinutes(10) });
+        if (count >= AuthFailureWarnThreshold)
+            _logger.LogWarning("Repeated {Stage} failures from {ClientIp}: {Count} attempts in 10m (last identifier: {Identifier})",
+                stage, ClientIp, count, identifier ?? "");
     }
 
     // The image CAPTCHA is on by default; set PHONIX_REQUIRE_CAPTCHA=false to disable (e.g. in tests).
@@ -201,6 +220,7 @@ public class AuthController : ControllerBase
         {
             _logger.LogWarning("Failed login for {Identifier} from {ClientIp}",
                 input.Identifier?.Trim(), ClientIp);
+            NoteAuthFailure("login", input.Identifier?.Trim());
             await TarpitAsync();
             return Unauthorized("نام کاربری یا گذرواژه نادرست است.");
         }
@@ -238,6 +258,7 @@ public class AuthController : ControllerBase
         {
             _logger.LogWarning("Failed 2FA for {Username} (#{UserId}) from {ClientIp}",
                 user.Username, user.Id, ClientIp);
+            NoteAuthFailure("2fa", user.Username);
             await TarpitAsync();
             return Unauthorized("کد تأیید نادرست است.");
         }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import type { ChatConversation, ConversationSummary } from "@/lib/types";
+import type { AdminChatThread, ConversationSummary } from "@/lib/types";
 import { PageHeader, Spinner } from "@/components/admin/ui";
 
 function timeOf(iso: string): string {
@@ -14,7 +14,7 @@ function timeOf(iso: string): string {
 export default function AdminChatPage() {
   const [list, setList] = useState<ConversationSummary[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
-  const [active, setActive] = useState<ChatConversation | null>(null);
+  const [active, setActive] = useState<AdminChatThread | null>(null);
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);

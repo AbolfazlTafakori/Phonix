@@ -2,6 +2,7 @@ using System.Diagnostics;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Security;
+using Phonix.Api.Services;
 
 namespace Phonix.Api.Controllers;
 
@@ -13,22 +14,17 @@ public record ServerStatusDto(
     int UptimeHours,
     string Status);
 
-// Live metrics for the dashboard's "وضعیت سرور" widget. Scoped to the current application process
-// (WorkingSet / processor time / start time) so it works the same whether the API runs bare-metal,
-// in a container, or behind a reverse proxy. Available to any staff member — it backs the always-on
-// dashboard, so it is not gated by an assignable AdminPermission.
+// Live metrics for the dashboard's "وضعیت سرور" widget. Memory and uptime are read straight from the
+// current process (cheap, snapshot values); CPU% is a rate that needs two samples over a window, so it is
+// produced by ServerMetricsCollector in the background and read here lock-free. Available to any staff
+// member — it backs the always-on dashboard, so it is not gated by an assignable AdminPermission.
 [ApiController]
 [Route("api/admin/server-status")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
 public class ServerStatusController : ControllerBase
 {
-    // CPU% is a RATE, not a snapshot: it needs two samples of total processor time across a wall-clock
-    // window. The dashboard polls every few seconds, so we keep the previous sample between requests and
-    // report the average utilisation over that gap, normalised by core count. Guarded because the static
-    // state is shared across concurrent requests.
-    private static readonly object _gate = new();
-    private static TimeSpan _lastCpuTime;
-    private static DateTime _lastSampleUtc;
+    private readonly ServerMetricsCollector _metrics;
+    public ServerStatusController(ServerMetricsCollector metrics) => _metrics = metrics;
 
     [HttpGet]
     public ServerStatusDto Get()
@@ -42,39 +38,11 @@ public class ServerStatusController : ControllerBase
         var uptime = DateTime.Now - process.StartTime;
 
         return new ServerStatusDto(
-            CpuPercent: Math.Round(SampleCpu(process), 1),
+            CpuPercent: Math.Round(_metrics.CpuPercent, 1),
             RamUsedMb: ramUsedMb,
             RamTotalMb: ramTotalMb,
             UptimeDays: Math.Max(0, uptime.Days),
             UptimeHours: Math.Max(0, uptime.Hours),
             Status: "Online");
-    }
-
-    private static double SampleCpu(Process process)
-    {
-        lock (_gate)
-        {
-            var nowUtc = DateTime.UtcNow;
-            var cpuTime = process.TotalProcessorTime;
-
-            // First sample after a (re)start has no window to measure against — seed it and report 0.
-            if (_lastSampleUtc == default)
-            {
-                _lastSampleUtc = nowUtc;
-                _lastCpuTime = cpuTime;
-                return 0;
-            }
-
-            var wallMs = (nowUtc - _lastSampleUtc).TotalMilliseconds;
-            var cpuMs = (cpuTime - _lastCpuTime).TotalMilliseconds;
-
-            _lastSampleUtc = nowUtc;
-            _lastCpuTime = cpuTime;
-
-            if (wallMs <= 0) return 0;
-
-            var percent = cpuMs / (wallMs * Environment.ProcessorCount) * 100.0;
-            return Math.Clamp(percent, 0, 100);
-        }
     }
 }

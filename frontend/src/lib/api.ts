@@ -53,7 +53,10 @@ import type {
   TwoFactorSetup,
   StaffMember,
   PermissionInfo,
-  ChatConversation,
+  AdminChatThread,
+  CustomerChatThread,
+  LogFile,
+  LogView,
   ConversationSummary,
   ReferralReport,
   DiscountCode,
@@ -183,13 +186,13 @@ export const api = {
     menu: () => request<AdminNavGroup[]>("/admin/menu"),
   },
   chat: {
-    mine: () => request<ChatConversation | null>("/chat/me"),
+    mine: () => request<CustomerChatThread | null>("/chat/me"),
     myUnread: () => request<number>("/chat/me/unread"),
-    send: (body: string) => request<ChatConversation>("/chat/me/messages", { method: "POST", body: json({ body }) }),
+    send: (body: string) => request<CustomerChatThread>("/chat/me/messages", { method: "POST", body: json({ body }) }),
     readMine: () => request<void>("/chat/me/read", { method: "POST" }),
     list: () => request<ConversationSummary[]>("/chat"),
-    get: (id: number) => request<ChatConversation>(`/chat/${id}`),
-    reply: (id: number, body: string) => request<ChatConversation>(`/chat/${id}/messages`, { method: "POST", body: json({ body }) }),
+    get: (id: number) => request<AdminChatThread>(`/chat/${id}`),
+    reply: (id: number, body: string) => request<AdminChatThread>(`/chat/${id}/messages`, { method: "POST", body: json({ body }) }),
     read: (id: number) => request<void>(`/chat/${id}/read`, { method: "POST" }),
     close: (id: number) => request<void>(`/chat/${id}/close`, { method: "POST" }),
   },
@@ -286,6 +289,30 @@ export const api = {
       pageSize?: number;
     }) => request<AuditLogPage>(`/admin/audit-logs${qs(params)}`),
   },
+  logs: {
+    list: () => request<LogFile[]>("/admin/logs"),
+    // View/search a file's contents without downloading. tail = 0 means "all" (server-capped).
+    view: (params: { name: string; tail?: number; search?: string }) =>
+      request<LogView>(`/admin/logs/view${qs(params)}`),
+    // SameSite=Strict cookie auth means a plain <a download> wouldn't carry the session — fetch as a blob.
+    download: async (name: string): Promise<{ blob: Blob; filename: string }> => {
+      const res = await fetch(`${BASE}/api/admin/logs/download?name=${encodeURIComponent(name)}`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`خطا در دانلود فایل لاگ (${res.status})`);
+      return { blob: await res.blob(), filename: name };
+    },
+    // Every log file as one zip.
+    downloadAll: async (): Promise<{ blob: Blob; filename: string }> => {
+      const res = await fetch(`${BASE}/api/admin/logs/download-all`, {
+        credentials: "include",
+        cache: "no-store",
+      });
+      if (!res.ok) throw new Error(`خطا در دانلود لاگ‌ها (${res.status})`);
+      return { blob: await res.blob(), filename: "phonix-logs.zip" };
+    },
+  },
   orders: {
     list: (params?: { status?: OrderStatus }) => request<Order[]>(`/orders${qs(params)}`),
     forUser: (userId: number) => request<Order[]>(`/orders/user/${userId}`),
@@ -353,8 +380,28 @@ export const api = {
       const match = (res.headers.get("Content-Disposition") ?? "").match(/filename\*?="?([^";]+)"?/i);
       return { blob: await res.blob(), filename: match?.[1] ?? "phonix-backup.json" };
     },
-    // sends the raw file content (plain JSON or an encrypted .phxbak container); the server detects which.
-    restore: (content: string) => request<{ ok: boolean }>("/backup/restore", { method: "POST", headers: { "Content-Type": "text/plain" }, body: content }),
+    // Restore is gated server-side by a triple check: the backup file, manual re-entry of PHONIX_BACKUP_KEY,
+    // and a fresh 2FA code. Sent as multipart so the file rides alongside the two re-auth factors.
+    restore: async (file: File, backupKey: string, twoFactorCode: string): Promise<{ ok: boolean }> => {
+      const csrf = getCsrfToken();
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("backupKey", backupKey);
+      fd.append("twoFactorCode", twoFactorCode);
+      const res = await fetch(`${BASE}/api/backup/restore`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: { ...(csrf ? { "X-CSRF-Token": csrf } : {}) },
+        body: fd,
+      });
+      if (!res.ok) {
+        let msg = `خطا در بازیابی (${res.status})`;
+        try { const t = await res.text(); if (t) msg = t.replace(/^"|"$/g, ""); } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      return (await res.json()) as { ok: boolean };
+    },
     telegram: {
       get: () => request<TelegramSettings>("/backup/telegram"),
       update: (body: TelegramSettings) => request<TelegramSettings>("/backup/telegram", { method: "PUT", body: json(body) }),

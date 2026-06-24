@@ -1,0 +1,213 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_URL="https://github.com/AbolfazlTafakori/Phonix.git"
+APP_USER="phoenix"
+BASE_DIR="/opt/phoenix"
+REPO_DIR="$BASE_DIR/repo"
+RELEASES_DIR="$BASE_DIR/releases"
+CURRENT_LINK="$BASE_DIR/current"
+CONF_DIR="/etc/phoenix"
+ENV_FILE="$CONF_DIR/phoenix.env"
+OWNER_FILE="$CONF_DIR/owner.env"
+NGINX_SITE="/etc/nginx/sites-available/phoenix.conf"
+DOTNET_PROJECT="backend/src/Phonix.Api"
+KEEP_RELEASES=3
+
+C_RESET="\033[0m"; C_BOLD="\033[1m"; C_BLUE="\033[1;34m"; C_GREEN="\033[1;32m"
+C_YELLOW="\033[1;33m"; C_RED="\033[1;31m"; C_CYAN="\033[1;36m"
+
+say()  { printf "%b\n" "${C_BLUE}::${C_RESET} $*"; }
+ok()   { printf "%b\n" "${C_GREEN}✔${C_RESET} $*"; }
+warn() { printf "%b\n" "${C_YELLOW}!${C_RESET} $*"; }
+die()  { printf "%b\n" "${C_RED}✖${C_RESET} $*" >&2; exit 1; }
+heading() { printf "\n%b\n" "${C_BOLD}${C_CYAN}== $* ==${C_RESET}"; }
+
+require_root() {
+    [[ $EUID -eq 0 ]] || die "این ابزار باید با دسترسی root اجرا شود (sudo p-ui)."
+}
+
+get_env() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -n1 | cut -d= -f2- || true; }
+
+set_env() {
+    local k="$1" v="$2"
+    if grep -qE "^$k=" "$ENV_FILE"; then
+        sed -i "s|^$k=.*|$k=$v|" "$ENV_FILE"
+    else
+        printf '%s=%s\n' "$k" "$v" >> "$ENV_FILE"
+    fi
+}
+
+validate_username() { [[ "$1" =~ ^[a-zA-Z0-9_]{3,32}$ ]]; }
+
+validate_password() {
+    local p="$1"
+    [[ ${#p} -ge 12 ]] || return 1
+    [[ "$p" =~ [A-Z] ]] || return 1
+    [[ "$p" =~ [a-z] ]] || return 1
+    [[ "$p" =~ [0-9] ]] || return 1
+    [[ "$p" =~ [^A-Za-z0-9] ]] || return 1
+    return 0
+}
+
+validate_domain() { [[ "$1" =~ ^([a-zA-Z0-9](-?[a-zA-Z0-9])*\.)+[a-zA-Z]{2,}$ ]]; }
+
+apply_server_name() {
+    local names="$1"
+    sed -i -E "s|^([[:space:]]*server_name).*;|\1 ${names};|g" "$NGINX_SITE"
+    nginx -t
+    systemctl reload nginx
+}
+
+current_domains() {
+    local primary fallback
+    primary="$(get_env PHONIX_DOMAIN)"
+    fallback="$(get_env PHONIX_FALLBACK_DOMAINS)"
+    printf '%s %s' "$primary" "$fallback" | xargs -n1 2>/dev/null | awk 'NF' | paste -sd' ' -
+}
+
+change_owner() {
+    heading "تغییر اطلاعات مالک"
+    local cur new_user pass pass2
+    cur="$(get_env PHONIX_OWNER_USERNAME)"
+    say "نام کاربری فعلی: ${cur:-نامشخص}"
+
+    read -rp "نام کاربری جدید (خالی = بدون تغییر): " new_user
+    if [[ -z "$new_user" ]]; then
+        new_user="$cur"
+    elif ! validate_username "$new_user"; then
+        warn "نام کاربری نامعتبر است."
+        return
+    fi
+
+    while true; do
+        read -rsp "گذرواژه‌ی جدید (حداقل ۱۲ کاراکتر، بزرگ/کوچک/عدد/نماد): " pass; echo
+        if ! validate_password "$pass"; then warn "گذرواژه شرایط پیچیدگی را ندارد."; continue; fi
+        read -rsp "تکرار گذرواژه: " pass2; echo
+        if [[ "$pass" != "$pass2" ]]; then warn "گذرواژه‌ها یکسان نیستند."; continue; fi
+        break
+    done
+
+    umask 077
+    printf 'PHONIX_OWNER_USERNAME=%s\nPHONIX_OWNER_PASSWORD=%s\n' "$new_user" "$pass" > "$OWNER_FILE"
+    chmod 600 "$OWNER_FILE"; chown root:root "$OWNER_FILE"
+    systemctl restart phoenix-api
+    ok "اطلاعات مالک به‌روزرسانی شد و سرویس راه‌اندازی مجدد شد."
+}
+
+manage_domain() {
+    heading "مدیریت دامنه"
+    local primary fallback domains
+    primary="$(get_env PHONIX_DOMAIN)"
+    fallback="$(get_env PHONIX_FALLBACK_DOMAINS)"
+    say "دامنه‌ی اصلی: ${primary:-نامشخص}"
+    say "دامنه‌های پشتیبان: ${fallback:-—}"
+    echo
+    echo "  1) تغییر دامنه‌ی اصلی"
+    echo "  2) افزودن دامنه‌ی پشتیبان (Fallback)"
+    echo "  0) بازگشت"
+    read -rp "انتخاب: " sub
+
+    case "$sub" in
+        1)
+            read -rp "دامنه‌ی اصلی جدید: " nd
+            validate_domain "$nd" || { warn "دامنه نامعتبر است."; return; }
+            set_env PHONIX_DOMAIN "$nd"
+            set_env PHONIX_FRONTEND_URL "https://$nd"
+            primary="$nd"
+            ;;
+        2)
+            read -rp "دامنه‌ی پشتیبان: " nd
+            validate_domain "$nd" || { warn "دامنه نامعتبر است."; return; }
+            if [[ " $fallback " == *" $nd "* ]]; then warn "این دامنه قبلاً اضافه شده."; return; fi
+            fallback="$(printf '%s %s' "$fallback" "$nd" | xargs)"
+            set_env PHONIX_FALLBACK_DOMAINS "$fallback"
+            ;;
+        *) return ;;
+    esac
+
+    domains="$(printf '%s %s' "$primary" "$fallback" | xargs)"
+    apply_server_name "$domains"
+
+    local args=()
+    for d in $domains; do args+=(-d "$d"); done
+    certbot --nginx --expand --non-interactive --agree-tos --redirect "${args[@]}"
+    systemctl reload nginx
+    set_env PHONIX_FRONTEND_URL "https://$primary"
+    systemctl restart phoenix-api
+    ok "دامنه‌ها اعمال و گواهی SSL به‌روزرسانی شد: $domains"
+}
+
+prune_releases() {
+    local keep="$KEEP_RELEASES"
+    ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | tail -n "+$((keep + 1))" | while read -r old; do
+        old="${old%/}"
+        [[ "$(readlink -f "$CURRENT_LINK")" == "$old" ]] && continue
+        rm -rf "$old"
+    done
+}
+
+hot_update() {
+    heading "به‌روزرسانی بدون توقف"
+    say "دریافت آخرین نسخه‌ی پایدار..."
+    if [[ -d "$REPO_DIR/.git" ]]; then
+        git -C "$REPO_DIR" fetch --all --prune --tags
+        git -C "$REPO_DIR" reset --hard origin/main
+    else
+        git clone "$REPO_URL" "$REPO_DIR"
+    fi
+
+    local rel="$RELEASES_DIR/$(date +%Y%m%d%H%M%S)"
+    mkdir -p "$rel/api" "$rel/web"
+
+    say "ساخت بک‌اند..."
+    dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$rel/api" --nologo
+
+    say "ساخت فرانت‌اند در محیط جداگانه..."
+    rsync -a --delete --exclude node_modules --exclude .next "$REPO_DIR/frontend/" "$rel/web/"
+    ( cd "$rel/web" && npm ci && NEXT_PUBLIC_API_URL="" NODE_ENV=production npm run build )
+
+    chown -R "$APP_USER:$APP_USER" "$rel"
+
+    say "تعویض نسخه‌ی فعال و راه‌اندازی مجدد سرویس‌ها..."
+    ln -sfn "$rel" "$CURRENT_LINK"
+    chown -h "$APP_USER:$APP_USER" "$CURRENT_LINK"
+    systemctl restart phoenix-api
+    systemctl restart phoenix-web
+    systemctl reload nginx
+
+    prune_releases
+    ok "به‌روزرسانی کامل شد. نسخه‌ی فعال: $rel"
+}
+
+banner() {
+    clear
+    printf "%b\n" "${C_BOLD}${C_CYAN}Phoenix Store — مدیریت سیستم${C_RESET}"
+    printf "%b\n" "دامنه: ${C_CYAN}$(get_env PHONIX_DOMAIN)${C_RESET}"
+    printf "%b\n\n" "وضعیت: API=$(systemctl is-active phoenix-api 2>/dev/null) WEB=$(systemctl is-active phoenix-web 2>/dev/null)"
+}
+
+menu() {
+    while true; do
+        banner
+        echo "  1) تغییر/به‌روزرسانی اطلاعات مالک (نام کاربری و گذرواژه)"
+        echo "  2) مدیریت دامنه (تغییر دامنه‌ی اصلی یا افزودن دامنه‌ی پشتیبان)"
+        echo "  3) به‌روزرسانی نرم‌افزار بدون توقف سرویس"
+        echo "  0) خروج"
+        echo
+        read -rp "گزینه را انتخاب کنید: " choice
+        case "$choice" in
+            1) change_owner ;;
+            2) manage_domain ;;
+            3) hot_update ;;
+            0) exit 0 ;;
+            *) warn "گزینه نامعتبر است." ;;
+        esac
+        echo
+        read -rp "برای ادامه Enter بزنید..." _
+    done
+}
+
+require_root
+[[ -f "$ENV_FILE" ]] || die "پیکربندی یافت نشد ($ENV_FILE). ابتدا install.sh را اجرا کنید."
+menu

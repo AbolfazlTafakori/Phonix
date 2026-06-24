@@ -131,7 +131,8 @@ export type ChatMessage = {
   createdAtUtc: string;
 };
 
-export type ChatConversation = {
+// The full thread as the staff inbox sees it, including support-side read state.
+export type AdminChatThread = {
   id: number;
   userId: number;
   userName: string;
@@ -142,6 +143,10 @@ export type ChatConversation = {
   adminReadUpTo: number;
   messages: ChatMessage[];
 };
+
+// What the customer widget receives — identical minus the staff-only adminReadUpTo, mirroring the server's
+// ChatThreadDto so the type never claims a field the payload doesn't carry.
+export type CustomerChatThread = Omit<AdminChatThread, "adminReadUpTo">;
 
 export type ConversationSummary = {
   id: number;
@@ -346,6 +351,29 @@ export type ServerStatus = {
   uptimeDays: number;
   uptimeHours: number;
   status: string;
+};
+
+// One Serilog file surfaced by the admin "system logs" page (GET /api/admin/logs).
+export type LogFile = {
+  name: string;
+  sizeBytes: number;
+  lastModifiedUtc: string;
+};
+
+// A single parsed log entry shown in the in-page viewer.
+export type LogLine = {
+  timestamp: string;
+  level: string;
+  message: string;
+  raw: string;
+};
+
+// The result of viewing/searching a log file (newest entries first; GET /api/admin/logs/view).
+export type LogView = {
+  name: string;
+  totalMatches: number;
+  returned: number;
+  lines: LogLine[];
 };
 
 export type PaymentType = "Card" | "Crypto" | "Gateway";

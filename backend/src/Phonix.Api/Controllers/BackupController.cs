@@ -1,8 +1,10 @@
+using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
 using Phonix.Api.Models;
+using Phonix.Api.Security;
 using Phonix.Api.Services;
 
 namespace Phonix.Api.Controllers;
@@ -15,12 +17,15 @@ public class BackupController : ControllerBase
     private readonly StoreData _store;
     private readonly ITelegramBackupSender _telegram;
     private readonly ITelegramAlertSender _alerts;
+    private readonly ILogger<BackupController> _logger;
 
-    public BackupController(StoreData store, ITelegramBackupSender telegram, ITelegramAlertSender alerts)
+    public BackupController(StoreData store, ITelegramBackupSender telegram, ITelegramAlertSender alerts,
+        ILogger<BackupController> logger)
     {
         _store = store;
         _telegram = telegram;
         _alerts = alerts;
+        _logger = logger;
     }
 
     // download the full store as a timestamped file. When PHONIX_BACKUP_KEY is set the payload is encrypted
@@ -35,22 +40,63 @@ public class BackupController : ControllerBase
         return File(Encoding.UTF8.GetBytes(json), "application/json", $"phonix-backup-{stamp}.json");
     }
 
-    // replace the entire store with an uploaded backup. Accepts both the encrypted container and plain JSON
-    // (so older plain backups still import); reads the raw body to support either.
+    // Replace the entire store with an uploaded backup. This is the single most destructive action in the
+    // system, so it is gated behind THREE independent factors that must all pass before a byte is written:
+    //   1. a fresh 6-digit 2FA (TOTP) code from the signed-in admin (re-authentication),
+    //   2. manual re-entry of the server's PHONIX_BACKUP_KEY (proves possession of the offline key),
+    //   3. a structurally valid backup file (decryptable + parseable + non-empty).
+    // Every outcome is written to the audit log; the operation fails closed on any missing or invalid factor.
     [HttpPost("restore")]
-    public async Task<IActionResult> Restore()
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> Restore(
+        [FromForm] IFormFile? file,
+        [FromForm] string? backupKey,
+        [FromForm] string? twoFactorCode)
     {
-        using var reader = new StreamReader(Request.Body, Encoding.UTF8);
-        var raw = (await reader.ReadToEndAsync()).Trim();
-        if (string.IsNullOrEmpty(raw))
-            return BadRequest("فایل پشتیبان نامعتبر است.");
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var user = this.CurrentUserId() is int uid ? _store.GetUser(uid) : null;
+        var username = user?.Username ?? "unknown";
 
-        string? json = raw;
+        IActionResult Deny(string reason, IActionResult result)
+        {
+            _logger.LogWarning(
+                "[SRV] DATABASE RESTORE DENIED ({Reason}). Attempted by Admin: {Username}, IP: {IP}, Timestamp: {UtcTime}.",
+                reason, username, ip, DateTime.UtcNow.ToString("o"));
+            return result;
+        }
+
+        if (user is null || user.Role != UserRole.Admin)
+            return Deny("not an admin", Unauthorized("نشست نامعتبر است."));
+
+        // Factor 1 — fresh second factor. Fail closed if the admin has no 2FA enrolled.
+        if (!user.TwoFactorEnabled
+            || string.IsNullOrWhiteSpace(twoFactorCode)
+            || !TotpService.Verify(user.TwoFactorSecret, twoFactorCode))
+            return Deny("invalid 2FA", Unauthorized("کد تأیید دو‌مرحله‌ای نادرست است."));
+
+        // Factor 2 — the entered key must match the server's configured PHONIX_BACKUP_KEY (constant-time).
+        var configuredKey = Environment.GetEnvironmentVariable("PHONIX_BACKUP_KEY");
+        if (string.IsNullOrWhiteSpace(configuredKey)
+            || string.IsNullOrWhiteSpace(backupKey)
+            || !CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(backupKey), Encoding.UTF8.GetBytes(configuredKey)))
+            return Deny("invalid backup key", Unauthorized("کلید پشتیبان (PHONIX_BACKUP_KEY) نادرست است."));
+
+        // Factor 3 — the file itself.
+        if (file is null || file.Length == 0)
+            return Deny("missing file", BadRequest("فایل پشتیبان نامعتبر است."));
+
+        string raw;
+        using (var reader = new StreamReader(file.OpenReadStream(), Encoding.UTF8))
+            raw = (await reader.ReadToEndAsync()).Trim();
+
+        var json = raw;
         if (BackupCrypto.LooksEncrypted(raw))
         {
-            json = BackupCrypto.Decrypt(raw);
-            if (json is null)
-                return BadRequest("رمزگشایی فایل پشتیبان ناموفق بود. کلید پشتیبان (PHONIX_BACKUP_KEY) را بررسی کنید.");
+            var decrypted = BackupCrypto.Decrypt(raw);
+            if (decrypted is null)
+                return Deny("decryption failed", BadRequest("رمزگشایی فایل پشتیبان ناموفق بود. کلید پشتیبان را بررسی کنید."));
+            json = decrypted;
         }
 
         StoreSnapshot? snapshot;
@@ -60,15 +106,19 @@ public class BackupController : ControllerBase
         }
         catch
         {
-            return BadRequest("فایل پشتیبان نامعتبر است.");
+            return Deny("invalid backup content", BadRequest("فایل پشتیبان نامعتبر است."));
         }
-        if (snapshot is null)
-            return BadRequest("فایل پشتیبان نامعتبر است.");
-        if (snapshot.Users.Count == 0)
-            return BadRequest("فایل پشتیبان معتبر به‌نظر نمی‌رسد (هیچ کاربری ندارد).");
+
+        if (snapshot is null || snapshot.Users.Count == 0)
+            return Deny("empty snapshot", BadRequest("فایل پشتیبان معتبر به‌نظر نمی‌رسد (هیچ کاربری ندارد)."));
 
         _store.LoadSnapshot(snapshot);
         _store.Save();
+
+        _logger.LogWarning(
+            "[SRV] DATABASE RESTORE SUCCESSFUL. Executed by Admin: {Username}, IP: {IP}, Timestamp: {UtcTime}.",
+            username, ip, DateTime.UtcNow.ToString("o"));
+
         return Ok(new { ok = true });
     }
 

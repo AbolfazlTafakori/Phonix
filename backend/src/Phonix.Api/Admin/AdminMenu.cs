@@ -100,6 +100,7 @@ public static class AdminMenu
         {
             new("staff",    "مدیریت کارکنان و نقش‌ها",     "shield",   "/admin/staff",          UserRole.Admin),
             new("audit",    "لاگ‌های ممیزی سیستم",         "search",   "/admin/audit-logs",     UserRole.Admin),
+            new("logs",     "لاگ‌های فایل سیستم",          "activity", "/admin/logs",           UserRole.Admin),
             new("backup",   "پشتیبان‌گیری و ربات تلگرام",  "disk",     "/admin/backup",         UserRole.Admin),
             new("email",    "تنظیمات ایمیل و پیامک",       "bell",     "/admin/settings/email", UserRole.Admin),
             new("settings", "تنظیمات عمومی و پیشرفته",     "settings", "/admin/settings",       UserRole.Admin),

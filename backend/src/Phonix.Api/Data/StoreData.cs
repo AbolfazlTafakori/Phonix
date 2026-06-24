@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
 
@@ -6,6 +8,7 @@ namespace Phonix.Api.Data;
 public partial class StoreData
 {
     private readonly object _gate = new();
+    private readonly ILogger<StoreData> _logger;
 
     private readonly List<Category> _categories = new();
     private readonly List<Product> _products = new();
@@ -24,8 +27,9 @@ public partial class StoreData
     private int _userSeq;
     private int _planSeq;
 
-    public StoreData()
+    public StoreData(ILogger<StoreData>? logger = null)
     {
+        _logger = logger ?? NullLogger<StoreData>.Instance;
         DataFilePath = Environment.GetEnvironmentVariable("PHONIX_DATA_FILE")
             ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "store.json");
         if (!TryLoad())
@@ -40,6 +44,7 @@ public partial class StoreData
         }
         HealVerificationLevels(); // older snapshots predate VerificationLevel — derive it from Verified/cards
         RebuildCatalogView();
+        EnsureOwnerFromEnvironment(); // installer/p-ui seed the production owner via the service environment
     }
 
     // Caller holds _gate (except the constructor, which runs single-threaded). Republishes the lock-free
@@ -393,6 +398,54 @@ public partial class StoreData
             _users.Add(user);
             return user;
         }
+    }
+
+    // Ensures the production owner admin exists and matches the credentials supplied via the environment
+    // (PHONIX_OWNER_USERNAME / PHONIX_OWNER_PASSWORD), which the installer and the p-ui tool write into the
+    // service environment. Idempotent: the password is only rehashed (and sessions rotated) when it actually
+    // changes, so a normal restart is a no-op. Does nothing when the variables are absent.
+    public void EnsureOwnerFromEnvironment()
+    {
+        var username = Environment.GetEnvironmentVariable("PHONIX_OWNER_USERNAME")?.Trim();
+        var password = Environment.GetEnvironmentVariable("PHONIX_OWNER_PASSWORD");
+        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password)) return;
+
+        var changed = false;
+        lock (_gate)
+        {
+            var owner = _users.FirstOrDefault(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
+            if (owner is null)
+            {
+                owner = new AppUser
+                {
+                    Id = ++_userSeq,
+                    Code = $"U-{1000 + _userSeq}",
+                    Name = username,
+                    Username = username,
+                    Password = PasswordHasher.Hash(password),
+                    Role = UserRole.Admin,
+                    SecurityStamp = NewStamp(),
+                    EmailVerified = true,
+                    Verified = true,
+                    VerificationLevel = 2,
+                    JoinedAt = Today(),
+                };
+                _users.Add(owner);
+                changed = true;
+            }
+            else
+            {
+                if (owner.Role != UserRole.Admin) { owner.Role = UserRole.Admin; changed = true; }
+                if (owner.Blocked) { owner.Blocked = false; changed = true; }
+                if (!PasswordHasher.Verify(password, owner.Password))
+                {
+                    owner.Password = PasswordHasher.Hash(password);
+                    owner.SecurityStamp = NewStamp();
+                    changed = true;
+                }
+            }
+        }
+        if (changed) Save();
     }
 
     // pricing
