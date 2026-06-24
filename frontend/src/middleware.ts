@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5228";
+// Middleware always runs server-side, so it targets the API over the loopback rather than a relative URL.
+const BASE = process.env.PHONIX_INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5228";
 
 let cache = { on: false, at: 0 };
 

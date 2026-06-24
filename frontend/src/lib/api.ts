@@ -65,7 +65,13 @@ import type {
 } from "./types";
 import { getCsrfToken } from "./token";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5228";
+// Client requests go same-origin (relative) so the app serves correctly behind any domain — including the
+// p-ui fallback domain — with no rebuild. Server-side rendering and middleware can't use a relative URL, so
+// on the server we target the API directly over the loopback (overridable via PHONIX_INTERNAL_API_URL).
+const BASE =
+  typeof window === "undefined"
+    ? process.env.PHONIX_INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5228"
+    : process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5228";
 
 // A 401 means the session cookie is gone or no longer valid (expired, or the password changed and
 // rotated the security stamp). The client may still hold a stale user in localStorage, so every guarded
