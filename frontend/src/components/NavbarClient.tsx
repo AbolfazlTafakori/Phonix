@@ -48,7 +48,30 @@ function fmtDate(iso: string): string {
 
 function BellPanel({ notifs, onClose }: { notifs: Notification[]; onClose: () => void }) {
   const [tab, setTab] = useState<"private" | "public">("private");
+  const [selected, setSelected] = useState<Notification | null>(null);
   const shown = notifs.filter((n) => (tab === "public" ? n.isPublic : !n.isPublic));
+
+  // Full reading view for a single message: opened when the user taps a message in the list.
+  if (selected) {
+    return (
+      <div>
+        <div className="flex items-center justify-between border-b border-white/8 px-5 py-3.5">
+          <button onClick={() => setSelected(null)} className="text-sm font-bold text-[#6f93ff] transition hover:text-white">→ بازگشت</button>
+          <button onClick={onClose} aria-label="بستن" className="text-white/45 transition hover:text-white">✕</button>
+        </div>
+        <div className="max-h-[60vh] overflow-y-auto px-5 py-4">
+          <h3 className="text-base font-bold text-white">{selected.title}</h3>
+          <p className="mt-1 text-[11px] text-white/35" dir="ltr">{fmtDate(selected.createdAtUtc)}</p>
+          {selected.body && <p className="mt-4 whitespace-pre-wrap text-sm leading-7 text-white/75">{selected.body}</p>}
+          {selected.link && (
+            <Link href={selected.link} onClick={onClose} className="mt-5 inline-flex rounded-lg bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-5 py-2 text-xs font-bold text-white transition hover:brightness-110">
+              مشاهده
+            </Link>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -72,21 +95,23 @@ function BellPanel({ notifs, onClose }: { notifs: Notification[]; onClose: () =>
           <p className="px-5 py-10 text-center text-sm text-white/40">پیامی وجود ندارد.</p>
         ) : (
           <ul className="divide-y divide-white/6">
-            {shown.map((n) => {
-              const body = (
-                <div className={`px-5 py-3.5 transition hover:bg-white/[0.03] ${!n.isRead ? "bg-[#3a64f2]/[0.06]" : ""}`}>
+            {shown.map((n) => (
+              <li key={n.id}>
+                <button
+                  onClick={() => setSelected(n)}
+                  className={`block w-full px-5 py-3.5 text-right transition hover:bg-white/[0.03] ${!n.isRead ? "bg-[#3a64f2]/[0.06]" : ""}`}
+                >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 text-sm font-bold text-white">
+                    <span className="flex min-w-0 items-center gap-2 text-sm font-bold text-white">
                       {!n.isRead && <span className="h-2 w-2 shrink-0 rounded-full bg-[#e60053]" />}
-                      {n.title}
+                      <span className="truncate">{n.title}</span>
                     </span>
                     <span className="shrink-0 text-[11px] text-white/35" dir="ltr">{fmtDate(n.createdAtUtc)}</span>
                   </div>
-                  {n.body && <p className="mt-1 text-xs leading-6 text-white/55">{n.body}</p>}
-                </div>
-              );
-              return <li key={n.id}>{n.link ? <Link href={n.link} onClick={onClose}>{body}</Link> : body}</li>;
-            })}
+                  {n.body && <p className="mt-1 truncate text-xs leading-6 text-white/55">{n.body}</p>}
+                </button>
+              </li>
+            ))}
           </ul>
         )}
       </div>
