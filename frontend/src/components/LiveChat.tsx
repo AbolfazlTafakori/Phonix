@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import type { CustomerChatThread } from "@/lib/types";
+import type { CustomerChatThread, ChatMessage } from "@/lib/types";
 
 function timeOf(iso: string): string {
   const d = new Date(iso);
@@ -21,6 +21,8 @@ export default function LiveChat() {
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  // Lets the background poll skip a tick mid-send so it can't briefly wipe the optimistic message.
+  const sendingRef = useRef(false);
 
   // The widget belongs to the storefront/account experience, never the admin panel.
   const hidden = !ready || !user || pathname.startsWith("/admin");
@@ -41,16 +43,17 @@ export default function LiveChat() {
     if (hidden || !open) return;
     let alive = true;
     const tick = async () => {
+      if (sendingRef.current) return; // don't clobber the in-flight optimistic send
       try {
         const c = await api.chat.mine();
-        if (!alive) return;
+        if (!alive || sendingRef.current) return;
         setConv(c ?? null);
         setUnread(0);
         if (c) api.chat.readMine().catch(() => {});
       } catch { /* keep last state on a transient error */ }
     };
     tick();
-    const id = setInterval(tick, 4000);
+    const id = setInterval(tick, 2500);
     return () => { alive = false; clearInterval(id); };
   }, [hidden, open]);
 
@@ -64,13 +67,28 @@ export default function LiveChat() {
     e.preventDefault();
     const body = text.trim();
     if (!body || sending) return;
+
+    // Optimistic UI: show the message and clear the box immediately, then reconcile with the server's
+    // canonical thread. This is what makes sending feel instant instead of waiting for the round-trip.
+    const optimistic: ChatMessage = { id: -Date.now(), fromAdmin: false, authorName: "", body, createdAtUtc: new Date().toISOString() };
+    setConv((prev) =>
+      prev
+        ? { ...prev, messages: [...prev.messages, optimistic] }
+        : { id: 0, userId: user?.id ?? 0, userName: "", status: "Open", createdAtUtc: optimistic.createdAtUtc, lastMessageAtUtc: optimistic.createdAtUtc, userReadUpTo: 0, messages: [optimistic] },
+    );
+    setText("");
     setSending(true);
+    sendingRef.current = true;
     try {
       const c = await api.chat.send(body);
       setConv(c);
-      setText("");
-    } catch { /* surfaced by leaving the text in place */ } finally {
+    } catch {
+      // restore the failed message so the customer can retry, and drop the optimistic bubble.
+      setText(body);
+      setConv((prev) => (prev ? { ...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id) } : prev));
+    } finally {
       setSending(false);
+      sendingRef.current = false;
     }
   }
 

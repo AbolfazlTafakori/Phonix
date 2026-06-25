@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
-import type { AdminChatThread, ConversationSummary } from "@/lib/types";
+import type { AdminChatThread, ChatMessage, ConversationSummary } from "@/lib/types";
 import { PageHeader, Spinner } from "@/components/admin/ui";
 
 function timeOf(iso: string): string {
@@ -19,6 +19,7 @@ export default function AdminChatPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     let alive = true;
@@ -32,15 +33,16 @@ export default function AdminChatPage() {
     if (activeId === null) { setActive(null); return; }
     let alive = true;
     const tick = async () => {
+      if (sendingRef.current) return;
       try {
         const c = await api.chat.get(activeId);
-        if (!alive) return;
+        if (!alive || sendingRef.current) return;
         setActive(c);
         api.chat.read(activeId).catch(() => {});
       } catch { /* keep last state */ }
     };
     tick();
-    const id = setInterval(tick, 4000);
+    const id = setInterval(tick, 2500);
     return () => { alive = false; clearInterval(id); };
   }, [activeId]);
 
@@ -52,14 +54,23 @@ export default function AdminChatPage() {
     e.preventDefault();
     const body = text.trim();
     if (!body || !activeId || sending) return;
+
+    // Optimistic UI so the reply shows instantly; the server response then replaces it with the real thread.
+    const optimistic: ChatMessage = { id: -Date.now(), fromAdmin: true, authorName: "", body, createdAtUtc: new Date().toISOString() };
+    setActive((prev) => (prev ? { ...prev, messages: [...prev.messages, optimistic] } : prev));
+    setText("");
     setSending(true);
+    sendingRef.current = true;
     try {
       const c = await api.chat.reply(activeId, body);
       setActive(c);
-      setText("");
       api.chat.list().then(setList).catch(() => {});
-    } catch { /* leave text for retry */ } finally {
+    } catch {
+      setText(body);
+      setActive((prev) => (prev ? { ...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id) } : prev));
+    } finally {
       setSending(false);
+      sendingRef.current = false;
     }
   }
 
