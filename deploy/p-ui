@@ -29,7 +29,7 @@ die()  { printf "%b\n" "${C_RED}✖${C_RESET} $*" >&2; exit 1; }
 heading() { printf "\n%b\n" "${C_BOLD}${C_CYAN}== $* ==${C_RESET}"; }
 
 require_root() {
-    [[ $EUID -eq 0 ]] || die "این ابزار باید با دسترسی root اجرا شود (sudo p-ui)."
+    [[ $EUID -eq 0 ]] || die "This tool must run as root (use: sudo p-ui)."
 }
 
 get_env() { grep -E "^$1=" "$ENV_FILE" 2>/dev/null | head -n1 | cut -d= -f2- || true; }
@@ -64,32 +64,25 @@ apply_server_name() {
     systemctl reload nginx
 }
 
-current_domains() {
-    local primary fallback
-    primary="$(get_env PHONIX_DOMAIN)"
-    fallback="$(get_env PHONIX_FALLBACK_DOMAINS)"
-    printf '%s %s' "$primary" "$fallback" | xargs -n1 2>/dev/null | awk 'NF' | paste -sd' ' -
-}
-
 change_owner() {
-    heading "تغییر اطلاعات مالک"
+    heading "Update owner credentials"
     local cur new_user pass pass2
     cur="$(get_env PHONIX_OWNER_USERNAME)"
-    say "نام کاربری فعلی: ${cur:-نامشخص}"
+    say "Current username: ${cur:-unknown}"
 
-    read -rp "نام کاربری جدید (خالی = بدون تغییر): " new_user
+    read -rp "New username (leave empty to keep current): " new_user
     if [[ -z "$new_user" ]]; then
         new_user="$cur"
     elif ! validate_username "$new_user"; then
-        warn "نام کاربری نامعتبر است."
+        warn "Invalid username."
         return
     fi
 
     while true; do
-        read -rsp "گذرواژه‌ی جدید (حداقل ۱۲ کاراکتر، بزرگ/کوچک/عدد/نماد): " pass; echo
-        if ! validate_password "$pass"; then warn "گذرواژه شرایط پیچیدگی را ندارد."; continue; fi
-        read -rsp "تکرار گذرواژه: " pass2; echo
-        if [[ "$pass" != "$pass2" ]]; then warn "گذرواژه‌ها یکسان نیستند."; continue; fi
+        read -rsp "New password (min 12 chars: upper, lower, number, symbol): " pass; echo
+        if ! validate_password "$pass"; then warn "Password does not meet the complexity requirements."; continue; fi
+        read -rsp "Confirm password: " pass2; echo
+        if [[ "$pass" != "$pass2" ]]; then warn "Passwords do not match."; continue; fi
         break
     done
 
@@ -97,34 +90,34 @@ change_owner() {
     printf 'PHONIX_OWNER_USERNAME=%s\nPHONIX_OWNER_PASSWORD=%s\n' "$new_user" "$pass" > "$OWNER_FILE"
     chmod 600 "$OWNER_FILE"; chown root:root "$OWNER_FILE"
     systemctl restart phoenix-api
-    ok "اطلاعات مالک به‌روزرسانی شد و سرویس راه‌اندازی مجدد شد."
+    ok "Owner credentials updated and service restarted."
 }
 
 manage_domain() {
-    heading "مدیریت دامنه"
+    heading "Domain management"
     local primary fallback domains
     primary="$(get_env PHONIX_DOMAIN)"
     fallback="$(get_env PHONIX_FALLBACK_DOMAINS)"
-    say "دامنه‌ی اصلی: ${primary:-نامشخص}"
-    say "دامنه‌های پشتیبان: ${fallback:-—}"
+    say "Primary domain:   ${primary:-unknown}"
+    say "Fallback domains: ${fallback:-none}"
     echo
-    echo "  1) تغییر دامنه‌ی اصلی"
-    echo "  2) افزودن دامنه‌ی پشتیبان (Fallback)"
-    echo "  0) بازگشت"
-    read -rp "انتخاب: " sub
+    echo "  1) Change the primary domain"
+    echo "  2) Add a fallback domain"
+    echo "  0) Back"
+    read -rp "Select: " sub
 
     case "$sub" in
         1)
-            read -rp "دامنه‌ی اصلی جدید: " nd
-            validate_domain "$nd" || { warn "دامنه نامعتبر است."; return; }
+            read -rp "New primary domain: " nd
+            validate_domain "$nd" || { warn "Invalid domain."; return; }
             set_env PHONIX_DOMAIN "$nd"
             set_env PHONIX_FRONTEND_URL "https://$nd"
             primary="$nd"
             ;;
         2)
-            read -rp "دامنه‌ی پشتیبان: " nd
-            validate_domain "$nd" || { warn "دامنه نامعتبر است."; return; }
-            if [[ " $fallback " == *" $nd "* ]]; then warn "این دامنه قبلاً اضافه شده."; return; fi
+            read -rp "Fallback domain: " nd
+            validate_domain "$nd" || { warn "Invalid domain."; return; }
+            if [[ " $fallback " == *" $nd "* ]]; then warn "That domain is already configured."; return; fi
             fallback="$(printf '%s %s' "$fallback" "$nd" | xargs)"
             set_env PHONIX_FALLBACK_DOMAINS "$fallback"
             ;;
@@ -140,12 +133,11 @@ manage_domain() {
     systemctl reload nginx
     set_env PHONIX_FRONTEND_URL "https://$primary"
     systemctl restart phoenix-api
-    ok "دامنه‌ها اعمال و گواهی SSL به‌روزرسانی شد: $domains"
+    ok "Domains applied and SSL certificate updated: $domains"
 }
 
 prune_releases() {
-    local keep="$KEEP_RELEASES"
-    ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | tail -n "+$((keep + 1))" | while read -r old; do
+    ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | tail -n "+$((KEEP_RELEASES + 1))" | while read -r old; do
         old="${old%/}"
         [[ "$(readlink -f "$CURRENT_LINK")" == "$old" ]] && continue
         rm -rf "$old"
@@ -178,13 +170,13 @@ restart_stack() {
 }
 
 hot_update() {
-    heading "به‌روزرسانی بدون توقف"
+    heading "Zero-downtime update"
     local previous; previous="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
 
-    say "تهیه‌ی نسخه‌ی پشتیبان از داده‌ها (store.json در $DATA_DIR دست‌نخورده می‌ماند)..."
+    say "Snapshotting data (store.json in $DATA_DIR is never overwritten)..."
     snapshot_data
 
-    say "دریافت آخرین نسخه..."
+    say "Fetching the latest release..."
     if [[ -d "$REPO_DIR/.git" ]]; then
         git -C "$REPO_DIR" fetch --all --prune --tags
         git -C "$REPO_DIR" reset --hard origin/main
@@ -195,63 +187,63 @@ hot_update() {
     local rel="$RELEASES_DIR/$(date +%Y%m%d%H%M%S)"
     mkdir -p "$rel/api" "$rel/web"
 
-    say "ساخت بک‌اند..."
+    say "Building backend..."
     dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$rel/api" --nologo
 
-    say "ساخت فرانت‌اند در محیط staging جداگانه..."
+    say "Building frontend in a separate staging directory..."
     rsync -a --delete --exclude node_modules --exclude .next "$REPO_DIR/frontend/" "$rel/web/"
     ( cd "$rel/web" && npm ci && NEXT_PUBLIC_API_URL="" NODE_ENV=production npm run build )
 
     chown -R "$APP_USER:$APP_USER" "$rel"
 
-    say "تعویض نسخه‌ی فعال و بارگذاری مجدد سرویس‌ها..."
+    say "Switching the active release and reloading services..."
     ln -sfn "$rel" "$CURRENT_LINK"
     chown -h "$APP_USER:$APP_USER" "$CURRENT_LINK"
     restart_stack
 
     if services_healthy; then
         prune_releases
-        ok "به‌روزرسانی کامل شد. داده‌ها حفظ شدند. نسخه‌ی فعال: $rel"
+        ok "Update complete. Data preserved. Active release: $rel"
     else
-        warn "نسخه‌ی جدید سالم بالا نیامد — بازگشت خودکار به نسخه‌ی قبلی..."
+        warn "The new release did not come up healthy — rolling back automatically..."
         if [[ -n "$previous" && -d "$previous" ]]; then
             ln -sfn "$previous" "$CURRENT_LINK"
             chown -h "$APP_USER:$APP_USER" "$CURRENT_LINK"
             restart_stack
         fi
         rm -rf "$rel"
-        warn "به‌روزرسانی ناموفق بود؛ سرویس به نسخه‌ی پایدار قبلی بازگشت و داده‌ها دست‌نخورده‌اند."
+        warn "Update failed; the service was rolled back to the previous release and your data is intact."
     fi
 }
 
 banner() {
     clear
-    printf "%b\n" "${C_BOLD}${C_CYAN}Phoenix Store — مدیریت سیستم${C_RESET}"
-    printf "%b\n" "دامنه: ${C_CYAN}$(get_env PHONIX_DOMAIN)${C_RESET}"
-    printf "%b\n\n" "وضعیت: API=$(systemctl is-active phoenix-api 2>/dev/null) WEB=$(systemctl is-active phoenix-web 2>/dev/null)"
+    printf "%b\n" "${C_BOLD}${C_CYAN}Phoenix Store — System Management${C_RESET}"
+    printf "%b\n" "Domain: ${C_CYAN}$(get_env PHONIX_DOMAIN)${C_RESET}"
+    printf "%b\n\n" "Status: API=$(systemctl is-active phoenix-api 2>/dev/null) WEB=$(systemctl is-active phoenix-web 2>/dev/null)"
 }
 
 menu() {
     while true; do
         banner
-        echo "  1) تغییر/به‌روزرسانی اطلاعات مالک (نام کاربری و گذرواژه)"
-        echo "  2) مدیریت دامنه (تغییر دامنه‌ی اصلی یا افزودن دامنه‌ی پشتیبان)"
-        echo "  3) به‌روزرسانی نرم‌افزار بدون توقف سرویس"
-        echo "  0) خروج"
+        echo "  1) Update owner credentials (username and password)"
+        echo "  2) Domain management (change primary or add a fallback)"
+        echo "  3) Zero-downtime application update"
+        echo "  0) Exit"
         echo
-        read -rp "گزینه را انتخاب کنید: " choice
+        read -rp "Choose an option: " choice
         case "$choice" in
             1) change_owner ;;
             2) manage_domain ;;
             3) hot_update ;;
             0) exit 0 ;;
-            *) warn "گزینه نامعتبر است." ;;
+            *) warn "Invalid option." ;;
         esac
         echo
-        read -rp "برای ادامه Enter بزنید..." _
+        read -rp "Press Enter to continue..." _
     done
 }
 
 require_root
-[[ -f "$ENV_FILE" ]] || die "پیکربندی یافت نشد ($ENV_FILE). ابتدا install.sh را اجرا کنید."
+[[ -f "$ENV_FILE" ]] || die "Configuration not found ($ENV_FILE). Run install.sh first."
 menu

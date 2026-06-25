@@ -31,11 +31,11 @@ die()  { printf "%b\n" "${C_RED}✖${C_RESET} $*" >&2; exit 1; }
 heading() { printf "\n%b\n" "${C_BOLD}${C_CYAN}== $* ==${C_RESET}"; }
 
 require_root() {
-    [[ $EUID -eq 0 ]] || die "این اسکریپت باید با دسترسی root اجرا شود (sudo)."
+    [[ $EUID -eq 0 ]] || die "This installer must run as root (use sudo)."
 }
 
 require_ubuntu() {
-    command -v apt-get >/dev/null 2>&1 || die "این نصب‌کننده فقط روی Ubuntu/Debian پشتیبانی می‌شود."
+    command -v apt-get >/dev/null 2>&1 || die "This installer supports Ubuntu/Debian only."
 }
 
 validate_domain() {
@@ -58,32 +58,32 @@ validate_password() {
 
 prompt_domain() {
     while true; do
-        read -rp "$(printf "%b" "${C_BOLD}دامنه‌ی سایت (مثال: shop.example.com): ${C_RESET}")" DOMAIN
+        read -rp "$(printf "%b" "${C_BOLD}Site domain (e.g. shop.example.com): ${C_RESET}")" DOMAIN
         DOMAIN="${DOMAIN,,}"
         if validate_domain "$DOMAIN"; then break; fi
-        warn "دامنه نامعتبر است. دوباره تلاش کنید."
+        warn "Invalid domain. Please try again."
     done
 
-    read -rp "$(printf "%b" "${C_BOLD}ایمیل برای صدور گواهی Let's Encrypt: ${C_RESET}")" LE_EMAIL
-    [[ -n "$LE_EMAIL" ]] || die "ایمیل برای Certbot الزامی است."
+    read -rp "$(printf "%b" "${C_BOLD}Email for the Let's Encrypt certificate: ${C_RESET}")" LE_EMAIL
+    [[ -n "$LE_EMAIL" ]] || die "An email is required for Certbot."
 }
 
 prompt_owner() {
     while true; do
-        read -rp "$(printf "%b" "${C_BOLD}نام کاربری مالک (Owner): ${C_RESET}")" OWNER_USER
+        read -rp "$(printf "%b" "${C_BOLD}Owner username: ${C_RESET}")" OWNER_USER
         if validate_username "$OWNER_USER"; then break; fi
-        warn "نام کاربری باید ۳ تا ۳۲ کاراکتر و فقط شامل حروف/اعداد/زیرخط باشد."
+        warn "Username must be 3-32 chars: letters, numbers, underscore only."
     done
 
     while true; do
-        read -rsp "$(printf "%b" "${C_BOLD}گذرواژه‌ی مالک (حداقل ۱۲ کاراکتر، شامل بزرگ، کوچک، عدد و نماد): ${C_RESET}")" OWNER_PASS; echo
+        read -rsp "$(printf "%b" "${C_BOLD}Owner password (min 12 chars, with upper, lower, number and symbol): ${C_RESET}")" OWNER_PASS; echo
         if ! validate_password "$OWNER_PASS"; then
-            warn "گذرواژه شرایط پیچیدگی را ندارد."
+            warn "Password does not meet the complexity requirements."
             continue
         fi
-        read -rsp "$(printf "%b" "${C_BOLD}تکرار گذرواژه: ${C_RESET}")" OWNER_PASS2; echo
+        read -rsp "$(printf "%b" "${C_BOLD}Confirm password: ${C_RESET}")" OWNER_PASS2; echo
         if [[ "$OWNER_PASS" != "$OWNER_PASS2" ]]; then
-            warn "گذرواژه‌ها یکسان نیستند."
+            warn "Passwords do not match."
             continue
         fi
         break
@@ -91,7 +91,7 @@ prompt_owner() {
 }
 
 install_dependencies() {
-    heading "نصب پیش‌نیازها"
+    heading "Installing dependencies"
     export DEBIAN_FRONTEND=noninteractive
     apt-get update -y
     apt-get install -y curl wget gnupg ca-certificates lsb-release apt-transport-https git rsync openssl ufw
@@ -117,18 +117,18 @@ install_dependencies() {
 }
 
 create_user_and_dirs() {
-    heading "ساخت کاربر سرویس و دایرکتوری‌ها"
+    heading "Creating service user and directories"
     if ! id "$APP_USER" >/dev/null 2>&1; then
         useradd --system --create-home --home-dir "/home/$APP_USER" --shell /usr/sbin/nologin "$APP_USER"
     fi
     mkdir -p "$BASE_DIR" "$RELEASES_DIR" "$DATA_DIR" "$LOG_DIR" "$CONF_DIR"
     chown -R "$APP_USER:$APP_USER" "$BASE_DIR" "$DATA_DIR" "$LOG_DIR"
     chmod 750 "$CONF_DIR"
-    ok "دایرکتوری‌ها آماده شد"
+    ok "Directories ready"
 }
 
 fetch_repo() {
-    heading "دریافت کد"
+    heading "Fetching source code"
     if [[ -d "$REPO_DIR/.git" ]]; then
         git -C "$REPO_DIR" fetch --all --prune
         git -C "$REPO_DIR" reset --hard origin/main
@@ -136,26 +136,26 @@ fetch_repo() {
         git clone "$REPO_URL" "$REPO_DIR"
     fi
     chown -R "$APP_USER:$APP_USER" "$REPO_DIR"
-    ok "کد در $REPO_DIR آماده شد"
+    ok "Source ready at $REPO_DIR"
 }
 
 generate_backup_key() {
-    heading "تولید کلید رمزنگاری پشتیبان"
+    heading "Generating backup encryption key"
     if [[ -f "$SECRET_FILE" ]] && grep -q '^PHONIX_BACKUP_KEY=' "$SECRET_FILE"; then
         BACKUP_KEY="$(grep '^PHONIX_BACKUP_KEY=' "$SECRET_FILE" | cut -d= -f2-)"
-        warn "کلید پشتیبان از قبل وجود دارد و حفظ شد."
+        warn "An existing backup key was found and preserved."
     else
         BACKUP_KEY="$(openssl rand -base64 32)"
         umask 077
         printf 'PHONIX_BACKUP_KEY=%s\n' "$BACKUP_KEY" > "$SECRET_FILE"
         chmod 600 "$SECRET_FILE"
         chown root:root "$SECRET_FILE"
-        ok "کلید ۲۵۶ بیتی تولید شد"
+        ok "Generated a 256-bit key"
     fi
 }
 
 write_env_files() {
-    heading "نوشتن پیکربندی محیط"
+    heading "Writing environment configuration"
     umask 077
     cat > "$ENV_FILE" <<EOF
 ASPNETCORE_ENVIRONMENT=Production
@@ -178,11 +178,11 @@ EOF
 
     printf 'PHONIX_OWNER_USERNAME=%s\nPHONIX_OWNER_PASSWORD=%s\n' "$OWNER_USER" "$OWNER_PASS" > "$OWNER_FILE"
     chmod 600 "$OWNER_FILE"; chown root:root "$OWNER_FILE"
-    ok "پیکربندی نوشته شد"
+    ok "Configuration written"
 }
 
 build_release() {
-    heading "ساخت نسخه (Release)"
+    heading "Building release"
     local rel="$RELEASES_DIR/$(date +%Y%m%d%H%M%S)"
     mkdir -p "$rel/api" "$rel/web"
 
@@ -194,11 +194,11 @@ build_release() {
     chown -R "$APP_USER:$APP_USER" "$rel"
     ln -sfn "$rel" "$CURRENT_LINK"
     chown -h "$APP_USER:$APP_USER" "$CURRENT_LINK"
-    ok "نسخه ساخته شد: $rel"
+    ok "Release built: $rel"
 }
 
 write_systemd_units() {
-    heading "ثبت سرویس‌های systemd"
+    heading "Registering systemd services"
     cat > /etc/systemd/system/phoenix-api.service <<EOF
 [Unit]
 Description=Phoenix API
@@ -246,11 +246,11 @@ EOF
 
     systemctl daemon-reload
     systemctl enable phoenix-api phoenix-web >/dev/null 2>&1
-    ok "سرویس‌ها ثبت شدند"
+    ok "Services registered"
 }
 
 configure_nginx() {
-    heading "پیکربندی Nginx"
+    heading "Configuring Nginx"
     cat > "$NGINX_SITE" <<EOF
 server {
     listen 80;
@@ -284,58 +284,58 @@ EOF
     rm -f /etc/nginx/sites-enabled/default
     nginx -t
     systemctl reload nginx
-    ok "Nginx پیکربندی شد"
+    ok "Nginx configured"
 }
 
 provision_ssl() {
-    heading "صدور گواهی SSL"
+    heading "Issuing SSL certificate"
     certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$LE_EMAIL" --redirect
     systemctl reload nginx
-    ok "HTTPS فعال شد"
+    ok "HTTPS enabled"
 }
 
 configure_firewall() {
-    heading "پیکربندی فایروال"
+    heading "Configuring firewall"
     ufw allow OpenSSH >/dev/null 2>&1 || true
     ufw allow 'Nginx Full' >/dev/null 2>&1 || true
     yes | ufw enable >/dev/null 2>&1 || true
-    ok "فایروال فعال شد"
+    ok "Firewall enabled"
 }
 
 install_pui() {
-    heading "نصب ابزار مدیریت p-ui"
+    heading "Installing the p-ui management tool"
     if [[ -f "$PUI_SRC" ]]; then
         install -m 0755 "$PUI_SRC" "$PUI_PATH"
     else
-        die "اسکریپت p-ui در $PUI_SRC یافت نشد."
+        die "p-ui script not found at $PUI_SRC"
     fi
-    ok "دستور p-ui در دسترس است"
+    ok "The p-ui command is now available"
 }
 
 start_services() {
-    heading "راه‌اندازی سرویس‌ها"
+    heading "Starting services"
     systemctl restart phoenix-api
     systemctl restart phoenix-web
-    ok "سرویس‌ها اجرا شدند"
+    ok "Services running"
 }
 
 print_summary() {
-    printf "\n%b\n" "${C_GREEN}${C_BOLD}نصب با موفقیت کامل شد.${C_RESET}"
-    printf "%b\n" "آدرس سایت: ${C_CYAN}https://$DOMAIN${C_RESET}"
-    printf "%b\n" "مالک: ${C_CYAN}$OWNER_USER${C_RESET}"
-    printf "%b\n" "مدیریت: دستور ${C_CYAN}p-ui${C_RESET} را اجرا کنید."
+    printf "\n%b\n" "${C_GREEN}${C_BOLD}Installation completed successfully.${C_RESET}"
+    printf "%b\n" "Site URL:   ${C_CYAN}https://$DOMAIN${C_RESET}"
+    printf "%b\n" "Owner:      ${C_CYAN}$OWNER_USER${C_RESET}"
+    printf "%b\n" "Management: run ${C_CYAN}p-ui${C_RESET}"
 
     printf "\n%b\n" "${C_RED}${C_BOLD}┌────────────────────────────────────────────────────────────────┐${C_RESET}"
-    printf "%b\n"   "${C_RED}${C_BOLD}│  PHONIX_BACKUP_KEY — این کلید فقط همین یک‌بار نمایش داده می‌شود  │${C_RESET}"
+    printf "%b\n"   "${C_RED}${C_BOLD}│  PHONIX_BACKUP_KEY — shown only once, right now                 │${C_RESET}"
     printf "%b\n"   "${C_RED}${C_BOLD}└────────────────────────────────────────────────────────────────┘${C_RESET}"
     printf "\n    %b\n\n" "${C_BOLD}${BACKUP_KEY}${C_RESET}"
-    printf "%b\n" "${C_YELLOW}همین حالا آن را در محلی امن و آفلاین ذخیره کنید. بدون این کلید بازیابی فایل‌های پشتیبان رمزنگاری‌شده ممکن نیست و این کلید دیگر در هیچ منو یا ابزاری نمایش داده نخواهد شد.${C_RESET}\n"
+    printf "%b\n" "${C_YELLOW}Save this key offline securely right now. Encrypted backups cannot be restored without it, and it will never be displayed in any menu or tool again.${C_RESET}\n"
 }
 
 main() {
     require_root
     require_ubuntu
-    heading "نصب‌کننده‌ی Phoenix Store"
+    heading "Phoenix Store Installer"
     prompt_domain
     prompt_owner
     install_dependencies
