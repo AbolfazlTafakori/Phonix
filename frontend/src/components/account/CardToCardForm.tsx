@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
+import JalaliDatePicker from "./JalaliDatePicker";
 import type { PaymentMethod, BankCard } from "@/lib/types";
 
 const inputCls =
@@ -112,7 +113,7 @@ export function CardToCardForm({
         </div>
         <div>
           <label className="mb-2 block text-sm font-bold text-white/85">تاریخ پرداخت *</label>
-          <input value={value.payDate} onChange={(e) => onChange({ payDate: e.target.value })} dir="ltr" placeholder="۱۴۰۳/۰۳/۲۲" className={`${inputCls} text-left`} />
+          <JalaliDatePicker value={value.payDate} onChange={(v) => onChange({ payDate: v })} />
         </div>
       </div>
 
