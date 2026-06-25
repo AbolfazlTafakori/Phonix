@@ -74,10 +74,10 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
       <div className="grid gap-8 lg:grid-cols-2">
         {/* gallery */}
         <div className="relative self-start overflow-hidden rounded-3xl border border-white/10">
-          <img src={product.image} alt={product.name} className={`block w-full ${out ? "opacity-40 grayscale" : ""}`} />
+          <img src={product.image} alt={product.name} className="block w-full" />
           {out && (
-            <div className="absolute inset-0 grid place-items-center bg-black/40">
-              <span className="-rotate-6 rounded-2xl border border-white/25 bg-black/70 px-7 py-3 text-xl font-black tracking-wide text-white shadow-2xl backdrop-blur">
+            <div className="absolute inset-0 grid place-items-center">
+              <span className="-rotate-6 rounded-2xl border border-white/25 bg-black/55 px-7 py-3 text-xl font-black tracking-wide text-white shadow-2xl backdrop-blur-sm">
                 ناموجود
               </span>
             </div>

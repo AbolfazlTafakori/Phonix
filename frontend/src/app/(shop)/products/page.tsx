@@ -70,7 +70,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
               className="group relative block overflow-hidden rounded-2xl border border-white/8 bg-[#0d0d14] transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
             >
               <div className="relative aspect-[3/4]">
-                <img src={p.image} alt={p.name} className={`h-full w-full object-cover transition duration-500 group-hover:scale-105 ${p.stock <= 0 ? "opacity-40 grayscale" : ""}`} />
+                <img src={p.image} alt={p.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                 {p.stock <= 0 ? (
                   <>
