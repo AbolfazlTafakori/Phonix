@@ -183,7 +183,7 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
       </div>
 
       {open && (
-        <div className="absolute z-30 mt-2 w-[290px] rounded-2xl border border-white/10 bg-[#15151f] p-3 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.7)]">
+        <div className="absolute inset-x-0 z-30 mt-2 w-full max-w-[320px] rounded-2xl border border-white/10 bg-[#15151f] p-3 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.7)] sm:w-[290px]">
           <div className="mb-2 flex items-center justify-between">
             <button type="button" onClick={() => move(-1)} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white">‹</button>
             <span className="text-sm font-bold text-white">{MONTHS[view.jm - 1]} {toFa(view.jy)}</span>
