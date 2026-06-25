@@ -2,11 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown } from "./Icons";
 
 type Props = { href: string; label: string; hasMenu?: boolean };
 
-export default function NavLink({ href, label, hasMenu }: Props) {
+export default function NavLink({ href, label }: Props) {
   const pathname = usePathname();
   const isActive =
     href !== "#" && (href === "/" ? pathname === "/" : pathname.startsWith(href));
@@ -21,7 +20,6 @@ export default function NavLink({ href, label, hasMenu }: Props) {
     >
       <span className="relative z-10 flex items-center gap-1">
         {label}
-        {hasMenu && <ChevronDown className="h-4 w-4 text-white/60" />}
       </span>
 
       {/* sharp white underline */}
