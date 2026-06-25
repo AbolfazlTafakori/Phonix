@@ -8,14 +8,16 @@ C_RESET="\033[0m"; C_BOLD="\033[1m"; C_BLUE="\033[1;34m"; C_GREEN="\033[1;32m"; 
 
 if [[ $EUID -ne 0 ]]; then
     printf "%b\n" "${C_RED}✖ این دستور باید با دسترسی root اجرا شود:${C_RESET}"
-    printf "%b\n" "  ${C_BOLD}sudo bash <(curl -Ls https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh)${C_RESET}"
+    printf "%b\n" "  ${C_BOLD}curl -fsSLo phoenix-install.sh https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh${C_RESET}"
+    printf "%b\n" "  ${C_BOLD}sudo bash phoenix-install.sh${C_RESET}"
     exit 1
 fi
 
 if [[ ! -t 0 ]]; then
     printf "%b\n" "${C_RED}✖ ورودی تعاملی در دسترس نیست.${C_RESET}"
     printf "%b\n" "  از این فرم استفاده کنید (نه curl | bash):"
-    printf "%b\n" "  ${C_BOLD}sudo bash <(curl -Ls https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh)${C_RESET}"
+    printf "%b\n" "  ${C_BOLD}curl -fsSLo phoenix-install.sh https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh${C_RESET}"
+    printf "%b\n" "  ${C_BOLD}sudo bash phoenix-install.sh${C_RESET}"
     exit 1
 fi
 

@@ -67,13 +67,14 @@ The result is a system that boots from a single binary + one `store.json`, survi
 
 ## 🚀 Deployment (Production)
 
-On a fresh Ubuntu/Debian server, one command does everything:
+On a fresh Ubuntu/Debian server:
 
 ```bash
-sudo bash <(curl -Ls https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh)
+curl -fsSLo phoenix-install.sh https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh
+sudo bash phoenix-install.sh
 ```
 
-> Use the `bash <(…)` process-substitution form, **not** `curl | bash` — the installer is interactive and needs your terminal for the prompts.
+> Download-then-run keeps the installer interactive for its prompts and avoids the process-substitution issues of `sudo bash <(…)`. If you're already `root`, drop the `sudo`.
 
 The installer will interactively prompt for the domain, owner credentials, and Let's Encrypt email, then install dependencies, build, wire up systemd, secure the site with HTTPS, and print your `PHONIX_BACKUP_KEY` **once** — store it offline immediately.
 
