@@ -121,6 +121,10 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
   }, []);
   const selected = parse(value);
   const [view, setView] = useState(() => selected ?? today);
+  // "day" → day grid, "month" → pick a month, "year" → pick a year (drill-down: year → month → day).
+  const [mode, setMode] = useState<"day" | "month" | "year">("day");
+  // Top of the 12-year window shown in year mode; never extends past the current year.
+  const [yearEnd, setYearEnd] = useState(today.jy);
 
   useEffect(() => {
     if (!open) return;
@@ -132,8 +136,21 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
   }, [open]);
 
   function openCalendar() {
-    setView(parse(value) ?? today);
-    setOpen((v) => !v);
+    const v = parse(value) ?? today;
+    setView(v);
+    setMode("day");
+    setYearEnd(today.jy);
+    setOpen((o) => !o);
+  }
+
+  function pickMonth(jm: number) {
+    setView((v) => ({ ...v, jm, jd: 1 }));
+    setMode("day");
+  }
+
+  function pickYear(jy: number) {
+    setView((v) => ({ ...v, jy }));
+    setMode("month");
   }
 
   function move(delta: number) {
@@ -154,9 +171,13 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
   const cells: (number | null)[] = [...Array(lead).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
 
   // Future dates are not selectable: a payment can't have happened tomorrow. The server enforces this too.
+  // The same rule cascades up — future months (in the current year) and future years are blocked as well.
   const todayJdn = j2d(today.jy, today.jm, today.jd);
-  const isFuture = (jd: number) => j2d(view.jy, view.jm, jd) > todayJdn;
+  const isFutureDay = (jd: number) => j2d(view.jy, view.jm, jd) > todayJdn;
+  const isFutureMonth = (jm: number) => view.jy > today.jy || (view.jy === today.jy && jm > today.jm);
+  const isFutureYear = (jy: number) => jy > today.jy;
   const atCurrentMonth = view.jy > today.jy || (view.jy === today.jy && view.jm >= today.jm);
+  const years = Array.from({ length: 12 }, (_, i) => yearEnd - 11 + i);
 
   return (
     <div ref={wrapRef} className="relative">
@@ -184,38 +205,106 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
 
       {open && (
         <div className="absolute inset-x-0 z-30 mt-2 w-full max-w-[320px] rounded-2xl border border-white/10 bg-[#15151f] p-3 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.7)] sm:w-[290px]">
-          <div className="mb-2 flex items-center justify-between">
-            <button type="button" onClick={() => move(-1)} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white">‹</button>
-            <span className="text-sm font-bold text-white">{MONTHS[view.jm - 1]} {toFa(view.jy)}</span>
-            <button type="button" onClick={() => move(1)} disabled={atCurrentMonth} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent">›</button>
-          </div>
-          <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-white/40">
-            {WEEK.map((w) => <span key={w}>{w}</span>)}
-          </div>
-          <div className="grid grid-cols-7 gap-1">
-            {cells.map((jd, i) => {
-              if (jd === null) return <span key={i} />;
-              const isToday = today.jy === view.jy && today.jm === view.jm && today.jd === jd;
-              const isSel = selected && selected.jy === view.jy && selected.jm === view.jm && selected.jd === jd;
-              const disabled = isFuture(jd);
-              return (
-                <button
-                  key={i}
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => pick(jd)}
-                  className={`grid h-8 place-items-center rounded-lg text-sm transition ${
-                    disabled ? "cursor-not-allowed text-white/20"
-                      : isSel ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] font-bold text-white"
-                      : isToday ? "border border-[#3a64f2]/60 text-white"
-                      : "text-white/75 hover:bg-white/10"
-                  }`}
-                >
-                  {toFa(jd)}
-                </button>
-              );
-            })}
-          </div>
+          {mode === "day" && (
+            <>
+              <div className="mb-2 flex items-center justify-between">
+                <button type="button" onClick={() => move(-1)} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white">‹</button>
+                <span className="flex items-center gap-1.5 text-sm font-bold text-white">
+                  <button type="button" onClick={() => setMode("month")} className="rounded-md px-2 py-0.5 transition hover:bg-white/10">{MONTHS[view.jm - 1]}</button>
+                  <button type="button" onClick={() => { setYearEnd(today.jy); setMode("year"); }} className="rounded-md px-2 py-0.5 transition hover:bg-white/10">{toFa(view.jy)}</button>
+                </span>
+                <button type="button" onClick={() => move(1)} disabled={atCurrentMonth} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent">›</button>
+              </div>
+              <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-white/40">
+                {WEEK.map((w) => <span key={w}>{w}</span>)}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {cells.map((jd, i) => {
+                  if (jd === null) return <span key={i} />;
+                  const isToday = today.jy === view.jy && today.jm === view.jm && today.jd === jd;
+                  const isSel = selected && selected.jy === view.jy && selected.jm === view.jm && selected.jd === jd;
+                  const disabled = isFutureDay(jd);
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => pick(jd)}
+                      className={`grid h-8 place-items-center rounded-lg text-sm transition ${
+                        disabled ? "cursor-not-allowed text-white/20"
+                          : isSel ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] font-bold text-white"
+                          : isToday ? "border border-[#3a64f2]/60 text-white"
+                          : "text-white/75 hover:bg-white/10"
+                      }`}
+                    >
+                      {toFa(jd)}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {mode === "month" && (
+            <>
+              <div className="mb-3 flex items-center justify-center">
+                <button type="button" onClick={() => { setYearEnd(today.jy); setMode("year"); }} className="rounded-md px-3 py-1 text-sm font-bold text-white transition hover:bg-white/10">{toFa(view.jy)}</button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {MONTHS.map((name, i) => {
+                  const jm = i + 1;
+                  const disabled = isFutureMonth(jm);
+                  const isCur = view.jm === jm;
+                  return (
+                    <button
+                      key={name}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => pickMonth(jm)}
+                      className={`grid h-10 place-items-center rounded-lg text-xs font-medium transition ${
+                        disabled ? "cursor-not-allowed text-white/20"
+                          : isCur ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] font-bold text-white"
+                          : "text-white/75 hover:bg-white/10"
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
+
+          {mode === "year" && (
+            <>
+              <div className="mb-3 flex items-center justify-between">
+                <button type="button" onClick={() => setYearEnd((y) => y - 12)} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white">‹</button>
+                <span className="text-sm font-bold text-white">{toFa(years[0])} – {toFa(years[years.length - 1])}</span>
+                <button type="button" onClick={() => setYearEnd((y) => Math.min(today.jy, y + 12))} disabled={yearEnd >= today.jy} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent">›</button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {years.map((jy) => {
+                  const disabled = isFutureYear(jy);
+                  const isCur = view.jy === jy;
+                  return (
+                    <button
+                      key={jy}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => pickYear(jy)}
+                      className={`grid h-10 place-items-center rounded-lg text-sm font-medium transition ${
+                        disabled ? "cursor-not-allowed text-white/20"
+                          : isCur ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] font-bold text-white"
+                          : "text-white/75 hover:bg-white/10"
+                      }`}
+                    >
+                      {toFa(jy)}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
