@@ -232,6 +232,11 @@ export const api = {
     changePassword: (body: { currentPassword: string; newPassword: string }) =>
       request<void>("/account/password", { method: "PUT", body: json(body) }),
   },
+  // Public image upload (avatars, site/admin imagery). Goes through the authenticated, CSRF-protected
+  // backend endpoint and returns an absolute URL usable directly as an <img src>.
+  media: {
+    upload: (file: File) => uploadForm<{ url: string }>("/upload", file).then((r) => r.url),
+  },
   discounts: {
     list: () => request<DiscountCode[]>("/discounts"),
     create: (body: DiscountCodeInput) => request<DiscountCode>("/discounts", { method: "POST", body: json(body) }),

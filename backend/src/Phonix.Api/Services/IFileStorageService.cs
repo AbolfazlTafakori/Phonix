@@ -15,6 +15,11 @@ public interface IFileStorageService
     // the owner (for authorization) plus a random component (so ids can't be enumerated), or an error.
     Task<FileSaveResult> SaveAsync(int ownerId, string category, IFormFile? file, CancellationToken ct = default);
 
+    // Persists a PUBLIC image (e.g. avatars, site/admin imagery). Accepts any decodable image format and
+    // always re-encodes to a single normalized output, so the input file extension is irrelevant. The
+    // returned id is streamed back from an anonymous endpoint (these images are not access-controlled).
+    Task<FileSaveResult> SavePublicImageAsync(int ownerId, IFormFile? file, CancellationToken ct = default);
+
     // Opens a stored file for streaming, or null when the id is malformed or the file is missing.
     StoredFile? Open(string category, string id);
 

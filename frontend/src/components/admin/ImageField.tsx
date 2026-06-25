@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { Spinner } from "./ui";
 import AdminIcon from "./AdminIcon";
+import { api } from "@/lib/api";
 
 type Props = {
   value: string | null;
@@ -35,12 +36,7 @@ export default function ImageField({ value, onChange, label, aspect = "square", 
       if (uploader) {
         onChange(await uploader(file));
       } else {
-        const fd = new FormData();
-        fd.append("file", file);
-        const res = await fetch("/api/upload", { method: "POST", body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error ?? "خطا در آپلود");
-        onChange(data.url as string);
+        onChange(await api.media.upload(file));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در آپلود");

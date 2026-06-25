@@ -25,7 +25,10 @@ public sealed partial class LocalFileStorageService : IFileStorageService
     };
 
     // The only categories that may be written/read, so a caller can never reach an arbitrary subfolder.
-    private static readonly HashSet<string> Categories = new(StringComparer.Ordinal) { "kyc", "cards", "receipts" };
+    // "avatars" holds public images (profile pictures, site/admin imagery) served anonymously.
+    private static readonly HashSet<string> Categories = new(StringComparer.Ordinal) { "kyc", "cards", "receipts", "avatars" };
+
+    private const string PublicCategory = "avatars";
 
     private readonly string _root;
 
@@ -59,6 +62,34 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         {
             if (File.Exists(path)) { try { File.Delete(path); } catch { /* best-effort cleanup */ } }
             // a failure here means the bytes were not a decodable image — reject rather than store anything.
+            return new FileSaveResult(null, "تصویر نامعتبر است یا قابل پردازش نیست.");
+        }
+        return new FileSaveResult(id, null);
+    }
+
+    // Public-image counterpart of SaveAsync. Unlike protected uploads it does NOT gate on the input file
+    // extension: any image SkiaSharp can decode (JPEG, PNG, WebP, GIF, BMP, …) is accepted and always
+    // re-encoded to WebP. That normalizes the output, strips metadata, and neutralizes any non-image payload
+    // smuggled in, so "every extension the user might pick" works while only one safe format is ever stored.
+    public async Task<FileSaveResult> SavePublicImageAsync(int ownerId, IFormFile? file, CancellationToken ct = default)
+    {
+        if (ownerId <= 0) return new FileSaveResult(null, "کاربر نامعتبر است.");
+        if (file is null || file.Length == 0) return new FileSaveResult(null, "فایلی انتخاب نشده است.");
+        if (file.Length > MaxBytes) return new FileSaveResult(null, "حجم تصویر نباید بیشتر از ۶ مگابایت باشد.");
+
+        const string ext = ".webp";
+        var id = $"{ownerId}__{Guid.NewGuid():N}{ext}";
+        var dir = Path.Combine(_root, PublicCategory);
+        Directory.CreateDirectory(dir);
+        var path = Path.Combine(dir, id);
+
+        try
+        {
+            await WriteReencodedAsync(file, ext, path, ct);
+        }
+        catch (Exception)
+        {
+            if (File.Exists(path)) { try { File.Delete(path); } catch { /* best-effort cleanup */ } }
             return new FileSaveResult(null, "تصویر نامعتبر است یا قابل پردازش نیست.");
         }
         return new FileSaveResult(id, null);

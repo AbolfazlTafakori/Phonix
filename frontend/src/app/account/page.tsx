@@ -40,12 +40,7 @@ export default function ProfilePage() {
     setAvatarBusy(true);
     setError("");
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await fetch("/api/upload", { method: "POST", body: fd });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error ?? "خطا در آپلود تصویر");
-      setAvatar(d.url as string);
+      setAvatar(await api.media.upload(file));
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در آپلود تصویر");
     } finally {
