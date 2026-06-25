@@ -15,6 +15,7 @@ export default function AdminTicketsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("Open");
+  const [dept, setDept] = useState<string>("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [reply, setReply] = useState("");
   const [busy, setBusy] = useState(false);
@@ -40,7 +41,15 @@ export default function AdminTicketsPage() {
     }),
     [tickets],
   );
-  const shown = filter === "all" ? tickets : tickets.filter((t) => t.status === filter);
+  const shown = tickets
+    .filter((t) => filter === "all" || t.status === filter)
+    .filter((t) => dept === "all" || t.department === dept);
+
+  // Departments present across the tickets, so the filter always reflects what actually exists.
+  const departments = useMemo(
+    () => Array.from(new Set(tickets.map((t) => t.department).filter(Boolean))),
+    [tickets],
+  );
 
   function apply(t: Ticket) {
     setTickets((p) => p.map((x) => (x.id === t.id ? t : x)));
@@ -114,6 +123,13 @@ export default function AdminTicketsPage() {
             <StatusBadge status={ticketStatusLabel[selected.status]} />
           </div>
 
+          {selected.attachment && (
+            <a href={selected.attachment} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs font-bold text-[#6f93ff] transition hover:bg-white/5">
+              <AdminIcon name="image" className="h-4 w-4" />
+              مشاهده فایل پیوست کاربر
+            </a>
+          )}
+
           <div className="mt-4 space-y-3">
             {selected.messages.map((m, i) => (
               <div key={i} className={`rounded-xl p-3 ${m.isAdmin ? "border-r-2 border-[#e60053]/40 bg-white/[0.03]" : "bg-[#0d0d15]"}`}>
@@ -150,6 +166,23 @@ export default function AdminTicketsPage() {
             ))}
           </div>
 
+          {departments.length > 0 && (
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              <span className="text-xs text-white/40">دپارتمان:</span>
+              {[{ key: "all", label: "همه" }, ...departments.map((d) => ({ key: d, label: d }))].map((d) => (
+                <button
+                  key={d.key}
+                  onClick={() => setDept(d.key)}
+                  className={`rounded-full border px-3.5 py-1 text-xs font-medium transition ${
+                    dept === d.key ? "border-transparent bg-white/10 text-white" : "border-white/10 text-white/60 hover:text-white"
+                  }`}
+                >
+                  {d.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {loading ? (
             <div className="grid place-items-center py-24"><Spinner className="h-8 w-8" /></div>
           ) : error ? (
@@ -178,7 +211,7 @@ export default function AdminTicketsPage() {
 function NewTicketForm({ onCreated, onCancel }: { onCreated: (t: Ticket) => void; onCancel: () => void }) {
   const [username, setUsername] = useState("");
   const [subject, setSubject] = useState("");
-  const [department, setDepartment] = useState("عمومی");
+  const [department, setDepartment] = useState("فنی");
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -220,7 +253,9 @@ function NewTicketForm({ onCreated, onCancel }: { onCreated: (t: Ticket) => void
         </label>
         <label>
           <span className="mb-2 block text-sm text-white/70">دپارتمان</span>
-          <input value={department} onChange={(e) => setDepartment(e.target.value)} className={inputCls} />
+          <select value={department} onChange={(e) => setDepartment(e.target.value)} className={inputCls}>
+            {["فنی", "مالی"].map((d) => <option key={d} value={d} className="bg-[#15151f]">{d}</option>)}
+          </select>
         </label>
       </div>
       <label className="block">

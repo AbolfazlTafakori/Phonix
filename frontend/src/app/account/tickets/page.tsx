@@ -9,7 +9,7 @@ import { StatusBadge } from "@/components/admin/ui";
 import ImageField from "@/components/admin/ImageField";
 import type { Ticket, TicketPriority } from "@/lib/types";
 
-const departments = ["فنی", "مالی", "فروش"];
+const departments = ["فنی", "مالی"];
 const priorities: { value: TicketPriority; label: string }[] = [
   { value: "Low", label: "کم" },
   { value: "Medium", label: "متوسط" },
@@ -95,21 +95,22 @@ export default function TicketsPage() {
                 {departments.map((d) => <option key={d} className="bg-[#15151f]">{d}</option>)}
               </select>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-2 block text-sm text-white/70">سطح اهمیت</label>
-                <select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)} className={inputCls}>
-                  {priorities.map((p) => <option key={p.value} value={p.value} className="bg-[#15151f]">{p.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm text-white/70">فایل پیوست (اختیاری)</label>
-                <div className="w-[120px]">
-                  <ImageField value={attachment} onChange={setAttachment} aspect="square" />
-                </div>
+            <div>
+              <label className="mb-2 block text-sm text-white/70">سطح اهمیت</label>
+              <select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)} className={`${inputCls} sm:w-1/2`}>
+                {priorities.map((p) => <option key={p.value} value={p.value} className="bg-[#15151f]">{p.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="mb-2 block text-sm text-white/70">متن پیام</label>
+              <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="شرح مشکل یا سوال خود را بنویسید..." className="w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 py-3 text-sm text-white outline-none focus:border-[#3e3af2]" />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm text-white/70">فایل پیوست (اختیاری)</label>
+              <div className="w-[120px]">
+                <ImageField value={attachment} onChange={setAttachment} aspect="square" />
               </div>
             </div>
-            <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={4} placeholder="شرح مشکل یا سوال خود را بنویسید..." className="w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 py-3 text-sm text-white outline-none focus:border-[#3e3af2]" />
             <button onClick={create} disabled={busy} className="h-11 w-fit rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60">
               {busy ? "در حال ارسال..." : "ارسال تیکت"}
             </button>
