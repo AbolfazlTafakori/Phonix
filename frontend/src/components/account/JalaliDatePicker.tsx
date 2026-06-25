@@ -179,6 +179,15 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
   const atCurrentMonth = view.jy > today.jy || (view.jy === today.jy && view.jm >= today.jm);
   const years = Array.from({ length: 12 }, (_, i) => yearEnd - 11 + i);
 
+  // Validate what the user TYPED (the calendar already blocks bad picks, but a manual entry must be checked
+  // too). A fully entered date that is malformed or later than today is flagged inline; the server re-checks.
+  const typedDigits = toLatin(value).replace(/\D/g, "").length;
+  const validTyped = selected && selected.jd <= monthLen(selected.jy, selected.jm);
+  const typedError =
+    typedDigits >= 8 && !validTyped ? "تاریخ نامعتبر است."
+      : validTyped && j2d(selected.jy, selected.jm, selected.jd) > todayJdn ? "تاریخ نمی‌تواند از امروز جلوتر باشد."
+      : "";
+
   return (
     <div ref={wrapRef} className="relative">
       <div className="relative">
@@ -188,7 +197,7 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
           dir="ltr"
           inputMode="numeric"
           placeholder="۱۴۰۳/۰۳/۲۲"
-          className={`${inputCls} text-left pl-11`}
+          className={`${inputCls} text-left pl-11 ${typedError ? "border-rose-500/70 focus:border-rose-500" : ""}`}
         />
         <button
           type="button"
@@ -202,6 +211,8 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
           </svg>
         </button>
       </div>
+
+      {typedError && <p className="mt-1.5 text-xs text-rose-400">{typedError}</p>}
 
       {open && (
         <div className="absolute inset-x-0 z-30 mt-2 w-full max-w-[320px] rounded-2xl border border-white/10 bg-[#15151f] p-3 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.7)] sm:w-[290px]">
