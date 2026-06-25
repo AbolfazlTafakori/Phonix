@@ -532,13 +532,13 @@ public partial class StoreData
         return t;
     }
 
-    public Ticket? ReplyTicket(int id, string author, string body, bool isAdmin)
+    public Ticket? ReplyTicket(int id, string author, string body, bool isAdmin, string? attachment = null)
     {
         lock (_gate)
         {
             var t = _tickets.FirstOrDefault(x => x.Id == id);
             if (t is null) return null;
-            t.Messages.Add(new TicketMessage { Author = author, Body = body, IsAdmin = isAdmin, Date = Today() });
+            t.Messages.Add(new TicketMessage { Author = author, Body = body, IsAdmin = isAdmin, Date = Today(), Attachment = attachment ?? "" });
             t.Status = isAdmin ? TicketStatus.Answered : TicketStatus.Open;
             // a staff reply notifies the ticket's owner.
             if (isAdmin) AddNotification(t.UserId, "پاسخ تیکت پشتیبانی", $"به تیکت «{t.Subject}» پاسخ داده شد.", "/account/tickets");

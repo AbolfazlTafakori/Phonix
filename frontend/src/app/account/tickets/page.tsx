@@ -31,6 +31,7 @@ export default function TicketsPage() {
   const [attachment, setAttachment] = useState("");
   const [body, setBody] = useState("");
   const [reply, setReply] = useState("");
+  const [replyAttachment, setReplyAttachment] = useState("");
   const [busy, setBusy] = useState(false);
 
   async function load() {
@@ -65,13 +66,14 @@ export default function TicketsPage() {
   }
 
   async function sendReply() {
-    if (!selected || !reply.trim()) return;
+    if (!selected || (!reply.trim() && !replyAttachment)) return;
     setBusy(true);
     try {
-      const t = await api.tickets.reply(selected.id, reply.trim(), false);
+      const t = await api.tickets.reply(selected.id, reply.trim() || "(فایل پیوست)", false, replyAttachment || undefined);
       setSelected(t);
       setTickets((p) => p.map((x) => (x.id === t.id ? t : x)));
       setReply("");
+      setReplyAttachment("");
     } finally {
       setBusy(false);
     }
@@ -144,14 +146,27 @@ export default function TicketsPage() {
               <div key={i} className={`rounded-xl p-3 ${m.isAdmin ? "border-r-2 border-[#e60053]/40 bg-white/[0.03]" : "bg-[#0d0d15]"}`}>
                 <p className={`text-xs font-bold ${m.isAdmin ? "text-[#ff5a8a]" : "text-white/70"}`}>{m.author} · {m.date}</p>
                 <p className="mt-1.5 text-sm leading-7 text-white/80">{m.body}</p>
+                {m.attachment && (
+                  <a href={m.attachment} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-[#6f93ff] transition hover:bg-white/5">
+                    مشاهده فایل پیوست
+                  </a>
+                )}
               </div>
             ))}
           </div>
 
           {selected.status !== "Closed" && (
-            <div className="mt-4 flex items-start gap-2">
-              <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={2} placeholder="پاسخ شما..." className="flex-1 rounded-xl border border-white/10 bg-[#0d0d15] px-3 py-2 text-sm text-white outline-none focus:border-[#3e3af2]" />
-              <button onClick={sendReply} disabled={busy} className="grid h-10 w-20 place-items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-sm font-bold text-white">ارسال</button>
+            <div className="mt-4">
+              <div className="flex items-start gap-2">
+                <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={2} placeholder="پاسخ شما..." className="flex-1 rounded-xl border border-white/10 bg-[#0d0d15] px-3 py-2 text-sm text-white outline-none focus:border-[#3e3af2]" />
+                <button onClick={sendReply} disabled={busy} className="grid h-10 w-20 place-items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-sm font-bold text-white disabled:opacity-60">ارسال</button>
+              </div>
+              <div className="mt-2">
+                <span className="mb-1 block text-xs text-white/50">فایل پیوست (اختیاری)</span>
+                <div className="w-[110px]">
+                  <ImageField value={replyAttachment} onChange={setReplyAttachment} aspect="square" />
+                </div>
+              </div>
             </div>
           )}
         </Panel>

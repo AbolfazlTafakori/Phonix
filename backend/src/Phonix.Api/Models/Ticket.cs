@@ -20,6 +20,7 @@ public class TicketMessage
     public string Body { get; set; } = "";
     public bool IsAdmin { get; set; }
     public string Date { get; set; } = "";
+    public string Attachment { get; set; } = ""; // optional public URL of a file attached to this reply
 }
 
 public class Ticket

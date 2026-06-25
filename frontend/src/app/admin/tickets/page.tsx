@@ -7,6 +7,7 @@ import { formatNumber } from "@/lib/format";
 import { ticketStatusLabel } from "@/lib/labels";
 import { Card, PageHeader, Spinner, StatusBadge, inputCls } from "@/components/admin/ui";
 import AdminIcon from "@/components/admin/AdminIcon";
+import ImageField from "@/components/admin/ImageField";
 
 type Filter = "all" | TicketStatus;
 
@@ -18,6 +19,7 @@ export default function AdminTicketsPage() {
   const [dept, setDept] = useState<string>("all");
   const [selected, setSelected] = useState<Ticket | null>(null);
   const [reply, setReply] = useState("");
+  const [replyAttachment, setReplyAttachment] = useState("");
   const [busy, setBusy] = useState(false);
   const [composing, setComposing] = useState(false);
 
@@ -57,11 +59,12 @@ export default function AdminTicketsPage() {
   }
 
   async function sendReply() {
-    if (!selected || !reply.trim()) return;
+    if (!selected || (!reply.trim() && !replyAttachment)) return;
     setBusy(true);
     try {
-      apply(await api.tickets.reply(selected.id, reply.trim(), true));
+      apply(await api.tickets.reply(selected.id, reply.trim() || "(فایل پیوست)", true, replyAttachment || undefined));
       setReply("");
+      setReplyAttachment("");
     } finally {
       setBusy(false);
     }
@@ -135,6 +138,12 @@ export default function AdminTicketsPage() {
               <div key={i} className={`rounded-xl p-3 ${m.isAdmin ? "border-r-2 border-[#e60053]/40 bg-white/[0.03]" : "bg-[#0d0d15]"}`}>
                 <p className={`text-xs font-bold ${m.isAdmin ? "text-[#ff5a8a]" : "text-white/70"}`}>{m.author} · {m.date}</p>
                 <p className="mt-1.5 text-sm leading-7 text-white/80">{m.body}</p>
+                {m.attachment && (
+                  <a href={m.attachment} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-[#6f93ff] transition hover:bg-white/5">
+                    <AdminIcon name="image" className="h-3.5 w-3.5" />
+                    مشاهده فایل پیوست
+                  </a>
+                )}
               </div>
             ))}
           </div>
@@ -143,7 +152,13 @@ export default function AdminTicketsPage() {
             <>
               <div className="mt-4 flex items-start gap-2">
                 <textarea value={reply} onChange={(e) => setReply(e.target.value)} rows={2} placeholder="پاسخ پشتیبانی..." className="flex-1 rounded-xl border border-white/10 bg-[#0d0d15] px-3 py-2 text-sm text-white outline-none focus:border-[#3a64f2]" />
-                <button onClick={sendReply} disabled={busy} className="grid h-10 w-20 place-items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-sm font-bold text-white">{busy ? <Spinner /> : "ارسال"}</button>
+                <button onClick={sendReply} disabled={busy} className="grid h-10 w-20 place-items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-sm font-bold text-white disabled:opacity-60">{busy ? <Spinner /> : "ارسال"}</button>
+              </div>
+              <div className="mt-2">
+                <span className="mb-1 block text-xs text-white/50">فایل پیوست (اختیاری)</span>
+                <div className="w-[110px]">
+                  <ImageField value={replyAttachment} onChange={setReplyAttachment} aspect="square" />
+                </div>
               </div>
               <button onClick={() => close(selected)} disabled={busy} className="mt-3 rounded-lg border border-white/10 px-4 py-2 text-xs font-bold text-white/70 transition hover:bg-white/5">بستن تیکت</button>
             </>

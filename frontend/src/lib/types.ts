@@ -495,7 +495,7 @@ export type Order = {
 export type TicketStatus = "Open" | "Answered" | "Closed";
 export type TicketPriority = "Low" | "Medium" | "High";
 
-export type TicketMessage = { author: string; body: string; isAdmin: boolean; date: string };
+export type TicketMessage = { author: string; body: string; isAdmin: boolean; date: string; attachment?: string };
 
 export type Ticket = {
   id: number;

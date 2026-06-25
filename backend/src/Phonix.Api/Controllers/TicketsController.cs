@@ -8,7 +8,7 @@ namespace Phonix.Api.Controllers;
 
 public record CreateTicketInput(string Subject, string Department, string Body, TicketPriority? Priority, string? Attachment);
 public record AdminCreateTicketInput(int UserId, string Subject, string Department, string Body, TicketPriority? Priority);
-public record TicketReplyInput(string Body, bool IsAdmin);
+public record TicketReplyInput(string Body, bool IsAdmin, string? Attachment);
 
 [ApiController]
 [Route("api/tickets")]
@@ -79,7 +79,7 @@ public class TicketsController : ControllerBase
         // only staff may post a reply as support; a customer can never impersonate it.
         var isAdmin = input.IsAdmin && this.IsStaff();
         var author = isAdmin ? "پشتیبانی فونیکس" : ticket.UserName;
-        var t = _store.ReplyTicket(id, author, input.Body, isAdmin);
+        var t = _store.ReplyTicket(id, author, input.Body, isAdmin, input.Attachment);
         return t is null ? NotFound() : t;
     }
 
