@@ -13,6 +13,10 @@ public class PricingSettings
     public int SubscriptionReminderHoursBefore { get; set; } = 48;
     public string Currency { get; set; } = "تومان";
     public bool ShowOriginalPrice { get; set; } = true;
+    // USD→Toman rate control for dollar-priced products. When UsdRateAuto is true the live Nobitex rate is
+    // used (falling back to ManualUsdRate if Nobitex is unreachable); when false the manual rate is always used.
+    public long ManualUsdRate { get; set; }
+    public bool UsdRateAuto { get; set; } = true;
 }
 
 public class SubscriptionPlan

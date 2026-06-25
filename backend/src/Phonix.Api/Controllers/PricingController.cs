@@ -22,17 +22,40 @@ public class PricingController : ControllerBase
         _rate = rate;
     }
 
-    // Live USDT→Toman rate (from Nobitex) used to price products entered in USD. Anonymous so the storefront
-    // can show it; refresh is staff-only.
+    // USD→Toman rate used to price products entered in USD. `tomanPerUsd` is the effective rate (what prices
+    // actually use); `nobitex` is the live value; `manual`/`auto` reflect the admin override. Anonymous so
+    // the storefront can show it; mutations are staff-only.
     [AllowAnonymous]
     [HttpGet("usd-rate")]
-    public object GetUsdRate() => new { tomanPerUsd = _rate.TomanPerUsd, updatedAtUnixMs = _rate.UpdatedAtUnixMs };
+    public object GetUsdRate()
+    {
+        var s = _store.GetSettings();
+        return new
+        {
+            tomanPerUsd = _rate.TomanPerUsd,
+            nobitex = _rate.NobitexToman,
+            manual = s.ManualUsdRate,
+            auto = s.UsdRateAuto,
+            updatedAtUnixMs = _rate.UpdatedAtUnixMs,
+        };
+    }
 
     [HttpPost("usd-rate/refresh")]
     public async Task<object> RefreshUsdRate()
     {
         await _rate.RefreshAsync();
-        return new { tomanPerUsd = _rate.TomanPerUsd, updatedAtUnixMs = _rate.UpdatedAtUnixMs };
+        return GetUsdRate();
+    }
+
+    public record ManualRateInput(long Rate, bool Auto);
+
+    // Sets the manual rate and auto/manual mode, then re-prices all USD products/plans against the result.
+    [HttpPut("usd-rate/manual")]
+    public object SetManualRate(ManualRateInput input)
+    {
+        _store.SetUsdRate(input.Rate, input.Auto);
+        _rate.ApplyCurrent();
+        return GetUsdRate();
     }
 
     [AllowAnonymous]

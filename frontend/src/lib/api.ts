@@ -62,6 +62,7 @@ import type {
   DiscountCode,
   DiscountCodeInput,
   DiscountResult,
+  UsdRateInfo,
 } from "./types";
 import { getCsrfToken } from "./token";
 
@@ -258,8 +259,10 @@ export const api = {
     createPlan: (body: PlanInput) => request<Plan>("/pricing/plans", { method: "POST", body: json(body) }),
     updatePlan: (id: number, body: PlanInput) => request<Plan>(`/pricing/plans/${id}`, { method: "PUT", body: json(body) }),
     removePlan: (id: number) => request<void>(`/pricing/plans/${id}`, { method: "DELETE" }),
-    usdRate: () => request<{ tomanPerUsd: number; updatedAtUnixMs: number }>("/pricing/usd-rate"),
-    refreshUsdRate: () => request<{ tomanPerUsd: number; updatedAtUnixMs: number }>("/pricing/usd-rate/refresh", { method: "POST" }),
+    usdRate: () => request<UsdRateInfo>("/pricing/usd-rate"),
+    refreshUsdRate: () => request<UsdRateInfo>("/pricing/usd-rate/refresh", { method: "POST" }),
+    setManualUsdRate: (rate: number, auto: boolean) =>
+      request<UsdRateInfo>("/pricing/usd-rate/manual", { method: "PUT", body: json({ rate, auto }) }),
   },
   hero: {
     list: () => request<HeroSlide[]>("/hero"),

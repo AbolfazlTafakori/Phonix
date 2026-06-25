@@ -17,7 +17,7 @@ public sealed class UsdRateService : BackgroundService
     private readonly StoreData _store;
     private readonly ILogger<UsdRateService> _log;
 
-    private long _tomanPerUsd;     // 0 until the first successful fetch
+    private long _nobitexToman;    // last live value from Nobitex, 0 until the first successful fetch
     private long _updatedAtUnixMs;
 
     public UsdRateService(IHttpClientFactory http, StoreData store, ILogger<UsdRateService> log)
@@ -27,8 +27,25 @@ public sealed class UsdRateService : BackgroundService
         _log = log;
     }
 
-    public long TomanPerUsd => Interlocked.Read(ref _tomanPerUsd);
+    public long NobitexToman => Interlocked.Read(ref _nobitexToman);
     public long UpdatedAtUnixMs => Interlocked.Read(ref _updatedAtUnixMs);
+
+    // The rate everything actually prices against: the live Nobitex value in auto mode (falling back to the
+    // manual rate when Nobitex is unreachable), or the manual rate in manual mode.
+    public long TomanPerUsd
+    {
+        get
+        {
+            var s = _store.GetSettings();
+            var live = NobitexToman;
+            if (s.UsdRateAuto && live > 0) return live;
+            return s.ManualUsdRate;
+        }
+    }
+
+    // Re-prices USD products/plans against the current effective rate. Call after the live rate refreshes or
+    // the admin changes the manual rate/mode.
+    public void ApplyCurrent() => _store.ApplyUsdRate(TomanPerUsd);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -70,9 +87,9 @@ public sealed class UsdRateService : BackgroundService
                     // We query the rls (Rial) market, so the value is always in Rial. Dividing by 10 yields the
                     // Toman figure shown on nobitex.ir — deterministic, no magnitude guessing.
                     var toman = (long)Math.Round(rials / 10m);
-                    Interlocked.Exchange(ref _tomanPerUsd, toman);
+                    Interlocked.Exchange(ref _nobitexToman, toman);
                     Interlocked.Exchange(ref _updatedAtUnixMs, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                    _store.ApplyUsdRate(toman);
+                    ApplyCurrent();
                     return true;
                 }
             }

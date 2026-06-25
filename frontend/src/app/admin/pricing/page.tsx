@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import type { Category, Product, PricingSettings, Plan } from "@/lib/types";
+import type { Category, Product, PricingSettings, Plan, UsdRateInfo } from "@/lib/types";
 import { formatToman, formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner, Toggle, StatusBadge, inputCls } from "@/components/admin/ui";
 import AdminIcon from "@/components/admin/AdminIcon";
@@ -16,7 +16,7 @@ const tabs: { key: Tab; label: string }[] = [
   { key: "plans", label: "پلن‌های اشتراک" },
 ];
 
-type UsdRate = { tomanPerUsd: number; updatedAtUnixMs: number };
+type UsdRate = UsdRateInfo;
 
 function finalOf(price: number, discount: number) {
   return discount > 0 ? Math.round(price * (1 - discount / 100)) : price;
@@ -528,6 +528,9 @@ function PlansPanel({
 function UsdRatePanel({ usd, setUsd }: { usd: UsdRate | null; setUsd: (u: UsdRate) => void }) {
   const [busy, setBusy] = useState(false);
   const [amount, setAmount] = useState(5);
+  const [auto, setAuto] = useState(usd?.auto ?? true);
+  const [manual, setManual] = useState(usd?.manual || 0);
+  const [savingManual, setSavingManual] = useState(false);
   const rate = usd?.tomanPerUsd ?? 0;
 
   async function refresh() {
@@ -539,47 +542,83 @@ function UsdRatePanel({ usd, setUsd }: { usd: UsdRate | null; setUsd: (u: UsdRat
     }
   }
 
+  async function saveManual() {
+    setSavingManual(true);
+    try {
+      setUsd(await api.pricing.setManualUsdRate(manual, auto));
+    } finally {
+      setSavingManual(false);
+    }
+  }
+
   const updated = usd?.updatedAtUnixMs
     ? new Date(usd.updatedAtUnixMs).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" })
     : "—";
+  const source = usd?.auto && (usd?.nobitex ?? 0) > 0 ? "خودکار (نوبیتکس)" : "دستی";
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <Card className="p-6">
         <div className="flex items-center justify-between gap-3">
-          <h3 className="text-lg font-bold text-white">نرخ زندهٔ دلار (USDT)</h3>
+          <h3 className="text-lg font-bold text-white">نرخ فعلی دلار</h3>
           <button
             onClick={refresh}
             disabled={busy}
             className="flex h-10 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-bold text-white/80 transition hover:bg-white/5 disabled:opacity-50"
           >
             {busy ? <Spinner /> : <span className="text-base leading-none">↻</span>}
-            به‌روزرسانی
+            دریافت از نوبیتکس
           </button>
         </div>
-        <p className="mt-5 text-3xl font-black text-emerald-400">{rate ? formatToman(rate) : "در حال دریافت…"}</p>
-        <p className="mt-1 text-xs text-white/45">به ازای هر ۱ دلار · منبع: نوبیتکس</p>
-        <p className="mt-3 text-xs text-white/40">آخرین به‌روزرسانی: {updated}</p>
+        <p className="mt-5 text-3xl font-black text-emerald-400">{rate ? formatToman(rate) : "تعیین نشده"}</p>
+        <p className="mt-1 text-xs text-white/45">به ازای هر ۱ دلار · منبع فعلی: {source}</p>
+        <p className="mt-3 text-xs text-white/40">آخرین دریافت از نوبیتکس: {updated}{usd && usd.nobitex > 0 ? ` (${formatToman(usd.nobitex)})` : " — در دسترس نبود"}</p>
         <p className="mt-5 rounded-xl border border-white/8 bg-white/[0.02] p-3 text-xs leading-6 text-white/55">
-          نرخ هر ۵ دقیقه به‌صورت خودکار از نوبیتکس دریافت می‌شود و قیمت تومانیِ محصولاتی که قیمت دلاری دارند، لحظه‌ای با آن به‌روزرسانی می‌شود.
+          در حالت خودکار، نرخ هر ۵ دقیقه از نوبیتکس گرفته می‌شود و اگر سرور به نوبیتکس دسترسی نداشته باشد، از «نرخ دستی» زیر استفاده می‌شود. قیمت محصولات دلاری لحظه‌ای با نرخ فعلی به‌روزرسانی می‌شود.
         </p>
       </Card>
 
       <Card className="h-fit p-6">
-        <h3 className="mb-4 text-lg font-bold text-white">تبدیل سریع دلار به تومان</h3>
-        <label className="mb-2 block text-sm text-white/70">مبلغ به دلار ($)</label>
+        <h3 className="mb-4 text-lg font-bold text-white">تعیین دستی نرخ</h3>
+        <label className="mb-4 flex cursor-pointer items-center justify-between">
+          <span className="text-sm text-white/80">نرخ خودکار از نوبیتکس</span>
+          <Toggle checked={auto} onChange={setAuto} />
+        </label>
+        <label className="mb-2 block text-sm text-white/70">نرخ دستی هر دلار (تومان)</label>
         <input
           type="number"
           dir="ltr"
           min={0}
-          step={0.01}
-          value={amount}
-          onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
+          value={manual || ""}
+          placeholder="مثلاً 68500"
+          onChange={(e) => setManual(Math.max(0, Number(e.target.value)))}
           className={`${inputCls} text-left`}
         />
-        <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.02] p-4">
-          <span className="text-xs text-white/45">معادل تومان</span>
-          <p className="text-2xl font-bold text-white">{rate ? formatToman(Math.round(amount * rate)) : "—"}</p>
+        <p className="mt-1.5 text-xs text-white/45">{auto ? "وقتی نوبیتکس در دسترس نباشد از این نرخ استفاده می‌شود." : "حالت دستی فعال است؛ همیشه از این نرخ استفاده می‌شود."}</p>
+        <button
+          onClick={saveManual}
+          disabled={savingManual}
+          className="mt-4 flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+        >
+          {savingManual ? <Spinner /> : "ذخیره نرخ"}
+        </button>
+
+        <div className="mt-6 border-t border-white/8 pt-5">
+          <h4 className="mb-3 text-sm font-bold text-white">تبدیل سریع</h4>
+          <label className="mb-2 block text-sm text-white/70">مبلغ به دلار ($)</label>
+          <input
+            type="number"
+            dir="ltr"
+            min={0}
+            step={0.01}
+            value={amount}
+            onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
+            className={`${inputCls} text-left`}
+          />
+          <div className="mt-3 rounded-xl border border-white/8 bg-white/[0.02] p-4">
+            <span className="text-xs text-white/45">معادل تومان</span>
+            <p className="text-2xl font-bold text-white">{rate ? formatToman(Math.round(amount * rate)) : "نرخ تعیین نشده"}</p>
+          </div>
         </div>
       </Card>
     </div>

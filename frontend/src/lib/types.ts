@@ -239,6 +239,14 @@ export type PlanInput = {
   priceUsd?: number;
 };
 
+export type UsdRateInfo = {
+  tomanPerUsd: number; // effective rate prices use
+  nobitex: number; // last live value from Nobitex (0 if unavailable)
+  manual: number; // admin-set manual rate
+  auto: boolean; // true = use Nobitex (fallback to manual), false = always manual
+  updatedAtUnixMs: number;
+};
+
 export type HeroSlide = {
   id: number;
   title: string;

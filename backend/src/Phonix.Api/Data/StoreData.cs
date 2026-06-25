@@ -490,6 +490,18 @@ public partial class StoreData
         lock (_gate) return _settings;
     }
 
+    // Updates just the USD-rate controls (manual value + auto/manual mode) without touching the rest of the
+    // pricing settings, so the dollar-rate panel can't clobber fees/limits edited elsewhere.
+    public void SetUsdRate(long manualToman, bool auto)
+    {
+        lock (_gate)
+        {
+            _settings.ManualUsdRate = Math.Max(0, manualToman);
+            _settings.UsdRateAuto = auto;
+        }
+        PersistNow();
+    }
+
     public void UpdateSettings(PricingSettings settings)
     {
         lock (_gate) _settings = settings;
