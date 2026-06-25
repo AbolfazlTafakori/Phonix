@@ -58,9 +58,17 @@ public partial class StoreData
         {
             foreach (var p in _products)
             {
-                if (p.PriceUsd <= 0) continue;
-                var toman = (long)Math.Round(p.PriceUsd * tomanPerUsd);
-                if (toman != p.Price) { p.Price = toman; changed = true; }
+                if (p.PriceUsd > 0)
+                {
+                    var toman = (long)Math.Round(p.PriceUsd * tomanPerUsd);
+                    if (toman != p.Price) { p.Price = toman; changed = true; }
+                }
+                foreach (var pl in p.Plans)
+                {
+                    if (pl.PriceUsd <= 0) continue;
+                    var planToman = (long)Math.Round(pl.PriceUsd * tomanPerUsd);
+                    if (planToman != pl.Price) { pl.Price = planToman; changed = true; }
+                }
             }
             foreach (var pl in _plans)
             {

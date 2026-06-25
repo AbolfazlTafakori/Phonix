@@ -32,12 +32,13 @@ const emptyForm = (categoryId: number): ProductInput => ({
   plans: [],
 });
 
-const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, discountPercent: 0, isActive: true });
+const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true });
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [planTypes, setPlanTypes] = useState<string[]>([]);
+  const [rate, setRate] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -48,10 +49,16 @@ export default function AdminProductsPage() {
 
   async function load() {
     try {
-      const [p, c, t] = await Promise.all([api.products.list(), api.categories.list(), api.planTypes.list()]);
+      const [p, c, t, u] = await Promise.all([
+        api.products.list(),
+        api.categories.list(),
+        api.planTypes.list(),
+        api.pricing.usdRate().catch(() => null),
+      ]);
       setProducts(p);
       setCategories(c);
       setPlanTypes(t);
+      setRate(u?.tomanPerUsd ?? 0);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در بارگذاری");
     } finally {
@@ -87,7 +94,7 @@ export default function AdminProductsPage() {
       deliveryTemplate: p.deliveryTemplate,
       priceUsd: p.priceUsd ?? 0,
       features: p.features.map((f) => ({ ...f })),
-      plans: p.plans.map((pl) => ({ type: pl.type, months: pl.months, price: pl.price, discountPercent: pl.discountPercent, isActive: pl.isActive })),
+      plans: p.plans.map((pl) => ({ type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive })),
     });
     setModalOpen(true);
   }
@@ -284,7 +291,11 @@ export default function AdminProductsPage() {
             <div className="space-y-2">
               {form.plans.map((pl, i) => (
                 <div key={i} className="rounded-xl border border-white/8 bg-white/[0.02] p-3 sm:p-4">
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {(() => {
+                    const usdPriced = (pl.priceUsd ?? 0) > 0;
+                    const planToman = usdPriced && rate > 0 ? Math.round(pl.priceUsd * rate) : pl.price;
+                    return (
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
                     <Field label="نوع سرویس">
                       <select value={pl.type} onChange={(e) => setPlan(i, "type", e.target.value)} className={inputCls}>
                         {planTypes.map((t) => <option key={t} value={t} className="bg-[#15151f]">{t}</option>)}
@@ -294,13 +305,18 @@ export default function AdminProductsPage() {
                     <Field label="مدت (ماه)">
                       <input type="number" dir="ltr" min={1} value={pl.months} onChange={(e) => setPlan(i, "months", Math.max(1, Number(e.target.value)))} className={`${inputCls} text-left`} />
                     </Field>
+                    <Field label="قیمت دلاری ($)">
+                      <input type="number" dir="ltr" min={0} step={0.01} value={pl.priceUsd || ""} placeholder="—" onChange={(e) => setPlan(i, "priceUsd", Math.max(0, Number(e.target.value)))} className={`${inputCls} text-left`} />
+                    </Field>
                     <Field label="قیمت (تومان)">
-                      <input type="number" dir="ltr" value={pl.price} onChange={(e) => setPlan(i, "price", Number(e.target.value))} className={`${inputCls} text-left`} />
+                      <input type="number" dir="ltr" value={planToman} disabled={usdPriced} onChange={(e) => setPlan(i, "price", Number(e.target.value))} className={`${inputCls} text-left ${usdPriced ? "opacity-50" : ""}`} />
                     </Field>
                     <Field label="تخفیف (٪)">
                       <input type="number" dir="ltr" min={0} max={100} value={pl.discountPercent} onChange={(e) => setPlan(i, "discountPercent", Math.min(100, Math.max(0, Number(e.target.value))))} className={`${inputCls} text-left`} />
                     </Field>
                   </div>
+                    );
+                  })()}
                   <div className="mt-3 flex items-center justify-between border-t border-white/8 pt-3">
                     <label className="flex cursor-pointer items-center gap-2 text-sm text-white/75">
                       <Toggle checked={pl.isActive} onChange={(v) => setPlan(i, "isActive", v)} />

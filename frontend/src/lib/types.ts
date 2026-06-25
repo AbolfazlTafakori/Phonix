@@ -25,6 +25,7 @@ export type ProductPlan = {
   type: string;
   months: number;
   price: number;
+  priceUsd: number;
   discountPercent: number;
   isActive: boolean;
   finalPrice: number;
@@ -34,6 +35,7 @@ export type ProductPlanInput = {
   type: string;
   months: number;
   price: number;
+  priceUsd: number;
   discountPercent: number;
   isActive: boolean;
 };

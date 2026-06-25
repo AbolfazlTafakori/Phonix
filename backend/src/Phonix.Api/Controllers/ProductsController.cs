@@ -101,8 +101,11 @@ public class ProductsController : ControllerBase
     // correct right away (the background service keeps it in sync afterwards).
     private void ApplyUsdPrice(Product p)
     {
-        if (p.PriceUsd > 0 && _rate.TomanPerUsd > 0)
-            p.Price = (long)Math.Round(p.PriceUsd * _rate.TomanPerUsd);
+        var rate = _rate.TomanPerUsd;
+        if (rate <= 0) return;
+        if (p.PriceUsd > 0) p.Price = (long)Math.Round(p.PriceUsd * rate);
+        foreach (var pl in p.Plans)
+            if (pl.PriceUsd > 0) pl.Price = (long)Math.Round(pl.PriceUsd * rate);
     }
 
     private Product Map(Product target, ProductInput input)
@@ -132,6 +135,7 @@ public class ProductsController : ControllerBase
         Type = (plan.Type ?? "").Trim(),
         Months = Math.Max(1, plan.Months),
         Price = Math.Max(0, plan.Price),
+        PriceUsd = Math.Max(0, plan.PriceUsd),
         DiscountPercent = Math.Clamp(plan.DiscountPercent, 0, 100),
         IsActive = plan.IsActive,
     };
