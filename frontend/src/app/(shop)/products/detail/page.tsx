@@ -103,10 +103,13 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
           )}
 
           {out ? (
-            <div className="mt-6 rounded-2xl border border-rose-500/25 bg-rose-500/[0.06] p-5 text-center">
-              <p className="text-sm font-bold text-rose-300">این محصول در حال حاضر ناموجود است</p>
-              <p className="mt-1.5 text-xs text-white/50">می‌توانید آن را به علاقه‌مندی‌ها اضافه کنید تا هنگام موجود شدن مطلع شوید.</p>
-            </div>
+            <button
+              type="button"
+              disabled
+              className="mt-6 h-14 w-full cursor-not-allowed rounded-2xl border border-white/10 bg-white/[0.04] text-base font-bold text-white/55"
+            >
+              ناموجود
+            </button>
           ) : (
             <ProductPurchase product={product} />
           )}
