@@ -184,7 +184,7 @@ export default function NavbarClient({ brand, header }: Props) {
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
     const q = term.trim();
-    router.push(q ? `/films?q=${encodeURIComponent(q)}` : "/films");
+    router.push(q ? `/products?q=${encodeURIComponent(q)}` : "/products");
     setMenu(null);
     setTerm("");
   }

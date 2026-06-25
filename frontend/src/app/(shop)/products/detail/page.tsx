@@ -64,7 +64,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
       <nav className="mb-6 flex items-center gap-2 text-sm text-white/45">
         <Link href="/" className="hover:text-white">خانه</Link>
         <span>/</span>
-        <Link href="/films" className="hover:text-white">{product.categoryName || "فروشگاه"}</Link>
+        <Link href="/products" className="hover:text-white">{product.categoryName || "فروشگاه"}</Link>
         <span>/</span>
         <span className="text-white/70">{product.name}</span>
       </nav>

@@ -29,6 +29,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // The products section moved from /films to /products. Keep the old paths working so existing links,
+  // bookmarks, and any hrefs still stored as /films (e.g. home categories) don't 404.
+  async redirects() {
+    return [
+      { source: "/films", destination: "/products", permanent: true },
+      { source: "/films/:path*", destination: "/products/:path*", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

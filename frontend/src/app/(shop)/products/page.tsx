@@ -39,7 +39,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
 
       <div className="mb-8 flex flex-wrap gap-3">
         <Link
-          href="/films"
+          href="/products"
           className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
             selected === 0 ? "border-transparent bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white" : "border-white/10 text-white/70 hover:bg-white/5 hover:text-white"
           }`}
@@ -49,7 +49,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
         {activeCats.map((c) => (
           <Link
             key={c.id}
-            href={`/films?cat=${c.id}`}
+            href={`/products?cat=${c.id}`}
             className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
               selected === c.id ? "border-transparent bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white" : "border-white/10 text-white/70 hover:bg-white/5 hover:text-white"
             }`}
@@ -66,7 +66,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
           {shown.map((p) => (
             <Link
               key={p.id}
-              href={`/films/detail?id=${p.id}`}
+              href={`/products/detail?id=${p.id}`}
               className="group relative block overflow-hidden rounded-2xl border border-white/8 bg-[#0d0d14] transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
             >
               <div className="relative aspect-[3/4]">

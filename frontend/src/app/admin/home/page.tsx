@@ -158,7 +158,7 @@ function CategoriesPanel() {
   async function add() {
     setAdding(true);
     try {
-      const created = await api.homeCategories.create({ title: "کارت جدید", icon: "", href: "/films", iconClass: "", sortOrder: items.length + 1, isActive: true });
+      const created = await api.homeCategories.create({ title: "کارت جدید", icon: "", href: "/products", iconClass: "", sortOrder: items.length + 1, isActive: true });
       setItems((p) => [...p, created]);
       setDrafts((p) => ({ ...p, [created.id]: stripId(created) }));
     } finally {

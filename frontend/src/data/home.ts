@@ -20,14 +20,14 @@ export type BlogPost = {
 };
 
 export const categories: Category[] = [
-  { title: "کارت های اعتباری", icon: "/figma/e67d98d153b9caf9a7453da98a1c85ae776bd4bb.png", href: "/films", iconClass: "translate-y-3 translate-x-4" },
-  { title: "گرافیک طراحی و تدوین", icon: "/figma/cat-graphic.png", href: "/films" },
-  { title: "فیلم سریال استریم ویدئویی", icon: "/figma/cat-film.png", href: "/films" },
-  { title: "موسیقی", icon: "/figma/cat-music.png", href: "/films", iconClass: "scale-125 translate-y-4" },
-  { title: "محصولات بیشتر", icon: "/figma/cat-more.png", href: "/films" },
-  { title: "شبکه های اجتماعی و ارتباطات", icon: "/figma/cat-social.png", href: "/films" },
-  { title: "بازی و سرگرمی", icon: "/figma/cat-games.png", href: "/films" },
-  { title: "صرافی ارز دیجیتال", icon: "/figma/cat-exchange.png", href: "/films" },
+  { title: "کارت های اعتباری", icon: "/figma/e67d98d153b9caf9a7453da98a1c85ae776bd4bb.png", href: "/products", iconClass: "translate-y-3 translate-x-4" },
+  { title: "گرافیک طراحی و تدوین", icon: "/figma/cat-graphic.png", href: "/products" },
+  { title: "فیلم سریال استریم ویدئویی", icon: "/figma/cat-film.png", href: "/products" },
+  { title: "موسیقی", icon: "/figma/cat-music.png", href: "/products", iconClass: "scale-125 translate-y-4" },
+  { title: "محصولات بیشتر", icon: "/figma/cat-more.png", href: "/products" },
+  { title: "شبکه های اجتماعی و ارتباطات", icon: "/figma/cat-social.png", href: "/products" },
+  { title: "بازی و سرگرمی", icon: "/figma/cat-games.png", href: "/products" },
+  { title: "صرافی ارز دیجیتال", icon: "/figma/cat-exchange.png", href: "/products" },
 ];
 
 export const products: Product[] = [
@@ -63,7 +63,7 @@ export const blogPosts: BlogPost[] = [
 ];
 
 export const footerLinks = [
-  { label: "فروشگاه", href: "/films" },
+  { label: "فروشگاه", href: "/products" },
   { label: "سبد خرید", href: "#" },
   { label: "تماس با ما", href: "#" },
   { label: "قوانین و مقررات", href: "#" },
@@ -72,5 +72,5 @@ export const footerLinks = [
 
 export const navLinks = [
   { label: "خانه", href: "/", hasMenu: false },
-  { label: "همه محصولات", href: "/films", hasMenu: false },
+  { label: "همه محصولات", href: "/products", hasMenu: false },
 ];

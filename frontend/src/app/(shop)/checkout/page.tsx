@@ -198,7 +198,7 @@ export default function CheckoutPage() {
     return (
       <div className="mx-auto max-w-[640px] px-5 py-20 text-center">
         <h1 className="text-2xl font-bold text-white">سبد خرید خالی است</h1>
-        <Link href="/films" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
+        <Link href="/products" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
           مشاهده محصولات
         </Link>
       </div>

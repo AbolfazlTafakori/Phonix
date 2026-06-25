@@ -39,14 +39,14 @@ export default function FavoritesPage() {
         <Panel>
           <div className="py-8 text-center">
             <p className="text-white/60">لیست علاقه‌مندی شما خالی است.</p>
-            <Link href="/films" className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 py-2.5 text-sm font-bold text-white transition hover:brightness-110">مشاهده محصولات</Link>
+            <Link href="/products" className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 py-2.5 text-sm font-bold text-white transition hover:brightness-110">مشاهده محصولات</Link>
           </div>
         </Panel>
       ) : (
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
           {items.map((product) => (
             <div key={product.id} className="group relative overflow-hidden rounded-2xl border border-white/8 bg-[#0d0d14]">
-              <Link href={`/films/detail?id=${product.id}`} className="relative block aspect-[3/4]">
+              <Link href={`/products/detail?id=${product.id}`} className="relative block aspect-[3/4]">
                 <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-4">

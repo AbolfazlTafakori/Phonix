@@ -83,7 +83,7 @@ export default function OrdersPage() {
         <Panel>
           <div className="py-8 text-center">
             <p className="text-white/60">هنوز سفارشی ثبت نکرده‌اید.</p>
-            <Link href="/films" className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 py-2.5 text-sm font-bold text-white transition hover:brightness-110">
+            <Link href="/products" className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 py-2.5 text-sm font-bold text-white transition hover:brightness-110">
               شروع خرید
             </Link>
           </div>
