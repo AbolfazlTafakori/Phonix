@@ -30,6 +30,9 @@ if ! command -v git >/dev/null 2>&1; then
 fi
 
 mkdir -p "$(dirname "$REPO_DIR")"
+# A prior install chowns $REPO_DIR to the service user, so root-run git would abort with
+# "dubious ownership". Mark it trusted before touching it.
+git config --global --add safe.directory "$REPO_DIR"
 if [[ -d "$REPO_DIR/.git" ]]; then
     git -C "$REPO_DIR" fetch --all --prune
     git -C "$REPO_DIR" reset --hard origin/main
