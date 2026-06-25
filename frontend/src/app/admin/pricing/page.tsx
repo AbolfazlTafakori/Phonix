@@ -573,6 +573,9 @@ function UsdRatePanel({ usd, setUsd }: { usd: UsdRate | null; setUsd: (u: UsdRat
         <p className="mt-5 text-3xl font-black text-emerald-400">{rate ? formatToman(rate) : "تعیین نشده"}</p>
         <p className="mt-1 text-xs text-white/45">به ازای هر ۱ دلار · منبع فعلی: {source}</p>
         <p className="mt-3 text-xs text-white/40">آخرین دریافت از نوبیتکس: {updated}{usd && usd.nobitex > 0 ? ` (${formatToman(usd.nobitex)})` : " — در دسترس نبود"}</p>
+        {usd?.lastError && (usd?.nobitex ?? 0) <= 0 && (
+          <p className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] p-2.5 text-xs leading-6 text-amber-200/90">⚠ {usd.lastError} — از «نرخ دستی» روبه‌رو استفاده کنید.</p>
+        )}
         <p className="mt-5 rounded-xl border border-white/8 bg-white/[0.02] p-3 text-xs leading-6 text-white/55">
           در حالت خودکار، نرخ هر ۵ دقیقه از نوبیتکس گرفته می‌شود و اگر سرور به نوبیتکس دسترسی نداشته باشد، از «نرخ دستی» زیر استفاده می‌شود. قیمت محصولات دلاری لحظه‌ای با نرخ فعلی به‌روزرسانی می‌شود.
         </p>

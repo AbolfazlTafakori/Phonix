@@ -37,6 +37,7 @@ public class PricingController : ControllerBase
             manual = s.ManualUsdRate,
             auto = s.UsdRateAuto,
             updatedAtUnixMs = _rate.UpdatedAtUnixMs,
+            lastError = _rate.LastError,
         };
     }
 

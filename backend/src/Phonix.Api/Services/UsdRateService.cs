@@ -19,6 +19,7 @@ public sealed class UsdRateService : BackgroundService
 
     private long _nobitexToman;    // last live value from Nobitex, 0 until the first successful fetch
     private long _updatedAtUnixMs;
+    private volatile string _lastError = ""; // why the last auto-fetch failed (shown in the admin panel)
 
     public UsdRateService(IHttpClientFactory http, StoreData store, ILogger<UsdRateService> log)
     {
@@ -29,6 +30,7 @@ public sealed class UsdRateService : BackgroundService
 
     public long NobitexToman => Interlocked.Read(ref _nobitexToman);
     public long UpdatedAtUnixMs => Interlocked.Read(ref _updatedAtUnixMs);
+    public string LastError => _lastError;
 
     // The rate everything actually prices against: the live Nobitex value in auto mode (falling back to the
     // manual rate when Nobitex is unreachable), or the manual rate in manual mode.
@@ -89,14 +91,18 @@ public sealed class UsdRateService : BackgroundService
                     var toman = (long)Math.Round(rials / 10m);
                     Interlocked.Exchange(ref _nobitexToman, toman);
                     Interlocked.Exchange(ref _updatedAtUnixMs, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                    _lastError = "";
                     ApplyCurrent();
                     return true;
                 }
             }
+            _lastError = "پاسخ نوبیتکس قابل خواندن نبود.";
             return false;
         }
         catch (Exception ex)
         {
+            // Most common cause: the server's IP is outside Iran and Nobitex geo-blocks it.
+            _lastError = ex is HttpRequestException ? "سرور به نوبیتکس دسترسی ندارد (احتمالاً IP خارج از ایران مسدود است)." : ex.Message;
             _log.LogWarning(ex, "Failed to refresh USDT→Toman rate from Nobitex");
             return false;
         }

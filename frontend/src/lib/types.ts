@@ -245,6 +245,7 @@ export type UsdRateInfo = {
   manual: number; // admin-set manual rate
   auto: boolean; // true = use Nobitex (fallback to manual), false = always manual
   updatedAtUnixMs: number;
+  lastError: string; // why the last auto-fetch failed (empty when ok)
 };
 
 export type HeroSlide = {
