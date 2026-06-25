@@ -67,13 +67,12 @@ The result is a system that boots from a single binary + one `store.json`, survi
 
 ## 🚀 Deployment (Production)
 
-On a fresh Ubuntu/Debian server, download and run the installer.
+On a fresh Ubuntu/Debian server:
 
-**As root:**
+**As root (one-liner):**
 
 ```bash
-curl -fsSLo phoenix-install.sh https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh
-bash phoenix-install.sh
+bash <(curl -Ls https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh)
 ```
 
 **With sudo (non-root user):**
@@ -83,7 +82,7 @@ curl -fsSLo phoenix-install.sh https://raw.githubusercontent.com/AbolfazlTafakor
 sudo bash phoenix-install.sh
 ```
 
-> Download-then-run keeps the installer interactive for its prompts and avoids the `/dev/fd/63: No such file or directory` failure that `sudo bash <(…)` triggers.
+> The `bash <(…)` one-liner works when run **as root**. Do **not** prefix it with `sudo` — `sudo` spawns a new process that can't read the parent shell's `/dev/fd/63`, which causes `No such file or directory`. Non-root users should use the download-then-run form above.
 
 The installer will interactively prompt for the domain, owner credentials, and Let's Encrypt email, then install dependencies, build, wire up systemd, secure the site with HTTPS, and print your `PHONIX_BACKUP_KEY` **once** — store it offline immediately.
 
