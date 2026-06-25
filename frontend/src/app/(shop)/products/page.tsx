@@ -70,20 +70,33 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
               className="group relative block overflow-hidden rounded-2xl border border-white/8 bg-[#0d0d14] transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
             >
               <div className="relative aspect-[3/4]">
-                <img src={p.image} alt={p.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                <img src={p.image} alt={p.name} className={`h-full w-full object-cover transition duration-500 group-hover:scale-105 ${p.stock <= 0 ? "opacity-40 grayscale" : ""}`} />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                {p.discountPercent > 0 && (
-                  <span className="absolute right-3 top-3 rounded-full bg-[#e60053] px-2.5 py-1 text-[11px] font-bold text-white">٪{p.discountPercent} تخفیف</span>
-                )}
-                <div className="absolute inset-x-0 bottom-0 p-4">
-                  <h3 className="text-sm font-bold text-white">{p.name}</h3>
-                  <div className="mt-1.5 flex items-center gap-2">
-                    <span className="text-sm font-bold text-emerald-400">{formatToman(p.finalPrice)}</span>
+                {p.stock <= 0 ? (
+                  <>
+                    <div className="absolute inset-0 grid place-items-center">
+                      <span className="-rotate-6 rounded-xl border border-white/25 bg-black/65 px-4 py-1.5 text-sm font-black tracking-wide text-white backdrop-blur">ناموجود</span>
+                    </div>
+                    <div className="absolute inset-x-0 bottom-0 p-4">
+                      <h3 className="text-sm font-bold text-white/85">{p.name}</h3>
+                    </div>
+                  </>
+                ) : (
+                  <>
                     {p.discountPercent > 0 && (
-                      <span className="text-xs text-white/40 line-through">{formatToman(p.price)}</span>
+                      <span className="absolute right-3 top-3 rounded-full bg-[#e60053] px-2.5 py-1 text-[11px] font-bold text-white">٪{p.discountPercent} تخفیف</span>
                     )}
-                  </div>
-                </div>
+                    <div className="absolute inset-x-0 bottom-0 p-4">
+                      <h3 className="text-sm font-bold text-white">{p.name}</h3>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <span className="text-sm font-bold text-emerald-400">{formatToman(p.finalPrice)}</span>
+                        {p.discountPercent > 0 && (
+                          <span className="text-xs text-white/40 line-through">{formatToman(p.price)}</span>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             </Link>
           ))}

@@ -6,6 +6,7 @@ import Stars from "@/components/Stars";
 import ReviewForm from "@/components/ReviewForm";
 import ProductPurchase from "@/components/ProductPurchase";
 import FavoriteButton from "@/components/FavoriteButton";
+import RichText from "@/components/RichText";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "جزئیات محصول | Phoenix Verify" };
@@ -58,6 +59,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
   const topLevel = comments.filter((c) => c.parentId == null);
   const rated = topLevel.filter((c) => c.rating > 0);
   const avg = rated.length ? rated.reduce((s, c) => s + c.rating, 0) / rated.length : 0;
+  const out = product.stock <= 0;
 
   return (
     <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-8">
@@ -71,8 +73,15 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
 
       <div className="grid gap-8 lg:grid-cols-2">
         {/* gallery */}
-        <div className="self-start overflow-hidden rounded-3xl border border-white/10">
-          <img src={product.image} alt={product.name} className="block w-full" />
+        <div className="relative self-start overflow-hidden rounded-3xl border border-white/10">
+          <img src={product.image} alt={product.name} className={`block w-full ${out ? "opacity-40 grayscale" : ""}`} />
+          {out && (
+            <div className="absolute inset-0 grid place-items-center bg-black/40">
+              <span className="-rotate-6 rounded-2xl border border-white/25 bg-black/70 px-7 py-3 text-xl font-black tracking-wide text-white shadow-2xl backdrop-blur">
+                ناموجود
+              </span>
+            </div>
+          )}
         </div>
 
         {/* info */}
@@ -93,9 +102,14 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
             </div>
           )}
 
-          <p className="mt-4 text-sm leading-8 text-white/70">{product.description}</p>
-
-          <ProductPurchase product={product} />
+          {out ? (
+            <div className="mt-6 rounded-2xl border border-rose-500/25 bg-rose-500/[0.06] p-5 text-center">
+              <p className="text-sm font-bold text-rose-300">این محصول در حال حاضر ناموجود است</p>
+              <p className="mt-1.5 text-xs text-white/50">می‌توانید آن را به علاقه‌مندی‌ها اضافه کنید تا هنگام موجود شدن مطلع شوید.</p>
+            </div>
+          ) : (
+            <ProductPurchase product={product} />
+          )}
 
           <div className="mt-4">
             <FavoriteButton productId={product.id} />
@@ -117,7 +131,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
       {/* description */}
       <div className="mt-12 rounded-2xl border border-white/8 bg-[#15151f]/80 p-8">
         <h2 className="mb-4 text-xl font-bold text-white">توضیحات محصول</h2>
-        <p className="text-sm leading-8 text-white/70">{product.description}</p>
+        <RichText content={product.description} />
       </div>
 
       {/* mandatory reading / warning */}

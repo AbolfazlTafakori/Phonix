@@ -7,6 +7,7 @@ import { formatToman, formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner, Toggle, StatusBadge, Modal, DataTable, Field, inputCls, type Column } from "@/components/admin/ui";
 import ImageField from "@/components/admin/ImageField";
 import AdminIcon from "@/components/admin/AdminIcon";
+import MarkdownEditor from "@/components/admin/MarkdownEditor";
 
 const emptyForm = (categoryId: number): ProductInput => ({
   name: "",
@@ -208,7 +209,7 @@ export default function AdminProductsPage() {
           </div>
 
           <Field label="توضیحات">
-            <textarea rows={3} value={form.description} onChange={(e) => set("description", e.target.value)} className={`${inputCls} h-auto py-3`} />
+            <MarkdownEditor value={form.description} onChange={(v) => set("description", v)} />
           </Field>
 
           <Field label="مطالعه اجباری / هشدار">
