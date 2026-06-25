@@ -146,6 +146,9 @@ create_user_and_dirs() {
 
 fetch_repo() {
     heading "Fetching source code"
+    # create_user_and_dirs chowns $BASE_DIR (which contains $REPO_DIR) to $APP_USER, so git now runs
+    # as root over a repo owned by another user. Mark it trusted to avoid "dubious ownership" aborts.
+    git config --global --add safe.directory "$REPO_DIR"
     if [[ -d "$REPO_DIR/.git" ]]; then
         git -C "$REPO_DIR" fetch --all --prune
         git -C "$REPO_DIR" reset --hard origin/main
