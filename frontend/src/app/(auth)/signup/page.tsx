@@ -131,7 +131,17 @@ export default function SignupPage() {
             className="mt-1 h-4 w-4 shrink-0 rounded border-white/20 bg-[#0d0d15] accent-[#e60053]"
           />
           <span>
-            تایید کردن این فرم به منزله‌ی <span className="font-bold text-[#e60053]">تایید</span> تمامی سیاست حفظ حریم خصوصی می‌باشد.
+            تایید کردن این فرم به منزله‌ی <span className="font-bold text-[#e60053]">تایید</span> تمامی{" "}
+            <Link
+              href="/terms"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="font-bold text-[#e60053] underline underline-offset-4 hover:brightness-110"
+            >
+              قوانین و مقررات و سیاست حفظ حریم خصوصی
+            </Link>{" "}
+            می‌باشد.
           </span>
         </label>
 
