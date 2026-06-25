@@ -98,11 +98,28 @@ install_dependencies() {
 
     if ! command -v dotnet >/dev/null 2>&1; then
         local rel; rel="$(lsb_release -rs)"
-        wget -q "https://packages.microsoft.com/config/ubuntu/${rel}/packages-microsoft-prod.deb" -O /tmp/packages-microsoft-prod.deb
-        dpkg -i /tmp/packages-microsoft-prod.deb
-        rm -f /tmp/packages-microsoft-prod.deb
-        apt-get update -y
-        apt-get install -y dotnet-sdk-8.0
+        local installed=0
+
+        # Preferred path: Microsoft's apt feed. Only some Ubuntu releases carry dotnet-sdk-8.0,
+        # so treat any failure here as non-fatal and fall back to the official install script.
+        if wget -q "https://packages.microsoft.com/config/ubuntu/${rel}/packages-microsoft-prod.deb" -O /tmp/packages-microsoft-prod.deb; then
+            dpkg -i /tmp/packages-microsoft-prod.deb || true
+            rm -f /tmp/packages-microsoft-prod.deb
+            apt-get update -y || true
+            if apt-get install -y dotnet-sdk-8.0; then
+                installed=1
+            fi
+        fi
+
+        # Distro-agnostic fallback: the official dotnet-install script. Pins .NET 8 SDK into
+        # /usr/share/dotnet and exposes it on PATH via /usr/bin/dotnet (matches the systemd ExecStart).
+        if [[ $installed -ne 1 ]]; then
+            warn "dotnet-sdk-8.0 not available from apt on Ubuntu ${rel}; using the official install script."
+            curl -fsSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh
+            bash /tmp/dotnet-install.sh --channel 8.0 --install-dir /usr/share/dotnet
+            rm -f /tmp/dotnet-install.sh
+            ln -sf /usr/share/dotnet/dotnet /usr/bin/dotnet
+        fi
     fi
     ok ".NET $(dotnet --version)"
 
