@@ -65,11 +65,11 @@ public sealed class UsdRateService : BackgroundService
             {
                 if (!market.Value.TryGetProperty("latest", out var latest)) continue;
                 var raw = latest.ValueKind == JsonValueKind.String ? latest.GetString() : latest.GetRawText();
-                if (decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var value) && value > 0)
+                if (decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var rials) && rials > 0)
                 {
-                    // Nobitex's rls market quotes Rial, but to be safe against unit changes we detect it by
-                    // magnitude: a USDT price above ~300k can only be Rial (÷10 → Toman); otherwise it's Toman.
-                    var toman = value >= 300_000m ? (long)Math.Round(value / 10m) : (long)Math.Round(value);
+                    // We query the rls (Rial) market, so the value is always in Rial. Dividing by 10 yields the
+                    // Toman figure shown on nobitex.ir — deterministic, no magnitude guessing.
+                    var toman = (long)Math.Round(rials / 10m);
                     Interlocked.Exchange(ref _tomanPerUsd, toman);
                     Interlocked.Exchange(ref _updatedAtUnixMs, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
                     _store.ApplyUsdRate(toman);
