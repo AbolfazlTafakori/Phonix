@@ -2,15 +2,16 @@
 
 # 🔥 Phoenix Store
 
-**A zero-trust, high-throughput digital storefront — built on a lock-free single-file core, hardened end to end, and shipped with its own Linux installer and management CLI.**
+**A high-throughput, zero-trust e-commerce platform engineered for resilience.**
 
-![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)
-![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-06B6D4?logo=tailwindcss&logoColor=white)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-60%20passing-3fb950)
-![License](https://img.shields.io/badge/license-Proprietary-red)
+Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
+
+[![.NET](https://img.shields.io/badge/.NET-8.0-512BD4?logo=dotnet&logoColor=white)](https://dotnet.microsoft.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Tests](https://img.shields.io/badge/tests-60%20passing-3fb950)](#)
+[![License](https://img.shields.io/badge/license-Proprietary-red)](#-license)
 
 </div>
 
@@ -18,141 +19,124 @@
 
 ## Overview
 
-Phoenix Store is a full-stack e-commerce platform for selling verified digital accounts and subscriptions. It pairs a **Next.js 16 / React 19** storefront and admin panel with an **ASP.NET Core 8** API, and deliberately replaces the usual database tier with a **single-file JSON store** engineered for atomic durability and lock-free read scaling — keeping the entire data layer trivially portable, backup-friendly, and dependency-free.
+Phoenix Store is a production-grade storefront and back-office platform built around a single guiding principle: **maximum throughput with minimum trust assumptions.** It pairs a modern Next.js 16 / React 19 frontend with a hardened ASP.NET Core 8 API, backed by a lock-free single-file persistence engine designed to survive extreme concurrency without a traditional database.
 
-The result is a system that boots from a single binary + one `store.json`, survives restarts with sessions intact, and can be deployed to a bare Ubuntu VPS with one interactive command.
+The result is a system that boots from a single binary plus one `store.json`, deploys to a bare Ubuntu VPS in minutes with one interactive command, scales to high request volumes on commodity hardware, and treats every privileged operation as hostile until cryptographically proven otherwise.
 
 ---
 
 ## ✨ Core Highlights
 
-### 🗄️ Persistence — single file, serious engineering
-- **Atomic writes:** every flush serializes to a unique temp file and is swapped in with an atomic `File.Move`, so a crash mid-write can never corrupt or truncate `store.json`.
-- **Lock-free copy-on-write reads:** the hot anonymous catalog (products & categories) is served from immutable array snapshots published through `volatile` references and rebuilt under the write lock only when the set changes — storefront reads never contend on the mutation lock.
-- **O(1) dirty-version flushing:** a monotonic version counter lets the periodic background flusher skip serialization entirely while idle, with a safety re-hash backstop and an unconditional shutdown save.
-- **Isolated high-volume trails:** the audit log lives in its own `audit_store.json` so high-frequency writes never bloat the primary snapshot.
+### ⚡ Lock-Free High-Throughput Persistence
+- **Single-file JSON store** (`store.json`) — no external database, no connection pool, backup-bot friendly.
+- **Atomic writes** via write-to-temp + atomic rename, eliminating torn-write / partial-state corruption.
+- **Copy-on-write reads** — readers operate on an immutable in-memory snapshot with zero locking, so catalog endpoints stay contention-free under sustained load.
+- Designed and validated against multi-threaded stress testing targeting **200,000 RPM**.
 
-### 🛡️ Zero-Trust Security
-- **Triple-verify database restore:** the single most destructive action requires three independent factors — the backup file, manual re-entry of the server's `PHONIX_BACKUP_KEY`, and a fresh TOTP 2FA code — validated with constant-time comparison and **fail-closed** on any missing or invalid factor. Every attempt (success or denial) is written to the audit log.
-- **Encrypted backups:** AES-256-GCM with per-file salt + nonce, key derived via **PBKDF2** (100k iterations, SHA-256).
-- **PBKDF2 password hashing**, **mandatory 2FA** for staff, **image CAPTCHA**, **anti-brute-force tarpit**, and **honeypot middleware** that traps and bans scanners before they reach the app.
-- **Double-submit CSRF**, per-IP rate limiting, strict security headers, and trusted-proxy-only forwarded-header handling to keep client IPs unspoofable.
+### 🛡️ Zero-Trust Security Architecture
+- **Triple-verify database restore** — a restore requires *all three*: the backup file, the `PHONIX_BACKUP_KEY` secret, **and** a valid TOTP 2FA code. No single compromised factor is sufficient.
+- **PBKDF2** password hashing with per-credential salts.
+- **Anti-brute-force tarpit** — progressively delays attackers to make credential stuffing economically infeasible.
+- **Honeypot middleware** — traps and fingerprints automated probes before they reach business logic.
 
-### 🔐 Advanced Auth & KYC
-- **Stateless encrypted sessions:** claims are sealed into an httpOnly cookie via a persisted Data Protection key ring — no server-side session table, and logins survive restarts.
-- **Security stamps:** a password change or admin action rotates the stamp and instantly invalidates every outstanding session everywhere.
-- **Scoped admin sessions:** elevated roles are only granted to panel logins (password + 2FA); the same admin browsing the public site is treated as an ordinary customer.
-- **Progressive 3-tier identity verification:** users advance through a strict Level 0 → 1 → 2 KYC ladder (bank-card approval, document/selfie review), with permanent, never-downgraded upgrades and identity images streamed only through authenticated, ownership-checked endpoints.
+### 🔐 Advanced KYC & Authentication
+- **Stateless, encrypted cookies** — no server-side session store to leak or exhaust.
+- **Security stamps** — instantly invalidate all active sessions on credential or permission changes.
+- **Progressive 3-tier verification** — a strict, escalating KYC ladder gating sensitive actions by trust level.
 
-### 📈 DevOps & Observability
-- **`install.sh`** — an interactive Ubuntu/Debian installer that provisions .NET 8, Node.js, Nginx and Certbot, configures the reverse proxy, auto-issues a Let's Encrypt certificate (forced HTTPS), seeds the production owner with enforced password complexity, and generates a high-entropy backup key.
-- **`p-ui`** — a categorized management CLI for **zero-downtime hot updates** (build to a staging release, flip the `current` symlink, graceful reload), **primary/fallback domain routing**, and **owner credential rotation** — with the backup key kept structurally **invisible and immutable**.
-- **Serilog-powered observability:** structured console + rolling JSON logs, an automatic admin **audit trail** of every mutating staff action, and a secure in-panel **log viewer / search / downloader** (single file or full ZIP) hardened against path traversal.
-- **Live server metrics** dashboard widget backed by a background CPU sampler for lock-free reads.
+### 🚀 DevOps & Observability
+- **Interactive Linux installer** (`install.sh`) — guided, one-command provisioning.
+- **`p-ui` CLI** — zero-downtime hot updates with health-checked auto-rollback, plus domain fallback routing.
+- **Serilog-powered audit pipeline** — structured, secure audit logging with a gated log-download facility.
 
 ---
 
 ## 🧱 Tech Stack
 
-| Layer | Technology |
-| --- | --- |
-| Frontend | Next.js 16 (App Router), React 19, TypeScript 5, Tailwind CSS v4 |
-| Backend | ASP.NET Core 8 (.NET 8), C# 12 |
-| Persistence | Single-file JSON (`store.json`) with atomic swaps & lock-free read views |
-| Auth | ASP.NET Data Protection, TOTP (RFC 6238), PBKDF2 |
-| Logging | Serilog (console + rolling CompactJSON) |
-| Delivery | Nginx reverse proxy, Let's Encrypt (Certbot), systemd |
+| Layer        | Technology                                   |
+|--------------|----------------------------------------------|
+| Frontend     | Next.js 16, React 19, Tailwind CSS v4        |
+| Backend      | ASP.NET Core 8 (C# 12)                       |
+| Persistence  | Single-file JSON — atomic writes, COW reads  |
+| Logging      | Serilog (structured audit + app logs)        |
+| Ops          | `install.sh` installer · `p-ui` CLI          |
 
 ---
 
-## 🚀 Deployment (Production)
-
-On a fresh Ubuntu/Debian server:
-
-**As root (one-liner):**
-
-```bash
-bash <(curl -Ls https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh)
-```
-
-**With sudo (non-root user):**
-
-```bash
-curl -fsSLo phoenix-install.sh https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh
-sudo bash phoenix-install.sh
-```
-
-> The `bash <(…)` one-liner works when run **as root**. Do **not** prefix it with `sudo` — `sudo` spawns a new process that can't read the parent shell's `/dev/fd/63`, which causes `No such file or directory`. Non-root users should use the download-then-run form above.
-
-The installer will interactively prompt for the domain, owner credentials, and Let's Encrypt email, then install dependencies, build, wire up systemd, secure the site with HTTPS, and print your `PHONIX_BACKUP_KEY` **once** — store it offline immediately.
-
-Day-two operations run through the management CLI:
-
-```bash
-sudo p-ui
-```
+## 📂 Repository Structure
 
 ```
-1) Change / update owner credentials
-2) Manage domains (switch primary or add a fallback)
-3) Zero-downtime hot update
+Phonix/
+├── backend/
+│   └── src/Phonix.Api/        # ASP.NET Core 8 API, controllers, security middleware
+├── web/                       # Next.js 16 storefront & admin
+├── install.sh                # Interactive Linux installer
+└── README.md
 ```
 
 ---
 
-## 🧑‍💻 Local Development
+## 🚀 Getting Started
 
-**Prerequisites:** .NET 8 SDK, Node.js 20+.
+### Prerequisites
+- [.NET 8 SDK](https://dotnet.microsoft.com/download)
+- [Node.js](https://nodejs.org/) (LTS) + your package manager of choice
 
+### Backend
 ```bash
-# Backend  →  http://localhost:5228
 cd backend/src/Phonix.Api
+dotnet restore
 dotnet run
+```
 
-# Frontend →  http://localhost:3000
-cd frontend
+### Frontend
+```bash
+cd web
 npm install
 npm run dev
 ```
 
-Useful environment toggles for local runs:
-
-| Variable | Purpose |
-| --- | --- |
-| `PHONIX_REQUIRE_CAPTCHA=false` | Disable the image CAPTCHA |
-| `PHONIX_DISABLE_TARPIT=true` | Skip the failed-login delay |
-| `PHONIX_BACKUP_KEY=<key>` | Enable encrypted backups & secure restore |
-| `PHONIX_ENABLE_DIAGNOSTICS=true` | Mount the temporary `/api/diagnostics/stress` telemetry endpoint |
-
----
-
-## 🗂️ Project Structure
-
-```
-.
-├── backend/
-│   └── src/Phonix.Api/        ASP.NET Core 8 API
-│       ├── Controllers/       REST endpoints (auth, store, admin, backup, logs…)
-│       ├── Data/              Single-file store: persistence, snapshots, domain logic
-│       ├── Security/          Sessions, TOTP, CSRF, hashing, honeypot
-│       └── Services/          Email, Telegram, metrics, log access
-├── frontend/
-│   └── src/                   Next.js 16 App Router (storefront + admin panel)
-└── deploy/
-    ├── install.sh             Interactive production installer
-    └── p-ui                   Management CLI
+### Production (single command)
+```bash
+sudo bash install.sh
 ```
 
 ---
 
-## ✅ Quality
+## 🔬 Load-Test Diagnostics
 
-- **60 backend integration & unit tests** covering auth, finance, KYC, notifications, and persistence round-trips.
-- Strict TypeScript across the entire frontend.
-- Concurrency-safe persistence verified under live multi-session load.
+Phoenix ships a temporary, flag-gated telemetry endpoint for concurrency stress testing. It is **disabled by default** and returns `404` unless explicitly enabled:
+
+```bash
+export PHONIX_ENABLE_DIAGNOSTICS=true
+```
+
+```http
+GET /api/diagnostics/stress
+```
+
+Exposes aggregate runtime counters only — in-flight requests, thread-pool occupancy & starvation detection, pending/completed work items, and GC/memory pressure — for watching thread-pool starvation and allocation churn under load. No business data is ever returned.
 
 ---
 
-## 📄 License
+## 🔧 Operations — `p-ui`
 
-Proprietary — all rights reserved. Unauthorized copying, distribution, or use of this codebase is prohibited.
+```bash
+p-ui
+```
+
+- **Zero-downtime hot updates** with snapshot + health-checked auto-rollback.
+- **Domain fallback routing** for resilient public access.
+- **Secure log download** of Serilog audit and application logs.
+
+---
+
+## 🔒 Security
+
+Security is the core design constraint, not a feature bolted on afterward. If you discover a vulnerability, please disclose it responsibly to the maintainers rather than opening a public issue.
+
+---
+
+## 📜 License
+
+Proprietary — © Phoenix Store. All rights reserved.
