@@ -97,6 +97,15 @@ npm run dev
 ```
 
 ### Production (single command)
+
+Provision a bare Ubuntu VPS in one line — no clone required:
+
+```bash
+bash <(curl -Ls https://raw.githubusercontent.com/AbolfazlTafakori/Phonix/main/install.sh)
+```
+
+Already cloned the repo? Run the installer directly:
+
 ```bash
 sudo bash install.sh
 ```
