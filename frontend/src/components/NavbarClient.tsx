@@ -135,13 +135,35 @@ export default function NavbarClient({ brand, header }: Props) {
       setUnread(0);
       return;
     }
-    api.notifications
-      .mine()
-      .then((list) => {
+
+    let alive = true;
+    async function refresh() {
+      try {
+        const list = await api.notifications.mine();
+        if (!alive) return;
         setNotifs(list);
         setUnread(list.filter((n) => !n.isRead).length);
-      })
-      .catch(() => {});
+      } catch {
+        // keep current values on a transient failure
+      }
+    }
+
+    refresh();
+    // Poll so new messages surface without a manual refresh; pause while the tab is hidden to avoid
+    // needless requests, and refetch immediately when the user returns to it.
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") refresh();
+    }, 20000);
+    function onVisible() {
+      if (document.visibilityState === "visible") refresh();
+    }
+    document.addEventListener("visibilitychange", onVisible);
+
+    return () => {
+      alive = false;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, [user]);
 
   useEffect(() => {

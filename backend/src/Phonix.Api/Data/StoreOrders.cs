@@ -519,12 +519,12 @@ public partial class StoreData
                 Subject = subject,
                 Department = department,
                 Priority = priority,
-                Attachment = attachment ?? "",
                 Status = TicketStatus.Answered,
                 Date = Today(),
             };
             t.Code = $"T-{5800 + t.Id}";
-            t.Messages.Add(new TicketMessage { Author = authorName, Body = body, IsAdmin = true, Date = Today() });
+            // The opening file rides on the support message so it appears inline in the conversation.
+            t.Messages.Add(new TicketMessage { Author = authorName, Body = body, IsAdmin = true, Date = Today(), Attachment = attachment ?? "" });
             _tickets.Add(t);
             AddNotification(userId, "تیکت جدید از پشتیبانی", $"پشتیبانی فونیکس برای شما تیکت «{subject}» باز کرد.", "/account/tickets");
         }

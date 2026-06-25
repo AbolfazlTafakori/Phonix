@@ -228,6 +228,7 @@ function NewTicketForm({ onCreated, onCancel }: { onCreated: (t: Ticket) => void
   const [subject, setSubject] = useState("");
   const [department, setDepartment] = useState("فنی");
   const [body, setBody] = useState("");
+  const [attachment, setAttachment] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -246,7 +247,7 @@ function NewTicketForm({ onCreated, onCancel }: { onCreated: (t: Ticket) => void
         setError("کاربری با این نام کاربری پیدا نشد.");
         return;
       }
-      const ticket = await api.tickets.createForUser({ userId: user.id, subject: subject.trim(), department, body: body.trim() });
+      const ticket = await api.tickets.createForUser({ userId: user.id, subject: subject.trim(), department, body: body.trim(), attachment: attachment || undefined });
       onCreated(ticket);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در ایجاد تیکت");
@@ -281,6 +282,12 @@ function NewTicketForm({ onCreated, onCancel }: { onCreated: (t: Ticket) => void
         <span className="mb-2 block text-sm text-white/70">متن پیام</span>
         <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={3} className="w-full rounded-xl border border-white/10 bg-[#0d0d15] px-3 py-2 text-sm text-white outline-none focus:border-[#3a64f2]" />
       </label>
+      <div>
+        <span className="mb-2 block text-sm text-white/70">فایل پیوست (اختیاری)</span>
+        <div className="w-[110px]">
+          <ImageField value={attachment} onChange={setAttachment} aspect="square" />
+        </div>
+      </div>
       {error && <p className="text-sm text-rose-400">{error}</p>}
       <button
         onClick={submit}

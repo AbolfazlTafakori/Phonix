@@ -343,7 +343,7 @@ export const api = {
     create: (body: { subject: string; department: string; body: string; priority?: TicketPriority; attachment?: string }) =>
       request<Ticket>("/tickets", { method: "POST", body: json(body) }),
     // Staff opens a ticket on behalf of a user; it lands in that user's account already answered.
-    createForUser: (body: { userId: number; subject: string; department: string; body: string; priority?: TicketPriority }) =>
+    createForUser: (body: { userId: number; subject: string; department: string; body: string; priority?: TicketPriority; attachment?: string }) =>
       request<Ticket>("/tickets/admin", { method: "POST", body: json(body) }),
     reply: (id: number, body: string, isAdmin: boolean, attachment?: string) =>
       request<Ticket>(`/tickets/${id}/reply`, { method: "POST", body: json({ body, isAdmin, attachment: attachment || undefined }) }),
