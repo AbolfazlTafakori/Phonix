@@ -21,6 +21,8 @@ public class SubscriptionPlan
     public string Label { get; set; } = "";
     public int Months { get; set; }
     public long Price { get; set; }
+    // When > 0 this plan is priced in USD; its Toman Price is recomputed from the live rate (see UsdRateService).
+    public double PriceUsd { get; set; }
     public int DiscountPercent { get; set; }
 
     public long FinalPrice => DiscountPercent <= 0

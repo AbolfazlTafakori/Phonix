@@ -226,6 +226,7 @@ export type Plan = {
   price: number;
   discountPercent: number;
   finalPrice: number;
+  priceUsd: number;
 };
 
 export type PlanInput = {
@@ -233,6 +234,7 @@ export type PlanInput = {
   months: number;
   price: number;
   discountPercent: number;
+  priceUsd?: number;
 };
 
 export type HeroSlide = {

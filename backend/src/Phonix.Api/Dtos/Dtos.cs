@@ -48,9 +48,9 @@ public record UserUpdateInput(
 public record WalletInput(long Amount, string? Reason);
 
 public record PlanDto(
-    int Id, string Label, int Months, long Price, int DiscountPercent, long FinalPrice);
+    int Id, string Label, int Months, long Price, int DiscountPercent, long FinalPrice, double PriceUsd);
 
-public record PlanInput(string Label, int Months, long Price, int DiscountPercent);
+public record PlanInput(string Label, int Months, long Price, int DiscountPercent, double? PriceUsd);
 
 public static class Mapping
 {
@@ -67,5 +67,5 @@ public static class Mapping
             u.Verified, u.VerificationLevel, u.EmailVerified, u.Blocked, u.JoinedAt, u.Note);
 
     public static PlanDto ToDto(this SubscriptionPlan p) =>
-        new(p.Id, p.Label, p.Months, p.Price, p.DiscountPercent, p.FinalPrice);
+        new(p.Id, p.Label, p.Months, p.Price, p.DiscountPercent, p.FinalPrice, p.PriceUsd);
 }

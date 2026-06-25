@@ -62,6 +62,12 @@ public partial class StoreData
                 var toman = (long)Math.Round(p.PriceUsd * tomanPerUsd);
                 if (toman != p.Price) { p.Price = toman; changed = true; }
             }
+            foreach (var pl in _plans)
+            {
+                if (pl.PriceUsd <= 0) continue;
+                var toman = (long)Math.Round(pl.PriceUsd * tomanPerUsd);
+                if (toman != pl.Price) { pl.Price = toman; changed = true; }
+            }
             if (changed) RebuildCatalogView();
         }
         if (changed) PersistNow();
@@ -508,6 +514,7 @@ public partial class StoreData
             existing.Label = plan.Label;
             existing.Months = plan.Months;
             existing.Price = plan.Price;
+            existing.PriceUsd = plan.PriceUsd;
             existing.DiscountPercent = plan.DiscountPercent;
             return true;
         }

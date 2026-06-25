@@ -89,7 +89,7 @@ export default function AdminPricingPage() {
           )}
           {tab === "usd" && <UsdRatePanel usd={usd} setUsd={setUsd} />}
           {tab === "fees" && settings && <FeesPanel settings={settings} setSettings={setSettings} />}
-          {tab === "plans" && <PlansPanel plans={plans} setPlans={setPlans} />}
+          {tab === "plans" && <PlansPanel plans={plans} setPlans={setPlans} rate={usd?.tomanPerUsd ?? 0} />}
         </>
       )}
     </div>
@@ -393,13 +393,16 @@ function FeesPanel({
 function PlansPanel({
   plans,
   setPlans,
+  rate,
 }: {
   plans: Plan[];
   setPlans: (updater: (prev: Plan[]) => Plan[]) => void;
+  rate: number;
 }) {
   const [draft, setDraft] = useState<Record<number, Plan>>(() =>
     Object.fromEntries(plans.map((p) => [p.id, p])),
   );
+  const baseOf = (d: Plan) => ((d.priceUsd ?? 0) > 0 && rate > 0 ? Math.round(d.priceUsd * rate) : d.price);
   const [busy, setBusy] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
 
@@ -408,7 +411,7 @@ function PlansPanel({
 
   const dirty = (p: Plan) => {
     const d = draft[p.id];
-    return d && (d.label !== p.label || d.months !== p.months || d.price !== p.price || d.discountPercent !== p.discountPercent);
+    return d && (d.label !== p.label || d.months !== p.months || d.price !== p.price || d.discountPercent !== p.discountPercent || (d.priceUsd ?? 0) !== (p.priceUsd ?? 0));
   };
 
   async function save(p: Plan) {
@@ -420,6 +423,7 @@ function PlansPanel({
         months: d.months,
         price: d.price,
         discountPercent: d.discountPercent,
+        priceUsd: d.priceUsd ?? 0,
       });
       setPlans((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
       setDraft((prev) => ({ ...prev, [p.id]: updated }));
@@ -454,7 +458,8 @@ function PlansPanel({
       <div className="grid gap-4 md:grid-cols-2">
         {plans.map((p) => {
           const d = draft[p.id] ?? p;
-          const final = finalOf(d.price, d.discountPercent);
+          const usdPriced = (d.priceUsd ?? 0) > 0;
+          const final = finalOf(baseOf(d), d.discountPercent);
           return (
             <Card key={p.id} className="p-5">
               <div className="grid grid-cols-2 gap-4">
@@ -467,8 +472,12 @@ function PlansPanel({
                   <input type="number" dir="ltr" value={d.months} onChange={(e) => set(p.id, "months", Number(e.target.value))} className={`${inputCls} h-10 text-left`} />
                 </label>
                 <label>
-                  <span className="mb-1.5 block text-xs text-white/45">قیمت</span>
-                  <input type="number" dir="ltr" value={d.price} onChange={(e) => set(p.id, "price", Number(e.target.value))} className={`${inputCls} h-10 text-left`} />
+                  <span className="mb-1.5 block text-xs text-white/45">قیمت دلاری ($)</span>
+                  <input type="number" dir="ltr" min={0} step={0.01} value={d.priceUsd || ""} placeholder="—" onChange={(e) => set(p.id, "priceUsd", Math.max(0, Number(e.target.value)))} className={`${inputCls} h-10 text-left`} />
+                </label>
+                <label>
+                  <span className="mb-1.5 block text-xs text-white/45">قیمت (تومان)</span>
+                  <input type="number" dir="ltr" value={usdPriced ? baseOf(d) : d.price} disabled={usdPriced} onChange={(e) => set(p.id, "price", Number(e.target.value))} className={`${inputCls} h-10 text-left ${usdPriced ? "opacity-50" : ""}`} />
                 </label>
                 <label>
                   <span className="mb-1.5 block text-xs text-white/45">تخفیف ٪</span>

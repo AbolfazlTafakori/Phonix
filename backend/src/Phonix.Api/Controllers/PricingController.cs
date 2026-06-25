@@ -57,7 +57,8 @@ public class PricingController : ControllerBase
         {
             Label = input.Label,
             Months = input.Months,
-            Price = input.Price,
+            Price = PriceFor(input),
+            PriceUsd = Math.Max(0, input.PriceUsd ?? 0),
             DiscountPercent = input.DiscountPercent,
         });
         return plan.ToDto();
@@ -71,7 +72,8 @@ public class PricingController : ControllerBase
             Id = id,
             Label = input.Label,
             Months = input.Months,
-            Price = input.Price,
+            Price = PriceFor(input),
+            PriceUsd = Math.Max(0, input.PriceUsd ?? 0),
             DiscountPercent = input.DiscountPercent,
         });
         if (!ok) return NotFound();
@@ -80,4 +82,10 @@ public class PricingController : ControllerBase
 
     [HttpDelete("plans/{id:int}")]
     public IActionResult DeletePlan(int id) => _store.DeletePlan(id) ? NoContent() : NotFound();
+
+    // Toman price for a plan: derived from the live USD rate when a dollar price is given, else the manual Toman.
+    private long PriceFor(PlanInput input) =>
+        input.PriceUsd is > 0 && _rate.TomanPerUsd > 0
+            ? (long)Math.Round(input.PriceUsd.Value * _rate.TomanPerUsd)
+            : input.Price;
 }
