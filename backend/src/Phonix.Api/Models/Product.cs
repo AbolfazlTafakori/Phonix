@@ -26,6 +26,9 @@ public class Product
     public string Name { get; set; } = "";
     public int CategoryId { get; set; }
     public long Price { get; set; }
+    // When > 0 the product is priced in USD; its Toman Price above is recomputed from the live USDT→Toman
+    // rate (see UsdRateService) so it tracks the exchange rate. 0 means the Toman Price is set manually.
+    public double PriceUsd { get; set; }
     public int DiscountPercent { get; set; }
     public long Stock { get; set; }
     public bool IsActive { get; set; } = true;

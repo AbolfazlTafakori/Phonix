@@ -183,7 +183,7 @@ export const api = {
     list: (params?: { categoryId?: number; search?: string }) => request<Product[]>(`/products${qs(params)}`),
     create: (body: ProductInput) => request<Product>("/products", { method: "POST", body: json(body) }),
     update: (id: number, body: ProductInput) => request<Product>(`/products/${id}`, { method: "PUT", body: json(body) }),
-    updatePrice: (id: number, body: { price: number; discountPercent: number }) =>
+    updatePrice: (id: number, body: { price: number; discountPercent: number; priceUsd?: number }) =>
       request<Product>(`/products/${id}/price`, { method: "PUT", body: json(body) }),
     remove: (id: number) => request<void>(`/products/${id}`, { method: "DELETE" }),
   },
@@ -258,6 +258,8 @@ export const api = {
     createPlan: (body: PlanInput) => request<Plan>("/pricing/plans", { method: "POST", body: json(body) }),
     updatePlan: (id: number, body: PlanInput) => request<Plan>(`/pricing/plans/${id}`, { method: "PUT", body: json(body) }),
     removePlan: (id: number) => request<void>(`/pricing/plans/${id}`, { method: "DELETE" }),
+    usdRate: () => request<{ tomanPerUsd: number; updatedAtUnixMs: number }>("/pricing/usd-rate"),
+    refreshUsdRate: () => request<{ tomanPerUsd: number; updatedAtUnixMs: number }>("/pricing/usd-rate/refresh", { method: "POST" }),
   },
   hero: {
     list: () => request<HeroSlide[]>("/hero"),

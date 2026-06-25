@@ -55,6 +55,7 @@ export type Product = {
   warning: string;
   requiredLevel: number;
   deliveryTemplate: string;
+  priceUsd: number;
   features: ProductFeature[];
   plans: ProductPlan[];
 };
@@ -73,6 +74,7 @@ export type ProductInput = {
   warning: string;
   requiredLevel: number;
   deliveryTemplate: string;
+  priceUsd: number;
   features: ProductFeature[];
   plans: ProductPlanInput[];
 };

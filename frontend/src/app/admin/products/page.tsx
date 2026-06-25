@@ -23,6 +23,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   warning: "",
   requiredLevel: 1,
   deliveryTemplate: "",
+  priceUsd: 0,
   features: [
     { text: "تحویل آنی پس از پرداخت", included: true },
     { text: "پشتیبانی ۲۴ ساعته", included: true },
@@ -84,6 +85,7 @@ export default function AdminProductsPage() {
       warning: p.warning,
       requiredLevel: p.requiredLevel,
       deliveryTemplate: p.deliveryTemplate,
+      priceUsd: p.priceUsd ?? 0,
       features: p.features.map((f) => ({ ...f })),
       plans: p.plans.map((pl) => ({ type: pl.type, months: pl.months, price: pl.price, discountPercent: pl.discountPercent, isActive: pl.isActive })),
     });
@@ -205,6 +207,10 @@ export default function AdminProductsPage() {
             </Field>
             <Field label="تخفیف (٪)">
               <input type="number" dir="ltr" min={0} max={100} value={form.discountPercent} onChange={(e) => set("discountPercent", Math.min(100, Math.max(0, Number(e.target.value))))} className={`${inputCls} text-left`} />
+            </Field>
+            <Field label="قیمت دلاری ($) — اختیاری">
+              <input type="number" dir="ltr" min={0} step={0.01} value={form.priceUsd || ""} onChange={(e) => set("priceUsd", Math.max(0, Number(e.target.value)))} placeholder="مثلاً 4.99" className={`${inputCls} text-left`} />
+              <p className="mt-1.5 text-xs text-white/45">اگر پر شود، قیمت تومانی خودکار از نرخ زندهٔ دلار (نوبیتکس) محاسبه و لحظه‌ای به‌روزرسانی می‌شود و فیلد «قیمت (تومان)» نادیده گرفته می‌شود.</p>
             </Field>
           </div>
 

@@ -29,6 +29,7 @@ const fallbackProduct: Product = {
   warning: "",
   requiredLevel: 1,
   deliveryTemplate: "",
+  priceUsd: 0,
   features: [
     { text: "تحویل آنی پس از پرداخت", included: true },
     { text: "کیفیت 4K Ultra HD", included: true },

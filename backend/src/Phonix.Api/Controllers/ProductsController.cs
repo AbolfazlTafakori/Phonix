@@ -16,8 +16,13 @@ public record DeliveryTemplateInput(string Title, string Content);
 public class ProductsController : ControllerBase
 {
     private readonly StoreData _store;
+    private readonly Services.UsdRateService _rate;
 
-    public ProductsController(StoreData store) => _store = store;
+    public ProductsController(StoreData store, Services.UsdRateService rate)
+    {
+        _store = store;
+        _rate = rate;
+    }
 
     [AllowAnonymous]
     [HttpGet]
@@ -58,6 +63,8 @@ public class ProductsController : ControllerBase
         if (product is null) return NotFound();
         product.Price = input.Price;
         product.DiscountPercent = input.DiscountPercent;
+        product.PriceUsd = Math.Max(0, input.PriceUsd ?? 0);
+        ApplyUsdPrice(product);
         _store.UpdateProduct(product);
         return _store.GetProduct(id)!.ToDto(CategoryName(product.CategoryId));
     }
@@ -90,11 +97,20 @@ public class ProductsController : ControllerBase
     public IActionResult DeleteTemplate(int id, int templateId) =>
         _store.DeleteDeliveryTemplate(id, templateId) ? NoContent() : NotFound();
 
-    private static Product Map(Product target, ProductInput input)
+    // For a USD-priced product, snap its Toman Price to the current rate immediately so the saved value is
+    // correct right away (the background service keeps it in sync afterwards).
+    private void ApplyUsdPrice(Product p)
+    {
+        if (p.PriceUsd > 0 && _rate.TomanPerUsd > 0)
+            p.Price = (long)Math.Round(p.PriceUsd * _rate.TomanPerUsd);
+    }
+
+    private Product Map(Product target, ProductInput input)
     {
         target.Name = (input.Name ?? "").Trim();
         target.CategoryId = input.CategoryId;
         target.Price = Math.Max(0, input.Price);
+        target.PriceUsd = Math.Max(0, input.PriceUsd ?? 0);
         target.DiscountPercent = Math.Clamp(input.DiscountPercent, 0, 100);
         target.Stock = Math.Max(0, input.Stock);
         target.IsActive = input.IsActive;
@@ -107,6 +123,7 @@ public class ProductsController : ControllerBase
         target.DeliveryTemplate = input.DeliveryTemplate ?? "";
         target.Features = input.Features ?? new();
         target.Plans = (input.Plans ?? new()).Select(NormalizePlan).ToList();
+        ApplyUsdPrice(target);
         return target;
     }
 

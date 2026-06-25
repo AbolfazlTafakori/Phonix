@@ -14,8 +14,26 @@ namespace Phonix.Api.Controllers;
 public class PricingController : ControllerBase
 {
     private readonly StoreData _store;
+    private readonly Services.UsdRateService _rate;
 
-    public PricingController(StoreData store) => _store = store;
+    public PricingController(StoreData store, Services.UsdRateService rate)
+    {
+        _store = store;
+        _rate = rate;
+    }
+
+    // Live USDT→Toman rate (from Nobitex) used to price products entered in USD. Anonymous so the storefront
+    // can show it; refresh is staff-only.
+    [AllowAnonymous]
+    [HttpGet("usd-rate")]
+    public object GetUsdRate() => new { tomanPerUsd = _rate.TomanPerUsd, updatedAtUnixMs = _rate.UpdatedAtUnixMs };
+
+    [HttpPost("usd-rate/refresh")]
+    public async Task<object> RefreshUsdRate()
+    {
+        await _rate.RefreshAsync();
+        return new { tomanPerUsd = _rate.TomanPerUsd, updatedAtUnixMs = _rate.UpdatedAtUnixMs };
+    }
 
     [AllowAnonymous]
     [HttpGet("settings")]

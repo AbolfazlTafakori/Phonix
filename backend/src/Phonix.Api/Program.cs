@@ -62,6 +62,10 @@ try
     builder.Services.AddHostedService<AuditPersistenceWorker>();
     builder.Services.AddSingleton<IEmailSender, EmailSender>();
     builder.Services.AddHttpClient();
+    // Live USDT→Toman rate for USD-priced products: one instance serves both the background refresher and
+    // the controllers that read/refresh the rate.
+    builder.Services.AddSingleton<UsdRateService>();
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<UsdRateService>());
     builder.Services.AddSingleton<ITelegramBackupSender, TelegramBackupSender>();
     builder.Services.AddHostedService<TelegramBackupWorker>();
     builder.Services.AddSingleton<ITelegramAlertSender, TelegramAlertSender>();

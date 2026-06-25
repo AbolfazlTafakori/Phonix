@@ -47,6 +47,27 @@ public partial class StoreData
         EnsureOwnerFromEnvironment(); // installer/p-ui seed the production owner via the service environment
     }
 
+    // Recomputes the Toman price of every USD-priced product from the latest USDT→Toman rate and persists if
+    // anything moved. Called by UsdRateService after each refresh, so cart/checkout/display always use a
+    // current Toman amount without any per-request conversion.
+    public bool ApplyUsdRate(long tomanPerUsd)
+    {
+        if (tomanPerUsd <= 0) return false;
+        var changed = false;
+        lock (_gate)
+        {
+            foreach (var p in _products)
+            {
+                if (p.PriceUsd <= 0) continue;
+                var toman = (long)Math.Round(p.PriceUsd * tomanPerUsd);
+                if (toman != p.Price) { p.Price = toman; changed = true; }
+            }
+            if (changed) RebuildCatalogView();
+        }
+        if (changed) PersistNow();
+        return changed;
+    }
+
     // Caller holds _gate (except the constructor, which runs single-threaded). Republishes the lock-free
     // catalog snapshots after the product/category set changes.
     private void RebuildCatalogView()

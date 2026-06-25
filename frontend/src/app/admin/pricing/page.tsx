@@ -7,13 +7,16 @@ import { formatToman, formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner, Toggle, StatusBadge, inputCls } from "@/components/admin/ui";
 import AdminIcon from "@/components/admin/AdminIcon";
 
-type Tab = "products" | "fees" | "plans";
+type Tab = "products" | "fees" | "plans" | "usd";
 
 const tabs: { key: Tab; label: string }[] = [
   { key: "products", label: "قیمت محصولات" },
+  { key: "usd", label: "تبدیل دلار به تومان" },
   { key: "fees", label: "هزینه‌ها و کارمزدها" },
   { key: "plans", label: "پلن‌های اشتراک" },
 ];
+
+type UsdRate = { tomanPerUsd: number; updatedAtUnixMs: number };
 
 function finalOf(price: number, discount: number) {
   return discount > 0 ? Math.round(price * (1 - discount / 100)) : price;
@@ -28,20 +31,23 @@ export default function AdminPricingPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [settings, setSettings] = useState<PricingSettings | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [usd, setUsd] = useState<UsdRate | null>(null);
 
   useEffect(() => {
     (async () => {
       try {
-        const [c, p, s, pl] = await Promise.all([
+        const [c, p, s, pl, u] = await Promise.all([
           api.categories.list(),
           api.products.list(),
           api.pricing.getSettings(),
           api.pricing.getPlans(),
+          api.pricing.usdRate().catch(() => null),
         ]);
         setCategories(c);
         setProducts(p);
         setSettings(s);
         setPlans(pl);
+        setUsd(u);
       } catch (e) {
         setError(e instanceof Error ? e.message : "خطا در بارگذاری اطلاعات");
       } finally {
@@ -79,8 +85,9 @@ export default function AdminPricingPage() {
       ) : (
         <>
           {tab === "products" && (
-            <ProductPricing categories={categories} products={products} setProducts={setProducts} />
+            <ProductPricing categories={categories} products={products} setProducts={setProducts} rate={usd?.tomanPerUsd ?? 0} />
           )}
+          {tab === "usd" && <UsdRatePanel usd={usd} setUsd={setUsd} />}
           {tab === "fees" && settings && <FeesPanel settings={settings} setSettings={setSettings} />}
           {tab === "plans" && <PlansPanel plans={plans} setPlans={setPlans} />}
         </>
@@ -93,14 +100,18 @@ function ProductPricing({
   categories,
   products,
   setProducts,
+  rate,
 }: {
   categories: Category[];
   products: Product[];
   setProducts: (updater: (prev: Product[]) => Product[]) => void;
+  rate: number;
 }) {
-  const [draft, setDraft] = useState<Record<number, { price: number; discount: number }>>(() =>
-    Object.fromEntries(products.map((p) => [p.id, { price: p.price, discount: p.discountPercent }])),
+  const [draft, setDraft] = useState<Record<number, { price: number; discount: number; priceUsd: number }>>(() =>
+    Object.fromEntries(products.map((p) => [p.id, { price: p.price, discount: p.discountPercent, priceUsd: p.priceUsd ?? 0 }])),
   );
+  // Toman base price for a row: from the live USD rate when a dollar price is set, otherwise the manual Toman.
+  const baseOf = (d: { price: number; priceUsd: number }) => (d.priceUsd > 0 && rate > 0 ? Math.round(d.priceUsd * rate) : d.price);
   const [busy, setBusy] = useState<number | null>(null);
   const [savingAll, setSavingAll] = useState(false);
 
@@ -116,18 +127,18 @@ function ProductPricing({
 
   const isDirty = (p: Product) => {
     const d = draft[p.id];
-    return d && (d.price !== p.price || d.discount !== p.discountPercent);
+    return d && (d.price !== p.price || d.discount !== p.discountPercent || d.priceUsd !== (p.priceUsd ?? 0));
   };
   const dirtyList = products.filter(isDirty);
 
-  const set = (id: number, key: "price" | "discount", value: number) =>
+  const set = (id: number, key: "price" | "discount" | "priceUsd", value: number) =>
     setDraft((prev) => ({ ...prev, [id]: { ...prev[id], [key]: value } }));
 
   async function save(p: Product) {
     const d = draft[p.id];
     setBusy(p.id);
     try {
-      const updated = await api.products.updatePrice(p.id, { price: d.price, discountPercent: d.discount });
+      const updated = await api.products.updatePrice(p.id, { price: d.price, discountPercent: d.discount, priceUsd: d.priceUsd });
       setProducts((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
     } finally {
       setBusy(null);
@@ -139,7 +150,7 @@ function ProductPricing({
     try {
       for (const p of dirtyList) {
         const d = draft[p.id];
-        const updated = await api.products.updatePrice(p.id, { price: d.price, discountPercent: d.discount });
+        const updated = await api.products.updatePrice(p.id, { price: d.price, discountPercent: d.discount, priceUsd: d.priceUsd });
         setProducts((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
       }
     } finally {
@@ -158,8 +169,9 @@ function ProductPricing({
 
           <div className="divide-y divide-white/5">
             {group.items.map((p) => {
-              const d = draft[p.id] ?? { price: p.price, discount: p.discountPercent };
-              const final = finalOf(d.price, d.discount);
+              const d = draft[p.id] ?? { price: p.price, discount: p.discountPercent, priceUsd: p.priceUsd ?? 0 };
+              const usdPriced = d.priceUsd > 0;
+              const final = finalOf(baseOf(d), d.discount);
               const dirty = isDirty(p);
               return (
                 <div key={p.id} className="flex flex-col gap-4 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:px-6">
@@ -178,14 +190,29 @@ function ProductPricing({
                   </div>
 
                   <div className="grid w-full grid-cols-2 gap-3 sm:flex sm:w-auto sm:items-end sm:gap-4">
-                    <label className="sm:w-32">
-                      <span className="mb-1 block text-[11px] text-white/45">قیمت پایه</span>
+                    <label className="sm:w-28">
+                      <span className="mb-1 block text-[11px] text-white/45">قیمت دلاری ($)</span>
                       <input
                         type="number"
                         dir="ltr"
-                        value={d.price}
-                        onChange={(e) => set(p.id, "price", Number(e.target.value))}
+                        min={0}
+                        step={0.01}
+                        value={d.priceUsd || ""}
+                        placeholder="—"
+                        onChange={(e) => set(p.id, "priceUsd", Math.max(0, Number(e.target.value)))}
                         className={`${inputCls} h-10 text-left`}
+                      />
+                    </label>
+
+                    <label className="sm:w-32">
+                      <span className="mb-1 block text-[11px] text-white/45">قیمت پایه (تومان)</span>
+                      <input
+                        type="number"
+                        dir="ltr"
+                        value={usdPriced ? baseOf(d) : d.price}
+                        disabled={usdPriced}
+                        onChange={(e) => set(p.id, "price", Number(e.target.value))}
+                        className={`${inputCls} h-10 text-left ${usdPriced ? "opacity-50" : ""}`}
                       />
                     </label>
 
@@ -485,6 +512,67 @@ function PlansPanel({
         {adding ? <Spinner /> : <AdminIcon name="plus" className="h-4 w-4" />}
         افزودن پلن جدید
       </button>
+    </div>
+  );
+}
+
+function UsdRatePanel({ usd, setUsd }: { usd: UsdRate | null; setUsd: (u: UsdRate) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [amount, setAmount] = useState(5);
+  const rate = usd?.tomanPerUsd ?? 0;
+
+  async function refresh() {
+    setBusy(true);
+    try {
+      setUsd(await api.pricing.refreshUsdRate());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const updated = usd?.updatedAtUnixMs
+    ? new Date(usd.updatedAtUnixMs).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" })
+    : "—";
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Card className="p-6">
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-lg font-bold text-white">نرخ زندهٔ دلار (USDT)</h3>
+          <button
+            onClick={refresh}
+            disabled={busy}
+            className="flex h-10 items-center gap-2 rounded-xl border border-white/10 px-4 text-sm font-bold text-white/80 transition hover:bg-white/5 disabled:opacity-50"
+          >
+            {busy ? <Spinner /> : <span className="text-base leading-none">↻</span>}
+            به‌روزرسانی
+          </button>
+        </div>
+        <p className="mt-5 text-3xl font-black text-emerald-400">{rate ? formatToman(rate) : "در حال دریافت…"}</p>
+        <p className="mt-1 text-xs text-white/45">به ازای هر ۱ دلار · منبع: نوبیتکس</p>
+        <p className="mt-3 text-xs text-white/40">آخرین به‌روزرسانی: {updated}</p>
+        <p className="mt-5 rounded-xl border border-white/8 bg-white/[0.02] p-3 text-xs leading-6 text-white/55">
+          نرخ هر ۵ دقیقه به‌صورت خودکار از نوبیتکس دریافت می‌شود و قیمت تومانیِ محصولاتی که قیمت دلاری دارند، لحظه‌ای با آن به‌روزرسانی می‌شود.
+        </p>
+      </Card>
+
+      <Card className="h-fit p-6">
+        <h3 className="mb-4 text-lg font-bold text-white">تبدیل سریع دلار به تومان</h3>
+        <label className="mb-2 block text-sm text-white/70">مبلغ به دلار ($)</label>
+        <input
+          type="number"
+          dir="ltr"
+          min={0}
+          step={0.01}
+          value={amount}
+          onChange={(e) => setAmount(Math.max(0, Number(e.target.value)))}
+          className={`${inputCls} text-left`}
+        />
+        <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.02] p-4">
+          <span className="text-xs text-white/45">معادل تومان</span>
+          <p className="text-2xl font-bold text-white">{rate ? formatToman(Math.round(amount * rate)) : "—"}</p>
+        </div>
+      </Card>
     </div>
   );
 }
