@@ -68,6 +68,11 @@ public class OrdersController : ControllerBase
         if (user is null) return Unauthorized();
         if (!user.EmailVerified) return StatusCode(403, "برای ثبت سفارش ابتدا ایمیل خود را تأیید کنید.");
 
+        // When a card-to-card payment date is supplied for the remainder, it must be a real date and not in
+        // the future; the store enforces presence, here we enforce validity (the client cannot be trusted).
+        if (!string.IsNullOrWhiteSpace(input.PaymentDate) && !JalaliDate.IsValidAndNotFuture(input.PaymentDate))
+            return BadRequest("تاریخ پرداخت نامعتبر است یا از امروز جلوتر است.");
+
         var result = _store.PlaceOrder(
             user,
             input.Items.Select(i => (i.ProductId, i.Quantity, i.PlanId)),

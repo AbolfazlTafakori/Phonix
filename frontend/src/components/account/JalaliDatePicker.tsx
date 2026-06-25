@@ -153,6 +153,11 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
   const days = monthLen(view.jy, view.jm);
   const cells: (number | null)[] = [...Array(lead).fill(null), ...Array.from({ length: days }, (_, i) => i + 1)];
 
+  // Future dates are not selectable: a payment can't have happened tomorrow. The server enforces this too.
+  const todayJdn = j2d(today.jy, today.jm, today.jd);
+  const isFuture = (jd: number) => j2d(view.jy, view.jm, jd) > todayJdn;
+  const atCurrentMonth = view.jy > today.jy || (view.jy === today.jy && view.jm >= today.jm);
+
   return (
     <div ref={wrapRef} className="relative">
       <div className="relative">
@@ -182,7 +187,7 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
           <div className="mb-2 flex items-center justify-between">
             <button type="button" onClick={() => move(-1)} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white">‹</button>
             <span className="text-sm font-bold text-white">{MONTHS[view.jm - 1]} {toFa(view.jy)}</span>
-            <button type="button" onClick={() => move(1)} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white">›</button>
+            <button type="button" onClick={() => move(1)} disabled={atCurrentMonth} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent">›</button>
           </div>
           <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-white/40">
             {WEEK.map((w) => <span key={w}>{w}</span>)}
@@ -192,13 +197,16 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
               if (jd === null) return <span key={i} />;
               const isToday = today.jy === view.jy && today.jm === view.jm && today.jd === jd;
               const isSel = selected && selected.jy === view.jy && selected.jm === view.jm && selected.jd === jd;
+              const disabled = isFuture(jd);
               return (
                 <button
                   key={i}
                   type="button"
+                  disabled={disabled}
                   onClick={() => pick(jd)}
                   className={`grid h-8 place-items-center rounded-lg text-sm transition ${
-                    isSel ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] font-bold text-white"
+                    disabled ? "cursor-not-allowed text-white/20"
+                      : isSel ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] font-bold text-white"
                       : isToday ? "border border-[#3a64f2]/60 text-white"
                       : "text-white/75 hover:bg-white/10"
                   }`}

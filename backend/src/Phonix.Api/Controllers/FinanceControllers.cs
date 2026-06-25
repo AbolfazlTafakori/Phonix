@@ -143,6 +143,8 @@ public class TransactionsController : ControllerBase
         if (tracking.Length == 0) return BadRequest("شماره پیگیری واریز را وارد کنید.");
         var payDate = (input.PaymentDate ?? "").Trim();
         if (payDate.Length == 0) return BadRequest("تاریخ پرداخت را وارد کنید.");
+        if (!JalaliDate.IsValidAndNotFuture(payDate))
+            return BadRequest("تاریخ پرداخت نامعتبر است یا از امروز جلوتر است.");
 
         // The receipt is the proof of the out-of-band transfer; when the store requires it, a top-up
         // can't be filed without one so staff always have something to verify against.
