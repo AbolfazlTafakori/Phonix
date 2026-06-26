@@ -258,110 +258,43 @@ export default function BackupPage() {
       ) : error || !tg ? (
         <Card className="p-8 text-center text-rose-400">{error || "اطلاعات یافت نشد"}</Card>
       ) : (
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* manual backup + restore */}
-          <div className="space-y-6">
-            <Card className="p-6">
+        <div className="space-y-6">
+          {/* 1) full one-file backup + restore */}
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card className="flex flex-col p-6">
               <div className="mb-3 flex items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-400"><AdminIcon name="disk" className="h-5 w-5" /></span>
                 <h3 className="text-lg font-bold text-white">دانلود پشتیبان کامل</h3>
               </div>
-              <p className="mb-4 text-sm leading-7 text-white/55">یک فایلِ کامل از <b className="text-white/80">همه‌چیز</b> — همهٔ داده‌ها (محصولات، کاربران، سفارش‌ها، تنظیمات...) به‌علاوهٔ <b className="text-white/80">همهٔ فایل‌های تصویری و مدارک</b> — در یک فایلِ رمزنگاری‌شده. آن را جای امنی نگه دارید.</p>
-              <button onClick={downloadBackup} disabled={downloading} className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-emerald-500 px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">
+              <p className="mb-4 flex-1 text-sm leading-7 text-white/55">یک فایلِ کامل از <b className="text-white/80">همه‌چیز</b> — همهٔ داده‌ها (محصولات، کاربران، سفارش‌ها، تنظیمات...) به‌علاوهٔ <b className="text-white/80">همهٔ فایل‌های تصویری و مدارک</b> — در یک فایلِ رمزنگاری‌شده.</p>
+              <button onClick={downloadBackup} disabled={downloading} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-emerald-500 px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">
                 {downloading ? <Spinner /> : "دانلود فایل پشتیبان کامل"}
               </button>
               {downloadNote && <p className={`mt-3 text-sm ${downloadNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{downloadNote.text}</p>}
             </Card>
 
-            <Card className="border-rose-500/20 p-6">
+            <Card className="flex flex-col border-rose-500/20 p-6">
               <div className="mb-3 flex items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-500/15 text-rose-400"><AdminIcon name="shield" className="h-5 w-5" /></span>
                 <h3 className="text-lg font-bold text-white">بازیابی کامل از فایل</h3>
               </div>
-              <p className="mb-4 text-sm leading-7 text-amber-300/80">⚠ بازیابیِ کامل، تمام داده‌ها و فایل‌های فعلی را با فایل انتخاب‌شده جایگزین می‌کند. این کار قابل بازگشت نیست — ابتدا یک پشتیبان از وضعیت فعلی بگیرید.</p>
+              <p className="mb-4 text-sm leading-7 text-amber-300/80">⚠ بازیابیِ کامل تمام داده‌ها و فایل‌های فعلی را جایگزین می‌کند و قابل بازگشت نیست — اول از وضعیت فعلی پشتیبان بگیرید.</p>
               <input
                 ref={fileRef}
                 type="file"
-                accept="application/json,.json,.phxbak"
+                accept="application/json,.json,.phxbak,.zip"
                 onChange={(e) => { setRestoreFile(e.target.files?.[0] ?? null); setRestoreNote(null); }}
-                className="block w-full text-sm text-white/70 file:ml-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-white/15"
+                className="mt-auto block w-full text-sm text-white/70 file:ml-3 file:rounded-lg file:border-0 file:bg-white/10 file:px-4 file:py-2 file:text-sm file:font-bold file:text-white hover:file:bg-white/15"
               />
-              <button onClick={openRestore} disabled={!restoreFile} className="mt-4 flex h-11 items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-6 text-sm font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-40">
-                بازیابی و جایگزینی داده‌ها
+              <button onClick={openRestore} disabled={!restoreFile} className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 px-6 text-sm font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-40">
+                بازیابی و جایگزینی همه‌چیز
               </button>
               {restoreNote && <p className={`mt-3 text-sm ${restoreNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{restoreNote.text}</p>}
             </Card>
           </div>
 
-          {/* telegram auto-backup */}
+          {/* 2) per-section backup */}
           <div className="space-y-6">
-            <Card className="p-6">
-              <div className="mb-4 flex items-center justify-between">
-                <h3 className="text-lg font-bold text-white">پشتیبان خودکار تلگرام</h3>
-                {savedTg && <span className="text-sm font-medium text-emerald-400">✓ ذخیره شد</span>}
-              </div>
-              <label className="mb-3 flex cursor-pointer items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
-                <span className="text-sm font-bold text-white/85">ارسال خودکار پشتیبان به تلگرام</span>
-                <Toggle checked={tg.backupEnabled} onChange={(v) => setField("backupEnabled", v)} />
-              </label>
-              <label className="mb-5 flex cursor-pointer items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
-                <span className="text-sm font-bold text-white/85">هشدار خطا و راه‌اندازی سرور در تلگرام</span>
-                <Toggle checked={tg.alertsEnabled} onChange={(v) => setField("alertsEnabled", v)} />
-              </label>
-              <div className="grid gap-4">
-                <Field label="توکن بات (از BotFather)">
-                  <input value={tg.botToken} onChange={(e) => setField("botToken", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="123456:ABC-DEF..." />
-                </Field>
-                <Field label="شناسهٔ عددی چت مقصد (Chat ID)">
-                  <input value={tg.chatId} onChange={(e) => setField("chatId", e.target.value.replace(/[^\d-]/g, ""))} dir="ltr" className={`${inputCls} text-left`} placeholder="-1001234567890" />
-                  <p className="mt-1.5 text-xs text-white/45">فقط عدد (آیدی کاربر) یا عددِ منفی (گروه/کانال). بکاپ‌ها فقط به همین یک چت ارسال می‌شوند؛ ربات به هیچ چت دیگری چیزی نمی‌فرستد.</p>
-                </Field>
-                <Field label="فاصله‌ی زمانی هر بکاپ (ساعت)">
-                  <input type="number" dir="ltr" min={1} value={tg.intervalHours} onChange={(e) => setField("intervalHours", Math.max(1, Number(e.target.value)))} className={`${inputCls} text-left`} />
-                </Field>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-3">
-                <button onClick={saveTg} disabled={savingTg} className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">
-                  {savingTg ? <Spinner /> : "ذخیره تنظیمات"}
-                </button>
-                <button onClick={testTg} disabled={testingTg} className="flex h-11 items-center gap-2 rounded-xl border border-white/15 px-6 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-50">
-                  {testingTg ? <Spinner /> : "ارسال پشتیبان آزمایشی"}
-                </button>
-                <button onClick={testAlertTg} disabled={testingAlert} className="flex h-11 items-center gap-2 rounded-xl border border-white/15 px-6 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-50">
-                  {testingAlert ? <Spinner /> : "ارسال هشدار آزمایشی"}
-                </button>
-              </div>
-              {tgNote && <p className={`mt-3 text-sm ${tgNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{tgNote.text}</p>}
-
-              <div className="mt-5 grid gap-2 border-t border-white/8 pt-4 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-white/45">آخرین پشتیبان موفق</span>
-                  <span className="text-white/80">{lastBackup}</span>
-                </div>
-                {tg.lastBackupError && (
-                  <div className="flex items-start justify-between gap-3">
-                    <span className="shrink-0 text-white/45">آخرین خطا</span>
-                    <span className="text-left text-rose-400">{tg.lastBackupError}</span>
-                  </div>
-                )}
-              </div>
-            </Card>
-
-            <Card className="p-6">
-              <h3 className="mb-3 text-lg font-bold text-white">راهنما</h3>
-              <ul className="space-y-2 text-sm leading-7 text-white/65">
-                <li>• یک بات از <span dir="ltr">@BotFather</span> بسازید و توکن آن را اینجا وارد کنید.</li>
-                <li>• بات را به گروه/کانال مقصد اضافه کنید و شناسه‌ی آن چت را وارد کنید (برای دریافت Chat ID می‌توانید از <span dir="ltr">@userinfobot</span> کمک بگیرید).</li>
-                <li>• پس از ذخیره، با «ارسال پشتیبان آزمایشی» از درستی تنظیمات مطمئن شوید.</li>
-                <li>• ارسال خودکار طبق فاصله‌ی زمانی تعیین‌شده توسط سرور انجام می‌شود.</li>
-                <li>• با فعال‌کردن «هشدار خطا و راه‌اندازی»، هر خطای داخلی سرور و هر بار راه‌اندازی مجدد به همین چت اطلاع داده می‌شود (هشدارهای تکراری تا چند دقیقه یک‌بار ارسال می‌شوند).</li>
-              </ul>
-            </Card>
-          </div>
-
-          {/* per-section backup — full width */}
-          <div className="lg:col-span-2 space-y-6">
             <Card className="p-6">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
@@ -421,6 +354,75 @@ export default function BackupPage() {
               </div>
             </Card>
 
+            {/* 4) telegram auto-backup + help */}
+            <Card className="p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <h3 className="text-lg font-bold text-white">پشتیبان خودکار تلگرام</h3>
+                {savedTg && <span className="text-sm font-medium text-emerald-400">✓ ذخیره شد</span>}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="flex cursor-pointer items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
+                  <span className="text-sm font-bold text-white/85">ارسال خودکار پشتیبان</span>
+                  <Toggle checked={tg.backupEnabled} onChange={(v) => setField("backupEnabled", v)} />
+                </label>
+                <label className="flex cursor-pointer items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
+                  <span className="text-sm font-bold text-white/85">هشدار خطا و راه‌اندازی سرور</span>
+                  <Toggle checked={tg.alertsEnabled} onChange={(v) => setField("alertsEnabled", v)} />
+                </label>
+              </div>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Field label="توکن بات (از BotFather)">
+                  <input value={tg.botToken} onChange={(e) => setField("botToken", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="123456:ABC-DEF..." />
+                </Field>
+                <Field label="فاصله‌ی زمانی هر بکاپ (ساعت)">
+                  <input type="number" dir="ltr" min={1} value={tg.intervalHours} onChange={(e) => setField("intervalHours", Math.max(1, Number(e.target.value)))} className={`${inputCls} text-left`} />
+                </Field>
+                <div className="sm:col-span-2">
+                  <Field label="شناسهٔ عددی چت مقصد (Chat ID)">
+                    <input value={tg.chatId} onChange={(e) => setField("chatId", e.target.value.replace(/[^\d-]/g, ""))} dir="ltr" className={`${inputCls} text-left`} placeholder="-1001234567890" />
+                    <p className="mt-1.5 text-xs text-white/45">فقط عدد (آیدی کاربر) یا عددِ منفی (گروه/کانال). بکاپ‌ها فقط به همین یک چت ارسال می‌شوند؛ ربات به هیچ چت دیگری چیزی نمی‌فرستد.</p>
+                  </Field>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3">
+                <button onClick={saveTg} disabled={savingTg} className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">
+                  {savingTg ? <Spinner /> : "ذخیره تنظیمات"}
+                </button>
+                <button onClick={testTg} disabled={testingTg} className="flex h-11 items-center gap-2 rounded-xl border border-white/15 px-6 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-50">
+                  {testingTg ? <Spinner /> : "ارسال پشتیبان آزمایشی"}
+                </button>
+                <button onClick={testAlertTg} disabled={testingAlert} className="flex h-11 items-center gap-2 rounded-xl border border-white/15 px-6 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-50">
+                  {testingAlert ? <Spinner /> : "ارسال هشدار آزمایشی"}
+                </button>
+              </div>
+              {tgNote && <p className={`mt-3 text-sm ${tgNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{tgNote.text}</p>}
+
+              <div className="mt-5 grid gap-2 border-t border-white/8 pt-4 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/45">آخرین پشتیبان موفق</span>
+                  <span className="text-white/80">{lastBackup}</span>
+                </div>
+                {tg.lastBackupError && (
+                  <div className="flex items-start justify-between gap-3">
+                    <span className="shrink-0 text-white/45">آخرین خطا</span>
+                    <span className="text-left text-rose-400">{tg.lastBackupError}</span>
+                  </div>
+                )}
+              </div>
+
+              <details className="mt-4 border-t border-white/8 pt-4">
+                <summary className="cursor-pointer text-sm font-bold text-white/70">راهنمای اتصال تلگرام</summary>
+                <ul className="mt-3 space-y-2 text-sm leading-7 text-white/60">
+                  <li>• یک بات از <span dir="ltr">@BotFather</span> بسازید و توکنش را وارد کنید.</li>
+                  <li>• بات را به گروه/کانال مقصد اضافه کنید (یا برای DM، اول به بات <span dir="ltr">/start</span> بزنید).</li>
+                  <li>• شناسهٔ عددی چت را از <span dir="ltr">@userinfobot</span> بگیرید.</li>
+                  <li>• با «ارسال پشتیبان آزمایشی» از درستی تنظیمات مطمئن شوید.</li>
+                </ul>
+              </details>
+            </Card>
+
+            {/* 5) history */}
             <Card className="p-6">
               <h3 className="mb-3 text-lg font-bold text-white">تاریخچهٔ بکاپ‌ها</h3>
               {history.length === 0 ? (
