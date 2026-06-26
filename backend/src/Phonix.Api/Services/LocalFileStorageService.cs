@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Http;
 using SkiaSharp;
@@ -162,29 +163,75 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         return new StoredFile(stream, contentType, id);
     }
 
-    public byte[] ArchivePublicMedia() => ArchiveCategories(new[] { "avatars" });
-    public byte[] ArchiveSensitiveMedia() => ArchiveCategories(new[] { "kyc", "cards", "receipts" });
+    public byte[] ArchivePublicMedia() => ArchiveCategories(new[] { "avatars" }, "");
+    public byte[] ArchiveSensitiveMedia() => ArchiveCategories(new[] { "kyc", "cards", "receipts" }, "");
 
-    // Builds an in-memory zip of the given category folders for a manual media backup download.
-    private byte[] ArchiveCategories(string[] categories)
+    // A single complete archive: the full store.json plus every uploaded file (media/<category>/...).
+    public byte[] ArchiveFull(string storeJson)
     {
         using var ms = new MemoryStream();
-        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
         {
-            foreach (var category in categories)
-            {
-                var dir = Path.Combine(_root, category);
-                if (!Directory.Exists(dir)) continue;
-                foreach (var file in Directory.EnumerateFiles(dir))
-                {
-                    var entry = zip.CreateEntry($"{category}/{Path.GetFileName(file)}", System.IO.Compression.CompressionLevel.Fastest);
-                    using var es = entry.Open();
-                    using var fs = File.OpenRead(file);
-                    fs.CopyTo(es);
-                }
-            }
+            var entry = zip.CreateEntry("store.json", CompressionLevel.Fastest);
+            using (var es = entry.Open())
+            using (var sw = new StreamWriter(es))
+                sw.Write(storeJson);
+            foreach (var category in Categories) AddCategoryToZip(zip, category, "media/");
         }
         return ms.ToArray();
+    }
+
+    private byte[] ArchiveCategories(string[] categories, string prefix)
+    {
+        using var ms = new MemoryStream();
+        using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+            foreach (var category in categories) AddCategoryToZip(zip, category, prefix);
+        return ms.ToArray();
+    }
+
+    private void AddCategoryToZip(ZipArchive zip, string category, string prefix)
+    {
+        var dir = Path.Combine(_root, category);
+        if (!Directory.Exists(dir)) return;
+        foreach (var file in Directory.EnumerateFiles(dir))
+        {
+            var entry = zip.CreateEntry($"{prefix}{category}/{Path.GetFileName(file)}", CompressionLevel.Fastest);
+            using var es = entry.Open();
+            using var fs = File.OpenRead(file);
+            fs.CopyTo(es);
+        }
+    }
+
+    // Extracts uploaded files from a backup zip back into the uploads root, hardened against Zip-Slip: only
+    // files whose final path stays inside an allowed category folder are written; everything else is skipped.
+    // Returns the number of files restored.
+    public int ExtractMediaArchive(byte[] zipBytes)
+    {
+        var restored = 0;
+        using var ms = new MemoryStream(zipBytes);
+        using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
+        foreach (var entry in zip.Entries)
+        {
+            if (string.IsNullOrEmpty(entry.Name)) continue; // directory entry
+            var parts = entry.FullName.Replace('\\', '/').Split('/', StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2) continue;
+            var category = parts[^2];
+            if (!Categories.Contains(category)) continue; // only known media folders
+
+            var fileName = Path.GetFileName(parts[^1]);
+            if (string.IsNullOrEmpty(fileName)) continue;
+
+            var dir = Path.GetFullPath(Path.Combine(_root, category));
+            var dest = Path.GetFullPath(Path.Combine(dir, fileName));
+            if (!dest.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.Ordinal)) continue; // zip-slip guard
+
+            Directory.CreateDirectory(dir);
+            using (var es = entry.Open())
+            using (var fs = new FileStream(dest, FileMode.Create, FileAccess.Write, FileShare.None))
+                es.CopyTo(fs);
+            restored++;
+        }
+        return restored;
     }
 
     public int? OwnerOf(string id)

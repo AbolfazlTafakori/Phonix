@@ -455,6 +455,30 @@ export const api = {
       const match = (res.headers.get("Content-Disposition") ?? "").match(/filename\*?="?([^";]+)"?/i);
       return { blob: await res.blob(), filename: match?.[1] ?? `phonix-media-${kind}.zip` };
     },
+    // full manual backup — everything (data + all media) in one file
+    downloadFull: async (): Promise<{ blob: Blob; filename: string }> => {
+      const res = await fetch(`${BASE}/api/backup/full`, { credentials: "include", cache: "no-store" });
+      if (!res.ok) throw new Error(`خطا در دانلود پشتیبان کامل (${res.status})`);
+      const match = (res.headers.get("Content-Disposition") ?? "").match(/filename\*?="?([^";]+)"?/i);
+      return { blob: await res.blob(), filename: match?.[1] ?? "phonix-full.phxbak" };
+    },
+    restoreUpload: async (path: string, file: File, backupKey: string, twoFactorCode: string): Promise<{ ok: boolean }> => {
+      const csrf = getCsrfToken();
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("backupKey", backupKey);
+      fd.append("twoFactorCode", twoFactorCode);
+      const res = await fetch(`${BASE}/api/backup/${path}`, {
+        method: "POST", credentials: "include", cache: "no-store",
+        headers: { ...(csrf ? { "X-CSRF-Token": csrf } : {}) }, body: fd,
+      });
+      if (!res.ok) {
+        let msg = `خطا در بازیابی (${res.status})`;
+        try { const t = await res.text(); if (t) msg = t.replace(/^"|"$/g, ""); } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      return (await res.json()) as { ok: boolean };
+    },
     telegram: {
       get: () => request<TelegramSettings>("/backup/telegram"),
       update: (body: TelegramSettings) => request<TelegramSettings>("/backup/telegram", { method: "PUT", body: json(body) }),

@@ -31,4 +31,10 @@ public interface IFileStorageService
 
     // Zips the sensitive identity/financial documents (KYC, bank cards, receipts) for a manual media backup.
     byte[] ArchiveSensitiveMedia();
+
+    // A single complete archive: full store.json + every uploaded file (under media/<category>/).
+    byte[] ArchiveFull(string storeJson);
+
+    // Restores uploaded files from a backup zip (Zip-Slip hardened). Returns the number of files written.
+    int ExtractMediaArchive(byte[] zipBytes);
 }

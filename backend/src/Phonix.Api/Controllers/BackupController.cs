@@ -1,3 +1,4 @@
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.AspNetCore.Authorization;
@@ -50,6 +51,89 @@ public class BackupController : ControllerBase
         if (BackupCrypto.IsEnabled)
             return File(BackupCrypto.EncryptBytes(zip), "application/octet-stream", $"phonix-media-sensitive-{stamp}.phxbak");
         return File(zip, "application/zip", $"phonix-media-sensitive-{stamp}.zip");
+    }
+
+    // Restore a media archive (public or sensitive) back into the uploads folder — same three-factor gate.
+    [HttpPost("media/restore/{kind}")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> RestoreMedia(
+        string kind, [FromForm] IFormFile? file, [FromForm] string? backupKey, [FromForm] string? twoFactorCode)
+    {
+        if (kind is not ("public" or "sensitive")) return NotFound();
+        var deny = CheckRestoreAuth(backupKey, twoFactorCode, out var username, out var ip);
+        if (deny is not null) return deny;
+        if (file is null || file.Length == 0) return BadRequest("فایل رسانه نامعتبر است.");
+
+        var bytes = await ReadAllBytes(file);
+        var zipBytes = BackupCrypto.LooksEncryptedBytes(bytes) ? BackupCrypto.DecryptBytes(bytes) : bytes;
+        if (zipBytes is null) return BadRequest("رمزگشایی آرشیو رسانه ناموفق بود. کلید پشتیبان را بررسی کنید.");
+
+        try
+        {
+            var n = _files.ExtractMediaArchive(zipBytes);
+            _store.RecordBackup(kind == "public" ? "رسانهٔ عمومی" : "مدارک حساس", "ریستور", true, $"{n} فایل");
+            _logger.LogWarning("[SRV] MEDIA RESTORE '{Kind}' ({N} files) by Admin {User}, IP {IP}", kind, n, username, ip);
+            return Ok(new { ok = true, mediaFiles = n });
+        }
+        catch { return BadRequest("آرشیو رسانه نامعتبر است."); }
+    }
+
+    // ── Full manual backup: everything (data + all media) in one encrypted file ──
+
+    [HttpGet("full")]
+    public IActionResult ExportFull()
+    {
+        var json = _store.SerializeSnapshot();
+        var zip = _files.ArchiveFull(json);
+        var stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
+        _store.RecordBackup("کامل (داده + رسانه)", "دانلود", true, "");
+        if (BackupCrypto.IsEnabled)
+            return File(BackupCrypto.EncryptBytes(zip), "application/octet-stream", $"phonix-full-{stamp}.phxbak");
+        return File(zip, "application/zip", $"phonix-full-{stamp}.zip");
+    }
+
+    [HttpPost("full/restore")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> RestoreFull(
+        [FromForm] IFormFile? file, [FromForm] string? backupKey, [FromForm] string? twoFactorCode)
+    {
+        var deny = CheckRestoreAuth(backupKey, twoFactorCode, out var username, out var ip);
+        if (deny is not null) return deny;
+        if (file is null || file.Length == 0) return BadRequest("فایل پشتیبان نامعتبر است.");
+
+        var bytes = await ReadAllBytes(file);
+        var zipBytes = BackupCrypto.LooksEncryptedBytes(bytes) ? BackupCrypto.DecryptBytes(bytes) : bytes;
+        if (zipBytes is null) return BadRequest("رمزگشایی فایل پشتیبان ناموفق بود. کلید پشتیبان را بررسی کنید.");
+
+        StoreSnapshot? snapshot;
+        try
+        {
+            using var ms = new MemoryStream(zipBytes);
+            using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
+            var entry = zip.GetEntry("store.json");
+            if (entry is null) return BadRequest("فایل پشتیبان کامل نامعتبر است (store.json یافت نشد).");
+            using var reader = new StreamReader(entry.Open(), Encoding.UTF8);
+            snapshot = _store.DeserializeSnapshot(await reader.ReadToEndAsync());
+        }
+        catch { return BadRequest("فایل پشتیبان نامعتبر است."); }
+
+        if (snapshot is null || snapshot.Users.Count == 0)
+            return BadRequest("فایل پشتیبان معتبر به‌نظر نمی‌رسد.");
+
+        _store.LoadSnapshot(snapshot);
+        _store.Save();
+        var mediaFiles = _files.ExtractMediaArchive(zipBytes);
+
+        _store.RecordBackup("کامل (داده + رسانه)", "ریستور", true, $"{mediaFiles} فایل رسانه");
+        _logger.LogWarning("[SRV] FULL RESTORE (data + {N} media) by Admin {User}, IP {IP}, {Time}", mediaFiles, username, ip, DateTime.UtcNow.ToString("o"));
+        return Ok(new { ok = true, mediaFiles });
+    }
+
+    private static async Task<byte[]> ReadAllBytes(IFormFile file)
+    {
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        return ms.ToArray();
     }
 
     // download the full store as a timestamped file. When PHONIX_BACKUP_KEY is set the payload is encrypted

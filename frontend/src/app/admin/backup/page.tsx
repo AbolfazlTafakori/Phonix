@@ -38,9 +38,10 @@ export default function BackupPage() {
   const [busyKey, setBusyKey] = useState<string>("");
   const [instantBusy, setInstantBusy] = useState(false);
   const [secNote, setSecNote] = useState<Note>(null);
-  const [restoreSectionKey, setRestoreSectionKey] = useState<string | null>(null);
+  type RTarget = { kind: "full" | "section" | "media"; value: string };
+  const [restoreTarget, setRestoreTarget] = useState<RTarget | null>(null);
   const secFileRef = useRef<HTMLInputElement>(null);
-  const pendingSection = useRef<string | null>(null);
+  const pendingTarget = useRef<RTarget | null>(null);
 
   async function loadSections() {
     try {
@@ -125,14 +126,14 @@ export default function BackupPage() {
     }
   }
 
-  function pickSectionRestore(key: string) {
-    pendingSection.current = key;
+  function pickRestore(target: RTarget) {
+    pendingTarget.current = target;
     secFileRef.current?.click();
   }
-  function onSectionFile(file: File | undefined) {
-    if (!file || !pendingSection.current) return;
+  function onRestoreFile(file: File | undefined) {
+    if (!file || !pendingTarget.current) return;
     setRestoreFile(file);
-    setRestoreSectionKey(pendingSection.current);
+    setRestoreTarget(pendingTarget.current);
     setRestoreKey("");
     setRestoreOtp("");
     setRestoreNote(null);
@@ -147,7 +148,7 @@ export default function BackupPage() {
     setDownloading(true);
     setDownloadNote(null);
     try {
-      const { blob, filename } = await api.backup.download();
+      const { blob, filename } = await api.backup.downloadFull();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
@@ -156,7 +157,7 @@ export default function BackupPage() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      setDownloadNote({ ok: true, text: "نسخه پشتیبان دانلود شد." });
+      setDownloadNote({ ok: true, text: "نسخه پشتیبان کامل (داده + رسانه) دانلود شد." });
     } catch (e) {
       setDownloadNote({ ok: false, text: e instanceof Error ? e.message : "دانلود ناموفق بود." });
     } finally {
@@ -166,7 +167,7 @@ export default function BackupPage() {
 
   function openRestore() {
     if (!restoreFile) return;
-    setRestoreSectionKey(null); // full restore
+    setRestoreTarget({ kind: "full", value: "" }); // top button = full (data + media)
     setRestoreNote(null);
     setRestoreKey("");
     setRestoreOtp("");
@@ -174,25 +175,25 @@ export default function BackupPage() {
   }
 
   async function confirmRestore() {
-    if (!restoreFile) return;
+    if (!restoreFile || !restoreTarget) return;
     if (!restoreKey.trim() || restoreOtp.trim().length !== 6) {
       setRestoreNote({ ok: false, text: "کلید پشتیبان و کد ۶ رقمی دو‌مرحله‌ای الزامی است." });
       return;
     }
+    const path =
+      restoreTarget.kind === "section" ? `restore/${restoreTarget.value}`
+        : restoreTarget.kind === "media" ? `media/restore/${restoreTarget.value}`
+        : "full/restore";
     setRestoring(true);
     setRestoreNote(null);
     try {
-      if (restoreSectionKey) {
-        await api.backup.restoreSection(restoreSectionKey, restoreFile, restoreKey.trim(), restoreOtp.trim());
-      } else {
-        await api.backup.restore(restoreFile, restoreKey.trim(), restoreOtp.trim());
-      }
+      await api.backup.restoreUpload(path, restoreFile, restoreKey.trim(), restoreOtp.trim());
       setRestoreModal(false);
       setRestoreNote({ ok: true, text: "بازیابی با موفقیت انجام شد. برای دیدن داده‌های جدید، صفحه را تازه‌سازی کنید." });
       setRestoreFile(null);
       setRestoreKey("");
       setRestoreOtp("");
-      setRestoreSectionKey(null);
+      setRestoreTarget(null);
       if (fileRef.current) fileRef.current.value = "";
       await loadSections();
     } catch (e) {
@@ -263,11 +264,11 @@ export default function BackupPage() {
             <Card className="p-6">
               <div className="mb-3 flex items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-emerald-500/15 text-emerald-400"><AdminIcon name="disk" className="h-5 w-5" /></span>
-                <h3 className="text-lg font-bold text-white">دانلود نسخه پشتیبان</h3>
+                <h3 className="text-lg font-bold text-white">دانلود پشتیبان کامل</h3>
               </div>
-              <p className="mb-4 text-sm leading-7 text-white/55">یک فایل کامل از همه‌ی داده‌ها (محصولات، کاربران، سفارش‌ها، تنظیمات و...) دانلود می‌شود. آن را جای امنی نگه دارید.</p>
+              <p className="mb-4 text-sm leading-7 text-white/55">یک فایلِ کامل از <b className="text-white/80">همه‌چیز</b> — همهٔ داده‌ها (محصولات، کاربران، سفارش‌ها، تنظیمات...) به‌علاوهٔ <b className="text-white/80">همهٔ فایل‌های تصویری و مدارک</b> — در یک فایلِ رمزنگاری‌شده. آن را جای امنی نگه دارید.</p>
               <button onClick={downloadBackup} disabled={downloading} className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-emerald-500 px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">
-                {downloading ? <Spinner /> : "دانلود فایل پشتیبان"}
+                {downloading ? <Spinner /> : "دانلود فایل پشتیبان کامل"}
               </button>
               {downloadNote && <p className={`mt-3 text-sm ${downloadNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{downloadNote.text}</p>}
             </Card>
@@ -275,9 +276,9 @@ export default function BackupPage() {
             <Card className="border-rose-500/20 p-6">
               <div className="mb-3 flex items-center gap-3">
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-rose-500/15 text-rose-400"><AdminIcon name="shield" className="h-5 w-5" /></span>
-                <h3 className="text-lg font-bold text-white">بازیابی از فایل</h3>
+                <h3 className="text-lg font-bold text-white">بازیابی کامل از فایل</h3>
               </div>
-              <p className="mb-4 text-sm leading-7 text-amber-300/80">⚠ بازیابی، تمام داده‌های فعلی را با فایل انتخاب‌شده جایگزین می‌کند. این کار قابل بازگشت نیست — ابتدا یک پشتیبان از وضعیت فعلی بگیرید.</p>
+              <p className="mb-4 text-sm leading-7 text-amber-300/80">⚠ بازیابیِ کامل، تمام داده‌ها و فایل‌های فعلی را با فایل انتخاب‌شده جایگزین می‌کند. این کار قابل بازگشت نیست — ابتدا یک پشتیبان از وضعیت فعلی بگیرید.</p>
               <input
                 ref={fileRef}
                 type="file"
@@ -372,7 +373,7 @@ export default function BackupPage() {
                 </button>
               </div>
 
-              <input ref={secFileRef} type="file" accept="application/json,.json,.phxbak" className="hidden" onChange={(e) => onSectionFile(e.target.files?.[0])} />
+              <input ref={secFileRef} type="file" accept="application/json,.json,.phxbak,.zip" className="hidden" onChange={(e) => onRestoreFile(e.target.files?.[0])} />
 
               <div className="divide-y divide-white/6">
                 {sections.map((s) => (
@@ -385,7 +386,7 @@ export default function BackupPage() {
                       <button onClick={() => sendSection(s.key)} disabled={busyKey === `tg:${s.key}`} className="flex h-9 items-center gap-1.5 rounded-lg border border-[#3a64f2]/40 bg-[#3a64f2]/10 px-3 text-xs font-bold text-[#9db4ff] transition hover:bg-[#3a64f2]/20 disabled:opacity-50">
                         {busyKey === `tg:${s.key}` ? <Spinner /> : "ارسال تلگرام"}
                       </button>
-                      <button onClick={() => pickSectionRestore(s.key)} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">
+                      <button onClick={() => pickRestore({ kind: "section", value: s.key })} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">
                         بازیابی
                       </button>
                     </div>
@@ -398,13 +399,25 @@ export default function BackupPage() {
             <Card className="p-6">
               <h3 className="text-lg font-bold text-white">بکاپ فایل‌های رسانه (دانلود دستی)</h3>
               <p className="mb-4 mt-1 text-sm leading-7 text-white/55">خودِ فایل‌های تصویری روی دیسک‌اند، نه در بکاپ دیتابیس. این‌ها فقط دانلودی‌اند (به تلگرام نمی‌روند). آرشیو مدارک حساس رمزنگاری می‌شود؛ آن را جای امن نگه دارید.</p>
-              <div className="flex flex-wrap gap-3">
-                <button onClick={() => downloadMedia("public")} disabled={busyKey === "media:public"} className="flex h-11 items-center gap-2 rounded-xl border border-white/15 px-5 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-50">
-                  {busyKey === "media:public" ? <Spinner /> : "دانلود رسانهٔ عمومی (بنرها/عکس محصولات)"}
-                </button>
-                <button onClick={() => downloadMedia("sensitive")} disabled={busyKey === "media:sensitive"} className="flex h-11 items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-5 text-sm font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">
-                  {busyKey === "media:sensitive" ? <Spinner /> : "🔒 دانلود مدارک حساس (KYC/کارت/رسید)"}
-                </button>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="flex flex-col gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                  <span className="text-sm font-bold text-white/85">رسانهٔ عمومی (بنرها/عکس محصولات)</span>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => downloadMedia("public")} disabled={busyKey === "media:public"} className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-xs font-bold text-white/80 transition hover:bg-white/5 disabled:opacity-50">
+                      {busyKey === "media:public" ? <Spinner /> : "دانلود"}
+                    </button>
+                    <button onClick={() => pickRestore({ kind: "media", value: "public" })} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">بازیابی</button>
+                  </div>
+                </div>
+                <div className="flex flex-col gap-2 rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-3">
+                  <span className="text-sm font-bold text-rose-200/90">🔒 مدارک حساس (KYC/کارت/رسید)</span>
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={() => downloadMedia("sensitive")} disabled={busyKey === "media:sensitive"} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">
+                      {busyKey === "media:sensitive" ? <Spinner /> : "دانلود"}
+                    </button>
+                    <button onClick={() => pickRestore({ kind: "media", value: "sensitive" })} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">بازیابی</button>
+                  </div>
+                </div>
               </div>
             </Card>
 
@@ -435,9 +448,11 @@ export default function BackupPage() {
       <Modal open={restoreModal} onClose={() => !restoring && setRestoreModal(false)} title="تأیید امنیتی بازیابی">
         <div className="space-y-4">
           <p className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm leading-7 text-amber-300/85">
-            ⚠ {restoreSectionKey
-              ? `این عملیات فقط بخش «${sections.find((s) => s.key === restoreSectionKey)?.label ?? restoreSectionKey}» را با فایل انتخاب‌شده جایگزین می‌کند و بقیهٔ داده‌ها دست‌نخورده می‌ماند.`
-              : "این عملیات تمام داده‌های فعلی را برای همیشه با فایل انتخاب‌شده جایگزین می‌کند."} برای ادامه، کلید پشتیبان سرور و کد دو‌مرحله‌ای فعلی خود را وارد کنید.
+            ⚠ {restoreTarget?.kind === "section"
+              ? `این عملیات فقط بخش «${sections.find((s) => s.key === restoreTarget.value)?.label ?? restoreTarget.value}» را با فایل انتخاب‌شده جایگزین می‌کند و بقیهٔ داده‌ها دست‌نخورده می‌ماند.`
+              : restoreTarget?.kind === "media"
+              ? `این عملیات فایل‌های ${restoreTarget.value === "sensitive" ? "مدارک حساس" : "رسانهٔ عمومی"} را از آرشیو بازمی‌گرداند (روی فایل‌های هم‌نام می‌نویسد).`
+              : "این عملیات تمام داده‌ها و فایل‌های فعلی را برای همیشه با فایل کامل انتخاب‌شده جایگزین می‌کند."} برای ادامه، کلید پشتیبان سرور و کد دو‌مرحله‌ای فعلی خود را وارد کنید.
           </p>
           {restoreFile && (
             <p dir="ltr" className="truncate text-left font-mono text-xs text-white/50">{restoreFile.name}</p>
