@@ -25,10 +25,10 @@ public class UploadController : ControllerBase
         var result = await _files.SavePublicImageAsync(userId, file, ct);
         if (result.Id is null) return BadRequest(new { error = result.Error });
 
-        // Absolute URL so the value works as an <img src> from any origin (storefront, admin, SSR) and behind
-        // the proxy/fallback domain. Scheme/host come from the forwarded headers when PHONIX_BEHIND_PROXY=true.
-        var url = $"{Request.Scheme}://{Request.Host}/api/upload/{result.Id}";
-        return Ok(new { url });
+        // Return a RELATIVE URL. The browser resolves it against whatever domain is serving the page, so the
+        // image works on every device and domain. An absolute URL would bake in the upload host (e.g.
+        // localhost during local admin work) and then fail to load from any other device.
+        return Ok(new { url = $"/api/upload/{result.Id}" });
     }
 
     [AllowAnonymous]

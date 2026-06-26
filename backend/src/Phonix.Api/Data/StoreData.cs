@@ -43,8 +43,41 @@ public partial class StoreData
             RefreshAllUserOrderStats(); // heal any drift carried by an older store.json
         }
         HealVerificationLevels(); // older snapshots predate VerificationLevel — derive it from Verified/cards
+        if (NormalizeUploadedUrls()) Save(); // strip host from uploaded-image URLs so they load on every device
         RebuildCatalogView();
         EnsureOwnerFromEnvironment(); // installer/p-ui seed the production owner via the service environment
+    }
+
+    // Older snapshots stored uploaded-image URLs as absolute (e.g. http://localhost:5228/api/upload/ID),
+    // which only loaded on the device they were uploaded from. Strip the scheme+host so the value becomes a
+    // relative URL that resolves against whatever domain serves the page — works on every device.
+    private static string NormalizeUploadUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return url ?? "";
+        var m = System.Text.RegularExpressions.Regex.Match(
+            url, @"^https?://[^/]+(/(?:api/upload|uploads)/.+)$",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        return m.Success ? m.Groups[1].Value : url;
+    }
+
+    private bool NormalizeUploadedUrls()
+    {
+        var changed = false;
+        void Fix(string? cur, Action<string> set)
+        {
+            if (string.IsNullOrEmpty(cur)) return;
+            var n = NormalizeUploadUrl(cur);
+            if (n != cur) { set(n); changed = true; }
+        }
+        lock (_gate)
+        {
+            foreach (var p in _products) Fix(p.Image, v => p.Image = v);
+            foreach (var c in _categories) Fix(c.Icon, v => c.Icon = v);
+            foreach (var s in _showcase) { Fix(s.Image, v => s.Image = v); Fix(s.Logo, v => s.Logo = v); }
+            foreach (var h in _homeCategories) Fix(h.Icon, v => h.Icon = v);
+            foreach (var hs in _heroSlides) { Fix(hs.Image, v => hs.Image = v); Fix(hs.Logo, v => hs.Logo = v); }
+        }
+        return changed;
     }
 
     // Recomputes the Toman price of every USD-priced product from the latest USDT→Toman rate and persists if
