@@ -25,6 +25,9 @@ services:
       - phonix-data:/app/App_Data
     ports:
       - "${BACKEND_PORT:-5228}:5228"
+    # Lets the container reach the host's Postfix (port 25) via host.docker.internal.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:5228/health"]
       interval: 30s
