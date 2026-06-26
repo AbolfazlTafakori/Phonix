@@ -30,10 +30,31 @@ export default function BackupPage() {
   const [testingAlert, setTestingAlert] = useState(false);
   const [tgNote, setTgNote] = useState<Note>(null);
 
+  // per-section backup
+  type Section = { key: string; label: string };
+  type Hist = { section: string; target: string; ok: boolean; error: string; atUtc: string };
+  const [sections, setSections] = useState<Section[]>([]);
+  const [history, setHistory] = useState<Hist[]>([]);
+  const [busyKey, setBusyKey] = useState<string>("");
+  const [instantBusy, setInstantBusy] = useState(false);
+  const [secNote, setSecNote] = useState<Note>(null);
+  const [restoreSectionKey, setRestoreSectionKey] = useState<string | null>(null);
+  const secFileRef = useRef<HTMLInputElement>(null);
+  const pendingSection = useRef<string | null>(null);
+
+  async function loadSections() {
+    try {
+      const d = await api.backup.sections();
+      setSections(d.sections);
+      setHistory(d.history);
+    } catch { /* keep */ }
+  }
+
   useEffect(() => {
     (async () => {
       try {
         setTg(await api.backup.telegram.get());
+        await loadSections();
       } catch (e) {
         setError(e instanceof Error ? e.message : "خطا در بارگذاری");
       } finally {
@@ -41,6 +62,66 @@ export default function BackupPage() {
       }
     })();
   }, []);
+
+  async function downloadSection(key: string) {
+    setBusyKey(`dl:${key}`);
+    setSecNote(null);
+    try {
+      const { blob, filename } = await api.backup.downloadSection(key);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      await loadSections();
+    } catch (e) {
+      setSecNote({ ok: false, text: e instanceof Error ? e.message : "دانلود ناموفق بود." });
+    } finally {
+      setBusyKey("");
+    }
+  }
+
+  async function sendSection(key: string) {
+    setBusyKey(`tg:${key}`);
+    setSecNote(null);
+    try {
+      await api.backup.sendSection(key);
+      setSecNote({ ok: true, text: "این بخش به تلگرام ارسال شد." });
+      await loadSections();
+    } catch (e) {
+      setSecNote({ ok: false, text: e instanceof Error ? e.message : "ارسال ناموفق بود." });
+    } finally {
+      setBusyKey("");
+    }
+  }
+
+  async function instantBackup() {
+    setInstantBusy(true);
+    setSecNote(null);
+    try {
+      await api.backup.sendAll();
+      setSecNote({ ok: true, text: "بکاپ لحظه‌ای همهٔ بخش‌ها به تلگرام ارسال شد." });
+      await loadSections();
+    } catch (e) {
+      setSecNote({ ok: false, text: e instanceof Error ? e.message : "ارسال ناموفق بود." });
+    } finally {
+      setInstantBusy(false);
+    }
+  }
+
+  function pickSectionRestore(key: string) {
+    pendingSection.current = key;
+    secFileRef.current?.click();
+  }
+  function onSectionFile(file: File | undefined) {
+    if (!file || !pendingSection.current) return;
+    setRestoreFile(file);
+    setRestoreSectionKey(pendingSection.current);
+    setRestoreKey("");
+    setRestoreOtp("");
+    setRestoreNote(null);
+    setRestoreModal(true);
+    if (secFileRef.current) secFileRef.current.value = "";
+  }
 
   const setField = <K extends keyof TelegramSettings>(key: K, value: TelegramSettings[K]) =>
     setTg((d) => (d ? { ...d, [key]: value } : d));
@@ -68,6 +149,7 @@ export default function BackupPage() {
 
   function openRestore() {
     if (!restoreFile) return;
+    setRestoreSectionKey(null); // full restore
     setRestoreNote(null);
     setRestoreKey("");
     setRestoreOtp("");
@@ -83,13 +165,19 @@ export default function BackupPage() {
     setRestoring(true);
     setRestoreNote(null);
     try {
-      await api.backup.restore(restoreFile, restoreKey.trim(), restoreOtp.trim());
+      if (restoreSectionKey) {
+        await api.backup.restoreSection(restoreSectionKey, restoreFile, restoreKey.trim(), restoreOtp.trim());
+      } else {
+        await api.backup.restore(restoreFile, restoreKey.trim(), restoreOtp.trim());
+      }
       setRestoreModal(false);
       setRestoreNote({ ok: true, text: "بازیابی با موفقیت انجام شد. برای دیدن داده‌های جدید، صفحه را تازه‌سازی کنید." });
       setRestoreFile(null);
       setRestoreKey("");
       setRestoreOtp("");
+      setRestoreSectionKey(null);
       if (fileRef.current) fileRef.current.value = "";
+      await loadSections();
     } catch (e) {
       setRestoreNote({ ok: false, text: e instanceof Error ? e.message : "بازیابی ناموفق بود." });
     } finally {
@@ -206,8 +294,9 @@ export default function BackupPage() {
                 <Field label="توکن بات (از BotFather)">
                   <input value={tg.botToken} onChange={(e) => setField("botToken", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="123456:ABC-DEF..." />
                 </Field>
-                <Field label="شناسه چت / کانال (Chat ID)">
-                  <input value={tg.chatId} onChange={(e) => setField("chatId", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="-1001234567890" />
+                <Field label="شناسهٔ عددی چت مقصد (Chat ID)">
+                  <input value={tg.chatId} onChange={(e) => setField("chatId", e.target.value.replace(/[^\d-]/g, ""))} dir="ltr" className={`${inputCls} text-left`} placeholder="-1001234567890" />
+                  <p className="mt-1.5 text-xs text-white/45">فقط عدد (آیدی کاربر) یا عددِ منفی (گروه/کانال). بکاپ‌ها فقط به همین یک چت ارسال می‌شوند؛ ربات به هیچ چت دیگری چیزی نمی‌فرستد.</p>
                 </Field>
                 <Field label="فاصله‌ی زمانی هر بکاپ (ساعت)">
                   <input type="number" dir="ltr" min={1} value={tg.intervalHours} onChange={(e) => setField("intervalHours", Math.max(1, Number(e.target.value)))} className={`${inputCls} text-left`} />
@@ -252,13 +341,73 @@ export default function BackupPage() {
               </ul>
             </Card>
           </div>
+
+          {/* per-section backup — full width */}
+          <div className="lg:col-span-2 space-y-6">
+            <Card className="p-6">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-bold text-white">پشتیبان بخش‌بخش</h3>
+                  <p className="mt-1 text-sm text-white/55">هر بخش جدا دانلود/ارسال/بازیابی می‌شود؛ همه رمزنگاری‌شده و فقط به همان چت تلگرامِ تعیین‌شده می‌رود.</p>
+                </div>
+                <button onClick={instantBackup} disabled={instantBusy} className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-emerald-500 px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">
+                  {instantBusy ? <Spinner /> : "📦 بکاپ لحظه‌ای کامل به تلگرام"}
+                </button>
+              </div>
+
+              <input ref={secFileRef} type="file" accept="application/json,.json,.phxbak" className="hidden" onChange={(e) => onSectionFile(e.target.files?.[0])} />
+
+              <div className="divide-y divide-white/6">
+                {sections.map((s) => (
+                  <div key={s.key} className="flex flex-wrap items-center justify-between gap-3 py-3">
+                    <span className="text-sm font-bold text-white">{s.label}</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button onClick={() => downloadSection(s.key)} disabled={busyKey === `dl:${s.key}`} className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-xs font-bold text-white/80 transition hover:bg-white/5 disabled:opacity-50">
+                        {busyKey === `dl:${s.key}` ? <Spinner /> : "دانلود"}
+                      </button>
+                      <button onClick={() => sendSection(s.key)} disabled={busyKey === `tg:${s.key}`} className="flex h-9 items-center gap-1.5 rounded-lg border border-[#3a64f2]/40 bg-[#3a64f2]/10 px-3 text-xs font-bold text-[#9db4ff] transition hover:bg-[#3a64f2]/20 disabled:opacity-50">
+                        {busyKey === `tg:${s.key}` ? <Spinner /> : "ارسال تلگرام"}
+                      </button>
+                      <button onClick={() => pickSectionRestore(s.key)} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">
+                        بازیابی
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {secNote && <p className={`mt-3 text-sm ${secNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{secNote.text}</p>}
+            </Card>
+
+            <Card className="p-6">
+              <h3 className="mb-3 text-lg font-bold text-white">تاریخچهٔ بکاپ‌ها</h3>
+              {history.length === 0 ? (
+                <p className="text-sm text-white/45">هنوز بکاپی ثبت نشده است.</p>
+              ) : (
+                <div className="max-h-72 space-y-1.5 overflow-y-auto">
+                  {history.map((h, i) => (
+                    <div key={i} className="flex items-center justify-between gap-3 rounded-lg bg-white/[0.02] px-3 py-2 text-xs">
+                      <span className="flex items-center gap-2">
+                        <span className={h.ok ? "text-emerald-400" : "text-rose-400"}>{h.ok ? "✓" : "✕"}</span>
+                        <span className="font-bold text-white/85">{h.section}</span>
+                        <span className="text-white/40">· {h.target}</span>
+                        {!h.ok && h.error && <span className="text-rose-400/80">— {h.error}</span>}
+                      </span>
+                      <span className="shrink-0 text-white/35" dir="ltr">{new Date(h.atUtc).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" })}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </div>
         </div>
       )}
 
       <Modal open={restoreModal} onClose={() => !restoring && setRestoreModal(false)} title="تأیید امنیتی بازیابی">
         <div className="space-y-4">
           <p className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm leading-7 text-amber-300/85">
-            ⚠ این عملیات تمام داده‌های فعلی را برای همیشه با فایل انتخاب‌شده جایگزین می‌کند. برای ادامه، کلید پشتیبان سرور و کد دو‌مرحله‌ای فعلی خود را وارد کنید.
+            ⚠ {restoreSectionKey
+              ? `این عملیات فقط بخش «${sections.find((s) => s.key === restoreSectionKey)?.label ?? restoreSectionKey}» را با فایل انتخاب‌شده جایگزین می‌کند و بقیهٔ داده‌ها دست‌نخورده می‌ماند.`
+              : "این عملیات تمام داده‌های فعلی را برای همیشه با فایل انتخاب‌شده جایگزین می‌کند."} برای ادامه، کلید پشتیبان سرور و کد دو‌مرحله‌ای فعلی خود را وارد کنید.
           </p>
           {restoreFile && (
             <p dir="ltr" className="truncate text-left font-mono text-xs text-white/50">{restoreFile.name}</p>

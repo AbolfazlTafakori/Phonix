@@ -418,6 +418,37 @@ export const api = {
       }
       return (await res.json()) as { ok: boolean };
     },
+    // Per-section backup: list of sections, recent backup history, and whether encryption is on.
+    sections: () => request<{
+      sections: { key: string; label: string }[];
+      history: { section: string; target: string; ok: boolean; error: string; atUtc: string }[];
+      encrypted: boolean;
+    }>("/backup/sections"),
+    downloadSection: async (key: string): Promise<{ blob: Blob; filename: string }> => {
+      const res = await fetch(`${BASE}/api/backup/export/${key}`, { credentials: "include", cache: "no-store" });
+      if (!res.ok) throw new Error(`خطا در دانلود پشتیبان (${res.status})`);
+      const match = (res.headers.get("Content-Disposition") ?? "").match(/filename\*?="?([^";]+)"?/i);
+      return { blob: await res.blob(), filename: match?.[1] ?? `phonix-${key}.phxbak` };
+    },
+    restoreSection: async (key: string, file: File, backupKey: string, twoFactorCode: string): Promise<{ ok: boolean }> => {
+      const csrf = getCsrfToken();
+      const fd = new FormData();
+      fd.append("file", file);
+      fd.append("backupKey", backupKey);
+      fd.append("twoFactorCode", twoFactorCode);
+      const res = await fetch(`${BASE}/api/backup/restore/${key}`, {
+        method: "POST", credentials: "include", cache: "no-store",
+        headers: { ...(csrf ? { "X-CSRF-Token": csrf } : {}) }, body: fd,
+      });
+      if (!res.ok) {
+        let msg = `خطا در بازیابی (${res.status})`;
+        try { const t = await res.text(); if (t) msg = t.replace(/^"|"$/g, ""); } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      return (await res.json()) as { ok: boolean };
+    },
+    sendSection: (key: string) => request<{ ok: boolean }>(`/backup/telegram/send/${key}`, { method: "POST" }),
+    sendAll: () => request<{ ok: boolean }>("/backup/telegram/send-all", { method: "POST" }),
     telegram: {
       get: () => request<TelegramSettings>("/backup/telegram"),
       update: (body: TelegramSettings) => request<TelegramSettings>("/backup/telegram", { method: "PUT", body: json(body) }),
