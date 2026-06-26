@@ -449,6 +449,12 @@ export const api = {
     },
     sendSection: (key: string) => request<{ ok: boolean }>(`/backup/telegram/send/${key}`, { method: "POST" }),
     sendAll: () => request<{ ok: boolean }>("/backup/telegram/send-all", { method: "POST" }),
+    downloadMedia: async (kind: "public" | "sensitive"): Promise<{ blob: Blob; filename: string }> => {
+      const res = await fetch(`${BASE}/api/backup/media/${kind}`, { credentials: "include", cache: "no-store" });
+      if (!res.ok) throw new Error(`خطا در دانلود رسانه (${res.status})`);
+      const match = (res.headers.get("Content-Disposition") ?? "").match(/filename\*?="?([^";]+)"?/i);
+      return { blob: await res.blob(), filename: match?.[1] ?? `phonix-media-${kind}.zip` };
+    },
     telegram: {
       get: () => request<TelegramSettings>("/backup/telegram"),
       update: (body: TelegramSettings) => request<TelegramSettings>("/backup/telegram", { method: "PUT", body: json(body) }),

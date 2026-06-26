@@ -25,4 +25,10 @@ public interface IFileStorageService
 
     // The owner id encoded in a storage id, or null when the id is malformed.
     int? OwnerOf(string id);
+
+    // Zips the public images (avatars, product/banner/blog images) for a manual media backup.
+    byte[] ArchivePublicMedia();
+
+    // Zips the sensitive identity/financial documents (KYC, bank cards, receipts) for a manual media backup.
+    byte[] ArchiveSensitiveMedia();
 }

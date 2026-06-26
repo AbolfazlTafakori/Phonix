@@ -94,6 +94,23 @@ export default function BackupPage() {
     }
   }
 
+  async function downloadMedia(kind: "public" | "sensitive") {
+    setBusyKey(`media:${kind}`);
+    setSecNote(null);
+    try {
+      const { blob, filename } = await api.backup.downloadMedia(kind);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      await loadSections();
+    } catch (e) {
+      setSecNote({ ok: false, text: e instanceof Error ? e.message : "دانلود ناموفق بود." });
+    } finally {
+      setBusyKey("");
+    }
+  }
+
   async function instantBackup() {
     setInstantBusy(true);
     setSecNote(null);
@@ -376,6 +393,19 @@ export default function BackupPage() {
                 ))}
               </div>
               {secNote && <p className={`mt-3 text-sm ${secNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{secNote.text}</p>}
+            </Card>
+
+            <Card className="p-6">
+              <h3 className="text-lg font-bold text-white">بکاپ فایل‌های رسانه (دانلود دستی)</h3>
+              <p className="mb-4 mt-1 text-sm leading-7 text-white/55">خودِ فایل‌های تصویری روی دیسک‌اند، نه در بکاپ دیتابیس. این‌ها فقط دانلودی‌اند (به تلگرام نمی‌روند). آرشیو مدارک حساس رمزنگاری می‌شود؛ آن را جای امن نگه دارید.</p>
+              <div className="flex flex-wrap gap-3">
+                <button onClick={() => downloadMedia("public")} disabled={busyKey === "media:public"} className="flex h-11 items-center gap-2 rounded-xl border border-white/15 px-5 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-50">
+                  {busyKey === "media:public" ? <Spinner /> : "دانلود رسانهٔ عمومی (بنرها/عکس محصولات)"}
+                </button>
+                <button onClick={() => downloadMedia("sensitive")} disabled={busyKey === "media:sensitive"} className="flex h-11 items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-5 text-sm font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">
+                  {busyKey === "media:sensitive" ? <Spinner /> : "🔒 دانلود مدارک حساس (KYC/کارت/رسید)"}
+                </button>
+              </div>
             </Card>
 
             <Card className="p-6">

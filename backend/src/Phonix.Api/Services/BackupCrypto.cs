@@ -40,6 +40,56 @@ public static class BackupCrypto
         return Prefix + Convert.ToBase64String(blob);
     }
 
+    // Binary variant for media archives (zip bytes), so large files aren't base64-inflated. Container layout:
+    // "PHXB1." (ASCII) + salt|nonce|tag|cipher.
+    private static readonly byte[] BinPrefix = Encoding.ASCII.GetBytes("PHXB1.");
+
+    public static bool LooksEncryptedBytes(byte[] data) =>
+        data.Length >= BinPrefix.Length && data.AsSpan(0, BinPrefix.Length).SequenceEqual(BinPrefix);
+
+    public static byte[] EncryptBytes(byte[] plain)
+    {
+        var pass = Passphrase ?? throw new InvalidOperationException("PHONIX_BACKUP_KEY is not configured.");
+        var salt = RandomNumberGenerator.GetBytes(SaltSize);
+        var nonce = RandomNumberGenerator.GetBytes(NonceSize);
+        var key = Rfc2898DeriveBytes.Pbkdf2(pass, salt, Iterations, HashAlgorithmName.SHA256, KeySize);
+
+        var cipher = new byte[plain.Length];
+        var tag = new byte[TagSize];
+        using (var aes = new AesGcm(key, TagSize))
+            aes.Encrypt(nonce, plain, cipher, tag);
+
+        var blob = new byte[BinPrefix.Length + SaltSize + NonceSize + TagSize + cipher.Length];
+        var p = 0;
+        Buffer.BlockCopy(BinPrefix, 0, blob, p, BinPrefix.Length); p += BinPrefix.Length;
+        Buffer.BlockCopy(salt, 0, blob, p, SaltSize); p += SaltSize;
+        Buffer.BlockCopy(nonce, 0, blob, p, NonceSize); p += NonceSize;
+        Buffer.BlockCopy(tag, 0, blob, p, TagSize); p += TagSize;
+        Buffer.BlockCopy(cipher, 0, blob, p, cipher.Length);
+        return blob;
+    }
+
+    public static byte[]? DecryptBytes(byte[] container)
+    {
+        if (!LooksEncryptedBytes(container) || Passphrase is not { } pass) return null;
+        try
+        {
+            var p = BinPrefix.Length;
+            if (container.Length < p + SaltSize + NonceSize + TagSize) return null;
+            var salt = container.AsSpan(p, SaltSize).ToArray(); p += SaltSize;
+            var nonce = container.AsSpan(p, NonceSize).ToArray(); p += NonceSize;
+            var tag = container.AsSpan(p, TagSize).ToArray(); p += TagSize;
+            var cipher = container.AsSpan(p).ToArray();
+
+            var key = Rfc2898DeriveBytes.Pbkdf2(pass, salt, Iterations, HashAlgorithmName.SHA256, KeySize);
+            var plain = new byte[cipher.Length];
+            using (var aes = new AesGcm(key, TagSize))
+                aes.Decrypt(nonce, cipher, tag, plain);
+            return plain;
+        }
+        catch (CryptographicException) { return null; }
+    }
+
     // Returns the decrypted JSON, or null when the passphrase is missing/wrong or the container is malformed.
     public static string? Decrypt(string container)
     {

@@ -162,6 +162,31 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         return new StoredFile(stream, contentType, id);
     }
 
+    public byte[] ArchivePublicMedia() => ArchiveCategories(new[] { "avatars" });
+    public byte[] ArchiveSensitiveMedia() => ArchiveCategories(new[] { "kyc", "cards", "receipts" });
+
+    // Builds an in-memory zip of the given category folders for a manual media backup download.
+    private byte[] ArchiveCategories(string[] categories)
+    {
+        using var ms = new MemoryStream();
+        using (var zip = new System.IO.Compression.ZipArchive(ms, System.IO.Compression.ZipArchiveMode.Create, leaveOpen: true))
+        {
+            foreach (var category in categories)
+            {
+                var dir = Path.Combine(_root, category);
+                if (!Directory.Exists(dir)) continue;
+                foreach (var file in Directory.EnumerateFiles(dir))
+                {
+                    var entry = zip.CreateEntry($"{category}/{Path.GetFileName(file)}", System.IO.Compression.CompressionLevel.Fastest);
+                    using var es = entry.Open();
+                    using var fs = File.OpenRead(file);
+                    fs.CopyTo(es);
+                }
+            }
+        }
+        return ms.ToArray();
+    }
+
     public int? OwnerOf(string id)
     {
         if (string.IsNullOrWhiteSpace(id)) return null;

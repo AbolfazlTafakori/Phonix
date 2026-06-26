@@ -17,15 +17,39 @@ public class BackupController : ControllerBase
     private readonly StoreData _store;
     private readonly ITelegramBackupSender _telegram;
     private readonly ITelegramAlertSender _alerts;
+    private readonly IFileStorageService _files;
     private readonly ILogger<BackupController> _logger;
 
     public BackupController(StoreData store, ITelegramBackupSender telegram, ITelegramAlertSender alerts,
-        ILogger<BackupController> logger)
+        IFileStorageService files, ILogger<BackupController> logger)
     {
         _store = store;
         _telegram = telegram;
         _alerts = alerts;
+        _files = files;
         _logger = logger;
+    }
+
+    // Manual media backup (download only — not sent to Telegram). Public images are returned as a plain zip;
+    // the sensitive documents archive is encrypted when PHONIX_BACKUP_KEY is set.
+    [HttpGet("media/public")]
+    public IActionResult MediaPublic()
+    {
+        var zip = _files.ArchivePublicMedia();
+        var stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
+        _store.RecordBackup("رسانهٔ عمومی", "دانلود", true, "");
+        return File(zip, "application/zip", $"phonix-media-public-{stamp}.zip");
+    }
+
+    [HttpGet("media/sensitive")]
+    public IActionResult MediaSensitive()
+    {
+        var zip = _files.ArchiveSensitiveMedia();
+        var stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
+        _store.RecordBackup("مدارک حساس", "دانلود", true, "");
+        if (BackupCrypto.IsEnabled)
+            return File(BackupCrypto.EncryptBytes(zip), "application/octet-stream", $"phonix-media-sensitive-{stamp}.phxbak");
+        return File(zip, "application/zip", $"phonix-media-sensitive-{stamp}.zip");
     }
 
     // download the full store as a timestamped file. When PHONIX_BACKUP_KEY is set the payload is encrypted
