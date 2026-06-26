@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { HomeCategory, HomeCategoryInput, Showcase, ShowcaseInput } from "@/lib/types";
+import type { HomeCategory, HomeCategoryInput, Showcase, ShowcaseInput, Product, Category } from "@/lib/types";
 import { useSiteContent } from "@/components/admin/useSiteContent";
 import { Card, PageHeader, Spinner, Toggle, Field, inputCls } from "@/components/admin/ui";
 import ImageField from "@/components/admin/ImageField";
@@ -113,6 +113,7 @@ function SectionsPanel() {
 function CategoriesPanel() {
   const [items, setItems] = useState<HomeCategory[]>([]);
   const [drafts, setDrafts] = useState<Record<number, HomeCategoryInput>>({});
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
@@ -120,8 +121,9 @@ function CategoriesPanel() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await api.homeCategories.list();
+        const [data, cats] = await Promise.all([api.homeCategories.list(), api.categories.list().catch(() => [])]);
         setItems(data);
+        setCategories(cats);
         setDrafts(Object.fromEntries(data.map((c) => [c.id, stripId(c)])));
       } catch {
         // leave the section empty if it can't load
@@ -188,6 +190,17 @@ function CategoriesPanel() {
                 <Field label="عنوان">
                   <input value={d.title} onChange={(e) => setField(c.id, "title", e.target.value)} className={`${inputCls} h-10`} />
                 </Field>
+                <Field label="اتصال به دسته">
+                  <select
+                    value=""
+                    onChange={(e) => setField(c.id, "href", e.target.value === "all" ? "/products" : e.target.value ? `/products?cat=${e.target.value}` : d.href)}
+                    className={`${inputCls} h-10`}
+                  >
+                    <option value="" className="bg-[#15151f]">— انتخاب دسته —</option>
+                    <option value="all" className="bg-[#15151f]">همه محصولات</option>
+                    {categories.map((cat) => <option key={cat.id} value={cat.id} className="bg-[#15151f]">{cat.name}</option>)}
+                  </select>
+                </Field>
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="لینک">
                     <input value={d.href} onChange={(e) => setField(c.id, "href", e.target.value)} dir="ltr" className={`${inputCls} h-10 text-left`} />
@@ -209,6 +222,7 @@ function CategoriesPanel() {
 function ShowcasePanel() {
   const [items, setItems] = useState<Showcase[]>([]);
   const [drafts, setDrafts] = useState<Record<number, ShowcaseInput>>({});
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
@@ -216,8 +230,9 @@ function ShowcasePanel() {
   useEffect(() => {
     (async () => {
       try {
-        const data = await api.showcase.list();
+        const [data, prods] = await Promise.all([api.showcase.list(), api.products.list().catch(() => [])]);
         setItems(data);
+        setProducts(prods);
         setDrafts(Object.fromEntries(data.map((s) => [s.id, stripId(s)])));
       } catch {
         // leave the section empty if it can't load
@@ -229,6 +244,22 @@ function ShowcasePanel() {
 
   const setField = <K extends keyof ShowcaseInput>(id: number, key: K, value: ShowcaseInput[K]) =>
     setDrafts((p) => ({ ...p, [id]: { ...p[id], [key]: value } }));
+
+  // Picking a real product auto-fills the link (and name/image if empty) so the card always points to a
+  // valid product page — no need to type the URL by hand.
+  function pickProduct(id: number, productId: number) {
+    const prod = products.find((x) => x.id === productId);
+    if (!prod) return;
+    setDrafts((p) => ({
+      ...p,
+      [id]: {
+        ...p[id],
+        href: `/products/detail?id=${prod.id}`,
+        name: p[id].name && p[id].name !== "محصول جدید" ? p[id].name : prod.name,
+        image: p[id].image || prod.image,
+      },
+    }));
+  }
   const dirty = (s: Showcase) => JSON.stringify(drafts[s.id]) !== JSON.stringify(stripId(s));
 
   async function save(s: Showcase) {
@@ -284,6 +315,12 @@ function ShowcasePanel() {
                 <ImageField label="لوگو (اختیاری)" aspect="logo" value={d.logo} onChange={(v) => setField(s.id, "logo", v || null)} />
                 <Field label="نام">
                   <input value={d.name} onChange={(e) => setField(s.id, "name", e.target.value)} className={`${inputCls} h-10`} />
+                </Field>
+                <Field label="اتصال به محصول">
+                  <select value="" onChange={(e) => e.target.value && pickProduct(s.id, Number(e.target.value))} className={`${inputCls} h-10`}>
+                    <option value="" className="bg-[#15151f]">— انتخاب محصول —</option>
+                    {products.map((prod) => <option key={prod.id} value={prod.id} className="bg-[#15151f]">{prod.name}</option>)}
+                  </select>
                 </Field>
                 <Field label="لینک">
                   <input value={d.href} onChange={(e) => setField(s.id, "href", e.target.value)} dir="ltr" className={`${inputCls} h-10 text-left`} />

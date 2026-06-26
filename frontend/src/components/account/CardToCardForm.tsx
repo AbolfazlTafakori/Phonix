@@ -148,9 +148,9 @@ export function CardToCardForm({
 
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <dt className="text-white/45">{label}</dt>
-      <dd className={`text-white/90 ${mono ? "font-mono" : ""}`} dir={mono ? "ltr" : undefined}>{value}</dd>
+    <div className="flex items-start justify-between gap-3">
+      <dt className="shrink-0 text-white/45">{label}</dt>
+      <dd className={`min-w-0 break-all text-left text-white/90 ${mono ? "font-mono" : ""}`} dir={mono ? "ltr" : undefined}>{value}</dd>
     </div>
   );
 }
