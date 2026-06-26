@@ -39,7 +39,12 @@ public class TelegramBackupWorker : BackgroundService
             var last = settings.LastBackupAtUtc ?? DateTime.MinValue;
             if (DateTime.UtcNow - last < interval) continue;
 
-            await _sender.SendAsync("پشتیبان خودکار فونیکس", stoppingToken);
+            // each section as its own (small) file, so none hits Telegram's size limit.
+            foreach (var (section, label) in StoreData.BackupSections)
+            {
+                await _sender.SendSectionAsync(section, $"پشتیبان خودکار فونیکس — {label}", stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken); // gentle on Telegram rate limits
+            }
         }
     }
 }

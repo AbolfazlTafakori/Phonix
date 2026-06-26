@@ -122,6 +122,114 @@ public class BackupController : ControllerBase
         return Ok(new { ok = true });
     }
 
+    // ── Per-section backup (each domain exported/restored independently; small Telegram-friendly files) ──
+
+    [HttpGet("sections")]
+    public IActionResult Sections() => Ok(new
+    {
+        sections = StoreData.BackupSections.Select(x => new { key = x.Section.ToString(), label = x.Label }),
+        history = _store.GetBackupLog().Select(h => new { h.Section, h.Target, h.Ok, h.Error, h.AtUtc }),
+        encrypted = BackupCrypto.IsEnabled,
+    });
+
+    [HttpGet("export/{section}")]
+    public IActionResult ExportSection(string section)
+    {
+        if (!Enum.TryParse<BackupSection>(section, ignoreCase: true, out var sec)) return NotFound();
+        var json = _store.SerializeSection(sec);
+        var stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
+        var name = section.ToLowerInvariant();
+        _store.RecordBackup(sec.ToString(), "دانلود", true, "");
+        if (BackupCrypto.IsEnabled)
+            return File(Encoding.UTF8.GetBytes(BackupCrypto.Encrypt(json)), "application/octet-stream", $"phonix-{name}-{stamp}.phxbak");
+        return File(Encoding.UTF8.GetBytes(json), "application/json", $"phonix-{name}-{stamp}.json");
+    }
+
+    // Restore a single section — same three-factor gate as the full restore.
+    [HttpPost("restore/{section}")]
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> RestoreSection(
+        string section, [FromForm] IFormFile? file, [FromForm] string? backupKey, [FromForm] string? twoFactorCode)
+    {
+        if (!Enum.TryParse<BackupSection>(section, ignoreCase: true, out var sec)) return NotFound();
+
+        var deny = CheckRestoreAuth(backupKey, twoFactorCode, out var username, out var ip);
+        if (deny is not null) return deny;
+
+        if (file is null || file.Length == 0) return BadRequest("فایل پشتیبان نامعتبر است.");
+        string raw;
+        using (var reader = new StreamReader(file.OpenReadStream(), Encoding.UTF8))
+            raw = (await reader.ReadToEndAsync()).Trim();
+
+        var json = raw;
+        if (BackupCrypto.LooksEncrypted(raw))
+        {
+            var decrypted = BackupCrypto.Decrypt(raw);
+            if (decrypted is null) return BadRequest("رمزگشایی فایل پشتیبان ناموفق بود. کلید پشتیبان را بررسی کنید.");
+            json = decrypted;
+        }
+
+        StoreSnapshot? snapshot;
+        try { snapshot = _store.DeserializeSnapshot(json); }
+        catch { return BadRequest("فایل پشتیبان نامعتبر است."); }
+        if (snapshot is null) return BadRequest("فایل پشتیبان نامعتبر است.");
+        if (!string.Equals(snapshot.Section, sec.ToString(), StringComparison.OrdinalIgnoreCase))
+            return BadRequest($"این فایل برای بخش انتخاب‌شده نیست (مربوط به «{snapshot.Section ?? "کامل"}»).");
+
+        _store.RestoreSection(sec, snapshot);
+        _store.RecordBackup(sec.ToString(), "ریستور", true, $"by {username}");
+        _logger.LogWarning("[SRV] SECTION RESTORE '{Section}' by Admin {User}, IP {IP}, {Time}", sec, username, ip, DateTime.UtcNow.ToString("o"));
+        return Ok(new { ok = true });
+    }
+
+    // Manually send one section to the configured Telegram chat right now.
+    [HttpPost("telegram/send/{section}")]
+    public async Task<IActionResult> SendSection(string section)
+    {
+        if (!Enum.TryParse<BackupSection>(section, ignoreCase: true, out var sec)) return NotFound();
+        var label = StoreData.BackupSections.First(x => x.Section == sec).Label;
+        var (ok, err) = await _telegram.SendSectionAsync(sec, $"پشتیبان دستی فونیکس — {label}", HttpContext.RequestAborted);
+        return ok ? Ok(new { ok = true }) : BadRequest(err);
+    }
+
+    // Instant full backup: send every section now (for critical moments before a risky change).
+    [HttpPost("telegram/send-all")]
+    public async Task<IActionResult> SendAll()
+    {
+        var errors = new List<string>();
+        foreach (var (sec, label) in StoreData.BackupSections)
+        {
+            var (ok, err) = await _telegram.SendSectionAsync(sec, $"پشتیبان لحظه‌ای فونیکس — {label}", HttpContext.RequestAborted);
+            if (!ok) errors.Add($"{label}: {err}");
+        }
+        return errors.Count == 0 ? Ok(new { ok = true }) : BadRequest(string.Join(" / ", errors));
+    }
+
+    // Shared three-factor gate (admin + fresh 2FA + PHONIX_BACKUP_KEY). Returns a deny result, or null when ok.
+    private IActionResult? CheckRestoreAuth(string? backupKey, string? twoFactorCode, out string username, out string ip)
+    {
+        ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var user = this.CurrentUserId() is int uid ? _store.GetUser(uid) : null;
+        username = user?.Username ?? "unknown";
+        var who = username;
+        var where = ip;
+        IActionResult Deny(string reason, IActionResult result)
+        {
+            _logger.LogWarning("[SRV] RESTORE DENIED ({Reason}). Admin: {User}, IP: {IP}, {Time}.", reason, who, where, DateTime.UtcNow.ToString("o"));
+            return result;
+        }
+
+        if (user is null || user.Role != UserRole.Admin)
+            return Deny("not an admin", Unauthorized("نشست نامعتبر است."));
+        if (!user.TwoFactorEnabled || string.IsNullOrWhiteSpace(twoFactorCode) || !TotpService.Verify(user.TwoFactorSecret, twoFactorCode))
+            return Deny("invalid 2FA", Unauthorized("کد تأیید دو‌مرحله‌ای نادرست است."));
+        var configuredKey = Environment.GetEnvironmentVariable("PHONIX_BACKUP_KEY");
+        if (string.IsNullOrWhiteSpace(configuredKey) || string.IsNullOrWhiteSpace(backupKey)
+            || !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(backupKey), Encoding.UTF8.GetBytes(configuredKey)))
+            return Deny("invalid backup key", Unauthorized("کلید پشتیبان (PHONIX_BACKUP_KEY) نادرست است."));
+        return null;
+    }
+
     [HttpGet("telegram")]
     public TelegramSettings GetTelegram() => _store.GetTelegramSettings();
 

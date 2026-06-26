@@ -11,6 +11,10 @@ namespace Phonix.Api.Data;
 // A full snapshot of the durable store. Sessions are intentionally excluded (ephemeral).
 public class StoreSnapshot
 {
+    // Set on a partial (per-section) backup so a restore can verify the file matches the chosen section.
+    // Null/empty on a full snapshot.
+    public string? Section { get; set; }
+
     public List<Category> Categories { get; set; } = new();
     public List<Product> Products { get; set; } = new();
     public List<AppUser> Users { get; set; } = new();
