@@ -9,25 +9,33 @@ public static class AuthCookies
     public const string CsrfHeader = "X-CSRF-Token";
 
     // issues the httpOnly session cookie plus a JS-readable CSRF token (double-submit pattern).
-    public static void Issue(HttpResponse response, string token, bool secure)
+    // persistent=false omits Expires, making both cookies session-only: the browser drops them when it
+    // closes. Admin-panel sessions use this so re-entering the panel always requires a fresh login + 2FA,
+    // while main-site customer sessions stay persistent (survive a browser restart).
+    public static void Issue(HttpResponse response, string token, bool secure, bool persistent = true)
     {
-        var expires = DateTimeOffset.UtcNow.AddDays(3);
-        response.Cookies.Append(Token, token, new CookieOptions
+        DateTimeOffset? expires = persistent ? DateTimeOffset.UtcNow.AddDays(3) : null;
+        var tokenOptions = new CookieOptions
         {
             HttpOnly = true,
             Secure = secure,
             SameSite = SameSiteMode.Strict,
             Path = "/",
-            Expires = expires,
-        });
-        response.Cookies.Append(Csrf, Convert.ToHexString(RandomNumberGenerator.GetBytes(16)), new CookieOptions
+        };
+        var csrfOptions = new CookieOptions
         {
             HttpOnly = false,
             Secure = secure,
             SameSite = SameSiteMode.Strict,
             Path = "/",
-            Expires = expires,
-        });
+        };
+        if (expires is { } e)
+        {
+            tokenOptions.Expires = e;
+            csrfOptions.Expires = e;
+        }
+        response.Cookies.Append(Token, token, tokenOptions);
+        response.Cookies.Append(Csrf, Convert.ToHexString(RandomNumberGenerator.GetBytes(16)), csrfOptions);
     }
 
     public static void Clear(HttpResponse response)

@@ -197,6 +197,7 @@ export const api = {
     myUnread: () => request<number>("/chat/me/unread"),
     send: (body: string) => request<CustomerChatThread>("/chat/me/messages", { method: "POST", body: json({ body }) }),
     readMine: () => request<void>("/chat/me/read", { method: "POST" }),
+    resetMine: () => request<void>("/chat/me/reset", { method: "POST" }),
     list: () => request<ConversationSummary[]>("/chat"),
     get: (id: number) => request<AdminChatThread>(`/chat/${id}`),
     reply: (id: number, body: string) => request<AdminChatThread>(`/chat/${id}/messages`, { method: "POST", body: json({ body }) }),

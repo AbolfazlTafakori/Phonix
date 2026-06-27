@@ -74,6 +74,17 @@ public class ChatController : ControllerBase
         return NoContent();
     }
 
+    // Archives the customer's open thread so their widget starts empty again. The LiveChat widget calls this
+    // once per new browser session (tracked in sessionStorage), giving "close the browser → chat resets"
+    // without losing anything on the support side.
+    [HttpPost("me/reset")]
+    public IActionResult ResetMine()
+    {
+        if (this.CurrentUserId() is not int id) return Unauthorized();
+        _store.CloseUserConversation(id);
+        return NoContent();
+    }
+
     // ── Staff side: every thread, separated per customer ──────────────────────────────────────────────
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]

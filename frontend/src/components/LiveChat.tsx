@@ -20,6 +20,9 @@ export default function LiveChat() {
   const [unread, setUnread] = useState(0);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
+  // Gates polling until the per-browser-session reset check has run, so a fresh session never briefly shows
+  // the previous conversation before it's archived.
+  const [sessionReady, setSessionReady] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   // Lets the background poll skip a tick mid-send so it can't briefly wipe the optimistic message.
   const sendingRef = useRef(false);
@@ -27,20 +30,43 @@ export default function LiveChat() {
   // The widget belongs to the storefront/account experience, never the admin panel.
   const hidden = !ready || !user || pathname.startsWith("/admin");
 
+  // Once per browser session, archive any thread left open from a previous session so the customer starts
+  // with an empty chat. sessionStorage is the right tool: it survives refresh and in-session navigation but
+  // is cleared when the browser is fully closed, which is exactly when the chat should reset. The marker is
+  // the user id, so switching accounts within one session also resets. Support keeps the archived history.
+  useEffect(() => {
+    if (hidden) return;
+    const uid = String(user!.id);
+    const key = "phonix_chat_session";
+    if (sessionStorage.getItem(key) === uid) {
+      setSessionReady(true);
+      return;
+    }
+    let alive = true;
+    api.chat.resetMine().catch(() => {}).finally(() => {
+      if (!alive) return;
+      sessionStorage.setItem(key, uid);
+      setConv(null);
+      setUnread(0);
+      setSessionReady(true);
+    });
+    return () => { alive = false; };
+  }, [hidden, user?.id]);
+
   // Poll for unread support replies while the panel is closed, so the bubble shows a badge even after the
   // customer has moved to another page.
   useEffect(() => {
-    if (hidden || open) return;
+    if (hidden || open || !sessionReady) return;
     let alive = true;
     const tick = () => api.chat.myUnread().then((n) => { if (alive) setUnread(n); }).catch(() => {});
     tick();
     const id = setInterval(tick, 12000);
     return () => { alive = false; clearInterval(id); };
-  }, [hidden, open]);
+  }, [hidden, open, sessionReady]);
 
   // While open, refresh the thread and keep the customer's read marker current.
   useEffect(() => {
-    if (hidden || !open) return;
+    if (hidden || !open || !sessionReady) return;
     let alive = true;
     const tick = async () => {
       if (sendingRef.current) return; // don't clobber the in-flight optimistic send
@@ -55,7 +81,7 @@ export default function LiveChat() {
     tick();
     const id = setInterval(tick, 2500);
     return () => { alive = false; clearInterval(id); };
-  }, [hidden, open]);
+  }, [hidden, open, sessionReady]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });

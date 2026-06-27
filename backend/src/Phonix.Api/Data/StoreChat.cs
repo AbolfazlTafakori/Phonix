@@ -28,20 +28,37 @@ public partial class StoreData
         Messages = new List<ChatMessage>(c.Messages),
     };
 
-    // The customer's current thread (open one if present, otherwise their most recent), or null if they've
-    // never started a chat. Reading never creates a thread, so merely opening the widget adds no clutter.
-    // Returns a detached copy so the caller can serialize it without holding the lock.
+    // The customer's current OPEN thread, or null if they have none. Closed threads (archived after the
+    // customer resets the chat on a new browser session, or closed by support) are intentionally hidden from
+    // the customer so a fresh browser session starts with an empty chat — while staff keep the full history
+    // via GetConversations. Reading never creates a thread. Returns a detached copy, safe to serialize.
     public ChatConversation? GetUserConversation(int userId)
     {
         lock (_gate)
         {
             var conv = _conversations
-                .Where(c => c.UserId == userId)
-                .OrderByDescending(c => c.Status == ConversationStatus.Open)
-                .ThenByDescending(c => c.LastMessageAtUtc)
+                .Where(c => c.UserId == userId && c.Status == ConversationStatus.Open)
+                .OrderByDescending(c => c.LastMessageAtUtc)
                 .FirstOrDefault();
             return conv is null ? null : Clone(conv);
         }
+    }
+
+    // Archives the customer's open thread (if any) without deleting it: the customer's widget goes back to an
+    // empty state, but support still sees the conversation in the panel. Called when a new browser session
+    // begins (see the LiveChat widget) so chat history resets per browser session for the customer only.
+    public void CloseUserConversation(int userId)
+    {
+        bool changed = false;
+        lock (_gate)
+        {
+            foreach (var conv in _conversations.Where(c => c.UserId == userId && c.Status == ConversationStatus.Open))
+            {
+                conv.Status = ConversationStatus.Closed;
+                changed = true;
+            }
+        }
+        if (changed) MarkDirty();
     }
 
     public ChatConversation? GetConversation(int id)
@@ -162,13 +179,14 @@ public partial class StoreData
         return ok;
     }
 
-    // Admin messages the customer hasn't seen yet (drives the floating widget badge).
+    // Admin messages the customer hasn't seen yet (drives the floating widget badge). Counts only the open
+    // thread, so a reset/closed conversation never leaves a stale badge on the customer's bubble.
     public int CountUnreadForUser(int userId)
     {
         lock (_gate)
         {
             var conv = _conversations
-                .Where(c => c.UserId == userId)
+                .Where(c => c.UserId == userId && c.Status == ConversationStatus.Open)
                 .OrderByDescending(c => c.LastMessageAtUtc)
                 .FirstOrDefault();
             return conv is null ? 0 : conv.Messages.Count(m => m.FromAdmin && m.Id > conv.UserReadUpTo);

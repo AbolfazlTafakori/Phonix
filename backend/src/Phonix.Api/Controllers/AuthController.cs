@@ -86,7 +86,9 @@ public class AuthController : ControllerBase
     private LoginResultDto IssueSession(AppUser user, bool adminScope)
     {
         var token = _sessions.Protect(user, adminScope);
-        AuthCookies.Issue(Response, token, Request.IsHttps);
+        // Admin-scoped sessions get a session-only cookie (persistent: false) so closing the browser ends the
+        // panel session and forces a fresh login + 2FA next time; customer sessions stay persistent.
+        AuthCookies.Issue(Response, token, Request.IsHttps, persistent: !adminScope);
         _logger.LogInformation("Login: {Username} (#{UserId}) adminScope={AdminScope} from {ClientIp}",
             user.Username, user.Id, adminScope, ClientIp);
         if (adminScope && IsStaff(user))
