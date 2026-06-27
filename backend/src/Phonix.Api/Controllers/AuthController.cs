@@ -99,7 +99,7 @@ public class AuthController : ControllerBase
 
     private Task SendVerification(AppUser user)
     {
-        var token = _store.CreateToken(user.Id, "verify", TimeSpan.FromDays(2));
+        var token = _store.CreateToken(user.Id, "verify", TimeSpan.FromHours(1));
         var link = $"{FrontendUrl}/verify-email?token={token}";
         var (text, html) = EmailTemplates.VerifyEmail(link);
         return _email.SendAsync(user.Email, "تأیید ایمیل حساب فونیکس", text, html);
