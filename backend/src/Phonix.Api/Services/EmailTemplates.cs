@@ -39,15 +39,15 @@ public static class EmailTemplates
         <tr><td style=""background:linear-gradient(135deg,{Accent},{AccentDark});padding:36px 32px;text-align:center;"">
           <span style=""color:#ffffff;font-family:{FontStack};font-size:24px;font-weight:700;letter-spacing:.3px;"">{Brand}</span>
         </td></tr>
-        <tr><td dir=""rtl"" align=""right"" style=""padding:40px 40px 32px;color:#374151;font-family:{FontStack};font-size:16px;line-height:2.1;direction:rtl;text-align:right;"">
-          <h1 style=""margin:0 0 20px;font-family:{FontStack};font-size:22px;font-weight:700;color:#111827;line-height:1.6;text-align:right;"">{WebUtility.HtmlEncode(title)}</h1>
+        <tr><td dir=""rtl"" align=""right"" style=""padding:40px 40px 32px;color:#374151;font-family:{FontStack};font-size:18px;line-height:2.15;direction:rtl;text-align:right;"">
+          <h1 style=""margin:0 0 22px;font-family:{FontStack};font-size:25px;font-weight:700;color:#111827;line-height:1.6;text-align:right;"">{WebUtility.HtmlEncode(title)}</h1>
           {innerHtml}
         </td></tr>
         <tr><td style=""padding:24px 40px 32px;background:#f8fafc;border-top:1px solid #eef1f5;text-align:center;font-family:{FontStack};"">
-          <a href=""{SupportUrl}"" style=""color:{Accent};font-size:13px;font-weight:500;"">پشتیبانی</a>
-          <span style=""color:#d1d5db;font-size:13px;"">&nbsp;•&nbsp;</span>
-          <a href=""https://{Site}"" style=""color:{Accent};font-size:13px;font-weight:500;"">{Site}</a>
-          <p style=""margin:14px 0 0;color:#9ca3af;font-size:12px;line-height:1.9;"">این ایمیل به‌صورت خودکار از سوی {Brand} ارسال شده است؛ لطفاً به آن پاسخ ندهید.<br>© {DateTime.Now.Year} {Brand}</p>
+          <a href=""{SupportUrl}"" style=""color:{Accent};font-size:14px;font-weight:500;"">پشتیبانی</a>
+          <span style=""color:#d1d5db;font-size:14px;"">&nbsp;•&nbsp;</span>
+          <a href=""https://{Site}"" style=""color:{Accent};font-size:14px;font-weight:500;"">{Site}</a>
+          <p style=""margin:14px 0 0;color:#9ca3af;font-size:13px;line-height:1.95;"">این ایمیل به‌صورت خودکار از سوی {Brand} ارسال شده است؛ لطفاً به آن پاسخ ندهید.<br>© {DateTime.Now.Year} {Brand}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -55,18 +55,18 @@ public static class EmailTemplates
 </body></html>";
 
     private static string Button(string text, string url) => $@"<table role=""presentation"" align=""center"" cellpadding=""0"" cellspacing=""0"" style=""margin:28px auto;""><tr><td align=""center"" style=""border-radius:12px;background:{Accent};box-shadow:0 4px 14px rgba(230,0,83,0.30);"">
-      <a href=""{WebUtility.HtmlEncode(url)}"" style=""display:inline-block;padding:15px 44px;color:#ffffff;font-family:{FontStack};font-size:16px;font-weight:700;border-radius:12px;"">{WebUtility.HtmlEncode(text)}</a>
+      <a href=""{WebUtility.HtmlEncode(url)}"" style=""display:inline-block;padding:16px 46px;color:#ffffff;font-family:{FontStack};font-size:17px;font-weight:700;border-radius:12px;"">{WebUtility.HtmlEncode(text)}</a>
     </td></tr></table>";
 
     // Small grey line for showing the raw link as a copy-paste fallback under the button.
     private static string LinkFallback(string url) =>
-        $@"<p dir=""rtl"" style=""margin:18px 0 0;color:#9ca3af;font-size:13px;line-height:1.9;direction:rtl;text-align:right;"">اگر دکمه کار نکرد، این نشانی را در مرورگر باز کنید:</p>
-        <p dir=""ltr"" style=""margin:6px 0 0;word-break:break-all;direction:ltr;text-align:left;""><a href=""{WebUtility.HtmlEncode(url)}"" style=""color:{Accent};font-size:13px;"">{WebUtility.HtmlEncode(url)}</a></p>";
+        $@"<p dir=""rtl"" style=""margin:18px 0 0;color:#9ca3af;font-size:14px;line-height:1.9;direction:rtl;text-align:right;"">اگر دکمه کار نکرد، این نشانی را در مرورگر باز کنید:</p>
+        <p dir=""ltr"" style=""margin:6px 0 0;word-break:break-all;direction:ltr;text-align:left;""><a href=""{WebUtility.HtmlEncode(url)}"" style=""color:{Accent};font-size:14px;"">{WebUtility.HtmlEncode(url)}</a></p>";
 
     // A soft tinted note box for secondary / security messages under the main content.
     private static string Note(string html) =>
         $@"<table role=""presentation"" dir=""rtl"" width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""margin:24px 0 0;direction:rtl;""><tr>
-        <td dir=""rtl"" align=""right"" style=""background:#f8fafc;border:1px solid #eef1f5;border-radius:12px;padding:14px 18px;color:#6b7280;font-size:13px;line-height:1.95;direction:rtl;text-align:right;"">{html}</td>
+        <td dir=""rtl"" align=""right"" style=""background:#f8fafc;border:1px solid #eef1f5;border-radius:12px;padding:16px 20px;color:#6b7280;font-size:15px;line-height:2;direction:rtl;text-align:right;"">{html}</td>
         </tr></table>";
 
     public static (string text, string html) VerifyEmail(string link)
