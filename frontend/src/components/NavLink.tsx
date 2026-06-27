@@ -5,10 +5,20 @@ import { usePathname } from "next/navigation";
 
 type Props = { href: string; label: string; hasMenu?: boolean };
 
+// The products section moved from /films to /products (next.config.ts keeps a permanent redirect). A nav
+// link still stored as /films therefore lands the browser on /products; normalize both sides so the active
+// underline stays lit instead of comparing the pre-redirect href against the post-redirect path.
+function normalize(path: string): string {
+  if (path === "/films" || path.startsWith("/films/")) return "/products" + path.slice("/films".length);
+  return path;
+}
+
 export default function NavLink({ href, label }: Props) {
   const pathname = usePathname();
+  const target = normalize(href);
+  const path = normalize(pathname);
   const isActive =
-    href !== "#" && (href === "/" ? pathname === "/" : pathname.startsWith(href));
+    target !== "#" && (target === "/" ? path === "/" : path.startsWith(target));
   const shown = isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100";
 
   return (

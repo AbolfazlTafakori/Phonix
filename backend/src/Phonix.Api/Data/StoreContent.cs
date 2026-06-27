@@ -268,7 +268,7 @@ public partial class StoreData
                 NavLinks = new List<NavLink>
                 {
                     new() { Label = "خانه", Href = "/" },
-                    new() { Label = "محصولات", Href = "/films", HasMenu = true },
+                    new() { Label = "محصولات", Href = "/products", HasMenu = true },
                 },
             },
             Stats = new List<StatItem>
