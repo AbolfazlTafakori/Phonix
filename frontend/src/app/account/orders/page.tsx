@@ -118,16 +118,43 @@ export default function OrdersPage() {
                 <span className="font-bold text-emerald-400">{formatToman(o.total)}</span>
               </div>
 
-              {o.deliveryContent && (
-                <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4">
-                  <div className="mb-2 flex items-center gap-2">
-                    <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-400">✓</span>
-                    <span className="text-sm font-bold text-emerald-300">اطلاعات سرویس شما</span>
-                    {o.deliveredAt && <span className="text-xs text-white/40">· تحویل {o.deliveredAt}</span>}
-                  </div>
-                  <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7 text-white/85">{o.deliveryContent}</pre>
-                </div>
-              )}
+              {(() => {
+                // Prefer per-account delivery (each account shown separately); fall back to the single
+                // delivery message for orders placed before the multi-account feature.
+                const deliveredUnits = (o.units ?? []).filter((u) => u.delivered && u.deliveryContent.trim());
+                const multi = deliveredUnits.length > 1;
+                if (deliveredUnits.length > 0) {
+                  return (
+                    <div className="mt-4 space-y-3">
+                      {deliveredUnits.map((u) => (
+                        <div key={u.id} className="rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4">
+                          <div className="mb-2 flex items-center gap-2">
+                            <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-400">✓</span>
+                            <span className="text-sm font-bold text-emerald-300">
+                              اطلاعات سرویس شما{multi ? ` — اکانت ${u.unitIndex}` : ""}
+                            </span>
+                            {u.deliveredAt && <span className="text-xs text-white/40">· تحویل {u.deliveredAt}</span>}
+                          </div>
+                          <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7 text-white/85">{u.deliveryContent}</pre>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+                if (o.deliveryContent) {
+                  return (
+                    <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/[0.07] p-4">
+                      <div className="mb-2 flex items-center gap-2">
+                        <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-400">✓</span>
+                        <span className="text-sm font-bold text-emerald-300">اطلاعات سرویس شما</span>
+                        {o.deliveredAt && <span className="text-xs text-white/40">· تحویل {o.deliveredAt}</span>}
+                      </div>
+                      <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7 text-white/85">{o.deliveryContent}</pre>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
                 {o.status === "PendingApproval" && o.total - o.walletPaid > 0 && (

@@ -16,6 +16,7 @@ public enum AdminBadge
 {
     None,
     PendingOrders,
+    PreparingOrders,
     PendingTransactions,
     OpenTickets,
     PendingKyc,
@@ -52,8 +53,9 @@ public static class AdminMenu
         new("ops", "عملیات اصلی", UserRole.Support, new AdminMenuItem[]
         {
             new("dashboard",    "داشبورد",             "dashboard", "/admin"),
-            new("orders",       "مدیریت سفارش‌ها",      "cart",      "/admin/orders",       Badge: AdminBadge.PendingOrders),
-            new("orders-status","وضعیت سفارشات",        "activity",  "/admin/orders/status"),
+            new("orders-receipts",    "تأیید رسید واریز",  "wallet",   "/admin/orders/receipts",    Badge: AdminBadge.PendingOrders),
+            new("orders-fulfillment", "تحویل سفارش",       "cart",     "/admin/orders/fulfillment", Badge: AdminBadge.PreparingOrders),
+            new("orders-status",      "وضعیت سفارشات",     "activity", "/admin/orders/status"),
             new("transactions", "تراکنش‌ها و کیف پول",  "wallet",    "/admin/transactions", Badge: AdminBadge.PendingTransactions),
             new("tickets",      "تیکت‌های پشتیبانی",    "ticket",    "/admin/tickets",      Badge: AdminBadge.OpenTickets),
             new("chat",         "گفتگوی زنده",          "chat",      "/admin/chat",         Badge: AdminBadge.UnreadChats),

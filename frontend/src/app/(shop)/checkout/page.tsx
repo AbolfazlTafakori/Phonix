@@ -53,18 +53,23 @@ export default function CheckoutPage() {
   // cart lines whose product needs a higher identity level than the user currently has.
   const overLevelItems = items.filter((i) => (levelMap[i.productId] ?? 1) > userLevel);
 
-  // resolve a cart line's plan and its per-plan customer-input settings.
+  // resolve a cart line's plan and its per-plan customer-input settings. Info is captured PER ACCOUNT, so a
+  // line with quantity 2 has two keyed entries (unit 0 and unit 1).
   const lineKey = (productId: number, planId?: number | null) => `${productId}:${planId ?? ""}`;
+  const unitKey = (productId: number, planId: number | null | undefined, unit: number) =>
+    `${lineKey(productId, planId)}#${unit}`;
   const planFor = (productId: number, planId?: number | null): ProductPlan | undefined =>
     planId == null ? undefined : productsById[productId]?.plans.find((p) => p.id === planId);
   const infoLines = items.filter((i) => planFor(i.productId, i.planId)?.collectsInfo);
-  const infoValueFor = (productId: number, planId?: number | null): PlanInfoValue =>
-    infoData[lineKey(productId, planId)] ?? emptyPlanInfoValue();
-  const setInfoValueFor = (productId: number, planId: number | null | undefined, v: PlanInfoValue) =>
-    setInfoData((d) => ({ ...d, [lineKey(productId, planId)]: v }));
+  const infoValueFor = (productId: number, planId: number | null | undefined, unit: number): PlanInfoValue =>
+    infoData[unitKey(productId, planId, unit)] ?? emptyPlanInfoValue();
+  const setInfoValueFor = (productId: number, planId: number | null | undefined, unit: number, v: PlanInfoValue) =>
+    setInfoData((d) => ({ ...d, [unitKey(productId, planId, unit)]: v }));
   const infoIncomplete = infoLines.some((i) => {
     const pl = planFor(i.productId, i.planId)!;
-    return !isPlanInfoComplete(pl, infoValueFor(i.productId, i.planId));
+    return Array.from({ length: i.quantity }).some(
+      (_, u) => !isPlanInfoComplete(pl, infoValueFor(i.productId, i.planId, u)),
+    );
   });
 
   const patchPay = (p: Partial<CardToCardValue>) => setPay((cur) => ({ ...cur, ...p }));
@@ -170,12 +175,16 @@ export default function CheckoutPage() {
         items: items.map((i) => {
           const pl = planFor(i.productId, i.planId);
           if (!pl?.collectsInfo) return { productId: i.productId, quantity: i.quantity, planId: i.planId ?? null };
-          const v = infoValueFor(i.productId, i.planId);
-          const inputs = pl.inputFields
-            .map((f) => ({ label: f.label, value: (v.values[f.label] ?? "").trim() }))
-            .filter((x) => x.value.length > 0);
-          const note = pl.allowNotes ? v.note.trim() || null : null;
-          return { productId: i.productId, quantity: i.quantity, planId: i.planId ?? null, inputs, note };
+          // one entry per account purchased on this line
+          const units = Array.from({ length: i.quantity }).map((_, u) => {
+            const v = infoValueFor(i.productId, i.planId, u);
+            const inputs = pl.inputFields
+              .map((f) => ({ label: f.label, value: (v.values[f.label] ?? "").trim() }))
+              .filter((x) => x.value.length > 0);
+            const note = pl.allowNotes ? v.note.trim() || null : null;
+            return { inputs, note };
+          });
+          return { productId: i.productId, quantity: i.quantity, planId: i.planId ?? null, units };
         }),
         paymentMethod,
         fromWallet: useWallet,
@@ -261,15 +270,17 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {infoLines.map((i) => (
-            <PlanInfoForm
-              key={lineKey(i.productId, i.planId)}
-              title={`${i.name}${i.plan ? ` · ${i.plan}` : ""}`}
-              plan={planFor(i.productId, i.planId)!}
-              value={infoValueFor(i.productId, i.planId)}
-              onChange={(v) => setInfoValueFor(i.productId, i.planId, v)}
-            />
-          ))}
+          {infoLines.flatMap((i) =>
+            Array.from({ length: i.quantity }).map((_, u) => (
+              <PlanInfoForm
+                key={unitKey(i.productId, i.planId, u)}
+                title={`${i.name}${i.plan ? ` · ${i.plan}` : ""}${i.quantity > 1 ? ` — اکانت ${u + 1}` : ""}`}
+                plan={planFor(i.productId, i.planId)!}
+                value={infoValueFor(i.productId, i.planId, u)}
+                onChange={(v) => setInfoValueFor(i.productId, i.planId, u, v)}
+              />
+            )),
+          )}
 
           <div className="rounded-2xl border border-white/8 bg-[#15151f]/80 p-5">
             <h3 className="mb-4 text-lg font-bold text-white">روش پرداخت</h3>

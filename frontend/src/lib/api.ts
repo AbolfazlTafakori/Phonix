@@ -334,13 +334,18 @@ export const api = {
     list: (params?: { status?: OrderStatus }) => request<Order[]>(`/orders${qs(params)}`),
     forUser: (userId: number) => request<Order[]>(`/orders/user/${userId}`),
     get: (id: number) => request<Order>(`/orders/${id}`),
-    place: (body: { items: { productId: number; quantity: number; planId?: number | null; inputs?: { label: string; value: string }[]; note?: string | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null; cardId?: number | null; receiptUrl?: string | null; trackingNumber?: string | null; paymentDate?: string | null; description?: string | null }) =>
+    place: (body: { items: { productId: number; quantity: number; planId?: number | null; units?: { inputs?: { label: string; value: string }[]; note?: string | null }[]; inputs?: { label: string; value: string }[]; note?: string | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null; cardId?: number | null; receiptUrl?: string | null; trackingNumber?: string | null; paymentDate?: string | null; description?: string | null }) =>
       request<Order>("/orders", { method: "POST", body: json(body) }),
     approve: (id: number) => request<Order>(`/orders/${id}/approve`, { method: "POST" }),
+    reject: (id: number, reason?: string) => request<Order>(`/orders/${id}/reject`, { method: "POST", body: json({ reason: reason ?? null }) }),
     complete: (id: number) => request<Order>(`/orders/${id}/complete`, { method: "POST" }),
     cancel: (id: number) => request<Order>(`/orders/${id}/cancel`, { method: "POST" }),
     deliver: (id: number, body: { content: string; email: boolean; emailSubject?: string; emailBody?: string }) =>
       request<Order>(`/orders/${id}/deliver`, { method: "POST", body: json(body) }),
+    saveUnitDraft: (id: number, unitId: number, body: { content: string }) =>
+      request<Order>(`/orders/${id}/units/${unitId}/draft`, { method: "POST", body: json({ ...body, email: false }) }),
+    deliverUnit: (id: number, unitId: number, body: { content: string; email: boolean; emailSubject?: string; emailBody?: string; final?: boolean }) =>
+      request<Order>(`/orders/${id}/units/${unitId}/deliver`, { method: "POST", body: json(body) }),
   },
   tickets: {
     list: (params?: { status?: TicketStatus }) => request<Ticket[]>(`/tickets${qs(params)}`),

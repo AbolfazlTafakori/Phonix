@@ -6,9 +6,12 @@ public record PlaceOrderResult(Order? Order, string? Error);
 public record OrderActionResult(Order? Order, string? Error);
 // the card-to-card payment details for an order's gateway remainder (collected at checkout).
 public record RemainderPayment(int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
-// Per-line customer info captured at checkout (already validated + sensitive values encrypted by the
-// controller). Aligned by position to the `items` sequence passed to PlaceOrder; entries may be null.
-public record OrderLineInfo(List<OrderInputValue>? Inputs, string? Note);
+// Customer info for a single account/unit, captured at checkout (already validated + sensitive values
+// encrypted by the controller).
+public record OrderUnitInfo(List<OrderInputValue> Inputs, string? Note);
+// Per-line customer info captured at checkout: one entry per account the customer is buying on that line.
+// Aligned by position to the `items` sequence passed to PlaceOrder; entries may be null.
+public record OrderLineInfo(IReadOnlyList<OrderUnitInfo>? Units);
 
 public partial class StoreData
 {
@@ -77,6 +80,7 @@ public partial class StoreData
         lock (_gate)
         {
             var lines = new List<OrderItem>();
+            var units = new List<OrderUnit>();
             // Indexed walk so a per-line info entry (aligned to the original items order) can be attached even
             // though invalid lines are skipped.
             var itemList = items.ToList();
@@ -96,19 +100,36 @@ public partial class StoreData
                     if (plan is null) continue;
                 }
 
-                var info = lineInfo is not null && idx < lineInfo.Count ? lineInfo[idx] : null;
+                var qty = Math.Min(quantity, 100);
+                var planLabel = plan is null ? null : $"{plan.Type} · {plan.Months} ماهه";
                 lines.Add(new OrderItem
                 {
                     ProductId = p.Id,
                     Name = p.Name,
                     Image = p.Image,
-                    Plan = plan is null ? null : $"{plan.Type} · {plan.Months} ماهه",
+                    Plan = planLabel,
                     PlanMonths = plan?.Months,   // machine-readable duration → drives renewal-reminder expiry
                     UnitPrice = plan?.FinalPrice ?? p.FinalPrice,
-                    Quantity = Math.Min(quantity, 100),
-                    CustomerInputs = info?.Inputs ?? new(),
-                    CustomerNote = info?.Note,
+                    Quantity = qty,
                 });
+
+                // One deliverable unit per quantity, each carrying the info the customer supplied for it.
+                var lineUnits = lineInfo is not null && idx < lineInfo.Count ? lineInfo[idx]?.Units : null;
+                for (var u = 0; u < qty; u++)
+                {
+                    var ui = lineUnits is not null && u < lineUnits.Count ? lineUnits[u] : null;
+                    units.Add(new OrderUnit
+                    {
+                        Id = units.Count + 1,
+                        ProductId = p.Id,
+                        Name = p.Name,
+                        Image = p.Image,
+                        Plan = planLabel,
+                        UnitIndex = u + 1,
+                        CustomerInputs = ui?.Inputs ?? new(),
+                        CustomerNote = ui?.Note,
+                    });
+                }
             }
 
             if (lines.Count == 0) return new PlaceOrderResult(null, "محصولی برای ثبت یافت نشد.");
@@ -195,6 +216,7 @@ public partial class StoreData
                 UserName = name,
                 PaymentMethod = paymentMethod,
                 Items = lines,
+                Units = units,
                 Subtotal = subtotal,
                 DiscountCode = discount.Code?.Code,
                 DiscountAmount = discount.Amount,
@@ -289,6 +311,69 @@ public partial class StoreData
         var o = DeliverOrderCore(id, content, changedBy);
         if (o is not null) PersistNow();
         return o;
+    }
+
+    // Saves an in-progress delivery for a single unit WITHOUT delivering it: the content is kept so the admin
+    // can leave the panel and finish later, and a second admin sees who's working on it. Returns the order.
+    public Order? SaveUnitDraft(int orderId, int unitId, string content, string? changedBy = null)
+    {
+        Order? snapshot = null;
+        lock (_gate)
+        {
+            var o = _orders.FirstOrDefault(x => x.Id == orderId);
+            var unit = o?.Units.FirstOrDefault(u => u.Id == unitId);
+            if (o is null || unit is null || unit.Delivered) return null;
+            unit.DeliveryContent = content;
+            unit.HandledBy = changedBy;
+            snapshot = o;
+        }
+        if (snapshot is not null) PersistNow();
+        return snapshot;
+    }
+
+    // Delivers a single unit. When every unit of the order is delivered the order itself is completed (which
+    // credits referral, stamps the delivery time used for subscription expiry, and notifies the customer).
+    // Returns (order, justCompleted) so the caller can send the completion email only on the final unit.
+    public (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null)
+    {
+        Order? snapshot = null;
+        var justCompleted = false;
+        lock (_gate)
+        {
+            var o = _orders.FirstOrDefault(x => x.Id == orderId);
+            var unit = o?.Units.FirstOrDefault(u => u.Id == unitId);
+            if (o is null || unit is null) return (null, false);
+
+            unit.DeliveryContent = content;
+            unit.HandledBy = changedBy;
+            if (!unit.Delivered)
+            {
+                unit.Delivered = true;
+                unit.DeliveredAt = Today();
+                unit.DeliveredAtUtc = DateTime.UtcNow;
+            }
+
+            // Complete the order once all units are delivered (and it isn't already completed).
+            if (o.Units.Count > 0 && o.Units.All(u => u.Delivered) && o.Status != OrderStatus.Completed)
+            {
+                var from = o.Status;
+                // The customer-facing order summary keeps a combined view of every unit's content.
+                o.DeliveryContent = string.Join("\n\n", o.Units
+                    .OrderBy(u => u.UnitIndex)
+                    .Select(u => o.Units.Count > 1 ? $"اکانت {u.UnitIndex}:\n{u.DeliveryContent}" : u.DeliveryContent));
+                o.DeliveredAt = Today();
+                o.DeliveredAtUtc ??= DateTime.UtcNow;
+                o.Status = OrderStatus.Completed;
+                CreditReferral(o);
+                AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تحویل همه‌ی اکانت‌ها");
+                RefreshUserOrderStats(o.UserId);
+                AddNotification(o.UserId, "سفارش شما آماده شد", $"سفارش {o.Code} آماده و قابل مشاهده در حساب شماست.", "/account/orders");
+                justCompleted = true;
+            }
+            snapshot = o;
+        }
+        if (snapshot is not null) PersistNow();
+        return (snapshot, justCompleted);
     }
 
     private Order? DeliverOrderCore(int id, string content, string? changedBy = null)

@@ -504,6 +504,22 @@ export type OrderItem = {
   customerNote: string | null;
 };
 
+export type OrderUnit = {
+  id: number;
+  productId: number;
+  name: string;
+  image: string;
+  plan: string | null;
+  unitIndex: number;
+  customerInputs: OrderInputValue[];
+  customerNote: string | null;
+  deliveryContent: string;
+  delivered: boolean;
+  deliveredAt: string | null;
+  deliveredAtUtc: string | null;
+  handledBy: string | null;
+};
+
 export type OrderStatusHistory = {
   id: number;
   orderId: number;
@@ -520,6 +536,7 @@ export type Order = {
   userId: number;
   userName: string;
   items: OrderItem[];
+  units: OrderUnit[];
   subtotal: number;
   discountCode: string | null;
   discountAmount: number;

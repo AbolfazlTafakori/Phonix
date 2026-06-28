@@ -37,6 +37,30 @@ public class OrderItem
     public long LineTotal => UnitPrice * Quantity;
 }
 
+// One deliverable unit of an order — a single account/seat. A line with quantity 2 produces two units, each
+// fulfilled independently so several technical admins can work the same order in parallel without clashing.
+// Each unit carries the info the customer supplied for it at checkout and the delivery content staff write
+// back. Sensitive customer values are stored encrypted (see SensitiveField); DeliveryContent is plain.
+public class OrderUnit
+{
+    public int Id { get; set; }            // unique within the order; used to address it from the panel
+    public int ProductId { get; set; }
+    public string Name { get; set; } = "";
+    public string Image { get; set; } = "";
+    public string? Plan { get; set; }
+    public int UnitIndex { get; set; }     // 1-based position within its product line ("اکانت اول/دوم")
+    // What the customer entered for THIS unit at checkout, plus their optional note.
+    public List<OrderInputValue> CustomerInputs { get; set; } = new();
+    public string? CustomerNote { get; set; }
+    // What staff prepared for the customer (saved as a draft, or the final delivered content).
+    public string DeliveryContent { get; set; } = "";
+    public bool Delivered { get; set; }
+    public string? DeliveredAt { get; set; }
+    public DateTime? DeliveredAtUtc { get; set; }
+    // Last staff member who saved a draft or delivered this unit — shown so a second admin sees who's on it.
+    public string? HandledBy { get; set; }
+}
+
 public class Order
 {
     public int Id { get; set; }
@@ -44,6 +68,10 @@ public class Order
     public int UserId { get; set; }
     public string UserName { get; set; } = "";
     public List<OrderItem> Items { get; set; } = new();
+    // Per-account deliverable units (one per quantity). Drives the fulfillment section and the customer's
+    // per-account delivery view. Older orders placed before this feature have an empty list and fall back to
+    // the single order-level DeliveryContent below.
+    public List<OrderUnit> Units { get; set; } = new();
     public long Subtotal { get; set; }
     public string? DiscountCode { get; set; }
     public long DiscountAmount { get; set; }

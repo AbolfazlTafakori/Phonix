@@ -11,9 +11,13 @@ using Phonix.Api.Services;
 namespace Phonix.Api.Controllers;
 
 public record CustomerInputDto(string Label, string Value);
-public record OrderLineInput(int ProductId, int Quantity, int? PlanId, List<CustomerInputDto>? Inputs = null, string? Note = null);
+// One account's worth of customer inputs at checkout. A line with quantity 2 sends two of these.
+public record UnitInputDto(List<CustomerInputDto>? Inputs, string? Note);
+public record OrderLineInput(int ProductId, int Quantity, int? PlanId, List<UnitInputDto>? Units = null, List<CustomerInputDto>? Inputs = null, string? Note = null);
 public record PlaceOrderInput(List<OrderLineInput> Items, string PaymentMethod, bool FromWallet, string? DiscountCode, int? PaymentMethodId, int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
 public record DeliverInput(string Content, bool Email, string? EmailSubject, string? EmailBody);
+public record RejectOrderInput(string? Reason);
+public record DeliverUnitInput(string Content, bool Email, string? EmailSubject, string? EmailBody, bool Final);
 public record CancelOrderInput(string? Reason);
 
 [ApiController]
@@ -32,12 +36,12 @@ public class OrdersController : ControllerBase
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
-    [AdminPermission("orders", "orders-status")]
+    [AdminPermission("orders", "orders-receipts", "orders-fulfillment", "orders-status")]
     [HttpGet]
     public IEnumerable<Order> Get([FromQuery] OrderStatus? status) => _store.GetOrders(status).Select(RevealInputs);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
-    [AdminPermission("orders", "orders-status")]
+    [AdminPermission("orders", "orders-receipts", "orders-fulfillment", "orders-status")]
     [HttpGet("page")]
     public PagedResult<Order> GetPage([FromQuery] OrderStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
         PagedResult<Order>.From(_store.GetOrders(status).Select(RevealInputs).ToList(), page, pageSize);
@@ -63,9 +67,14 @@ public class OrdersController : ControllerBase
     // store.json on the next flush). Orders without sensitive inputs are returned as-is to avoid the copy.
     private static Order RevealInputs(Order order)
     {
-        if (!order.Items.Any(i => i.CustomerInputs.Any(v => v.Sensitive))) return order;
+        var hasSensitive = order.Units.Any(u => u.CustomerInputs.Any(v => v.Sensitive))
+            || order.Items.Any(i => i.CustomerInputs.Any(v => v.Sensitive));
+        if (!hasSensitive) return order;
         var clone = JsonSerializer.Deserialize<Order>(JsonSerializer.Serialize(order))!;
-        foreach (var item in clone.Items)
+        foreach (var unit in clone.Units)
+            foreach (var v in unit.CustomerInputs)
+                if (v.Sensitive) v.Value = SensitiveField.Reveal(v.Value);
+        foreach (var item in clone.Items)               // legacy orders captured inputs at the line level
             foreach (var v in item.CustomerInputs)
                 if (v.Sensitive) v.Value = SensitiveField.Reveal(v.Value);
         return clone;
@@ -116,61 +125,117 @@ public class OrdersController : ControllerBase
     private const int MaxInputLength = 1000;
     private const int MaxNoteLength = 2000;
 
-    // Validates a single checkout line's customer inputs against its plan definition and returns the values
-    // ready to store (sensitive ones encrypted). Lines whose plan collects nothing yield an empty result.
+    // Validates a checkout line's customer inputs against its plan and returns one entry per account the
+    // customer is buying (quantity), with sensitive values encrypted. Lines whose plan collects nothing yield
+    // null so the store still creates plain units. A required field missing on ANY account rejects the order.
     private OrderLineInfo BuildLineInfo(OrderLineInput line, out string? error)
     {
         error = null;
-        var empty = new OrderLineInfo(new List<OrderInputValue>(), null);
-
-        if (line.PlanId is not int planId) return empty;
+        if (line.PlanId is not int planId) return new OrderLineInfo(null);
         var plan = _store.GetProduct(line.ProductId)?.Plans.FirstOrDefault(p => p.Id == planId && p.IsActive);
-        if (plan is null || !plan.CollectsInfo) return empty;
+        if (plan is null || !plan.CollectsInfo) return new OrderLineInfo(null);
 
-        var supplied = line.Inputs ?? new();
-        var values = new List<OrderInputValue>();
-        foreach (var field in plan.InputFields)
+        var qty = Math.Clamp(line.Quantity, 1, 100);
+        // Per-unit groups; fall back to the legacy single Inputs/Note when Units isn't supplied.
+        var groups = line.Units is { Count: > 0 }
+            ? line.Units
+            : new List<UnitInputDto> { new(line.Inputs, line.Note) };
+
+        var units = new List<OrderUnitInfo>();
+        for (var u = 0; u < qty; u++)
         {
-            var raw = supplied.FirstOrDefault(s => s.Label == field.Label)?.Value?.Trim() ?? "";
-            if (raw.Length == 0)
+            var group = u < groups.Count ? groups[u] : null;
+            var supplied = group?.Inputs ?? new();
+            var values = new List<OrderInputValue>();
+            foreach (var field in plan.InputFields)
             {
-                if (field.Required) { error = $"فیلد «{field.Label}» الزامی است."; return empty; }
-                continue;
+                var raw = supplied.FirstOrDefault(s => s.Label == field.Label)?.Value?.Trim() ?? "";
+                if (raw.Length == 0)
+                {
+                    if (field.Required) { error = $"فیلد «{field.Label}» برای اکانت {u + 1} الزامی است."; return new OrderLineInfo(null); }
+                    continue;
+                }
+                if (raw.Length > MaxInputLength) raw = raw[..MaxInputLength];
+                values.Add(new OrderInputValue
+                {
+                    Label = field.Label,
+                    Value = field.Sensitive ? SensitiveField.Protect(raw) : raw,
+                    Sensitive = field.Sensitive,
+                });
             }
-            if (raw.Length > MaxInputLength) raw = raw[..MaxInputLength];
-            values.Add(new OrderInputValue
-            {
-                Label = field.Label,
-                Value = field.Sensitive ? SensitiveField.Protect(raw) : raw,
-                Sensitive = field.Sensitive,
-            });
-        }
 
-        string? note = null;
-        if (plan.AllowNotes && !string.IsNullOrWhiteSpace(line.Note))
-        {
-            note = line.Note.Trim();
-            if (note.Length > MaxNoteLength) note = note[..MaxNoteLength];
+            string? note = null;
+            if (plan.AllowNotes && !string.IsNullOrWhiteSpace(group?.Note))
+            {
+                note = group!.Note!.Trim();
+                if (note.Length > MaxNoteLength) note = note[..MaxNoteLength];
+            }
+            units.Add(new OrderUnitInfo(values, note));
         }
-        return new OrderLineInfo(values, note);
+        return new OrderLineInfo(units);
     }
 
+    // ── Receipt approval (financial team) ──
     [Authorize(Roles = AuthExtensions.StaffRoles)]
-    [AdminPermission("orders")]
+    [AdminPermission("orders", "orders-receipts")]
     [HttpPost("{id:int}/approve")]
     public ActionResult<Order> Approve(int id) =>
-        _store.SetOrderStatus(id, OrderStatus.Preparing, User.Identity?.Name, "تأیید سفارش") is { } o ? o : NotFound();
+        _store.SetOrderStatus(id, OrderStatus.Preparing, User.Identity?.Name, "تأیید رسید") is { } o ? RevealInputs(o) : NotFound();
 
+    // Rejects the deposit receipt: cancels the order (restoring stock) with the staff-supplied reason.
     [Authorize(Roles = AuthExtensions.StaffRoles)]
-    [AdminPermission("orders")]
+    [AdminPermission("orders", "orders-receipts")]
+    [HttpPost("{id:int}/reject")]
+    public ActionResult<Order> Reject(int id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] RejectOrderInput? input)
+    {
+        var reason = string.IsNullOrWhiteSpace(input?.Reason) ? "رد رسید توسط بخش مالی" : input!.Reason!.Trim();
+        var result = _store.CancelOrder(id, User.Identity?.Name, reason);
+        if (result.Error is not null) return BadRequest(result.Error);
+        return RevealInputs(result.Order!);
+    }
+
+    // ── Fulfillment (technical team), per account/unit ──
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders", "orders-fulfillment")]
     [HttpPost("{id:int}/complete")]
     public ActionResult<Order> Complete(int id) =>
-        _store.SetOrderStatus(id, OrderStatus.Completed, User.Identity?.Name, "تکمیل سفارش") is { } o ? o : NotFound();
+        _store.SetOrderStatus(id, OrderStatus.Completed, User.Identity?.Name, "تکمیل سفارش") is { } o ? RevealInputs(o) : NotFound();
 
-    // delivers the order: stores the in-site content (shown in the buyer's account) and,
-    // when requested, emails the buyer the (manually written) message.
+    // Temporary save: keeps an account's in-progress delivery content without delivering it.
     [Authorize(Roles = AuthExtensions.StaffRoles)]
-    [AdminPermission("orders")]
+    [AdminPermission("orders", "orders-fulfillment")]
+    [HttpPost("{id:int}/units/{unitId:int}/draft")]
+    public ActionResult<Order> SaveUnitDraft(int id, int unitId, DeliverInput input)
+    {
+        var order = _store.SaveUnitDraft(id, unitId, (input.Content ?? "").Trim(), User.Identity?.Name);
+        return order is null ? NotFound() : RevealInputs(order);
+    }
+
+    // Delivers a single account: stores its content (shown in the buyer's account), optionally emails the
+    // buyer, and completes the whole order once the last account is delivered.
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders", "orders-fulfillment")]
+    [HttpPost("{id:int}/units/{unitId:int}/deliver")]
+    public async Task<ActionResult<Order>> DeliverUnit(int id, int unitId, DeliverUnitInput input)
+    {
+        var (order, justCompleted) = _store.DeliverUnit(id, unitId, (input.Content ?? "").Trim(), User.Identity?.Name);
+        if (order is null) return NotFound();
+
+        if (input.Email)
+        {
+            var user = _store.GetUser(order.UserId);
+            var subject = string.IsNullOrWhiteSpace(input.EmailSubject) ? $"سفارش {order.Code} آماده شد" : input.EmailSubject!;
+            var accountUrl = $"{FrontendUrl}/account";
+            var (text, html) = EmailTemplates.OrderDelivered(order.Code, accountUrl, input.EmailBody);
+            if (user is not null) await _email.SendAsync(user.Email, subject, text, html);
+        }
+
+        return RevealInputs(order);
+    }
+
+    // Legacy whole-order deliver (kept for older flows): stores the in-site content and optionally emails.
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders", "orders-fulfillment")]
     [HttpPost("{id:int}/deliver")]
     public async Task<ActionResult<Order>> Deliver(int id, DeliverInput input)
     {
@@ -186,7 +251,7 @@ public class OrdersController : ControllerBase
             if (user is not null) await _email.SendAsync(user.Email, subject, text, html);
         }
 
-        return order;
+        return RevealInputs(order);
     }
 
     [HttpPost("{id:int}/cancel")]

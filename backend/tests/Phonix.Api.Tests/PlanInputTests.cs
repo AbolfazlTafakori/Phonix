@@ -4,29 +4,33 @@ using Xunit;
 
 namespace Phonix.Api.Tests;
 
-// Covers the per-plan customer-input capture path: values supplied at checkout must land on the matching
-// order line, and an extra leading line that gets skipped must not shift the alignment.
+// Covers per-account (unit) capture and delivery: customer info lands on the matching unit, a skipped line
+// doesn't shift alignment, and delivering every unit completes the order.
 public class PlanInputTests
 {
     [Fact]
-    public void PlaceOrder_attaches_customer_inputs_and_note_to_the_line()
+    public void PlaceOrder_creates_one_unit_per_quantity_with_its_inputs()
     {
         var store = TestStore.Create();
         var user = store.GetUser(1)!;
         var planId = store.GetProduct(1)!.Plans[0].Id;
-        var info = new OrderLineInfo(
-            new List<OrderInputValue> { new() { Label = "ایمیل اکانت", Value = "a@b.com", Sensitive = false } },
-            "یک توضیح");
+        var lineInfo = new[]
+        {
+            new OrderLineInfo(new[]
+            {
+                new OrderUnitInfo(new List<OrderInputValue> { new() { Label = "ایمیل", Value = "first@b.com" } }, "اولی"),
+                new OrderUnitInfo(new List<OrderInputValue> { new() { Label = "ایمیل", Value = "second@b.com" } }, null),
+            }),
+        };
 
-        var res = store.PlaceOrder(user, new[] { (1, 1, (int?)planId) }, "کارت", fromWallet: false,
-            lineInfo: new[] { info });
+        var res = store.PlaceOrder(user, new[] { (1, 2, (int?)planId) }, "کارت", fromWallet: false, lineInfo: lineInfo);
 
         Assert.Null(res.Error);
-        var item = Assert.Single(res.Order!.Items);
-        var input = Assert.Single(item.CustomerInputs);
-        Assert.Equal("ایمیل اکانت", input.Label);
-        Assert.Equal("a@b.com", input.Value);
-        Assert.Equal("یک توضیح", item.CustomerNote);
+        Assert.Equal(2, res.Order!.Units.Count);
+        Assert.Equal("first@b.com", res.Order.Units[0].CustomerInputs[0].Value);
+        Assert.Equal("اولی", res.Order.Units[0].CustomerNote);
+        Assert.Equal("second@b.com", res.Order.Units[1].CustomerInputs[0].Value);
+        Assert.Equal(2, res.Order.Units[1].UnitIndex);
     }
 
     [Fact]
@@ -36,19 +40,36 @@ public class PlanInputTests
         var user = store.GetUser(1)!;
         var planId = store.GetProduct(1)!.Plans[0].Id;
 
-        // First line has quantity 0 → skipped by PlaceOrder; its info entry must not bleed onto the second.
+        // First line has quantity 0 → skipped; its info must not bleed onto the second line's unit.
         var items = new[] { (1, 0, (int?)null), (1, 1, (int?)planId) };
         var lineInfo = new[]
         {
-            new OrderLineInfo(new List<OrderInputValue> { new() { Label = "x", Value = "skipped" } }, null),
-            new OrderLineInfo(new List<OrderInputValue> { new() { Label = "ایمیل", Value = "real@b.com" } }, null),
+            new OrderLineInfo(new[] { new OrderUnitInfo(new List<OrderInputValue> { new() { Label = "x", Value = "skipped" } }, null) }),
+            new OrderLineInfo(new[] { new OrderUnitInfo(new List<OrderInputValue> { new() { Label = "ایمیل", Value = "real@b.com" } }, null) }),
         };
 
         var res = store.PlaceOrder(user, items, "کارت", fromWallet: false, lineInfo: lineInfo);
 
-        var item = Assert.Single(res.Order!.Items);
-        var input = Assert.Single(item.CustomerInputs);
-        Assert.Equal("ایمیل", input.Label);
-        Assert.Equal("real@b.com", input.Value);
+        var unit = Assert.Single(res.Order!.Units);
+        Assert.Equal("real@b.com", unit.CustomerInputs[0].Value);
+    }
+
+    [Fact]
+    public void Delivering_every_unit_completes_the_order()
+    {
+        var store = TestStore.Create();
+        var user = store.GetUser(1)!;
+        var res = store.PlaceOrder(user, new[] { (1, 2, (int?)null) }, "کارت", fromWallet: false);
+        var order = res.Order!;
+        Assert.Equal(2, order.Units.Count);
+
+        var (_, firstDone) = store.DeliverUnit(order.Id, order.Units[0].Id, "اطلاعات اکانت اول", "admin");
+        Assert.False(firstDone); // still one unit left
+        Assert.NotEqual(OrderStatus.Completed, store.GetOrder(order.Id)!.Status);
+
+        var (completed, secondDone) = store.DeliverUnit(order.Id, order.Units[1].Id, "اطلاعات اکانت دوم", "admin");
+        Assert.True(secondDone);
+        Assert.Equal(OrderStatus.Completed, completed!.Status);
+        Assert.True(completed.Units.All(u => u.Delivered));
     }
 }

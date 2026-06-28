@@ -139,7 +139,7 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
         var res = await _client.SendAsync(Authed(HttpMethod.Get, "/api/staff/permissions", admin));
         Assert.Equal(HttpStatusCode.OK, res.StatusCode);
         var keys = await res.Content.ReadAsStringAsync();
-        Assert.Contains("\"orders\"", keys);
+        Assert.Contains("\"orders-receipts\"", keys);
         Assert.Contains("\"tickets\"", keys);
         Assert.DoesNotContain("\"dashboard\"", keys);
         Assert.DoesNotContain("\"staff\"", keys);
@@ -168,7 +168,7 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
         await RegisterAsync("permtest", "permtest@example.com", "test1234");
         var create = await _client.SendAsync(Authed(HttpMethod.Post, "/api/staff", admin, new
         {
-            username = "permtest", role = "Support", permissions = new[] { "orders", "tickets" },
+            username = "permtest", role = "Support", permissions = new[] { "orders-receipts", "tickets" },
         }));
         Assert.Equal(HttpStatusCode.OK, create.StatusCode);
         var created = await create.Content.ReadFromJsonAsync<CreatedStaff>();
@@ -177,7 +177,7 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
         // Menu is filtered to the granted sections (plus the always-on dashboard).
         var menu = await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/admin/menu", staff)))
             .Content.ReadAsStringAsync();
-        Assert.Contains("\"orders\"", menu);
+        Assert.Contains("\"orders-receipts\"", menu);
         Assert.Contains("\"tickets\"", menu);
         Assert.DoesNotContain("\"discounts\"", menu);
         // 2FA security is available to every staff level, even a limited one with no system access.
@@ -191,7 +191,7 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
         // Re-grant: swap tickets→discounts. The live session reflects it with no re-login.
         var update = await _client.SendAsync(Authed(HttpMethod.Put, $"/api/staff/{created!.Id}", admin, new
         {
-            role = "Support", permissions = new[] { "orders", "discounts" },
+            role = "Support", permissions = new[] { "orders-receipts", "discounts" },
         }));
         Assert.Equal(HttpStatusCode.OK, update.StatusCode);
         Assert.Equal(HttpStatusCode.OK, (await _client.SendAsync(Authed(HttpMethod.Get, "/api/discounts", staff))).StatusCode);
@@ -248,7 +248,7 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
     {
         var admin = await LoginTokenAsync("reza", "1234");
         await RegisterAsync("twofa1", "twofa1@example.com", "pass1234");
-        var create = await _client.SendAsync(Authed(HttpMethod.Post, "/api/staff", admin, new { username = "twofa1", role = "Support", permissions = new[] { "orders" } }));
+        var create = await _client.SendAsync(Authed(HttpMethod.Post, "/api/staff", admin, new { username = "twofa1", role = "Support", permissions = new[] { "orders-receipts" } }));
         var staffId = (await create.Content.ReadFromJsonAsync<CreatedStaff>())!.Id;
 
         // The staff member enrols in 2FA.

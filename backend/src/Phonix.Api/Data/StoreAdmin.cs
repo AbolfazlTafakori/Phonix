@@ -6,6 +6,7 @@ namespace Phonix.Api.Data;
 // Live "needs attention" counters for the admin sidebar badges.
 public sealed record AdminBadgeCounts(
     int PendingOrders,
+    int PreparingOrders,
     int PendingTransactions,
     int OpenTickets,
     int PendingKyc,
@@ -16,6 +17,7 @@ public sealed record AdminBadgeCounts(
     public int For(AdminBadge badge) => badge switch
     {
         AdminBadge.PendingOrders       => PendingOrders,
+        AdminBadge.PreparingOrders     => PreparingOrders,
         AdminBadge.PendingTransactions => PendingTransactions,
         AdminBadge.OpenTickets         => OpenTickets,
         AdminBadge.PendingKyc          => PendingKyc,
@@ -35,6 +37,7 @@ public partial class StoreData
         lock (_gate)
             return new AdminBadgeCounts(
                 PendingOrders:       _orders.Count(o => o.Status == OrderStatus.PendingApproval),
+                PreparingOrders:     _orders.Count(o => o.Status == OrderStatus.Preparing),
                 PendingTransactions: _transactions.Count(t => t.Status == TxStatus.Pending),
                 OpenTickets:         _tickets.Count(t => t.Status == TicketStatus.Open),
                 PendingKyc:          _kyc.Count(k => k.Status == KycStatus.Pending),
