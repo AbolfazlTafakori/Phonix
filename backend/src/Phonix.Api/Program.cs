@@ -54,15 +54,9 @@ try
     });
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
-    // Persistence (step 2 of the migration): SQLite is now the live store, exposed through the IDataStore
-    // abstraction every controller/service already depends on — so the swap is this single registration.
-    // SQLite is self-flushing (durable on COMMIT under WAL), so the JSON-specific StorePersistenceWorker is
-    // retired; the legacy StoreData survives only as the one-time bootstrap seed source (see the migration
-    // block after Build()). To roll back to the JSON store, restore the three commented lines below and
-    // comment out the two SQLite registrations.
-    // builder.Services.AddSingleton<StoreData>();
-    // builder.Services.AddSingleton<IDataStore>(sp => sp.GetRequiredService<StoreData>());
-    // builder.Services.AddHostedService<StorePersistenceWorker>();
+    // Persistence: SQLite is the live store, exposed through the IDataStore abstraction every
+    // controller/service depends on. It is durable on COMMIT (WAL), so there is no separate flush worker; the
+    // legacy JSON StoreData survives only as the one-time bootstrap seed source (see the block after Build()).
     builder.Services.AddSingleton<SqliteDataStore>();
     builder.Services.AddSingleton<IDataStore>(sp => sp.GetRequiredService<SqliteDataStore>());
     // Audit trail lives in its OWN store/file (audit_store.json) so it never bloats the main store.json.

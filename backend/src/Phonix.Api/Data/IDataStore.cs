@@ -2,15 +2,15 @@ using Phonix.Api.Models;
 
 namespace Phonix.Api.Data;
 
-// The data-access contract for the whole application. Today the only implementation is the in-memory,
-// JSON-backed StoreData; the SQLite implementation (step 2 of the persistence migration) will satisfy the
-// SAME interface, so swapping it is a one-line DI change with no controller/service edits.
+// The data-access contract for the whole application. The live implementation is the SQLite-backed
+// SqliteDataStore; the legacy JSON StoreData satisfies the SAME interface and is kept only as the one-time
+// bootstrap seed source. Every controller/service depends on this contract, so the backend is a one-line
+// DI change.
 //
-// Deliberately EXCLUDED from this contract (they are JSON-persistence internals, not data operations, and
-// the SQLite store will have no equivalent): MarkDirty, PersistNow, SaveIfChanged, CaptureSnapshot, and the
-// DataFilePath property. Those stay on the concrete StoreData and are consumed only by the JSON-specific
-// flush worker (StorePersistenceWorker). The backup/snapshot members ARE part of the contract, because the
-// backup controller is implementation-agnostic and SQLite can export/import the same snapshot shape.
+// Deliberately EXCLUDED from this contract (they are JSON-persistence internals, not data operations):
+// MarkDirty, PersistNow, SaveIfChanged, and the DataFilePath property. Those stay on the concrete StoreData.
+// The backup/snapshot members ARE part of the contract, because the backup controller is
+// implementation-agnostic and SQLite exports/imports the same snapshot shape.
 public interface IDataStore
 {
     // ── Pricing / USD rate ──────────────────────────────────────────────────────────────────────────

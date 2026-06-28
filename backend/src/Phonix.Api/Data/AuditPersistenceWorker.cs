@@ -1,8 +1,8 @@
 namespace Phonix.Api.Data;
 
 // Periodically flushes the audit trail to audit_store.json and guarantees a final save on shutdown.
-// Independent of StorePersistenceWorker so the two files are written on their own schedules and a slow/large
-// audit flush never blocks the main store (and vice-versa).
+// The audit trail keeps its own file and flush schedule so a slow/large audit write never blocks the main
+// store (and vice-versa).
 public sealed class AuditPersistenceWorker : BackgroundService
 {
     private readonly AuditStore _audit;
