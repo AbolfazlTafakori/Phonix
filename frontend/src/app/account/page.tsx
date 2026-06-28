@@ -32,6 +32,9 @@ export default function ProfilePage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Uploads a new profile picture (public image) and stages it on the avatar; it is persisted when the
@@ -99,9 +102,52 @@ export default function ProfilePage() {
     }
   }
 
+  async function resendVerification() {
+    setResending(true);
+    try {
+      await api.auth.resendVerification();
+      setResent(true);
+    } finally {
+      setResending(false);
+    }
+  }
+
   return (
     <div>
       <PageTitle title="پروفایل من" desc="اطلاعات حساب کاربری خود را مشاهده و ویرایش کنید." />
+
+      {data && !data.emailVerified && !dismissed && (
+        <div className="mb-5 flex flex-wrap items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4 text-sm">
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-amber-300">ایمیل شما تأیید نشده است</p>
+            <p className="mt-1 leading-7 text-amber-100/80">
+              برای استفادهٔ کامل از حساب و امکان ثبت سفارش، لطفاً ایمیل خود را تأیید کنید. لینک تأیید به نشانی ایمیل شما ارسال می‌شود.
+            </p>
+            {resent ? (
+              <p className="mt-2 font-medium text-emerald-400">✓ ایمیل تأیید دوباره ارسال شد. صندوق ورودی خود را بررسی کنید.</p>
+            ) : (
+              <button
+                onClick={resendVerification}
+                disabled={resending}
+                className="mt-2 rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-60"
+              >
+                {resending ? "در حال ارسال..." : "ارسال ایمیل تأیید"}
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setDismissed(true)}
+            aria-label="بستن"
+            className="shrink-0 rounded-md p-1 text-amber-300/70 transition hover:bg-amber-500/10 hover:text-amber-200"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
 
       <Panel>
         {loading || !data ? (
