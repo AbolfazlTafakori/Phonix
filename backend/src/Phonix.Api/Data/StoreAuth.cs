@@ -20,7 +20,7 @@ public partial class StoreData
             var u = (username ?? "").Trim();
             if (string.IsNullOrWhiteSpace(u))
                 return new StaffResult(null, "نام کاربری را وارد کنید.");
-            var user = _users.FirstOrDefault(x => string.Equals(x.Username, u, StringComparison.OrdinalIgnoreCase));
+            var user = UserByUsername(u);
             if (user is null)
                 return new StaffResult(null, "کاربری با این نام کاربری یافت نشد.");
             if (user.Role != UserRole.Customer)
@@ -41,7 +41,7 @@ public partial class StoreData
         bool ok;
         lock (_gate)
         {
-            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var user = UserById(userId);
             if (user is null) { ok = false; }
             else { user.Permissions = permissions.Distinct().ToList(); ok = true; }
         }
@@ -61,7 +61,7 @@ public partial class StoreData
         string stamp = NewStamp();
         lock (_gate)
         {
-            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var user = UserById(userId);
             if (user is null) return "";
             user.SecurityStamp = stamp;
         }
@@ -76,7 +76,7 @@ public partial class StoreData
         bool ok;
         lock (_gate)
         {
-            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var user = UserById(userId);
             if (user is null) { ok = false; }
             else { user.TwoFactorSecret = secret; user.TwoFactorEnabled = false; ok = true; }
         }
@@ -90,7 +90,7 @@ public partial class StoreData
         bool ok;
         lock (_gate)
         {
-            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var user = UserById(userId);
             if (user is null) { ok = false; }
             else
             {

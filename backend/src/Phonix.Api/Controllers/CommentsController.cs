@@ -13,8 +13,8 @@ public record ReplyInput(string Body);
 [Route("api/comments")]
 public class CommentsController : ControllerBase
 {
-    private readonly StoreData _store;
-    public CommentsController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public CommentsController(IDataStore store) => _store = store;
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("comments")]

@@ -150,6 +150,7 @@ public partial class StoreData
             }
             RecomputeSeqFromData();
             RebuildCatalogView();
+            RebuildUserIndex(); // a Users-section restore replaced _users — keep the lookup indexes in sync
         }
         Save();
     }

@@ -37,7 +37,7 @@ public partial class StoreData
     {
         lock (_gate)
         {
-            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var user = UserById(userId);
             if (user is null) return new AddCardResult(null, "کاربر یافت نشد.");
 
             var digits = InputValidation.DigitsOnly(cardNumber);
@@ -80,7 +80,7 @@ public partial class StoreData
             // first rise, sends them a private congratulation notification (per-user, not a broadcast).
             if (status == BankCardStatus.Approved)
             {
-                var owner = _users.FirstOrDefault(u => u.Id == card.UserId);
+                var owner = UserById(card.UserId);
                 if (owner is not null && owner.VerificationLevel < 1)
                 {
                     owner.VerificationLevel = 1;

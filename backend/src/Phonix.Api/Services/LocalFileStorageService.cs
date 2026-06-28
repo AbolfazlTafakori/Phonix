@@ -35,8 +35,11 @@ public sealed partial class LocalFileStorageService : IFileStorageService
 
     public LocalFileStorageService()
     {
+        // Default co-locates uploaded media with store.json (see PersistentPaths) so it survives a native
+        // redeploy. The old default tied this to AppContext.BaseDirectory — a per-release folder on the
+        // systemd deploy — which is why uploaded images disappeared on every deploy.
         _root = Environment.GetEnvironmentVariable("PHONIX_UPLOADS_DIR")
-            ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "ProtectedUploads");
+            ?? Phonix.Api.PersistentPaths.Combine("ProtectedUploads");
         Directory.CreateDirectory(_root);
     }
 
@@ -161,6 +164,81 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         var contentType = ContentTypes.TryGetValue(Path.GetExtension(path), out var ct) ? ct : "application/octet-stream";
         var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
         return new StoredFile(stream, contentType, id);
+    }
+
+    public void DeletePublicImageByUrl(string? urlOrId, int? requireOwner = null)
+    {
+        var id = ExtractId(urlOrId);
+        if (id is null) return;
+        // ownership guard: only remove an image whose id encodes the expected owner, so a user can't trigger
+        // deletion of an image they merely referenced (e.g. a product photo set as their avatar) but don't own.
+        if (requireOwner is int owner && OwnerOf(id) != owner) return;
+        DeleteFromPublicFolder(id);
+    }
+
+    public void DeletePublicImageIfUnreferenced(string? urlOrId, string storeSnapshotJson)
+    {
+        var id = ExtractId(urlOrId);
+        if (id is null) return;
+        // Still referenced somewhere (another product, a showcase card, a plan's tutorial media, an avatar…)?
+        // Keep it. The id is a 32-hex GUID + owner prefix, so a substring hit is an unambiguous reference.
+        if (!string.IsNullOrEmpty(storeSnapshotJson) && storeSnapshotJson.Contains(id, StringComparison.Ordinal))
+            return;
+        DeleteFromPublicFolder(id);
+    }
+
+    public int SweepPublicOrphans(string storeSnapshotJson, TimeSpan minAge)
+    {
+        var deleted = 0;
+        try
+        {
+            var dir = Path.Combine(_root, PublicCategory);
+            if (!Directory.Exists(dir)) return 0;
+            var cutoffUtc = DateTime.UtcNow - minAge;
+
+            foreach (var path in Directory.EnumerateFiles(dir))
+            {
+                try
+                {
+                    var name = Path.GetFileName(path);
+                    if (!IdPattern().IsMatch(name)) continue;                 // only our id-shaped files
+                    if (File.GetLastWriteTimeUtc(path) > cutoffUtc) continue; // too new — maybe mid-upload
+                    if (!string.IsNullOrEmpty(storeSnapshotJson)
+                        && storeSnapshotJson.Contains(name, StringComparison.Ordinal)) continue; // referenced
+                    File.Delete(path);
+                    deleted++;
+                }
+                catch { /* best-effort per file: one bad file never aborts the sweep */ }
+            }
+        }
+        catch { /* enumeration failure must never throw out of a cleanup */ }
+        return deleted;
+    }
+
+    // Best-effort removal of an id from the public folder, with the same path-containment guard as Open().
+    private void DeleteFromPublicFolder(string id)
+    {
+        try
+        {
+            var dir = Path.GetFullPath(Path.Combine(_root, PublicCategory));
+            var path = Path.GetFullPath(Path.Combine(dir, id));
+            if (!path.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return;
+            File.Delete(path); // a missing file is a silent no-op
+        }
+        catch { /* best-effort: a leaked file must never crash a request */ }
+    }
+
+    // Pulls the storage id out of a stored avatar value, accepting both the relative URL we hand the client
+    // ("/api/upload/<id>") and a bare id. Returns null when the result isn't a well-formed, safe id.
+    private static string? ExtractId(string? urlOrId)
+    {
+        if (string.IsNullOrWhiteSpace(urlOrId)) return null;
+        var candidate = urlOrId.Trim();
+        var q = candidate.IndexOfAny(new[] { '?', '#' }); // drop any query/fragment
+        if (q >= 0) candidate = candidate[..q];
+        var slash = candidate.LastIndexOf('/');
+        if (slash >= 0) candidate = candidate[(slash + 1)..];
+        return IdPattern().IsMatch(candidate) ? candidate : null;
     }
 
     public byte[] ArchivePublicMedia() => ArchiveCategories(new[] { "avatars" }, "");

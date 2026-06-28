@@ -5,7 +5,7 @@ using Phonix.Api.Security;
 
 namespace Phonix.Api.Data;
 
-public partial class StoreData
+public partial class StoreData : IDataStore
 {
     private readonly object _gate = new();
     private readonly ILogger<StoreData> _logger;
@@ -15,6 +15,44 @@ public partial class StoreData
     private readonly List<AppUser> _users = new();
     private readonly List<SubscriptionPlan> _plans = new();
     private PricingSettings _settings = new();
+
+    // O(1) lookup indexes over _users, kept in lock-step with the list under _gate. Without these, every
+    // authenticated request paid an O(n) linear scan of _users (TokenAuthenticationHandler → GetUser) while
+    // holding the global write lock — the single hottest per-request cost as the user base grows. The list
+    // stays the source of truth (ordering, serialization); the dictionaries are a derived view rebuilt by
+    // RebuildUserIndex() after any bulk replace (snapshot load / partial restore).
+    private readonly Dictionary<int, AppUser> _usersById = new();
+    private readonly Dictionary<string, AppUser> _usersByUsername = new(StringComparer.OrdinalIgnoreCase);
+
+    // Index maintenance helpers. ALL callers must hold _gate (the dictionaries share the list's lock).
+    private void IndexUser(AppUser u)
+    {
+        _usersById[u.Id] = u;
+        if (!string.IsNullOrEmpty(u.Username)) _usersByUsername[u.Username] = u;
+    }
+
+    private void DeindexUser(AppUser u)
+    {
+        _usersById.Remove(u.Id);
+        // Only drop the username key if it still points at THIS user (guards against a stale rename race).
+        if (!string.IsNullOrEmpty(u.Username) &&
+            _usersByUsername.TryGetValue(u.Username, out var cur) && ReferenceEquals(cur, u))
+            _usersByUsername.Remove(u.Username);
+    }
+
+    // Rebuilds both indexes from _users. Called after any path that replaces the whole list wholesale
+    // (LoadSnapshot, per-section restore) so the dictionaries can never drift from the list.
+    private void RebuildUserIndex()
+    {
+        _usersById.Clear();
+        _usersByUsername.Clear();
+        foreach (var u in _users) IndexUser(u);
+    }
+
+    // Lock-free internal lookups (caller holds _gate). These replace the former _users.FirstOrDefault scans.
+    private AppUser? UserById(int id) => _usersById.TryGetValue(id, out var u) ? u : null;
+    private AppUser? UserByUsername(string username) =>
+        string.IsNullOrEmpty(username) ? null : _usersByUsername.TryGetValue(username, out var u) ? u : null;
 
     // Lock-free read views for the hottest anonymous traffic (the public catalog). They are immutable
     // array snapshots, rebuilt under _gate whenever the product/category set changes and published through
@@ -31,7 +69,7 @@ public partial class StoreData
     {
         _logger = logger ?? NullLogger<StoreData>.Instance;
         DataFilePath = Environment.GetEnvironmentVariable("PHONIX_DATA_FILE")
-            ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "store.json");
+            ?? Phonix.Api.PersistentPaths.Combine("store.json");
         if (!TryLoad())
         {
             Seed();
@@ -146,7 +184,7 @@ public partial class StoreData
     {
         lock (_gate)
         {
-            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var user = UserById(userId);
             if (user is null) return null;
             level = Math.Clamp(level, 0, 2);
 
@@ -363,14 +401,14 @@ public partial class StoreData
 
     public AppUser? GetUser(int id)
     {
-        lock (_gate) return _users.FirstOrDefault(u => u.Id == id);
+        lock (_gate) return UserById(id);
     }
 
     public bool UpdateUser(int id, Action<AppUser> mutate)
     {
         lock (_gate)
         {
-            var existing = _users.FirstOrDefault(u => u.Id == id);
+            var existing = UserById(id);
             if (existing is null) return false;
             mutate(existing);
             return true;
@@ -381,21 +419,22 @@ public partial class StoreData
     {
         lock (_gate)
         {
-            var existing = _users.FirstOrDefault(u => u.Id == id);
+            var existing = UserById(id);
             if (existing is null) return false;
             _users.Remove(existing);
+            DeindexUser(existing);
             return true;
         }
     }
 
     public bool UsernameExists(string username)
     {
-        lock (_gate) return _users.Any(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
+        lock (_gate) return UserByUsername(username) is not null;
     }
 
     public AppUser? GetUserByUsername(string username)
     {
-        lock (_gate) return _users.FirstOrDefault(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
+        lock (_gate) return UserByUsername(username);
     }
 
     // Changes the LOGIN handle (which is also the referral code). Every piece of the user's data — orders,
@@ -405,16 +444,19 @@ public partial class StoreData
     {
         lock (_gate)
         {
-            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var user = UserById(userId);
             if (user is null) return "کاربر یافت نشد.";
             var u = (username ?? "").Trim();
             if (string.Equals(u, user.Username, StringComparison.Ordinal)) return null; // unchanged
             if (u.Length is < 3 or > 20) return "نام کاربری باید بین ۳ تا ۲۰ کاراکتر باشد.";
             if (!u.All(c => (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')))
                 return "نام کاربری فقط می‌تواند شامل حروف و اعداد انگلیسی باشد (بدون فاصله و خط تیره).";
-            if (_users.Any(x => x.Id != userId && string.Equals(x.Username, u, StringComparison.OrdinalIgnoreCase)))
+            if (UserByUsername(u) is AppUser taken && !ReferenceEquals(taken, user))
                 return "این نام کاربری قبلاً گرفته شده است.";
+            // re-point the username index from the old handle to the new one (id index is unaffected).
+            DeindexUser(user);
             user.Username = u;
+            IndexUser(user);
             return null;
         }
     }
@@ -432,7 +474,7 @@ public partial class StoreData
     {
         lock (_gate)
         {
-            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var user = UserById(userId);
             if (user is null) return "کاربر یافت نشد.";
             var mail = (email ?? "").Trim();
             if (string.Equals(mail, user.Email, StringComparison.OrdinalIgnoreCase)) return null; // unchanged
@@ -447,10 +489,12 @@ public partial class StoreData
     public AppUser? FindByLogin(string identifier)
     {
         lock (_gate)
-            return _users.FirstOrDefault(u =>
-                string.Equals(u.Username, identifier, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(u.Email, identifier, StringComparison.OrdinalIgnoreCase) ||
-                u.Phone == identifier);
+            // Username is the common login handle → O(1) via the index; email/phone fall back to a scan
+            // (login is rate-limited, so the rare fallback isn't on a hot path).
+            return UserByUsername(identifier)
+                ?? _users.FirstOrDefault(u =>
+                    string.Equals(u.Email, identifier, StringComparison.OrdinalIgnoreCase) ||
+                    u.Phone == identifier);
     }
 
     public AppUser RegisterUser(AppUser user)
@@ -464,6 +508,7 @@ public partial class StoreData
             user.EmailVerified = false; // must confirm their email before they can order
             if (string.IsNullOrWhiteSpace(user.JoinedAt)) user.JoinedAt = Today();
             _users.Add(user);
+            IndexUser(user);
             return user;
         }
     }
@@ -481,7 +526,7 @@ public partial class StoreData
         var changed = false;
         lock (_gate)
         {
-            var owner = _users.FirstOrDefault(u => string.Equals(u.Username, username, StringComparison.OrdinalIgnoreCase));
+            var owner = UserByUsername(username);
             if (owner is null)
             {
                 owner = new AppUser
@@ -499,6 +544,7 @@ public partial class StoreData
                     JoinedAt = Today(),
                 };
                 _users.Add(owner);
+                IndexUser(owner);
                 changed = true;
             }
             else
@@ -647,6 +693,7 @@ public partial class StoreData
         user.EmailVerified = true; // seeded accounts are pre-verified
         user.VerificationLevel = user.Verified ? 2 : 0; // map the seed Verified flag onto the level system
         _users.Add(user);
+        IndexUser(user);
     }
 
     private static ProductFeature Feat(string text, bool included = true) => new() { Text = text, Included = included };

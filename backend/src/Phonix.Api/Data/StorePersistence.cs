@@ -247,6 +247,7 @@ public partial class StoreData
             _conversationSeq = s.Seq.Conversation;
             _chatMessageSeq = s.Seq.ChatMessage;
             RebuildCatalogView();
+            RebuildUserIndex(); // _users was replaced wholesale — rebuild the id/username lookup indexes
         }
     }
 

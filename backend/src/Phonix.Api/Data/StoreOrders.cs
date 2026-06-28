@@ -13,6 +13,10 @@ public record OrderUnitInfo(List<OrderInputValue> Inputs, string? Note);
 // Aligned by position to the `items` sequence passed to PlaceOrder; entries may be null.
 public record OrderLineInfo(IReadOnlyList<OrderUnitInfo>? Units);
 
+// A subscription due for a renewal reminder. ExpiresFa is the Jalali expiry date for display. (Top-level so
+// the IDataStore contract doesn't have to reference a type nested inside the concrete StoreData class.)
+public sealed record RenewalReminder(int UserId, string Email, string OrderCode, string ExpiresFa);
+
 public partial class StoreData
 {
     private readonly List<Order> _orders = new();
@@ -54,7 +58,7 @@ public partial class StoreData
 
     private void RefreshUserOrderStats(int userId)
     {
-        var user = _users.FirstOrDefault(u => u.Id == userId);
+        var user = UserById(userId);
         if (user is not null) ApplyUserOrderStats(user);
     }
 
@@ -426,7 +430,7 @@ public partial class StoreData
             var collected = o.Status == OrderStatus.Preparing ? o.Total : o.WalletPaid;
             if (collected > 0)
             {
-                var buyer = _users.FirstOrDefault(u => u.Id == o.UserId);
+                var buyer = UserById(o.UserId);
                 if (buyer is not null)
                 {
                     var penalty = _settings.CancellationPenaltyPercent;
@@ -471,9 +475,6 @@ public partial class StoreData
         return new string(s.Select(ch => char.IsDigit(ch) ? (char)('۰' + (ch - '0')) : ch).ToArray());
     }
 
-    // A subscription due for a renewal reminder. ExpiresFa is the Jalali expiry date for display.
-    public sealed record RenewalReminder(int UserId, string Email, string OrderCode, string ExpiresFa);
-
     // Atomically finds completed time-based orders whose subscription expires within `hoursBefore` hours and
     // hasn't been reminded yet: marks each as reminded, fires the in-app bell notification, and returns the
     // list so the caller (the background worker) can send the emails outside the lock. The
@@ -499,7 +500,7 @@ public partial class StoreData
                 var remaining = expires - now;
                 if (remaining <= TimeSpan.Zero || remaining > window) continue; // expired, or not yet in window
 
-                var user = _users.FirstOrDefault(u => u.Id == o.UserId);
+                var user = UserById(o.UserId);
                 if (user is null) continue;
 
                 o.RenewalReminderSentUtc = now;
@@ -517,9 +518,9 @@ public partial class StoreData
     // pays the referrer their commission once a referred buyer's order is completed.
     private void CreditReferral(Order order)
     {
-        var buyer = _users.FirstOrDefault(u => u.Id == order.UserId);
+        var buyer = UserById(order.UserId);
         if (buyer?.ReferredBy is not int referrerId) return;
-        var referrer = _users.FirstOrDefault(u => u.Id == referrerId);
+        var referrer = UserById(referrerId);
         if (referrer is null) return;
 
         var percent = _settings.ReferralCommissionPercent;

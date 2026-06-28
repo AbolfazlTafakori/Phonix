@@ -55,7 +55,7 @@ export default function AdminFooterPage() {
         <Card className="p-8 text-center text-rose-400">{error || "محتوا یافت نشد"}</Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-2">
-          <Card className="p-6">
+          <Card className="min-w-0 p-6">
             <h3 className="mb-5 text-lg font-bold text-white">درباره</h3>
             <div className="grid gap-4">
               <Field label="عنوان بخش معرفی">
@@ -70,7 +70,7 @@ export default function AdminFooterPage() {
             </div>
           </Card>
 
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             <Card className="p-6">
               <div className="mb-4 flex items-center justify-between">
                 <h3 className="text-lg font-bold text-white">لینک‌های مهم</h3>
@@ -84,8 +84,8 @@ export default function AdminFooterPage() {
               <div className="space-y-2">
                 {content.footer.links.map((l, i) => (
                   <div key={i} className="flex items-center gap-2">
-                    <input value={l.label} onChange={(e) => setLink(i, "label", e.target.value)} className="h-10 flex-1 rounded-lg border border-white/10 bg-[#0d0d15] px-3 text-sm text-white outline-none focus:border-[#3a64f2]" placeholder="عنوان" />
-                    <input value={l.href} onChange={(e) => setLink(i, "href", e.target.value)} dir="ltr" className="h-10 flex-1 rounded-lg border border-white/10 bg-[#0d0d15] px-3 text-left text-sm text-white/70 outline-none focus:border-[#3a64f2]" placeholder="/link" />
+                    <input value={l.label} onChange={(e) => setLink(i, "label", e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0d0d15] px-3 text-sm text-white outline-none focus:border-[#3a64f2]" placeholder="عنوان" />
+                    <input value={l.href} onChange={(e) => setLink(i, "href", e.target.value)} dir="ltr" className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0d0d15] px-3 text-left text-sm text-white/70 outline-none focus:border-[#3a64f2]" placeholder="/link" />
                     <button onClick={() => removeLink(i)} className="grid h-10 w-9 shrink-0 place-items-center rounded-lg border border-white/10 text-white/50 transition hover:border-rose-500/50 hover:text-rose-400">
                       <AdminIcon name="trash" className="h-4 w-4" />
                     </button>
@@ -109,8 +109,8 @@ export default function AdminFooterPage() {
                         <option key={o} value={o} className="bg-[#15151f]">{o}</option>
                       ))}
                     </select>
-                    <input value={s.label} onChange={(e) => setSocial(i, "label", e.target.value)} className="h-10 flex-1 rounded-lg border border-white/10 bg-[#0d0d15] px-3 text-sm text-white outline-none focus:border-[#3a64f2]" placeholder="عنوان" />
-                    <input value={s.href} onChange={(e) => setSocial(i, "href", e.target.value)} dir="ltr" className="h-10 flex-1 rounded-lg border border-white/10 bg-[#0d0d15] px-3 text-left text-sm text-white/70 outline-none focus:border-[#3a64f2]" placeholder="#" />
+                    <input value={s.label} onChange={(e) => setSocial(i, "label", e.target.value)} className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0d0d15] px-3 text-sm text-white outline-none focus:border-[#3a64f2]" placeholder="عنوان" />
+                    <input value={s.href} onChange={(e) => setSocial(i, "href", e.target.value)} dir="ltr" className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-[#0d0d15] px-3 text-left text-sm text-white/70 outline-none focus:border-[#3a64f2]" placeholder="#" />
                     <button onClick={() => removeSocial(i)} className="grid h-10 w-9 shrink-0 place-items-center rounded-lg border border-white/10 text-white/50 transition hover:border-rose-500/50 hover:text-rose-400">
                       <AdminIcon name="trash" className="h-4 w-4" />
                     </button>

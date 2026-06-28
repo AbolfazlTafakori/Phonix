@@ -13,7 +13,7 @@ public interface ITelegramAlertSender
 
 public class TelegramAlertSender : ITelegramAlertSender
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<TelegramAlertSender> _logger;
 
@@ -21,7 +21,7 @@ public class TelegramAlertSender : ITelegramAlertSender
     private static readonly TimeSpan Cooldown = TimeSpan.FromMinutes(5);
     private readonly ConcurrentDictionary<string, DateTime> _lastSent = new();
 
-    public TelegramAlertSender(StoreData store, IHttpClientFactory httpFactory, ILogger<TelegramAlertSender> logger)
+    public TelegramAlertSender(IDataStore store, IHttpClientFactory httpFactory, ILogger<TelegramAlertSender> logger)
     {
         _store = store;
         _httpFactory = httpFactory;

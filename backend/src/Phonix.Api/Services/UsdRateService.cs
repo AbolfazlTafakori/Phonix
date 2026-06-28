@@ -14,14 +14,14 @@ public sealed class UsdRateService : BackgroundService
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
 
     private readonly IHttpClientFactory _http;
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly ILogger<UsdRateService> _log;
 
     private long _nobitexToman;    // last live value from Nobitex, 0 until the first successful fetch
     private long _updatedAtUnixMs;
     private volatile string _lastError = ""; // why the last auto-fetch failed (shown in the admin panel)
 
-    public UsdRateService(IHttpClientFactory http, StoreData store, ILogger<UsdRateService> log)
+    public UsdRateService(IHttpClientFactory http, IDataStore store, ILogger<UsdRateService> log)
     {
         _http = http;
         _store = store;

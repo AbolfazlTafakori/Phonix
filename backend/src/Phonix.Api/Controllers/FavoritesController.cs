@@ -12,8 +12,8 @@ public record FavoriteInput(int ProductId);
 [Authorize]
 public class FavoritesController : ControllerBase
 {
-    private readonly StoreData _store;
-    public FavoritesController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public FavoritesController(IDataStore store) => _store = store;
 
     [HttpGet("user/{userId:int}")]
     public ActionResult<IEnumerable<int>> ForUser(int userId)

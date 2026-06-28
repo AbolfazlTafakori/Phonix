@@ -6,11 +6,11 @@ namespace Phonix.Api.Services;
 // configured interval has elapsed since the last successful send.
 public class TelegramBackupWorker : BackgroundService
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly ITelegramBackupSender _sender;
     private static readonly TimeSpan CheckInterval = TimeSpan.FromMinutes(5);
 
-    public TelegramBackupWorker(StoreData store, ITelegramBackupSender sender)
+    public TelegramBackupWorker(IDataStore store, ITelegramBackupSender sender)
     {
         _store = store;
         _sender = sender;

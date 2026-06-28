@@ -14,8 +14,8 @@ public record SendNotificationInput(int? UserId, string Title, string Body, stri
 [Authorize]
 public class NotificationsController : ControllerBase
 {
-    private readonly StoreData _store;
-    public NotificationsController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public NotificationsController(IDataStore store) => _store = store;
 
     private static NotificationDto ToDto(Notification n, int viewerId) =>
         new(n.Id, n.Title, n.Body, n.Link, n.UserId is null, n.ReadBy.Contains(viewerId), n.CreatedAtUtc);

@@ -9,7 +9,7 @@ namespace Phonix.Api.Services;
 // reminder is sent at most once even across restarts; this worker only sends the emails afterwards.
 public class SubscriptionExpiryWorker : BackgroundService
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly IEmailSender _email;
     private readonly ILogger<SubscriptionExpiryWorker> _logger;
 
@@ -20,7 +20,7 @@ public class SubscriptionExpiryWorker : BackgroundService
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
 
-    public SubscriptionExpiryWorker(StoreData store, IEmailSender email, ILogger<SubscriptionExpiryWorker> logger)
+    public SubscriptionExpiryWorker(IDataStore store, IEmailSender email, ILogger<SubscriptionExpiryWorker> logger)
     {
         _store = store;
         _email = email;

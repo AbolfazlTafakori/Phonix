@@ -15,13 +15,15 @@ public record DeliveryTemplateInput(string Title, string Content);
 [AdminPermission("products")]
 public class ProductsController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly Services.UsdRateService _rate;
+    private readonly Services.IFileStorageService _files;
 
-    public ProductsController(StoreData store, Services.UsdRateService rate)
+    public ProductsController(IDataStore store, Services.UsdRateService rate, Services.IFileStorageService files)
     {
         _store = store;
         _rate = rate;
+        _files = files;
     }
 
     [AllowAnonymous]
@@ -51,8 +53,10 @@ public class ProductsController : ControllerBase
     [HttpPut("{id:int}")]
     public ActionResult<ProductDto> Update(int id, ProductInput input)
     {
+        var oldImage = _store.GetProduct(id)?.Image; // capture before the swap so a replaced photo can be freed
         var product = Map(new Product { Id = id }, input);
         if (!_store.UpdateProduct(product)) return NotFound();
+        Services.OrphanCleanup.Queue(_files, _store, oldImage);
         return _store.GetProduct(id)!.ToDto(CategoryName(product.CategoryId));
     }
 
@@ -70,7 +74,13 @@ public class ProductsController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    public IActionResult Delete(int id) => _store.DeleteProduct(id) ? NoContent() : NotFound();
+    public IActionResult Delete(int id)
+    {
+        var oldImage = _store.GetProduct(id)?.Image;
+        if (!_store.DeleteProduct(id)) return NotFound();
+        Services.OrphanCleanup.Queue(_files, _store, oldImage);
+        return NoContent();
+    }
 
     // ── Reusable delivery templates per product (staff only — class-level auth applies) ──
 

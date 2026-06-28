@@ -14,8 +14,8 @@ public record DiscountResultDto(bool Valid, long Amount, long FinalTotal, string
 [Authorize]
 public class DiscountController : ControllerBase
 {
-    private readonly StoreData _store;
-    public DiscountController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public DiscountController(IDataStore store) => _store = store;
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("discounts")]

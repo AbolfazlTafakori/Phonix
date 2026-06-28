@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import type { KycRequest } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
+import { toFa } from "@/lib/format";
 import { PageTitle, Panel } from "@/components/account/Panel";
 import ImageField from "@/components/admin/ImageField";
 
@@ -93,9 +94,9 @@ export default function KycPage() {
                   <div key={l.n} className="flex flex-1 items-center">
                     <div className="flex flex-col items-center text-center">
                       <div className={`grid h-11 w-11 place-items-center rounded-full text-sm font-bold transition ${done ? "bg-gradient-to-br from-[#1733d6] to-[#3a64f2] text-white" : "border border-white/15 text-white/40"} ${current ? "ring-2 ring-[#3a64f2]/60 ring-offset-2 ring-offset-[#15151f]" : ""}`}>
-                        {done ? "✓" : l.n}
+                        {done ? "✓" : toFa(l.n)}
                       </div>
-                      <p className={`mt-2 text-xs font-bold ${done ? "text-white" : "text-white/45"}`}>سطح {l.n}</p>
+                      <p className={`mt-2 text-xs font-bold ${done ? "text-white" : "text-white/45"}`}>سطح {toFa(l.n)}</p>
                       <p className="text-[11px] text-white/35">{l.title}</p>
                     </div>
                     {i < LEVELS.length - 1 && <div className={`mx-1 h-0.5 flex-1 rounded ${level > l.n ? "bg-[#3a64f2]" : "bg-white/10"}`} />}
@@ -104,7 +105,7 @@ export default function KycPage() {
               })}
             </div>
             <p className="mt-5 text-center text-sm text-white/55">
-              سطح فعلی شما: <span className="font-bold text-white">سطح {level}</span> — {LEVELS[level]?.desc}
+              سطح فعلی شما: <span className="font-bold text-white">سطح {toFa(level)}</span> — {LEVELS[level]?.desc}
             </p>
           </Panel>
 

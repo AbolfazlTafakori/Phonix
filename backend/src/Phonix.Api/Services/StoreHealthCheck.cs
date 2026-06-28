@@ -7,9 +7,9 @@ namespace Phonix.Api.Services;
 // Exposed at /health for Docker healthchecks and external uptime monitors.
 public class StoreHealthCheck : IHealthCheck
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
 
-    public StoreHealthCheck(StoreData store) => _store = store;
+    public StoreHealthCheck(IDataStore store) => _store = store;
 
     public Task<HealthCheckResult> CheckHealthAsync(HealthCheckContext context, CancellationToken cancellationToken = default)
     {

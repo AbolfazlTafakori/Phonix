@@ -15,8 +15,8 @@ public sealed record MenuGroupDto(string Key, string Title, IReadOnlyList<MenuIt
 [Authorize(Roles = AuthExtensions.StaffRoles)]
 public class AdminMenuController : ControllerBase
 {
-    private readonly StoreData _store;
-    public AdminMenuController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public AdminMenuController(IDataStore store) => _store = store;
 
     // The sidebar for the signed-in staff member: role-filtered SERVER-SIDE (a Support user never receives
     // the Admin-only group — it isn't just hidden in CSS) and pre-populated with live badge counts.

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCart, clearCart, removeFromCart } from "@/lib/cart";
-import { formatToman } from "@/lib/format";
+import { formatToman, toFa } from "@/lib/format";
 import type { PaymentMethod, BankCard, DiscountResult, Product, ProductPlan } from "@/lib/types";
 import { CardToCardForm, emptyCardToCard, isCardToCardComplete, type CardToCardValue } from "@/components/account/CardToCardForm";
 import PlanInfoForm, { emptyPlanInfoValue, isPlanInfoComplete, type PlanInfoValue } from "@/components/checkout/PlanInfoForm";
@@ -19,6 +19,11 @@ export default function CheckoutPage() {
   const [pay, setPay] = useState<CardToCardValue>(emptyCardToCard);
   const [wallet, setWallet] = useState<number | null>(null);
   const [useWallet, setUseWallet] = useState(false);
+  // VAT + global gateway-fee fallback come from pricing settings so the displayed payable matches the
+  // amount the backend actually charges (it adds VAT on the discounted goods and applies the global
+  // gateway fee when a method has none).
+  const [vatPercent, setVatPercent] = useState(0);
+  const [gatewayFeePercent, setGatewayFeePercent] = useState(0);
   const [emailVerified, setEmailVerified] = useState(true);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
@@ -40,13 +45,21 @@ export default function CheckoutPage() {
   const [applyingCode, setApplyingCode] = useState(false);
   const [codeError, setCodeError] = useState("");
 
-  const payable = discount?.valid ? discount.finalTotal : total;
+  // goods after discount → VAT on the discounted goods → payable (mirrors the backend's PlaceOrder).
+  const goodsTotal = discount?.valid ? discount.finalTotal : total;
+  const vat = Math.round((goodsTotal * vatPercent) / 100);
+  const payable = goodsTotal + vat;
   const walletBalance = wallet ?? 0;
   const walletUse = useWallet ? Math.min(walletBalance, payable) : 0;
   const remainder = payable - walletUse;
   const needsMethod = remainder > 0;
   const selectedMethod = methods.find((m) => m.id === methodId);
-  const feePercent = needsMethod ? selectedMethod?.feePercent ?? 0 : 0;
+  // a method's own fee wins; otherwise the global gateway fee applies — exactly as the backend does.
+  const feePercent = needsMethod
+    ? (selectedMethod?.feePercent ?? 0) > 0
+      ? selectedMethod?.feePercent ?? 0
+      : gatewayFeePercent
+    : 0;
   const fee = Math.round((remainder * feePercent) / 100);
   const finalPayable = remainder + fee;
 
@@ -77,12 +90,17 @@ export default function CheckoutPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [m, me, prods] = await Promise.all([
+        const [m, me, prods, pricing] = await Promise.all([
           api.paymentMethods.list(),
           api.account.me().catch(() => null),
           api.products.list().catch(() => []),
+          api.pricing.getSettings().catch(() => null),
         ]);
         setMethods(m.filter((x) => x.isActive));
+        if (pricing) {
+          setVatPercent(pricing.vatPercent);
+          setGatewayFeePercent(pricing.gatewayFeePercent);
+        }
         setLevelMap(Object.fromEntries(prods.map((p) => [p.id, p.requiredLevel])));
         setProductsById(Object.fromEntries(prods.map((p) => [p.id, p])));
         if (me) {
@@ -424,6 +442,12 @@ export default function CheckoutPage() {
               <div className="flex items-center justify-between text-emerald-400">
                 <span>تخفیف</span>
                 <span>− {formatToman(discount.amount)}</span>
+              </div>
+            )}
+            {vat > 0 && (
+              <div className="flex items-center justify-between text-white/70">
+                <span>مالیات بر ارزش افزوده ({toFa(vatPercent)}٪)</span>
+                <span className="text-white">+ {formatToman(vat)}</span>
               </div>
             )}
             {walletUse > 0 && (

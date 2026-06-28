@@ -15,7 +15,7 @@ using Serilog.Formatting.Compact;
 
 // Logs live beside the data store so one volume holds state + diagnostics; overridable on the server.
 var logDir = Environment.GetEnvironmentVariable("PHONIX_LOG_DIR")
-    ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "logs");
+    ?? Phonix.Api.PersistentPaths.Combine("logs");
 Directory.CreateDirectory(logDir);
 
 // Bootstrap logger so even failures during startup land in the console.
@@ -54,8 +54,17 @@ try
     });
     builder.Services.AddEndpointsApiExplorer();
     builder.Services.AddSwaggerGen();
-    builder.Services.AddSingleton<StoreData>();
-    builder.Services.AddHostedService<StorePersistenceWorker>();
+    // Persistence (step 2 of the migration): SQLite is now the live store, exposed through the IDataStore
+    // abstraction every controller/service already depends on — so the swap is this single registration.
+    // SQLite is self-flushing (durable on COMMIT under WAL), so the JSON-specific StorePersistenceWorker is
+    // retired; the legacy StoreData survives only as the one-time bootstrap seed source (see the migration
+    // block after Build()). To roll back to the JSON store, restore the three commented lines below and
+    // comment out the two SQLite registrations.
+    // builder.Services.AddSingleton<StoreData>();
+    // builder.Services.AddSingleton<IDataStore>(sp => sp.GetRequiredService<StoreData>());
+    // builder.Services.AddHostedService<StorePersistenceWorker>();
+    builder.Services.AddSingleton<SqliteDataStore>();
+    builder.Services.AddSingleton<IDataStore>(sp => sp.GetRequiredService<SqliteDataStore>());
     // Audit trail lives in its OWN store/file (audit_store.json) so it never bloats the main store.json.
     // Registered as a singleton (shared state) with a dedicated background flusher on its own schedule.
     builder.Services.AddSingleton<AuditStore>();
@@ -89,7 +98,7 @@ try
     // Stateless sessions: claims are encrypted into the httpOnly cookie and validated via a PERSISTED Data
     // Protection key ring (App_Data/keys), so logins survive a restart without an in-memory session table.
     var keysDir = Environment.GetEnvironmentVariable("PHONIX_KEYS_DIR")
-        ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "keys");
+        ?? Phonix.Api.PersistentPaths.Combine("keys");
     builder.Services.AddPhonixSessions(keysDir);
 
     builder.Services.AddAuthentication(TokenAuthenticationHandler.SchemeName)
@@ -142,6 +151,24 @@ try
     });
 
     var app = builder.Build();
+
+    // ── One-time bootstrap migration: seed the SQLite store on first run ───────────────────────────────
+    // If the database is empty, import the legacy JSON snapshot — the existing store.json if present, else the
+    // built-in seed (categories, demo users, pricing). This reuses StoreData's load/seed logic verbatim, so a
+    // deployment migrating off JSON keeps all its data and a brand-new install starts fully populated. The
+    // production owner is (re)applied from the environment on every start, whether the store was empty or not.
+    using (var scope = app.Services.CreateScope())
+    {
+        var sqlite = scope.ServiceProvider.GetRequiredService<SqliteDataStore>();
+        if (sqlite.IsEmpty())
+        {
+            Log.Information("SQLite store is empty — importing the legacy JSON snapshot (store.json / seed).");
+            var seedSource = new StoreData(); // loads PHONIX_DATA_FILE's store.json, or seeds defaults
+            sqlite.LoadSnapshot(seedSource.CaptureSnapshot());
+            sqlite.Save();
+        }
+        sqlite.EnsureOwnerFromEnvironment();
+    }
 
     // Behind a reverse proxy (nginx/Caddy terminating TLS), trust its X-Forwarded-* so the real client IP
     // (rate-limiting/logs/audit trail) and HTTPS scheme (Secure cookies) are accurate.

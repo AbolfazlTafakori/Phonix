@@ -13,9 +13,14 @@ namespace Phonix.Api.Controllers;
 [AdminPermission("users")]
 public class UsersController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
+    private readonly Services.IFileStorageService _files;
 
-    public UsersController(StoreData store) => _store = store;
+    public UsersController(IDataStore store, Services.IFileStorageService files)
+    {
+        _store = store;
+        _files = files;
+    }
 
     [HttpGet]
     public IEnumerable<UserDto> Get([FromQuery] string? search, [FromQuery] UserRole? role, [FromQuery] bool? blocked) =>
@@ -66,5 +71,14 @@ public class UsersController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    public IActionResult Delete(int id) => _store.DeleteUser(id) ? NoContent() : NotFound();
+    public IActionResult Delete(int id)
+    {
+        // Read the avatar before removing the account so the orphaned file can be cleaned up afterwards.
+        var avatar = _store.GetUser(id)?.Avatar;
+        if (!_store.DeleteUser(id)) return NotFound();
+        // fire-and-forget, owner-guarded, best-effort: account deletion must not wait on (or fail from) disk I/O.
+        if (!string.IsNullOrEmpty(avatar))
+            _ = Task.Run(() => _files.DeletePublicImageByUrl(avatar, requireOwner: id));
+        return NoContent();
+    }
 }

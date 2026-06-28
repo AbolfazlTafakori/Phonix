@@ -12,8 +12,13 @@ namespace Phonix.Api.Controllers;
 [AdminPermission("layout")]
 public class HeroController : ControllerBase
 {
-    private readonly StoreData _store;
-    public HeroController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    private readonly Services.IFileStorageService _files;
+    public HeroController(IDataStore store, Services.IFileStorageService files)
+    {
+        _store = store;
+        _files = files;
+    }
 
     [AllowAnonymous]
     [HttpGet]
@@ -29,12 +34,21 @@ public class HeroController : ControllerBase
     [HttpPut("{id:int}")]
     public ActionResult<HeroSlide> Update(int id, HeroSlide input)
     {
+        var old = _store.GetHeroSlide(id);
         input.Id = id;
-        return _store.UpdateHeroSlide(input) ? _store.GetHeroSlide(id)! : NotFound();
+        if (!_store.UpdateHeroSlide(input)) return NotFound();
+        Services.OrphanCleanup.Queue(_files, _store, old?.Image, old?.Logo);
+        return _store.GetHeroSlide(id)!;
     }
 
     [HttpDelete("{id:int}")]
-    public IActionResult Delete(int id) => _store.DeleteHeroSlide(id) ? NoContent() : NotFound();
+    public IActionResult Delete(int id)
+    {
+        var old = _store.GetHeroSlide(id);
+        if (!_store.DeleteHeroSlide(id)) return NotFound();
+        Services.OrphanCleanup.Queue(_files, _store, old?.Image, old?.Logo);
+        return NoContent();
+    }
 }
 
 [ApiController]
@@ -43,8 +57,8 @@ public class HeroController : ControllerBase
 [AdminPermission("layout")]
 public class HomeCategoriesController : ControllerBase
 {
-    private readonly StoreData _store;
-    public HomeCategoriesController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public HomeCategoriesController(IDataStore store) => _store = store;
 
     [AllowAnonymous]
     [HttpGet]
@@ -74,8 +88,13 @@ public class HomeCategoriesController : ControllerBase
 [AdminPermission("layout")]
 public class ShowcaseController : ControllerBase
 {
-    private readonly StoreData _store;
-    public ShowcaseController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    private readonly Services.IFileStorageService _files;
+    public ShowcaseController(IDataStore store, Services.IFileStorageService files)
+    {
+        _store = store;
+        _files = files;
+    }
 
     [AllowAnonymous]
     [HttpGet]
@@ -91,12 +110,21 @@ public class ShowcaseController : ControllerBase
     [HttpPut("{id:int}")]
     public ActionResult<Showcase> Update(int id, Showcase input)
     {
+        var old = _store.GetShowcaseItem(id);
         input.Id = id;
-        return _store.UpdateShowcase(input) ? _store.GetShowcaseItem(id)! : NotFound();
+        if (!_store.UpdateShowcase(input)) return NotFound();
+        Services.OrphanCleanup.Queue(_files, _store, old?.Image, old?.Logo);
+        return _store.GetShowcaseItem(id)!;
     }
 
     [HttpDelete("{id:int}")]
-    public IActionResult Delete(int id) => _store.DeleteShowcase(id) ? NoContent() : NotFound();
+    public IActionResult Delete(int id)
+    {
+        var old = _store.GetShowcaseItem(id);
+        if (!_store.DeleteShowcase(id)) return NotFound();
+        Services.OrphanCleanup.Queue(_files, _store, old?.Image, old?.Logo);
+        return NoContent();
+    }
 }
 
 [ApiController]
@@ -105,8 +133,8 @@ public class ShowcaseController : ControllerBase
 [AdminPermission("blog")]
 public class BlogController : ControllerBase
 {
-    private readonly StoreData _store;
-    public BlogController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public BlogController(IDataStore store) => _store = store;
 
     [AllowAnonymous]
     [HttpGet]
@@ -136,8 +164,8 @@ public class BlogController : ControllerBase
 [AdminPermission("layout")]
 public class SiteContentController : ControllerBase
 {
-    private readonly StoreData _store;
-    public SiteContentController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public SiteContentController(IDataStore store) => _store = store;
 
     [AllowAnonymous]
     [HttpGet]
@@ -157,8 +185,8 @@ public class SiteContentController : ControllerBase
 [AdminPermission("pages")]
 public class AdvancedSettingsController : ControllerBase
 {
-    private readonly StoreData _store;
-    public AdvancedSettingsController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public AdvancedSettingsController(IDataStore store) => _store = store;
 
     [AllowAnonymous]
     [HttpGet]

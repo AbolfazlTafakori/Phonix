@@ -13,9 +13,9 @@ namespace Phonix.Api.Controllers;
 [AdminPermission("categories")]
 public class CategoriesController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
 
-    public CategoriesController(StoreData store) => _store = store;
+    public CategoriesController(IDataStore store) => _store = store;
 
     [AllowAnonymous]
     [HttpGet]

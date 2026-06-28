@@ -15,13 +15,13 @@ namespace Phonix.Api.Controllers;
 [Authorize(Roles = nameof(UserRole.Admin))] // restore is destructive — admins only, not support staff
 public class BackupController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly ITelegramBackupSender _telegram;
     private readonly ITelegramAlertSender _alerts;
     private readonly IFileStorageService _files;
     private readonly ILogger<BackupController> _logger;
 
-    public BackupController(StoreData store, ITelegramBackupSender telegram, ITelegramAlertSender alerts,
+    public BackupController(IDataStore store, ITelegramBackupSender telegram, ITelegramAlertSender alerts,
         IFileStorageService files, ILogger<BackupController> logger)
     {
         _store = store;
@@ -76,6 +76,21 @@ public class BackupController : ControllerBase
             return Ok(new { ok = true, mediaFiles = n });
         }
         catch { return BadRequest("آرشیو رسانه نامعتبر است."); }
+    }
+
+    // One-shot disk reclamation: deletes uploaded public images (avatars, product/banner/showcase imagery,
+    // blog covers, plan tutorial media…) that are no longer referenced anywhere in the store — the historical
+    // orphans left behind before replace-time cleanup existed. Files newer than `minAgeMinutes` are skipped so
+    // an upload still being wired into a draft is never swept. Admin-only (class-level auth); idempotent.
+    [HttpPost("media/cleanup-orphans")]
+    public IActionResult CleanupOrphanMedia([FromQuery] int minAgeMinutes = 60)
+    {
+        var minAge = TimeSpan.FromMinutes(Math.Clamp(minAgeMinutes, 0, 7 * 24 * 60));
+        var snapshot = _store.SerializeSnapshot();
+        var deleted = _files.SweepPublicOrphans(snapshot, minAge);
+        _store.RecordBackup("پاک‌سازی رسانهٔ یتیم", "اجرا", true, $"{deleted} فایل حذف شد");
+        _logger.LogWarning("[SRV] ORPHAN MEDIA SWEEP removed {Count} unreferenced public file(s)", deleted);
+        return Ok(new { ok = true, deleted });
     }
 
     // ── Full manual backup: everything (data + all media) in one encrypted file ──

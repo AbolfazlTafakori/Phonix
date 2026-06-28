@@ -10,10 +10,10 @@ namespace Phonix.Api.Services;
 // message is only written to the application log, so the rest of the app keeps working.
 public class EmailSender : IEmailSender
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly ILogger<EmailSender> _logger;
 
-    public EmailSender(StoreData store, ILogger<EmailSender> logger)
+    public EmailSender(IDataStore store, ILogger<EmailSender> logger)
     {
         _store = store;
         _logger = logger;

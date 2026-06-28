@@ -14,8 +14,8 @@ namespace Phonix.Api.Controllers;
 [AdminPermission("payments")]
 public class PaymentMethodsController : ControllerBase
 {
-    private readonly StoreData _store;
-    public PaymentMethodsController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public PaymentMethodsController(IDataStore store) => _store = store;
 
     [AllowAnonymous]
     [HttpGet]
@@ -45,8 +45,8 @@ public class PaymentMethodsController : ControllerBase
 [AdminPermission("payments")]
 public class PaymentSettingsController : ControllerBase
 {
-    private readonly StoreData _store;
-    public PaymentSettingsController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public PaymentSettingsController(IDataStore store) => _store = store;
 
     [HttpGet]
     public PaymentSettings Get() => _store.GetPaymentSettings();
@@ -67,9 +67,9 @@ public record TopUpInput(long Amount, int? CardId, string? Method, string? Recei
 [Route("api/transactions")]
 public class TransactionsController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly IFileStorageService _files;
-    public TransactionsController(StoreData store, IFileStorageService files)
+    public TransactionsController(IDataStore store, IFileStorageService files)
     {
         _store = store;
         _files = files;

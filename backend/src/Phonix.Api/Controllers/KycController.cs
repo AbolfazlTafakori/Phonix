@@ -15,9 +15,9 @@ public record KycActionInput(string? Note);
 [Authorize]
 public class KycController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly IFileStorageService _files;
-    public KycController(StoreData store, IFileStorageService files)
+    public KycController(IDataStore store, IFileStorageService files)
     {
         _store = store;
         _files = files;

@@ -23,6 +23,26 @@ public interface IFileStorageService
     // Opens a stored file for streaming, or null when the id is malformed or the file is missing.
     StoredFile? Open(string category, string id);
 
+    // Best-effort delete of a stored PUBLIC image (e.g. a now-orphaned avatar) given its stored value —
+    // either the relative URL handed to the client ("/api/upload/<id>") or a bare id. NEVER throws and does
+    // no more than a single local filesystem call; an already-missing file is a silent no-op. When
+    // requireOwner is supplied, the file is deleted ONLY if its id encodes that owner, so a user can't cause
+    // deletion of an image they merely referenced (e.g. a product photo set as their avatar) but don't own.
+    void DeletePublicImageByUrl(string? urlOrId, int? requireOwner = null);
+
+    // Best-effort delete of an orphaned public image, but ONLY when its id is no longer referenced anywhere
+    // in the supplied store snapshot (pass StoreData.SerializeSnapshot()). This is the SAFE variant for ADMIN
+    // images (product photos, banners, showcase logos, plan tutorial media…), which — unlike a personal
+    // avatar — may legitimately be shared across several entities; an id still present in the snapshot is
+    // kept. NEVER throws; does no more than a single local filesystem call.
+    void DeletePublicImageIfUnreferenced(string? urlOrId, string storeSnapshotJson);
+
+    // One-shot reclamation: deletes every file in the public-image folder that is BOTH (a) older than minAge
+    // — so a file still being wired into the store (uploaded, URL not yet saved) is never swept — AND (b) not
+    // referenced anywhere in the store snapshot. Returns the number of files deleted. Best-effort per file;
+    // never throws.
+    int SweepPublicOrphans(string storeSnapshotJson, TimeSpan minAge);
+
     // The owner id encoded in a storage id, or null when the id is malformed.
     int? OwnerOf(string id);
 

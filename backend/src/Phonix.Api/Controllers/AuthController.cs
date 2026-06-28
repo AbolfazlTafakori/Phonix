@@ -26,7 +26,7 @@ public record LoginResultDto(bool RequiresTwoFactor, string? ChallengeToken, str
 [EnableRateLimiting("auth")]
 public class AuthController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly IEmailSender _email;
     private readonly ISessionProtector _sessions;
     private readonly ITwoFactorChallenge _twoFactor;
@@ -34,7 +34,7 @@ public class AuthController : ControllerBase
     private readonly ICaptchaService _captcha;
     private readonly IMemoryCache _cache;
     private readonly ILogger<AuthController> _logger;
-    public AuthController(StoreData store, IEmailSender email, ISessionProtector sessions,
+    public AuthController(IDataStore store, IEmailSender email, ISessionProtector sessions,
         ITwoFactorChallenge twoFactor, ITelegramAlertSender alerts, ICaptchaService captcha,
         IMemoryCache cache, ILogger<AuthController> logger)
     {

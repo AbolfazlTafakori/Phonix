@@ -25,9 +25,9 @@ public record CancelOrderInput(string? Reason);
 [Authorize]
 public class OrdersController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly IEmailSender _email;
-    public OrdersController(StoreData store, IEmailSender email)
+    public OrdersController(IDataStore store, IEmailSender email)
     {
         _store = store;
         _email = email;

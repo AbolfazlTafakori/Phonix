@@ -34,8 +34,8 @@ public class ChatController : ControllerBase
 {
     private const int MaxBody = 2000;
 
-    private readonly StoreData _store;
-    public ChatController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public ChatController(IDataStore store) => _store = store;
 
     // ── Customer side: a single live thread with support ──────────────────────────────────────────────
 

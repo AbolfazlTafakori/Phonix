@@ -45,7 +45,7 @@ public sealed class AuditStore
     public AuditStore()
     {
         _filePath = Environment.GetEnvironmentVariable("PHONIX_AUDIT_FILE")
-            ?? Path.Combine(AppContext.BaseDirectory, "App_Data", "audit_store.json");
+            ?? Phonix.Api.PersistentPaths.Combine("audit_store.json");
         TryLoad();
     }
 

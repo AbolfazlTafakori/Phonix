@@ -15,9 +15,9 @@ public record CardActionInput(string? Note);
 [Authorize]
 public class CardsController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly IFileStorageService _files;
-    public CardsController(StoreData store, IFileStorageService files)
+    public CardsController(IDataStore store, IFileStorageService files)
     {
         _store = store;
         _files = files;

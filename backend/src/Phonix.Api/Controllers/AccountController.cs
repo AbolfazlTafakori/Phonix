@@ -16,12 +16,14 @@ public record ReferralReportDto(long TotalEarned, int ReferredCount, IReadOnlyLi
 [Authorize]
 public class AccountController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly ISessionProtector _sessions;
-    public AccountController(StoreData store, ISessionProtector sessions)
+    private readonly Services.IFileStorageService _files;
+    public AccountController(IDataStore store, ISessionProtector sessions, Services.IFileStorageService files)
     {
         _store = store;
         _sessions = sessions;
+        _files = files;
     }
 
     [HttpGet("me")]
@@ -44,13 +46,24 @@ public class AccountController : ControllerBase
         // email, like username, must stay unique to one account.
         if (input.Email is not null && _store.SetEmail(id, input.Email) is string emailError)
             return BadRequest(emailError);
+        // Capture the avatar being replaced so its now-orphaned file can be cleaned up after the update.
+        var oldAvatar = _store.GetUser(id)?.Avatar;
+        var newAvatar = input.Avatar?.Trim();
         var ok = _store.UpdateUser(id, u =>
         {
             if (input.Name is not null) u.Name = input.Name.Trim();
             if (input.Phone is not null) u.Phone = input.Phone.Trim();
-            if (input.Avatar is not null) u.Avatar = input.Avatar.Trim();
+            if (input.Avatar is not null) u.Avatar = newAvatar!;
         });
-        return ok ? _store.GetUser(id)!.ToDto() : Unauthorized();
+        if (!ok) return Unauthorized();
+
+        // The user swapped in a different avatar → delete the previous one (only if THEY owned it). Done
+        // fire-and-forget off the request path; the helper never throws, so the task can never fault.
+        if (input.Avatar is not null && !string.Equals(oldAvatar, newAvatar, StringComparison.Ordinal)
+            && !string.IsNullOrEmpty(oldAvatar))
+            _ = Task.Run(() => _files.DeletePublicImageByUrl(oldAvatar, requireOwner: id));
+
+        return _store.GetUser(id)!.ToDto();
     }
 
     [HttpGet("transactions")]

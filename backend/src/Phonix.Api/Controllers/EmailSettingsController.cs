@@ -14,10 +14,10 @@ public record TestEmailInput(string To);
 [Authorize(Roles = nameof(UserRole.Admin))]
 public class EmailSettingsController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly IEmailSender _email;
 
-    public EmailSettingsController(StoreData store, IEmailSender email)
+    public EmailSettingsController(IDataStore store, IEmailSender email)
     {
         _store = store;
         _email = email;

@@ -131,7 +131,7 @@ public partial class StoreData
                 var willBeApproved = status == TxStatus.Approved;
                 if (wasApproved != willBeApproved)
                 {
-                    var owner = _users.FirstOrDefault(x => x.Id == e.UserId);
+                    var owner = UserById(e.UserId);
                     if (owner is not null)
                         owner.Wallet = Math.Max(0, owner.Wallet + (willBeApproved ? e.Amount : -e.Amount));
                 }
@@ -147,7 +147,7 @@ public partial class StoreData
                 var willBeRefunded = status == TxStatus.Rejected;
                 if (wasRefunded != willBeRefunded)
                 {
-                    var owner = _users.FirstOrDefault(x => x.Id == e.UserId);
+                    var owner = UserById(e.UserId);
                     if (owner is not null)
                         owner.Wallet = Math.Max(0, owner.Wallet + (willBeRefunded ? -e.Amount : e.Amount));
                 }
@@ -196,7 +196,7 @@ public partial class StoreData
     {
         lock (_gate)
         {
-            var user = _users.FirstOrDefault(u => u.Id == userId);
+            var user = UserById(userId);
             if (user is null) return new WithdrawalResult(null, "کاربر یافت نشد.");
             if (amount <= 0) return new WithdrawalResult(null, "مبلغ نامعتبر است.");
             if (user.Wallet < amount) return new WithdrawalResult(null, "موجودی کیف پول برای این برداشت کافی نیست.");

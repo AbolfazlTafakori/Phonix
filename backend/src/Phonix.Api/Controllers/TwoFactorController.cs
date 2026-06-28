@@ -16,8 +16,8 @@ public class TwoFactorController : ControllerBase
 {
     private const string Issuer = "Phoenix Verify";
 
-    private readonly StoreData _store;
-    public TwoFactorController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public TwoFactorController(IDataStore store) => _store = store;
 
     [HttpGet("status")]
     public ActionResult<TwoFactorStatusDto> Status()

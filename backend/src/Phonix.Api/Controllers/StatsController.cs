@@ -18,8 +18,8 @@ public record TopProductDto(int ProductId, string Name, string Image, long Sold,
 [AdminPermission("reports")]
 public class StatsController : ControllerBase
 {
-    private readonly StoreData _store;
-    public StatsController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public StatsController(IDataStore store) => _store = store;
 
     [HttpGet("overview")]
     public OverviewDto Overview()

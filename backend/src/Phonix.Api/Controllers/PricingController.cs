@@ -13,10 +13,10 @@ namespace Phonix.Api.Controllers;
 [AdminPermission("pricing")]
 public class PricingController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly Services.UsdRateService _rate;
 
-    public PricingController(StoreData store, Services.UsdRateService rate)
+    public PricingController(IDataStore store, Services.UsdRateService rate)
     {
         _store = store;
         _rate = rate;

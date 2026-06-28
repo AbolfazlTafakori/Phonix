@@ -32,7 +32,7 @@ public sealed class AdminPermissionAttribute : Attribute, IAuthorizationFilter
         }
         if (principal.IsInRole(nameof(UserRole.Admin))) return;
 
-        var store = context.HttpContext.RequestServices.GetRequiredService<StoreData>();
+        var store = context.HttpContext.RequestServices.GetRequiredService<IDataStore>();
         var raw = principal.FindFirstValue(ClaimTypes.NameIdentifier);
         var user = int.TryParse(raw, out var id) ? store.GetUser(id) : null;
         if (user is null)

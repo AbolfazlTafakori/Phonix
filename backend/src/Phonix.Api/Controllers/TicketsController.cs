@@ -15,8 +15,8 @@ public record TicketReplyInput(string Body, bool IsAdmin, string? Attachment);
 [Authorize]
 public class TicketsController : ControllerBase
 {
-    private readonly StoreData _store;
-    public TicketsController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public TicketsController(IDataStore store) => _store = store;
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("tickets")]

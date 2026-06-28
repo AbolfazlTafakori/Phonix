@@ -19,7 +19,7 @@ public sealed class TwoFactorSetupGate
         path.StartsWith("/api/auth/", StringComparison.OrdinalIgnoreCase) ||  // login, logout, 2fa status/setup/enable/verify
         path.StartsWith("/api/account/me", StringComparison.OrdinalIgnoreCase);
 
-    public async Task InvokeAsync(HttpContext context, StoreData store)
+    public async Task InvokeAsync(HttpContext context, IDataStore store)
     {
         var user = context.User;
         var isStaff = user.Identity?.IsAuthenticated == true &&

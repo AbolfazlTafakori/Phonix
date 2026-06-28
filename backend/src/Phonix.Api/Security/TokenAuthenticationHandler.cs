@@ -9,14 +9,14 @@ namespace Phonix.Api.Security;
 public class TokenAuthenticationHandler : AuthenticationHandler<AuthenticationSchemeOptions>
 {
     public const string SchemeName = "Bearer";
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly ISessionProtector _sessions;
 
     public TokenAuthenticationHandler(
         IOptionsMonitor<AuthenticationSchemeOptions> options,
         ILoggerFactory logger,
         UrlEncoder encoder,
-        StoreData store,
+        IDataStore store,
         ISessionProtector sessions)
         : base(options, logger, encoder)
     {

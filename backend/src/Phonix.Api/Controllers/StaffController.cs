@@ -19,9 +19,9 @@ public record StaffPasswordInput(string Password);
 [Authorize(Roles = nameof(UserRole.Admin))]
 public class StaffController : ControllerBase
 {
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly ISessionProtector _sessions;
-    public StaffController(StoreData store, ISessionProtector sessions)
+    public StaffController(IDataStore store, ISessionProtector sessions)
     {
         _store = store;
         _sessions = sessions;

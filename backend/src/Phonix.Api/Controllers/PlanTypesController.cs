@@ -14,8 +14,8 @@ public record RenamePlanTypeInput(string OldName, string NewName);
 [AdminPermission("products")]
 public class PlanTypesController : ControllerBase
 {
-    private readonly StoreData _store;
-    public PlanTypesController(StoreData store) => _store = store;
+    private readonly IDataStore _store;
+    public PlanTypesController(IDataStore store) => _store = store;
 
     [AllowAnonymous]
     [HttpGet]

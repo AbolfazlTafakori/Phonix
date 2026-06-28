@@ -24,12 +24,12 @@ public class TelegramBackupSender : ITelegramBackupSender
     // multipart envelope, so an archive of any total size still goes through as multiple parts.
     private const int MaxPartBytes = 45 * 1024 * 1024;
 
-    private readonly StoreData _store;
+    private readonly IDataStore _store;
     private readonly IFileStorageService _files;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<TelegramBackupSender> _logger;
 
-    public TelegramBackupSender(StoreData store, IFileStorageService files, IHttpClientFactory httpFactory, ILogger<TelegramBackupSender> logger)
+    public TelegramBackupSender(IDataStore store, IFileStorageService files, IHttpClientFactory httpFactory, ILogger<TelegramBackupSender> logger)
     {
         _store = store;
         _files = files;
