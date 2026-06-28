@@ -6,6 +6,29 @@ public class ProductFeature
     public bool Included { get; set; } = true;
 }
 
+// One input the customer must (or may) provide at checkout for a given plan — e.g. the email to send a
+// Spotify/Duolingo invite to, or account credentials the team logs in with. Defined per plan in the admin
+// panel. Type drives the input control on the storefront and validation; Sensitive marks secrets (passwords)
+// that are encrypted at rest and kept out of plain backups.
+public class PlanInputField
+{
+    public string Label { get; set; } = "";
+    // text | email | password | phone | textarea
+    public string Type { get; set; } = "text";
+    public bool Required { get; set; } = true;
+    public bool Sensitive { get; set; }
+}
+
+// A tutorial image or video attached to a plan's how-to section. Stored in the protected uploads area and
+// streamed through an authenticated endpoint (no direct public URL), so it isn't trivially downloadable.
+public class PlanTutorialMedia
+{
+    // image | video
+    public string Kind { get; set; } = "image";
+    // Storage id returned by the protected upload endpoint.
+    public string Id { get; set; } = "";
+}
+
 public class ProductPlan
 {
     public int Id { get; set; }
@@ -16,6 +39,20 @@ public class ProductPlan
     public double PriceUsd { get; set; }
     public int DiscountPercent { get; set; }
     public bool IsActive { get; set; } = true;
+
+    // ── Per-plan "collect info from the customer" settings (all optional; off by default) ──
+    // Master switch: when false the storefront skips the whole info step for this plan and the fields below
+    // are ignored.
+    public bool CollectsInfo { get; set; }
+    // Inputs requested from the customer before payment.
+    public List<PlanInputField> InputFields { get; set; } = new();
+    // Short always-visible warning shown above the form (e.g. "turn off two-factor first").
+    public string WarningText { get; set; } = "";
+    // Longer how-to shown inside a collapsible "آموزش" panel, plus optional non-downloadable media.
+    public string TutorialText { get; set; } = "";
+    public List<PlanTutorialMedia> TutorialMedia { get; set; } = new();
+    // When true the customer also gets a free-text optional notes box.
+    public bool AllowNotes { get; set; }
 
     public long FinalPrice => DiscountPercent <= 0
         ? Price

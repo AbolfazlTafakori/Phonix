@@ -8,12 +8,26 @@ public enum OrderStatus
     Cancelled,
 }
 
+// A single value the customer supplied for a plan's required input at checkout (see PlanInputField).
+// Sensitive values (passwords) are stored encrypted in Value; the flag tells the order view to decrypt for
+// display and keeps them out of plain backups.
+public class OrderInputValue
+{
+    public string Label { get; set; } = "";
+    public string Value { get; set; } = "";
+    public bool Sensitive { get; set; }
+}
+
 public class OrderItem
 {
     public int ProductId { get; set; }
     public string Name { get; set; } = "";
     public string Image { get; set; } = "";
     public string? Plan { get; set; }
+    // Info the customer entered for this line at checkout (per the plan's PlanInputField list), plus an
+    // optional free-text note. Empty when the plan collects nothing.
+    public List<OrderInputValue> CustomerInputs { get; set; } = new();
+    public string? CustomerNote { get; set; }
     // Machine-readable plan duration in months, captured at order time (null = a one-off item with no
     // time-based subscription). Used by the renewal-reminder worker to compute expiry; the human-readable
     // `Plan` string above is for display only.

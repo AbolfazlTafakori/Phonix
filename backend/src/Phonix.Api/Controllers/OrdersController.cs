@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.ModelBinding;
@@ -9,7 +10,8 @@ using Phonix.Api.Services;
 
 namespace Phonix.Api.Controllers;
 
-public record OrderLineInput(int ProductId, int Quantity, int? PlanId);
+public record CustomerInputDto(string Label, string Value);
+public record OrderLineInput(int ProductId, int Quantity, int? PlanId, List<CustomerInputDto>? Inputs = null, string? Note = null);
 public record PlaceOrderInput(List<OrderLineInput> Items, string PaymentMethod, bool FromWallet, string? DiscountCode, int? PaymentMethodId, int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
 public record DeliverInput(string Content, bool Email, string? EmailSubject, string? EmailBody);
 public record CancelOrderInput(string? Reason);
@@ -44,7 +46,7 @@ public class OrdersController : ControllerBase
     public ActionResult<IEnumerable<Order>> ForUser(int userId)
     {
         if (!this.OwnsOrStaff(userId)) return Forbid();
-        return Ok(_store.GetUserOrders(userId));
+        return Ok(_store.GetUserOrders(userId).Select(RevealInputs));
     }
 
     [HttpGet("{id:int}")]
@@ -53,7 +55,20 @@ public class OrdersController : ControllerBase
         var order = _store.GetOrder(id);
         if (order is null) return NotFound();
         if (!this.OwnsOrStaff(order.UserId)) return Forbid();
-        return order;
+        return RevealInputs(order);
+    }
+
+    // Returns a deep clone of the order with any encrypted sensitive customer inputs decrypted for display.
+    // Cloning keeps the live store entity untouched (decrypting in place would persist the plaintext back to
+    // store.json on the next flush). Orders without sensitive inputs are returned as-is to avoid the copy.
+    private static Order RevealInputs(Order order)
+    {
+        if (!order.Items.Any(i => i.CustomerInputs.Any(v => v.Sensitive))) return order;
+        var clone = JsonSerializer.Deserialize<Order>(JsonSerializer.Serialize(order))!;
+        foreach (var item in clone.Items)
+            foreach (var v in item.CustomerInputs)
+                if (v.Sensitive) v.Value = SensitiveField.Reveal(v.Value);
+        return clone;
     }
 
     [HttpPost]
@@ -73,6 +88,17 @@ public class OrdersController : ControllerBase
         if (!string.IsNullOrWhiteSpace(input.PaymentDate) && !JalaliDate.IsValidAndNotFuture(input.PaymentDate))
             return BadRequest("تاریخ پرداخت نامعتبر است یا از امروز جلوتر است.");
 
+        // Validate and capture any per-plan customer inputs (e.g. account email/password) before placing the
+        // order. Required fields are enforced here so the client can't skip them; sensitive values are
+        // encrypted before they ever reach the store.
+        var lineInfo = new List<OrderLineInfo>();
+        foreach (var line in input.Items)
+        {
+            var info = BuildLineInfo(line, out var error);
+            if (error is not null) return BadRequest(error);
+            lineInfo.Add(info);
+        }
+
         var result = _store.PlaceOrder(
             user,
             input.Items.Select(i => (i.ProductId, i.Quantity, i.PlanId)),
@@ -81,9 +107,52 @@ public class OrdersController : ControllerBase
             input.DiscountCode,
             input.PaymentMethodId,
             new RemainderPayment(input.CardId, input.ReceiptUrl, input.TrackingNumber, input.PaymentDate, input.Description),
-            customerCheckout: true);
+            customerCheckout: true,
+            lineInfo: lineInfo);
         if (result.Error is not null) return BadRequest(result.Error);
-        return result.Order!;
+        return RevealInputs(result.Order!);
+    }
+
+    private const int MaxInputLength = 1000;
+    private const int MaxNoteLength = 2000;
+
+    // Validates a single checkout line's customer inputs against its plan definition and returns the values
+    // ready to store (sensitive ones encrypted). Lines whose plan collects nothing yield an empty result.
+    private OrderLineInfo BuildLineInfo(OrderLineInput line, out string? error)
+    {
+        error = null;
+        var empty = new OrderLineInfo(new List<OrderInputValue>(), null);
+
+        if (line.PlanId is not int planId) return empty;
+        var plan = _store.GetProduct(line.ProductId)?.Plans.FirstOrDefault(p => p.Id == planId && p.IsActive);
+        if (plan is null || !plan.CollectsInfo) return empty;
+
+        var supplied = line.Inputs ?? new();
+        var values = new List<OrderInputValue>();
+        foreach (var field in plan.InputFields)
+        {
+            var raw = supplied.FirstOrDefault(s => s.Label == field.Label)?.Value?.Trim() ?? "";
+            if (raw.Length == 0)
+            {
+                if (field.Required) { error = $"فیلد «{field.Label}» الزامی است."; return empty; }
+                continue;
+            }
+            if (raw.Length > MaxInputLength) raw = raw[..MaxInputLength];
+            values.Add(new OrderInputValue
+            {
+                Label = field.Label,
+                Value = field.Sensitive ? SensitiveField.Protect(raw) : raw,
+                Sensitive = field.Sensitive,
+            });
+        }
+
+        string? note = null;
+        if (plan.AllowNotes && !string.IsNullOrWhiteSpace(line.Note))
+        {
+            note = line.Note.Trim();
+            if (note.Length > MaxNoteLength) note = note[..MaxNoteLength];
+        }
+        return new OrderLineInfo(values, note);
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]

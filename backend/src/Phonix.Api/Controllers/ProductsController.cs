@@ -130,6 +130,9 @@ public class ProductsController : ControllerBase
         return target;
     }
 
+    private static readonly HashSet<string> FieldTypes = new(StringComparer.Ordinal)
+        { "text", "email", "password", "phone", "textarea" };
+
     private static ProductPlan NormalizePlan(ProductPlan plan) => new()
     {
         Type = (plan.Type ?? "").Trim(),
@@ -138,6 +141,31 @@ public class ProductsController : ControllerBase
         PriceUsd = Math.Max(0, plan.PriceUsd),
         DiscountPercent = Math.Clamp(plan.DiscountPercent, 0, 100),
         IsActive = plan.IsActive,
+        // Per-plan customer-info settings. Drop blank/invalid fields and clamp the type to a known control;
+        // a "password" field is always treated as sensitive regardless of the supplied flag.
+        CollectsInfo = plan.CollectsInfo,
+        InputFields = (plan.InputFields ?? new())
+            .Where(f => !string.IsNullOrWhiteSpace(f.Label))
+            .Select(f =>
+            {
+                var t = (f.Type ?? "").Trim();
+                var type = FieldTypes.Contains(t) ? t : "text";
+                return new PlanInputField
+                {
+                    Label = f.Label.Trim(),
+                    Type = type,
+                    Required = f.Required,
+                    Sensitive = f.Sensitive || type == "password",
+                };
+            })
+            .ToList(),
+        WarningText = (plan.WarningText ?? "").Trim(),
+        TutorialText = (plan.TutorialText ?? "").Trim(),
+        TutorialMedia = (plan.TutorialMedia ?? new())
+            .Where(m => !string.IsNullOrWhiteSpace(m.Id))
+            .Select(m => new PlanTutorialMedia { Kind = m.Kind == "video" ? "video" : "image", Id = m.Id.Trim() })
+            .ToList(),
+        AllowNotes = plan.AllowNotes,
     };
 
     private Dictionary<int, string> CategoryNames() =>

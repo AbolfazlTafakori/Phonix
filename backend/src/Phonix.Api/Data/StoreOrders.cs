@@ -6,6 +6,9 @@ public record PlaceOrderResult(Order? Order, string? Error);
 public record OrderActionResult(Order? Order, string? Error);
 // the card-to-card payment details for an order's gateway remainder (collected at checkout).
 public record RemainderPayment(int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
+// Per-line customer info captured at checkout (already validated + sensitive values encrypted by the
+// controller). Aligned by position to the `items` sequence passed to PlaceOrder; entries may be null.
+public record OrderLineInfo(List<OrderInputValue>? Inputs, string? Note);
 
 public partial class StoreData
 {
@@ -62,20 +65,24 @@ public partial class StoreData
 
     // Placing an order moves money (debits the wallet for the covered part) and decrements stock. Persist
     // synchronously once it succeeds so neither the charge nor the stock decrement can be lost on a crash.
-    public PlaceOrderResult PlaceOrder(AppUser user, IEnumerable<(int productId, int quantity, int? planId)> items, string paymentMethod, bool fromWallet, string? discountCode = null, int? paymentMethodId = null, RemainderPayment? payment = null, bool customerCheckout = false)
+    public PlaceOrderResult PlaceOrder(AppUser user, IEnumerable<(int productId, int quantity, int? planId)> items, string paymentMethod, bool fromWallet, string? discountCode = null, int? paymentMethodId = null, RemainderPayment? payment = null, bool customerCheckout = false, IReadOnlyList<OrderLineInfo>? lineInfo = null)
     {
-        var result = PlaceOrderCore(user, items, paymentMethod, fromWallet, discountCode, paymentMethodId, payment, customerCheckout);
+        var result = PlaceOrderCore(user, items, paymentMethod, fromWallet, discountCode, paymentMethodId, payment, customerCheckout, lineInfo);
         if (result.Error is null) PersistNow();
         return result;
     }
 
-    private PlaceOrderResult PlaceOrderCore(AppUser user, IEnumerable<(int productId, int quantity, int? planId)> items, string paymentMethod, bool fromWallet, string? discountCode = null, int? paymentMethodId = null, RemainderPayment? payment = null, bool customerCheckout = false)
+    private PlaceOrderResult PlaceOrderCore(AppUser user, IEnumerable<(int productId, int quantity, int? planId)> items, string paymentMethod, bool fromWallet, string? discountCode = null, int? paymentMethodId = null, RemainderPayment? payment = null, bool customerCheckout = false, IReadOnlyList<OrderLineInfo>? lineInfo = null)
     {
         lock (_gate)
         {
             var lines = new List<OrderItem>();
-            foreach (var (productId, quantity, planId) in items)
+            // Indexed walk so a per-line info entry (aligned to the original items order) can be attached even
+            // though invalid lines are skipped.
+            var itemList = items.ToList();
+            for (var idx = 0; idx < itemList.Count; idx++)
             {
+                var (productId, quantity, planId) = itemList[idx];
                 if (quantity <= 0) continue;
                 var p = _products.FirstOrDefault(x => x.Id == productId);
                 if (p is null) continue;
@@ -89,6 +96,7 @@ public partial class StoreData
                     if (plan is null) continue;
                 }
 
+                var info = lineInfo is not null && idx < lineInfo.Count ? lineInfo[idx] : null;
                 lines.Add(new OrderItem
                 {
                     ProductId = p.Id,
@@ -98,6 +106,8 @@ public partial class StoreData
                     PlanMonths = plan?.Months,   // machine-readable duration → drives renewal-reminder expiry
                     UnitPrice = plan?.FinalPrice ?? p.FinalPrice,
                     Quantity = Math.Min(quantity, 100),
+                    CustomerInputs = info?.Inputs ?? new(),
+                    CustomerNote = info?.Note,
                 });
             }
 
