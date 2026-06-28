@@ -34,13 +34,13 @@ public class OrdersController : ControllerBase
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("orders")]
     [HttpGet]
-    public IEnumerable<Order> Get([FromQuery] OrderStatus? status) => _store.GetOrders(status);
+    public IEnumerable<Order> Get([FromQuery] OrderStatus? status) => _store.GetOrders(status).Select(RevealInputs);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("orders")]
     [HttpGet("page")]
     public PagedResult<Order> GetPage([FromQuery] OrderStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
-        PagedResult<Order>.From(_store.GetOrders(status), page, pageSize);
+        PagedResult<Order>.From(_store.GetOrders(status).Select(RevealInputs).ToList(), page, pageSize);
 
     [HttpGet("user/{userId:int}")]
     public ActionResult<IEnumerable<Order>> ForUser(int userId)

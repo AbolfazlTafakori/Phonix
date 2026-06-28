@@ -6,8 +6,9 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useCart, clearCart, removeFromCart } from "@/lib/cart";
 import { formatToman } from "@/lib/format";
-import type { PaymentMethod, BankCard, DiscountResult } from "@/lib/types";
+import type { PaymentMethod, BankCard, DiscountResult, Product, ProductPlan } from "@/lib/types";
 import { CardToCardForm, emptyCardToCard, isCardToCardComplete, type CardToCardValue } from "@/components/account/CardToCardForm";
+import PlanInfoForm, { emptyPlanInfoValue, isPlanInfoComplete, type PlanInfoValue } from "@/components/checkout/PlanInfoForm";
 
 export default function CheckoutPage() {
   const { user, ready } = useAuth();
@@ -29,6 +30,10 @@ export default function CheckoutPage() {
   const [userLevel, setUserLevel] = useState(0);
   const [levelMap, setLevelMap] = useState<Record<number, number>>({});
   const [levelModal, setLevelModal] = useState(false);
+  // full product catalog by id, so a cart line's plan (and its customer-input settings) can be resolved.
+  const [productsById, setProductsById] = useState<Record<number, Product>>({});
+  // customer-entered values for plans that collect info, keyed by cart line.
+  const [infoData, setInfoData] = useState<Record<string, PlanInfoValue>>({});
 
   const [codeInput, setCodeInput] = useState("");
   const [discount, setDiscount] = useState<DiscountResult | null>(null);
@@ -48,6 +53,20 @@ export default function CheckoutPage() {
   // cart lines whose product needs a higher identity level than the user currently has.
   const overLevelItems = items.filter((i) => (levelMap[i.productId] ?? 1) > userLevel);
 
+  // resolve a cart line's plan and its per-plan customer-input settings.
+  const lineKey = (productId: number, planId?: number | null) => `${productId}:${planId ?? ""}`;
+  const planFor = (productId: number, planId?: number | null): ProductPlan | undefined =>
+    planId == null ? undefined : productsById[productId]?.plans.find((p) => p.id === planId);
+  const infoLines = items.filter((i) => planFor(i.productId, i.planId)?.collectsInfo);
+  const infoValueFor = (productId: number, planId?: number | null): PlanInfoValue =>
+    infoData[lineKey(productId, planId)] ?? emptyPlanInfoValue();
+  const setInfoValueFor = (productId: number, planId: number | null | undefined, v: PlanInfoValue) =>
+    setInfoData((d) => ({ ...d, [lineKey(productId, planId)]: v }));
+  const infoIncomplete = infoLines.some((i) => {
+    const pl = planFor(i.productId, i.planId)!;
+    return !isPlanInfoComplete(pl, infoValueFor(i.productId, i.planId));
+  });
+
   const patchPay = (p: Partial<CardToCardValue>) => setPay((cur) => ({ ...cur, ...p }));
 
   useEffect(() => {
@@ -60,6 +79,7 @@ export default function CheckoutPage() {
         ]);
         setMethods(m.filter((x) => x.isActive));
         setLevelMap(Object.fromEntries(prods.map((p) => [p.id, p.requiredLevel])));
+        setProductsById(Object.fromEntries(prods.map((p) => [p.id, p])));
         if (me) {
           setWallet(me.wallet);
           setEmailVerified(me.emailVerified);
@@ -124,6 +144,11 @@ export default function CheckoutPage() {
       setLevelModal(true);
       return;
     }
+    // every required per-plan field must be filled before the order can be placed.
+    if (infoIncomplete) {
+      setError("لطفاً اطلاعات موردنیاز سرویس را کامل کنید.");
+      return;
+    }
     // a remainder is due → the buyer must pick a method and complete the card-to-card payment (card,
     // tracking, date, receipt) before the order can be filed; staff then verify and approve it.
     if (needsMethod) {
@@ -142,7 +167,16 @@ export default function CheckoutPage() {
       const methodLabel = selectedMethod?.title ?? "نامشخص";
       const paymentMethod = remainder === 0 ? "کیف پول" : walletUse > 0 ? `کیف پول + ${methodLabel}` : methodLabel;
       const order = await api.orders.place({
-        items: items.map((i) => ({ productId: i.productId, quantity: i.quantity, planId: i.planId ?? null })),
+        items: items.map((i) => {
+          const pl = planFor(i.productId, i.planId);
+          if (!pl?.collectsInfo) return { productId: i.productId, quantity: i.quantity, planId: i.planId ?? null };
+          const v = infoValueFor(i.productId, i.planId);
+          const inputs = pl.inputFields
+            .map((f) => ({ label: f.label, value: (v.values[f.label] ?? "").trim() }))
+            .filter((x) => x.value.length > 0);
+          const note = pl.allowNotes ? v.note.trim() || null : null;
+          return { productId: i.productId, quantity: i.quantity, planId: i.planId ?? null, inputs, note };
+        }),
         paymentMethod,
         fromWallet: useWallet,
         discountCode: discount?.valid ? codeInput.trim() : null,
@@ -226,6 +260,16 @@ export default function CheckoutPage() {
               ))}
             </div>
           </div>
+
+          {infoLines.map((i) => (
+            <PlanInfoForm
+              key={lineKey(i.productId, i.planId)}
+              title={`${i.name}${i.plan ? ` · ${i.plan}` : ""}`}
+              plan={planFor(i.productId, i.planId)!}
+              value={infoValueFor(i.productId, i.planId)}
+              onChange={(v) => setInfoValueFor(i.productId, i.planId, v)}
+            />
+          ))}
 
           <div className="rounded-2xl border border-white/8 bg-[#15151f]/80 p-5">
             <h3 className="mb-4 text-lg font-bold text-white">روش پرداخت</h3>
@@ -404,7 +448,7 @@ export default function CheckoutPage() {
           {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
           <button
             onClick={placeOrder}
-            disabled={placing || items.length === 0 || !emailVerified || (needsMethod && (methodId === null || !isCardToCardComplete(pay)))}
+            disabled={placing || items.length === 0 || !emailVerified || infoIncomplete || (needsMethod && (methodId === null || !isCardToCardComplete(pay)))}
             className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
           >
             {placing ? "در حال ثبت..." : "پرداخت و ثبت سفارش"}

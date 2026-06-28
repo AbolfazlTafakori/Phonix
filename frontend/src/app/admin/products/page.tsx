@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Product, ProductInput, Category, ProductFeature, ProductPlanInput } from "@/lib/types";
+import type { Product, ProductInput, Category, ProductFeature, ProductPlanInput, PlanInputField, PlanFieldType } from "@/lib/types";
 import { formatToman, formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner, Toggle, StatusBadge, Modal, DataTable, Field, inputCls, type Column } from "@/components/admin/ui";
 import ImageField from "@/components/admin/ImageField";
@@ -32,7 +32,8 @@ const emptyForm = (categoryId: number): ProductInput => ({
   plans: [],
 });
 
-const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true });
+const emptyPlanInfo = { collectsInfo: false, inputFields: [], warningText: "", tutorialText: "", tutorialMedia: [], allowNotes: false } as const;
+const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true, ...emptyPlanInfo, inputFields: [], tutorialMedia: [] });
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -94,7 +95,15 @@ export default function AdminProductsPage() {
       deliveryTemplate: p.deliveryTemplate,
       priceUsd: p.priceUsd ?? 0,
       features: p.features.map((f) => ({ ...f })),
-      plans: p.plans.map((pl) => ({ type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive })),
+      plans: p.plans.map((pl) => ({
+        type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive,
+        collectsInfo: pl.collectsInfo ?? false,
+        inputFields: (pl.inputFields ?? []).map((fld) => ({ ...fld })),
+        warningText: pl.warningText ?? "",
+        tutorialText: pl.tutorialText ?? "",
+        tutorialMedia: (pl.tutorialMedia ?? []).map((m) => ({ ...m })),
+        allowNotes: pl.allowNotes ?? false,
+      })),
     });
     setModalOpen(true);
   }
@@ -130,6 +139,16 @@ export default function AdminProductsPage() {
     setForm((f) => ({ ...f, plans: f.plans.map((pl, idx) => (idx === i ? { ...pl, [key]: value } : pl)) }));
   const addPlan = () => setForm((f) => ({ ...f, plans: [...f.plans, emptyPlan(planTypes[0] ?? "")] }));
   const removePlan = (i: number) => setForm((f) => ({ ...f, plans: f.plans.filter((_, idx) => idx !== i) }));
+
+  // per-plan customer-input field helpers
+  const mapPlan = (i: number, fn: (pl: ProductPlanInput) => ProductPlanInput) =>
+    setForm((f) => ({ ...f, plans: f.plans.map((pl, idx) => (idx === i ? fn(pl) : pl)) }));
+  const setPlanField = (pi: number, fi: number, key: keyof PlanInputField, value: string | boolean) =>
+    mapPlan(pi, (pl) => ({ ...pl, inputFields: pl.inputFields.map((fld, j) => (j === fi ? { ...fld, [key]: value } : fld)) }));
+  const addPlanField = (pi: number) =>
+    mapPlan(pi, (pl) => ({ ...pl, inputFields: [...pl.inputFields, { label: "", type: "text" as PlanFieldType, required: true, sensitive: false }] }));
+  const removePlanField = (pi: number, fi: number) =>
+    mapPlan(pi, (pl) => ({ ...pl, inputFields: pl.inputFields.filter((_, j) => j !== fi) }));
 
   const columns: Column<Product>[] = [
     {
@@ -325,6 +344,69 @@ export default function AdminProductsPage() {
                     <button onClick={() => removePlan(i)} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-white/60 transition hover:border-rose-500/50 hover:text-rose-400">
                       <AdminIcon name="trash" className="h-3.5 w-3.5" /> حذف پلن
                     </button>
+                  </div>
+
+                  {/* per-plan: information collected from the customer at checkout */}
+                  <div className="mt-3 border-t border-dashed border-white/10 pt-3">
+                    <label className="flex cursor-pointer items-center justify-between gap-2">
+                      <span>
+                        <span className="text-sm font-bold text-white">اطلاعات موردنیاز از مشتری</span>
+                        <span className="mt-0.5 block text-[11px] text-white/45">اگر روشن باشد، هنگام خرید این پلن از مشتری پرسیده می‌شود</span>
+                      </span>
+                      <Toggle checked={pl.collectsInfo} onChange={(v) => setPlan(i, "collectsInfo", v)} />
+                    </label>
+
+                    {pl.collectsInfo && (
+                      <div className="mt-3 space-y-3">
+                        <div className="space-y-2">
+                          {pl.inputFields.map((fld, fi) => (
+                            <div key={fi} className="rounded-lg border border-white/8 bg-white/[0.02] p-2.5">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <input
+                                  value={fld.label}
+                                  onChange={(e) => setPlanField(i, fi, "label", e.target.value)}
+                                  placeholder="عنوان فیلد (مثلاً ایمیل اکانت)"
+                                  className={`${inputCls} min-w-0 flex-1`}
+                                />
+                                <select
+                                  value={fld.type}
+                                  onChange={(e) => setPlanField(i, fi, "type", e.target.value)}
+                                  className={`${inputCls} w-28`}
+                                >
+                                  <option value="text" className="bg-[#15151f]">متن</option>
+                                  <option value="email" className="bg-[#15151f]">ایمیل</option>
+                                  <option value="password" className="bg-[#15151f]">رمز</option>
+                                  <option value="phone" className="bg-[#15151f]">تلفن</option>
+                                  <option value="textarea" className="bg-[#15151f]">متن بلند</option>
+                                </select>
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-4">
+                                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-white/70">
+                                  <Toggle checked={fld.required} onChange={(v) => setPlanField(i, fi, "required", v)} /> اجباری
+                                </label>
+                                <label className="flex cursor-pointer items-center gap-1.5 text-xs text-white/70">
+                                  <Toggle checked={fld.sensitive || fld.type === "password"} onChange={(v) => setPlanField(i, fi, "sensitive", v)} /> حساس (رمزنگاری)
+                                </label>
+                                <button onClick={() => removePlanField(i, fi)} className="mr-auto text-xs font-bold text-white/45 transition hover:text-rose-400">حذف فیلد</button>
+                              </div>
+                            </div>
+                          ))}
+                          <button onClick={() => addPlanField(i)} className="w-full rounded-lg border border-dashed border-white/15 py-2 text-xs font-bold text-white/65 transition hover:border-white/30 hover:text-white">+ افزودن فیلد</button>
+                        </div>
+
+                        <Field label="متن هشدار (همیشه بالای فرم دیده می‌شود)">
+                          <textarea value={pl.warningText} onChange={(e) => setPlan(i, "warningText", e.target.value)} rows={2} placeholder="مثلاً: کد دومرحله‌ای اکانت را خاموش کنید." className={`${inputCls} resize-none`} />
+                        </Field>
+                        <Field label="متن آموزش (داخل منوی کشویی)">
+                          <textarea value={pl.tutorialText} onChange={(e) => setPlan(i, "tutorialText", e.target.value)} rows={3} placeholder="مرحله‌به‌مرحله توضیح دهید مشتری چه کند…" className={`${inputCls} resize-none`} />
+                        </Field>
+
+                        <label className="flex cursor-pointer items-center justify-between gap-2">
+                          <span className="text-sm text-white/75">کادر توضیحات اختیاری برای مشتری</span>
+                          <Toggle checked={pl.allowNotes} onChange={(v) => setPlan(i, "allowNotes", v)} />
+                        </label>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

@@ -148,13 +148,33 @@ export default function AdminOrdersPage() {
 
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {o.items.map((it) => (
-                  <div key={`${it.productId}:${it.plan ?? ""}`} className="flex items-center gap-3 rounded-lg bg-white/[0.03] p-2">
-                    <img src={it.image} alt={it.name} className="h-9 w-9 rounded object-cover" />
-                    <span className="flex-1 text-sm text-white/80">
-                      {it.name} × {it.quantity}
-                      {it.plan && <span className="text-white/45"> · {it.plan}</span>}
-                    </span>
-                    <span className="text-xs text-white/55">{formatToman(it.lineTotal)}</span>
+                  <div key={`${it.productId}:${it.plan ?? ""}`} className="rounded-lg bg-white/[0.03] p-2">
+                    <div className="flex items-center gap-3">
+                      <img src={it.image} alt={it.name} className="h-9 w-9 rounded object-cover" />
+                      <span className="flex-1 text-sm text-white/80">
+                        {it.name} × {it.quantity}
+                        {it.plan && <span className="text-white/45"> · {it.plan}</span>}
+                      </span>
+                      <span className="text-xs text-white/55">{formatToman(it.lineTotal)}</span>
+                    </div>
+                    {(it.customerInputs?.length > 0 || it.customerNote) && (
+                      <div className="mt-2 space-y-1.5 rounded-md border border-white/8 bg-black/20 p-2">
+                        {it.customerInputs?.map((ci) => (
+                          <div key={ci.label} className="flex items-center justify-between gap-2 text-xs">
+                            <span className="shrink-0 text-white/45">{ci.label}:</span>
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <span className="truncate font-mono text-white/85" dir="ltr">{ci.value}</span>
+                              <button onClick={() => navigator.clipboard?.writeText(ci.value)} className="shrink-0 text-white/40 transition hover:text-white" title="کپی">⧉</button>
+                            </span>
+                          </div>
+                        ))}
+                        {it.customerNote && (
+                          <p className="border-t border-white/8 pt-1.5 text-xs leading-6 text-white/60">
+                            <span className="text-white/40">توضیحات: </span>{it.customerNote}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

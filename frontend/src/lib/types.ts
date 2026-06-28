@@ -20,7 +20,31 @@ export type CategoryInput = {
 
 export type ProductFeature = { text: string; included: boolean };
 
-export type ProductPlan = {
+export type PlanFieldType = "text" | "email" | "password" | "phone" | "textarea";
+
+export type PlanInputField = {
+  label: string;
+  type: PlanFieldType;
+  required: boolean;
+  sensitive: boolean;
+};
+
+export type PlanTutorialMedia = {
+  kind: "image" | "video";
+  id: string;
+};
+
+// Per-plan "collect info from the customer" settings, shared by ProductPlan and ProductPlanInput.
+export type PlanInfoSettings = {
+  collectsInfo: boolean;
+  inputFields: PlanInputField[];
+  warningText: string;
+  tutorialText: string;
+  tutorialMedia: PlanTutorialMedia[];
+  allowNotes: boolean;
+};
+
+export type ProductPlan = PlanInfoSettings & {
   id: number;
   type: string;
   months: number;
@@ -31,7 +55,7 @@ export type ProductPlan = {
   finalPrice: number;
 };
 
-export type ProductPlanInput = {
+export type ProductPlanInput = PlanInfoSettings & {
   type: string;
   months: number;
   price: number;
@@ -462,6 +486,12 @@ export type CommentInput = {
 
 export type OrderStatus = "PendingApproval" | "Preparing" | "Completed" | "Cancelled";
 
+export type OrderInputValue = {
+  label: string;
+  value: string;
+  sensitive: boolean;
+};
+
 export type OrderItem = {
   productId: number;
   name: string;
@@ -470,6 +500,8 @@ export type OrderItem = {
   unitPrice: number;
   quantity: number;
   lineTotal: number;
+  customerInputs: OrderInputValue[];
+  customerNote: string | null;
 };
 
 export type OrderStatusHistory = {
