@@ -371,7 +371,7 @@ export default function AdminProductsPage() {
                                 <select
                                   value={fld.type}
                                   onChange={(e) => setPlanField(i, fi, "type", e.target.value)}
-                                  className={`${inputCls} w-28`}
+                                  className={`${inputCls} w-full sm:w-28`}
                                 >
                                   <option value="text" className="bg-[#15151f]">متن</option>
                                   <option value="email" className="bg-[#15151f]">ایمیل</option>
