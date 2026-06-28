@@ -317,13 +317,19 @@ public class BackupController : ControllerBase
 
     // Send the uploaded files to Telegram now, kept separate: kind=site → public images (plain zip),
     // kind=documents → users' cards/KYC/receipts (encrypted). Auto-split into parts for large archives.
+    // Gated behind the same three factors as a restore (admin + fresh 2FA + PHONIX_BACKUP_KEY): pushing media
+    // off the server — especially users' documents — is a sensitive export, so it re-authenticates first.
     [HttpPost("telegram/media/{kind}")]
-    public async Task<IActionResult> SendMedia(string kind)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> SendMedia(string kind, [FromForm] string? backupKey, [FromForm] string? twoFactorCode)
     {
         if (kind is not ("site" or "documents")) return NotFound();
+        var deny = CheckRestoreAuth(backupKey, twoFactorCode, out var username, out var ip);
+        if (deny is not null) return deny;
         var sensitive = kind == "documents";
         var caption = sensitive ? "پشتیبان دستی فونیکس — مدارک کاربران" : "پشتیبان دستی فونیکس — رسانهٔ سایت";
         var (ok, err) = await _telegram.SendMediaAsync(sensitive, caption, HttpContext.RequestAborted);
+        if (ok) _logger.LogWarning("[SRV] MEDIA TELEGRAM SEND '{Kind}' by Admin {User}, IP {IP}, {Time}", kind, username, ip, DateTime.UtcNow.ToString("o"));
         return ok ? Ok(new { ok = true }) : BadRequest(err);
     }
 

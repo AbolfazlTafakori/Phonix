@@ -455,8 +455,25 @@ export const api = {
     },
     sendSection: (key: string) => request<{ ok: boolean }>(`/backup/telegram/send/${key}`, { method: "POST" }),
     sendAll: () => request<{ ok: boolean }>("/backup/telegram/send-all", { method: "POST" }),
-    // kind: "site" (public images) | "documents" (users' encrypted cards/KYC/receipts)
-    sendMedia: (kind: "site" | "documents") => request<{ ok: boolean }>(`/backup/telegram/media/${kind}`, { method: "POST" }),
+    // kind: "site" (public images) | "documents" (users' encrypted cards/KYC/receipts). Sending media off
+    // the server re-authenticates with the same two factors as a restore: the server's backup key and a fresh
+    // 2FA code, sent as multipart alongside the request.
+    sendMedia: async (kind: "site" | "documents", backupKey: string, twoFactorCode: string): Promise<{ ok: boolean }> => {
+      const csrf = getCsrfToken();
+      const fd = new FormData();
+      fd.append("backupKey", backupKey);
+      fd.append("twoFactorCode", twoFactorCode);
+      const res = await fetch(`${BASE}/api/backup/telegram/media/${kind}`, {
+        method: "POST", credentials: "include", cache: "no-store",
+        headers: { ...(csrf ? { "X-CSRF-Token": csrf } : {}) }, body: fd,
+      });
+      if (!res.ok) {
+        let msg = `خطا در ارسال (${res.status})`;
+        try { const t = await res.text(); if (t) msg = t.replace(/^"|"$/g, ""); } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      return (await res.json()) as { ok: boolean };
+    },
     downloadMedia: async (kind: "public" | "sensitive"): Promise<{ blob: Blob; filename: string }> => {
       const res = await fetch(`${BASE}/api/backup/media/${kind}`, { credentials: "include", cache: "no-store" });
       if (!res.ok) throw new Error(`خطا در دانلود رسانه (${res.status})`);

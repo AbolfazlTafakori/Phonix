@@ -43,6 +43,13 @@ export default function BackupPage() {
   const secFileRef = useRef<HTMLInputElement>(null);
   const pendingTarget = useRef<RTarget | null>(null);
 
+  // gated media → telegram send (same backup-key + 2FA gate as a restore)
+  const [mediaSend, setMediaSend] = useState<"site" | "documents" | null>(null);
+  const [mediaSending, setMediaSending] = useState(false);
+  const [mediaKey, setMediaKey] = useState("");
+  const [mediaOtp, setMediaOtp] = useState("");
+  const [mediaNote, setMediaNote] = useState<Note>(null);
+
   async function loadSections() {
     try {
       const d = await api.backup.sections();
@@ -112,17 +119,30 @@ export default function BackupPage() {
     }
   }
 
-  async function sendMediaTg(kind: "site" | "documents") {
-    setBusyKey(`tgmedia:${kind}`);
-    setSecNote(null);
+  function openMediaSend(kind: "site" | "documents") {
+    setMediaSend(kind);
+    setMediaKey("");
+    setMediaOtp("");
+    setMediaNote(null);
+  }
+
+  async function confirmMediaSend() {
+    if (!mediaSend) return;
+    if (!mediaKey.trim() || mediaOtp.trim().length !== 6) {
+      setMediaNote({ ok: false, text: "کلید پشتیبان و کد ۶ رقمی دو‌مرحله‌ای الزامی است." });
+      return;
+    }
+    setMediaSending(true);
+    setMediaNote(null);
     try {
-      await api.backup.sendMedia(kind);
+      await api.backup.sendMedia(mediaSend, mediaKey.trim(), mediaOtp.trim());
+      setMediaSend(null);
       setSecNote({ ok: true, text: "فایل‌های رسانه به تلگرام ارسال شد (در صورت حجم بالا، چند بخش)." });
       await loadSections();
     } catch (e) {
-      setSecNote({ ok: false, text: e instanceof Error ? e.message : "ارسال ناموفق بود." });
+      setMediaNote({ ok: false, text: e instanceof Error ? e.message : "ارسال ناموفق بود." });
     } finally {
-      setBusyKey("");
+      setMediaSending(false);
     }
   }
 
@@ -353,8 +373,8 @@ export default function BackupPage() {
                     <button onClick={() => downloadMedia("public")} disabled={busyKey === "media:public"} className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-xs font-bold text-white/80 transition hover:bg-white/5 disabled:opacity-50">
                       {busyKey === "media:public" ? <Spinner /> : "دانلود"}
                     </button>
-                    <button onClick={() => sendMediaTg("site")} disabled={busyKey === "tgmedia:site"} className="flex h-9 items-center gap-1.5 rounded-lg border border-[#3a64f2]/40 bg-[#3a64f2]/10 px-3 text-xs font-bold text-[#9db4ff] transition hover:bg-[#3a64f2]/20 disabled:opacity-50">
-                      {busyKey === "tgmedia:site" ? <Spinner /> : "ارسال تلگرام"}
+                    <button onClick={() => openMediaSend("site")} className="flex h-9 items-center gap-1.5 rounded-lg border border-[#3a64f2]/40 bg-[#3a64f2]/10 px-3 text-xs font-bold text-[#9db4ff] transition hover:bg-[#3a64f2]/20">
+                      ارسال تلگرام
                     </button>
                     <button onClick={() => pickRestore({ kind: "media", value: "public" })} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">بازیابی</button>
                   </div>
@@ -365,8 +385,8 @@ export default function BackupPage() {
                     <button onClick={() => downloadMedia("sensitive")} disabled={busyKey === "media:sensitive"} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">
                       {busyKey === "media:sensitive" ? <Spinner /> : "دانلود"}
                     </button>
-                    <button onClick={() => sendMediaTg("documents")} disabled={busyKey === "tgmedia:documents"} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">
-                      {busyKey === "tgmedia:documents" ? <Spinner /> : "ارسال تلگرام"}
+                    <button onClick={() => openMediaSend("documents")} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20">
+                      ارسال تلگرام
                     </button>
                     <button onClick={() => pickRestore({ kind: "media", value: "sensitive" })} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">بازیابی</button>
                   </div>
@@ -516,6 +536,55 @@ export default function BackupPage() {
               className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40"
             >
               {restoring ? <Spinner /> : "تأیید و بازیابی"}
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={mediaSend !== null} onClose={() => !mediaSending && setMediaSend(null)} title="تأیید امنیتی ارسال به تلگرام">
+        <div className="space-y-4">
+          <p className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm leading-7 text-amber-300/85">
+            ⚠ {mediaSend === "documents"
+              ? "این کار آرشیو رمزنگاری‌شدهٔ مدارک کاربران (KYC/کارت/رسید) را به چت تلگرامِ تعیین‌شده می‌فرستد."
+              : "این کار آرشیو فایل‌های رسانهٔ سایت (بنرها/عکس محصولات) را به چت تلگرامِ تعیین‌شده می‌فرستد."} برای ادامه، کلید پشتیبان سرور و کد دو‌مرحله‌ای فعلی خود را وارد کنید.
+          </p>
+          <Field label="کلید پشتیبان (PHONIX_BACKUP_KEY)">
+            <input
+              type="password"
+              value={mediaKey}
+              onChange={(e) => setMediaKey(e.target.value)}
+              dir="ltr"
+              autoComplete="off"
+              placeholder="کلید ذخیره‌شده‌ی آفلاین"
+              className={`${inputCls} text-left`}
+            />
+          </Field>
+          <Field label="کد دو‌مرحله‌ای (۶ رقم)">
+            <input
+              value={mediaOtp}
+              onChange={(e) => setMediaOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+              dir="ltr"
+              autoComplete="one-time-code"
+              placeholder="------"
+              className={`${inputCls} text-center tracking-[0.5em]`}
+            />
+          </Field>
+          {mediaNote && !mediaNote.ok && <p className="text-sm text-rose-400">{mediaNote.text}</p>}
+          <div className="flex justify-end gap-3 pt-1">
+            <button
+              onClick={() => setMediaSend(null)}
+              disabled={mediaSending}
+              className="h-11 rounded-xl border border-white/10 px-5 text-sm font-medium text-white/70 transition hover:text-white disabled:opacity-50"
+            >
+              انصراف
+            </button>
+            <button
+              onClick={confirmMediaSend}
+              disabled={mediaSending || !mediaKey.trim() || mediaOtp.length !== 6}
+              className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40"
+            >
+              {mediaSending ? <Spinner /> : "تأیید و ارسال"}
             </button>
           </div>
         </div>
