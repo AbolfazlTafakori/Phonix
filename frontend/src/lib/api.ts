@@ -455,6 +455,8 @@ export const api = {
     },
     sendSection: (key: string) => request<{ ok: boolean }>(`/backup/telegram/send/${key}`, { method: "POST" }),
     sendAll: () => request<{ ok: boolean }>("/backup/telegram/send-all", { method: "POST" }),
+    // kind: "site" (public images) | "documents" (users' encrypted cards/KYC/receipts)
+    sendMedia: (kind: "site" | "documents") => request<{ ok: boolean }>(`/backup/telegram/media/${kind}`, { method: "POST" }),
     downloadMedia: async (kind: "public" | "sensitive"): Promise<{ blob: Blob; filename: string }> => {
       const res = await fetch(`${BASE}/api/backup/media/${kind}`, { credentials: "include", cache: "no-store" });
       if (!res.ok) throw new Error(`خطا در دانلود رسانه (${res.status})`);

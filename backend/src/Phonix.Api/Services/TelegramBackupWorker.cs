@@ -45,6 +45,12 @@ public class TelegramBackupWorker : BackgroundService
                 await _sender.SendSectionAsync(section, $"پشتیبان خودکار فونیکس — {label}", stoppingToken);
                 await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken); // gentle on Telegram rate limits
             }
+
+            // Uploaded files too, kept separate: public site media, then users' (encrypted) documents. Large
+            // archives are auto-split into parts under Telegram's per-file limit by the sender.
+            await _sender.SendMediaAsync(sensitive: false, "پشتیبان خودکار فونیکس — رسانهٔ سایت", stoppingToken);
+            await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken);
+            await _sender.SendMediaAsync(sensitive: true, "پشتیبان خودکار فونیکس — مدارک کاربران", stoppingToken);
         }
     }
 }

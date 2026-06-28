@@ -112,6 +112,20 @@ export default function BackupPage() {
     }
   }
 
+  async function sendMediaTg(kind: "site" | "documents") {
+    setBusyKey(`tgmedia:${kind}`);
+    setSecNote(null);
+    try {
+      await api.backup.sendMedia(kind);
+      setSecNote({ ok: true, text: "فایل‌های رسانه به تلگرام ارسال شد (در صورت حجم بالا، چند بخش)." });
+      await loadSections();
+    } catch (e) {
+      setSecNote({ ok: false, text: e instanceof Error ? e.message : "ارسال ناموفق بود." });
+    } finally {
+      setBusyKey("");
+    }
+  }
+
   async function instantBackup() {
     setInstantBusy(true);
     setSecNote(null);
@@ -330,23 +344,29 @@ export default function BackupPage() {
             </Card>
 
             <Card className="p-6">
-              <h3 className="text-lg font-bold text-white">بکاپ فایل‌های رسانه (دانلود دستی)</h3>
-              <p className="mb-4 mt-1 text-sm leading-7 text-white/55">خودِ فایل‌های تصویری روی دیسک‌اند، نه در بکاپ دیتابیس. این‌ها فقط دانلودی‌اند (به تلگرام نمی‌روند). آرشیو مدارک حساس رمزنگاری می‌شود؛ آن را جای امن نگه دارید.</p>
+              <h3 className="text-lg font-bold text-white">بکاپ فایل‌های رسانه</h3>
+              <p className="mb-4 mt-1 text-sm leading-7 text-white/55">خودِ فایل‌های تصویری روی دیسک‌اند، نه در بکاپ دیتابیس. رسانهٔ سایت و مدارک کاربران جدا از هم بکاپ می‌شوند. آرشیو مدارک رمزنگاری می‌شود؛ ارسال به تلگرام در صورت حجم بالا خودکار به چند بخش تقسیم می‌شود.</p>
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="flex flex-col gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-3">
-                  <span className="text-sm font-bold text-white/85">رسانهٔ عمومی (بنرها/عکس محصولات)</span>
+                  <span className="text-sm font-bold text-white/85">رسانهٔ سایت (بنرها/عکس محصولات)</span>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => downloadMedia("public")} disabled={busyKey === "media:public"} className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-xs font-bold text-white/80 transition hover:bg-white/5 disabled:opacity-50">
                       {busyKey === "media:public" ? <Spinner /> : "دانلود"}
+                    </button>
+                    <button onClick={() => sendMediaTg("site")} disabled={busyKey === "tgmedia:site"} className="flex h-9 items-center gap-1.5 rounded-lg border border-[#3a64f2]/40 bg-[#3a64f2]/10 px-3 text-xs font-bold text-[#9db4ff] transition hover:bg-[#3a64f2]/20 disabled:opacity-50">
+                      {busyKey === "tgmedia:site" ? <Spinner /> : "ارسال تلگرام"}
                     </button>
                     <button onClick={() => pickRestore({ kind: "media", value: "public" })} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">بازیابی</button>
                   </div>
                 </div>
                 <div className="flex flex-col gap-2 rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-3">
-                  <span className="text-sm font-bold text-rose-200/90">🔒 مدارک حساس (KYC/کارت/رسید)</span>
+                  <span className="text-sm font-bold text-rose-200/90">🔒 مدارک کاربران (KYC/کارت/رسید)</span>
                   <div className="flex flex-wrap gap-2">
                     <button onClick={() => downloadMedia("sensitive")} disabled={busyKey === "media:sensitive"} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">
                       {busyKey === "media:sensitive" ? <Spinner /> : "دانلود"}
+                    </button>
+                    <button onClick={() => sendMediaTg("documents")} disabled={busyKey === "tgmedia:documents"} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">
+                      {busyKey === "tgmedia:documents" ? <Spinner /> : "ارسال تلگرام"}
                     </button>
                     <button onClick={() => pickRestore({ kind: "media", value: "sensitive" })} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10">بازیابی</button>
                   </div>

@@ -300,6 +300,18 @@ public class BackupController : ControllerBase
         return ok ? Ok(new { ok = true }) : BadRequest(err);
     }
 
+    // Send the uploaded files to Telegram now, kept separate: kind=site → public images (plain zip),
+    // kind=documents → users' cards/KYC/receipts (encrypted). Auto-split into parts for large archives.
+    [HttpPost("telegram/media/{kind}")]
+    public async Task<IActionResult> SendMedia(string kind)
+    {
+        if (kind is not ("site" or "documents")) return NotFound();
+        var sensitive = kind == "documents";
+        var caption = sensitive ? "پشتیبان دستی فونیکس — مدارک کاربران" : "پشتیبان دستی فونیکس — رسانهٔ سایت";
+        var (ok, err) = await _telegram.SendMediaAsync(sensitive, caption, HttpContext.RequestAborted);
+        return ok ? Ok(new { ok = true }) : BadRequest(err);
+    }
+
     // Instant full backup: send every section now (for critical moments before a risky change).
     [HttpPost("telegram/send-all")]
     public async Task<IActionResult> SendAll()
