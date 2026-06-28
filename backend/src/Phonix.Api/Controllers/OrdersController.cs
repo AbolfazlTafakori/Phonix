@@ -32,12 +32,12 @@ public class OrdersController : ControllerBase
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
-    [AdminPermission("orders")]
+    [AdminPermission("orders", "orders-status")]
     [HttpGet]
     public IEnumerable<Order> Get([FromQuery] OrderStatus? status) => _store.GetOrders(status).Select(RevealInputs);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
-    [AdminPermission("orders")]
+    [AdminPermission("orders", "orders-status")]
     [HttpGet("page")]
     public PagedResult<Order> GetPage([FromQuery] OrderStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
         PagedResult<Order>.From(_store.GetOrders(status).Select(RevealInputs).ToList(), page, pageSize);

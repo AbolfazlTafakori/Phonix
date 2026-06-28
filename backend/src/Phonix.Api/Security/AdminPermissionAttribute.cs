@@ -14,8 +14,10 @@ namespace Phonix.Api.Security;
 [AttributeUsage(AttributeTargets.Class | AttributeTargets.Method, AllowMultiple = false)]
 public sealed class AdminPermissionAttribute : Attribute, IAuthorizationFilter
 {
-    private readonly string _permission;
-    public AdminPermissionAttribute(string permission) => _permission = permission;
+    private readonly string[] _permissions;
+    // Accepts one or more section keys; a Support member passes when they hold ANY of them. This lets a
+    // shared read endpoint (e.g. listing orders) be reachable from several sections that each own a key.
+    public AdminPermissionAttribute(params string[] permissions) => _permissions = permissions;
 
     public void OnAuthorization(AuthorizationFilterContext context)
     {
@@ -38,7 +40,7 @@ public sealed class AdminPermissionAttribute : Attribute, IAuthorizationFilter
             context.Result = new UnauthorizedResult();
             return;
         }
-        if (user.Role == UserRole.Support && user.Permissions.Contains(_permission)) return;
+        if (user.Role == UserRole.Support && _permissions.Any(p => user.Permissions.Contains(p))) return;
 
         context.Result = new ObjectResult("شما به این بخش دسترسی ندارید.")
         {
