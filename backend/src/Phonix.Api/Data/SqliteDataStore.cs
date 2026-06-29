@@ -1769,6 +1769,8 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
         WriteTx((conn, tx) =>
         {
             var n = new Notification { UserId = userId, Title = title, Body = body, Link = link, CreatedAtUtc = DateTime.UtcNow.ToString("o") };
+            // A broadcast is frozen to the users who exist right now, so newcomers never see older broadcasts.
+            if (userId is null) n.AudienceMaxUserId = conn.ExecuteScalar<int?>("SELECT MAX(Id) FROM Users", transaction: tx) ?? 0;
             var nid = (int)conn.ExecuteScalar<long>("INSERT INTO Notifications (UserId, DataJson) VALUES (@UserId,@DataJson); SELECT last_insert_rowid();",
                 new { UserId = userId, DataJson = Serialize(n) }, tx);
             n.Id = nid;
@@ -1776,11 +1778,16 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
             return n;
         });
 
+    // A broadcast (UserId null) reaches a user only if it was sent while they already had an account; a private
+    // notification always reaches its owner. AudienceMaxUserId == 0 = legacy/unbounded (shown to everyone).
+    private static bool IsVisibleTo(Notification n, int userId) =>
+        n.UserId == userId || (n.UserId is null && (n.AudienceMaxUserId == 0 || userId <= n.AudienceMaxUserId));
+
     public IReadOnlyList<Notification> GetUserNotifications(int userId)
     {
         using var conn = OpenConnection();
         return conn.Query<string>("SELECT DataJson FROM Notifications WHERE UserId=@u OR UserId IS NULL", new { u = userId })
-            .Select(j => Deserialize<Notification>(j)!).OrderByDescending(n => n.CreatedAtUtc).ToList();
+            .Select(j => Deserialize<Notification>(j)!).Where(n => IsVisibleTo(n, userId)).OrderByDescending(n => n.CreatedAtUtc).ToList();
     }
     public IReadOnlyList<Notification> GetAllNotifications() =>
         AllJson<Notification>("Notifications").OrderByDescending(n => n.CreatedAtUtc).ToList();
@@ -1788,7 +1795,7 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
     {
         using var conn = OpenConnection();
         return conn.Query<string>("SELECT DataJson FROM Notifications WHERE UserId=@u OR UserId IS NULL", new { u = userId })
-            .Select(j => Deserialize<Notification>(j)!).Count(n => !n.ReadBy.Contains(userId));
+            .Select(j => Deserialize<Notification>(j)!).Count(n => IsVisibleTo(n, userId) && !n.ReadBy.Contains(userId));
     }
     public void MarkNotificationsRead(int userId) =>
         WriteTx<object?>((conn, tx) =>
@@ -1796,7 +1803,7 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
             foreach (var row in conn.Query("SELECT Id, DataJson FROM Notifications WHERE UserId=@u OR UserId IS NULL", new { u = userId }, tx).ToList())
             {
                 var n = Deserialize<Notification>((string)row.DataJson)!;
-                if (!n.ReadBy.Contains(userId)) { n.ReadBy.Add(userId); conn.Execute("UPDATE Notifications SET DataJson=@d WHERE Id=@id", new { d = Serialize(n), id = (long)row.Id }, tx); }
+                if (IsVisibleTo(n, userId) && !n.ReadBy.Contains(userId)) { n.ReadBy.Add(userId); conn.Execute("UPDATE Notifications SET DataJson=@d WHERE Id=@id", new { d = Serialize(n), id = (long)row.Id }, tx); }
             }
             return null;
         });

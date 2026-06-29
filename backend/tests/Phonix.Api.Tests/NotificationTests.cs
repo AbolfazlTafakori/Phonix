@@ -1,3 +1,4 @@
+using Phonix.Api.Data;
 using Phonix.Api.Models;
 using Xunit;
 
@@ -40,6 +41,44 @@ public class NotificationTests
         // a new broadcast after reading is unread again for everyone.
         store.AddNotification(null, "c", "");
         Assert.Equal(1, store.CountUnread(1));
+    }
+
+    [Fact]
+    public void New_users_do_not_receive_broadcasts_sent_before_they_registered()
+    {
+        var store = TestStore.Create();
+        store.AddNotification(null, "قبل از عضویت", ""); // broadcast to the users who exist now
+
+        var newcomer = store.RegisterUser(new AppUser { Username = "newbie", Name = "Newbie", Email = "newbie@example.com" });
+
+        // the earlier broadcast is NOT in the newcomer's feed (and not counted as unread)...
+        Assert.DoesNotContain(store.GetUserNotifications(newcomer.Id), n => n.Title == "قبل از عضویت");
+        Assert.Equal(0, store.CountUnread(newcomer.Id));
+
+        // ...but a broadcast sent AFTER they joined does reach them.
+        store.AddNotification(null, "بعد از عضویت", "");
+        Assert.Contains(store.GetUserNotifications(newcomer.Id), n => n.Title == "بعد از عضویت");
+
+        // existing users still see both broadcasts.
+        var u1 = store.GetUserNotifications(1).Select(n => n.Title).ToList();
+        Assert.Contains("قبل از عضویت", u1);
+        Assert.Contains("بعد از عضویت", u1);
+    }
+
+    [Fact]
+    public void Sqlite_broadcasts_skip_users_who_registered_afterwards()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "phonix-sqlite-tests", Guid.NewGuid() + ".db");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var store = new SqliteDataStore(path);
+
+        var early = store.RegisterUser(new AppUser { Username = "early", Name = "Early" });
+        store.AddNotification(null, "broadcast", "");
+        var late = store.RegisterUser(new AppUser { Username = "late", Name = "Late" });
+
+        Assert.Contains(store.GetUserNotifications(early.Id), n => n.Title == "broadcast");
+        Assert.DoesNotContain(store.GetUserNotifications(late.Id), n => n.Title == "broadcast");
+        Assert.Equal(0, store.CountUnread(late.Id));
     }
 
     [Fact]
