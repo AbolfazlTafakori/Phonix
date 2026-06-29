@@ -280,6 +280,19 @@ export type HeroSlide = {
   logo: string;
   buttonText: string;
   buttonLink: string;
+  // Premium hero extras — all optional; the slide renders fine when they're blank/null.
+  eyebrow: string;
+  badge: string;
+  priceFrom: number | null;
+  oldPrice: number | null;
+  secondaryButtonText: string;
+  secondaryButtonLink: string;
+  accentColor: string;
+  // Size multiplier for the accent glow halo; null → default 1×.
+  accentScale: number | null;
+  // Per-banner trust badges + the colour of their chip halo/icon (empty → falls back to accentColor).
+  trust: TrustItem[];
+  trustColor: string;
   sortOrder: number;
   isActive: boolean;
 };
@@ -319,6 +332,7 @@ export type BlogPost = {
 
 export type NavLinkItem = { label: string; href: string; hasMenu?: boolean };
 export type StatItem = { value: string | null; label: string; icon: string | null };
+export type TrustItem = { icon: string; label: string };
 export type SocialLink = { label: string; icon: string; href: string };
 
 export type SiteContent = {

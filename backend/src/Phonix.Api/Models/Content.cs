@@ -15,6 +15,19 @@ public class HeroSlide : IContentItem
     public string Logo { get; set; } = "";
     public string ButtonText { get; set; } = "";
     public string ButtonLink { get; set; } = "";
+    // Premium hero extras — all optional; the slide renders fine when they're blank/null.
+    public string Eyebrow { get; set; } = "";
+    public string Badge { get; set; } = "";
+    public long? PriceFrom { get; set; }
+    public long? OldPrice { get; set; }
+    public string SecondaryButtonText { get; set; } = "";
+    public string SecondaryButtonLink { get; set; } = "";
+    public string AccentColor { get; set; } = "";
+    // Multiplier for the accent glow halo; null/0 → default 1× size.
+    public double? AccentScale { get; set; }
+    // Per-banner trust badges + the colour of their chip halo/icon (empty → falls back to AccentColor).
+    public List<TrustItem> Trust { get; set; } = new();
+    public string TrustColor { get; set; } = "";
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
 }
@@ -67,6 +80,12 @@ public class StatItem
     public string? Value { get; set; }
     public string Label { get; set; } = "";
     public string? Icon { get; set; }
+}
+
+public class TrustItem
+{
+    public string Icon { get; set; } = "";
+    public string Label { get; set; } = "";
 }
 
 public class SocialLink

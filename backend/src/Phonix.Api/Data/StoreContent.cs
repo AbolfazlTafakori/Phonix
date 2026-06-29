@@ -59,6 +59,16 @@ public partial class StoreData
             e.Logo = s.Logo;
             e.ButtonText = s.ButtonText;
             e.ButtonLink = s.ButtonLink;
+            e.Eyebrow = s.Eyebrow;
+            e.Badge = s.Badge;
+            e.PriceFrom = s.PriceFrom;
+            e.OldPrice = s.OldPrice;
+            e.SecondaryButtonText = s.SecondaryButtonText;
+            e.SecondaryButtonLink = s.SecondaryButtonLink;
+            e.AccentColor = s.AccentColor;
+            e.AccentScale = s.AccentScale;
+            e.Trust = s.Trust;
+            e.TrustColor = s.TrustColor;
             e.SortOrder = s.SortOrder;
             e.IsActive = s.IsActive;
             return true;
@@ -180,7 +190,7 @@ public partial class StoreData
     {
         AddHeroSlide(new HeroSlide
         {
-            Title = "نتفلیکس",
+            Title = "اکانت نتفلیکس ۴K Ultra HD",
             Description =
                 "از ۲۰۰۷ که نتفلیکس با پیشرفت ارتباطات در دنیا تبدیل به نتفلیکس امروزی شده پیوسته در حال " +
                 "پیشرفت و بهتر کردن تجربه تماشا و امکانات خود بوده است. ساخت سریال‌های موفق بزرگی چون " +
@@ -191,20 +201,48 @@ public partial class StoreData
                 "Little Prince) و… هم در کارنامه این کمپانی به چشم می‌آید.",
             Image = "/figma/hero-tv.png",
             Logo = "/figma/hero-netflix-n.png",
-            ButtonText = "مطالعه بیشتر",
+            Eyebrow = "اکانت اوریجینال · گارانتی کامل",
+            Badge = "۲۰٪ تخفیف",
+            PriceFrom = 99000,
+            OldPrice = 125000,
+            ButtonText = "خرید اشتراک",
             ButtonLink = "#",
+            SecondaryButtonText = "مشاهده پلن‌ها",
+            SecondaryButtonLink = "#",
+            AccentColor = "#e60053",
+            Trust = new List<TrustItem>
+            {
+                new() { Icon = "bolt", Label = "تحویل آنی" },
+                new() { Icon = "shield", Label = "گارانتی کامل" },
+                new() { Icon = "lock", Label = "پرداخت امن" },
+                new() { Icon = "headset", Label = "پشتیبانی ۲۴/۷" },
+            },
             SortOrder = 1,
         });
         AddHeroSlide(new HeroSlide
         {
-            Title = "اسپاتیفای",
+            Title = "اشتراک پریمیوم اسپاتیفای",
             Description =
-                "اسپاتیفای بزرگ‌ترین سرویس پخش موسیقی جهان است که با میلیون‌ها آهنگ، پادکست و لیست پخش " +
-                "اختصاصی، تجربه‌ای بی‌نظیر از گوش‌دادن به موسیقی را در هر زمان و مکان برای شما فراهم می‌کند.",
+                "موزیک بدون تبلیغات، دانلود آفلاین و کیفیت بالا؛ فعال‌سازی روی اکانت خودتان با " +
+                "دسترسی به میلیون‌ها آهنگ و پادکست اختصاصی.",
             Image = "/figma/prod-spotify.png",
             Logo = "",
-            ButtonText = "مطالعه بیشتر",
+            Eyebrow = "فعال‌سازی روی اکانت خودتان",
+            Badge = "۲۲٪ تخفیف",
+            PriceFrom = 69000,
+            OldPrice = 89000,
+            ButtonText = "خرید اشتراک",
             ButtonLink = "#",
+            SecondaryButtonText = "مشاهده پلن‌ها",
+            SecondaryButtonLink = "#",
+            AccentColor = "#1db954",
+            Trust = new List<TrustItem>
+            {
+                new() { Icon = "bolt", Label = "فعال‌سازی فوری" },
+                new() { Icon = "check", Label = "بدون تبلیغات" },
+                new() { Icon = "lock", Label = "پرداخت امن" },
+                new() { Icon = "headset", Label = "پشتیبانی ۲۴/۷" },
+            },
             SortOrder = 2,
         });
 

@@ -60,6 +60,61 @@ body {
   color: #fff;
 }
 
+/* ── Home hero motion ─────────────────────────────────────────────────────────
+   Entrance + ambient animations. Defaults are fully visible; the keyframes only
+   enhance, so the section never ships blank. All gated behind reduced-motion. */
+@keyframes hero-text-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes hero-art-in {
+  from { opacity: 0; transform: scale(0.94) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes hero-float {
+  0%, 100% { transform: translateY(-6px); }
+  50% { transform: translateY(7px); }
+}
+@keyframes hero-aura {
+  0% { transform: translate3d(-2%, -1%, 0) scale(1); }
+  100% { transform: translate3d(3%, 2%, 0) scale(1.1); }
+}
+@keyframes hero-bar-fill {
+  from { width: 0; }
+  to { width: 100%; }
+}
+@keyframes hero-sheen {
+  from { transform: translateX(-160%) skewX(-20deg); }
+  to { transform: translateX(280%) skewX(-20deg); }
+}
+
+.hero-anim-text { animation: hero-text-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.hero-anim-art { animation: hero-art-in 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.hero-float { animation: hero-float 5s ease-in-out infinite; }
+.hero-aura { animation: hero-aura 16s ease-in-out infinite alternate; }
+.hero-bar-fill { animation: hero-bar-fill var(--hero-dur, 6.5s) linear forwards; }
+
+.hero-cta { position: relative; overflow: hidden; }
+.hero-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 45%;
+  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: translateX(-160%) skewX(-20deg);
+  pointer-events: none;
+}
+.hero-cta:hover::after { animation: hero-sheen 0.9s ease; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-anim-text,
+  .hero-anim-art,
+  .hero-float,
+  .hero-aura { animation: none !important; }
+  .hero-bar-fill { animation: none !important; width: 100% !important; }
+  .hero-cta:hover::after { animation: none !important; }
+}
+
 /* Slim scrollbar to match the dark theme */
 ::-webkit-scrollbar {
   width: 10px;

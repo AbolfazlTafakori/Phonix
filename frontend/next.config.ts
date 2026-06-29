@@ -29,6 +29,13 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  // Same-origin /api/* (e.g. the relative image URLs the API returns, like /api/upload/{id}) is forwarded to
+  // the backend. In production the reverse proxy routes /api straight to the API before Next sees it, so this
+  // is inert there; it only bridges split-port local dev where the frontend and API run on different ports.
+  // Client JS already calls the API on its absolute origin, so those requests don't pass through this rewrite.
+  async rewrites() {
+    return [{ source: "/api/:path*", destination: `${apiUrl}/api/:path*` }];
+  },
   // The products section moved from /films to /products. Keep the old paths working so existing links,
   // bookmarks, and any hrefs still stored as /films (e.g. home categories) don't 404.
   async redirects() {

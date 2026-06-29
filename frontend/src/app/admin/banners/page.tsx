@@ -6,6 +6,7 @@ import type { HeroSlide, HeroSlideInput } from "@/lib/types";
 import { Card, PageHeader, Spinner, Toggle, Field, inputCls } from "@/components/admin/ui";
 import ImageField from "@/components/admin/ImageField";
 import AdminIcon from "@/components/admin/AdminIcon";
+import { HERO_TRUST_ICONS, heroTrustIconNode } from "@/components/heroTrustIcons";
 
 export default function AdminHeroPage() {
   const [slides, setSlides] = useState<HeroSlide[]>([]);
@@ -31,6 +32,16 @@ export default function AdminHeroPage() {
 
   const setField = <K extends keyof HeroSlideInput>(id: number, key: K, value: HeroSlideInput[K]) =>
     setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], [key]: value } }));
+
+  const setTrustItem = (id: number, i: number, key: "icon" | "label", value: string) =>
+    setDrafts((prev) => ({
+      ...prev,
+      [id]: { ...prev[id], trust: (prev[id].trust ?? []).map((t, idx) => (idx === i ? { ...t, [key]: value } : t)) },
+    }));
+  const addTrustItem = (id: number) =>
+    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], trust: [...(prev[id].trust ?? []), { icon: "check", label: "" }] } }));
+  const removeTrustItem = (id: number, i: number) =>
+    setDrafts((prev) => ({ ...prev, [id]: { ...prev[id], trust: (prev[id].trust ?? []).filter((_, idx) => idx !== i) } }));
 
   const dirty = (s: HeroSlide) => JSON.stringify(drafts[s.id]) !== JSON.stringify(toInput(s));
 
@@ -64,8 +75,23 @@ export default function AdminHeroPage() {
         description: "",
         image: "",
         logo: "",
-        buttonText: "مطالعه بیشتر",
+        eyebrow: "",
+        badge: "",
+        priceFrom: null,
+        oldPrice: null,
+        buttonText: "خرید اشتراک",
         buttonLink: "#",
+        secondaryButtonText: "",
+        secondaryButtonLink: "",
+        accentColor: "#e60053",
+        accentScale: 1,
+        trust: [
+          { icon: "bolt", label: "تحویل آنی" },
+          { icon: "shield", label: "گارانتی کامل" },
+          { icon: "lock", label: "پرداخت امن" },
+          { icon: "headset", label: "پشتیبانی ۲۴/۷" },
+        ],
+        trustColor: "",
         sortOrder: slides.length + 1,
         isActive: true,
       });
@@ -131,12 +157,145 @@ export default function AdminHeroPage() {
                     </Field>
 
                     <div className="grid gap-4 sm:grid-cols-2">
-                      <Field label="متن دکمه">
+                      <Field label="متن دکمه اصلی">
                         <input value={d.buttonText} onChange={(e) => setField(s.id, "buttonText", e.target.value)} className={inputCls} />
                       </Field>
-                      <Field label="لینک دکمه">
+                      <Field label="لینک دکمه اصلی">
                         <input value={d.buttonLink} onChange={(e) => setField(s.id, "buttonLink", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="#" />
                       </Field>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <Field label="متن دکمه دوم (اختیاری)">
+                        <input value={d.secondaryButtonText} onChange={(e) => setField(s.id, "secondaryButtonText", e.target.value)} className={inputCls} placeholder="مشاهده پلن‌ها" />
+                      </Field>
+                      <Field label="لینک دکمه دوم">
+                        <input value={d.secondaryButtonLink} onChange={(e) => setField(s.id, "secondaryButtonLink", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="#" />
+                      </Field>
+                    </div>
+
+                    <Field label="متن چیپ بالای عنوان (اختیاری)">
+                      <input value={d.eyebrow} onChange={(e) => setField(s.id, "eyebrow", e.target.value)} className={inputCls} placeholder="اکانت اوریجینال · گارانتی کامل" />
+                    </Field>
+
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <Field label="قیمت از (تومان)">
+                        <input
+                          type="number"
+                          dir="ltr"
+                          value={d.priceFrom ?? ""}
+                          onChange={(e) => setField(s.id, "priceFrom", e.target.value === "" ? null : Number(e.target.value))}
+                          className={`${inputCls} text-left`}
+                          placeholder="99000"
+                        />
+                      </Field>
+                      <Field label="قیمت قبل تخفیف (اختیاری)">
+                        <input
+                          type="number"
+                          dir="ltr"
+                          value={d.oldPrice ?? ""}
+                          onChange={(e) => setField(s.id, "oldPrice", e.target.value === "" ? null : Number(e.target.value))}
+                          className={`${inputCls} text-left`}
+                          placeholder="125000"
+                        />
+                      </Field>
+                      <Field label="برچسب ریبون (اختیاری)">
+                        <input value={d.badge} onChange={(e) => setField(s.id, "badge", e.target.value)} className={inputCls} placeholder="۲۰٪ تخفیف" />
+                      </Field>
+                    </div>
+
+                    <Field label="رنگ اکسنت (هاله و ریبون)">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={/^#[0-9a-f]{6}$/i.test(d.accentColor) ? d.accentColor : "#e60053"}
+                          onChange={(e) => setField(s.id, "accentColor", e.target.value)}
+                          className="h-11 w-14 shrink-0 cursor-pointer rounded-xl border border-white/10 bg-[#0d0d15] p-1"
+                          aria-label="انتخاب رنگ اکسنت"
+                        />
+                        <input
+                          value={d.accentColor}
+                          onChange={(e) => setField(s.id, "accentColor", e.target.value)}
+                          dir="ltr"
+                          className={`${inputCls} text-left`}
+                          placeholder="#e60053"
+                        />
+                      </div>
+                    </Field>
+
+                    <Field label="اندازهٔ هالهٔ نورانی">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min={50}
+                          max={200}
+                          step={5}
+                          value={Math.round((d.accentScale ?? 1) * 100)}
+                          onChange={(e) => setField(s.id, "accentScale", Number(e.target.value) / 100)}
+                          className="h-2 flex-1 cursor-pointer accent-[#e60053]"
+                          aria-label="اندازهٔ اکسنت"
+                        />
+                        <span className="w-12 shrink-0 text-left text-xs font-medium text-white/60" dir="ltr">
+                          {Math.round((d.accentScale ?? 1) * 100)}%
+                        </span>
+                      </div>
+                    </Field>
+
+                    <Field label="رنگ هالهٔ نشان‌ها (خالی = رنگ اکسنت)">
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="color"
+                          value={/^#[0-9a-f]{6}$/i.test(d.trustColor) ? d.trustColor : (/^#[0-9a-f]{6}$/i.test(d.accentColor) ? d.accentColor : "#e60053")}
+                          onChange={(e) => setField(s.id, "trustColor", e.target.value)}
+                          className="h-11 w-14 shrink-0 cursor-pointer rounded-xl border border-white/10 bg-[#0d0d15] p-1"
+                          aria-label="انتخاب رنگ هالهٔ نشان‌ها"
+                        />
+                        <input
+                          value={d.trustColor}
+                          onChange={(e) => setField(s.id, "trustColor", e.target.value)}
+                          dir="ltr"
+                          className={`${inputCls} text-left`}
+                          placeholder="خالی = رنگ اکسنت"
+                        />
+                      </div>
+                    </Field>
+
+                    <div className="rounded-xl border border-white/10 p-4">
+                      <div className="mb-3 flex items-center justify-between">
+                        <span className="text-sm font-bold text-white/80">نشان‌های اعتماد (این بنر)</span>
+                        <button
+                          onClick={() => addTrustItem(s.id)}
+                          className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-white/80 transition hover:bg-white/5"
+                        >
+                          <AdminIcon name="plus" className="h-3.5 w-3.5" />
+                          افزودن
+                        </button>
+                      </div>
+                      <div className="grid gap-2">
+                        {(d.trust ?? []).map((t, i) => (
+                          <div key={i} className="flex items-center gap-2 rounded-lg bg-white/[0.03] p-2">
+                            <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" style={{ color: d.trustColor?.trim() || d.accentColor || "#e60053" }} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                              {heroTrustIconNode(t.icon)}
+                            </svg>
+                            <select value={t.icon} onChange={(e) => setTrustItem(s.id, i, "icon", e.target.value)} className={`${inputCls} h-10 w-32 shrink-0`}>
+                              {HERO_TRUST_ICONS.map((opt) => (
+                                <option key={opt.key} value={opt.key} className="bg-[#15151f]">{opt.label}</option>
+                              ))}
+                            </select>
+                            <input value={t.label} onChange={(e) => setTrustItem(s.id, i, "label", e.target.value)} className={`${inputCls} h-10`} placeholder="متن نشان" />
+                            <button
+                              onClick={() => removeTrustItem(s.id, i)}
+                              className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-white/10 text-white/55 transition hover:border-rose-500/50 hover:text-rose-400"
+                              aria-label="حذف نشان"
+                            >
+                              <AdminIcon name="trash" className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                        {(d.trust ?? []).length === 0 && (
+                          <p className="py-2 text-center text-xs text-white/40">نشانی نیست — پیش‌فرض‌ها نمایش داده می‌شوند.</p>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-3">
