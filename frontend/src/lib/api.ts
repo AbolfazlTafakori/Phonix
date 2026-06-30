@@ -582,6 +582,11 @@ export const api = {
     approve: (id: number) => request<void>(`/comments/${id}/approve`, { method: "POST" }),
     reject: (id: number) => request<void>(`/comments/${id}/reject`, { method: "POST" }),
     reply: (id: number, body: string) => request<Comment>(`/comments/${id}/reply`, { method: "POST", body: json({ body }) }),
+    setHome: (id: number, on: boolean) => request<void>(`/comments/${id}/home`, { method: "POST", body: json({ on }) }),
     remove: (id: number) => request<void>(`/comments/${id}`, { method: "DELETE" }),
+  },
+  // Public: approved reviews the admin flagged for the home-page carousel.
+  testimonials: {
+    list: () => request<Comment[]>("/testimonials"),
   },
 };

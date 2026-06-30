@@ -1,31 +1,20 @@
-import Link from "next/link";
 import { getBlogPosts, getSiteContent } from "@/lib/content";
-import SectionHeading from "./SectionHeading";
+import BlogShowcase from "./BlogShowcase";
 
 export default async function Blog() {
   const [posts, content] = await Promise.all([getBlogPosts(), getSiteContent()]);
 
-  return (
-    <section className="mx-auto mt-16 max-w-[1320px] px-5 sm:mt-24">
-      <SectionHeading title={content.sections.blogTitle} />
+  // Show the admin-selected posts; if none are flagged, fall back to the most recent so the section is
+  // never empty. Capped at 5 (one featured + four beside).
+  const featured = posts.filter((p) => p.featuredOnHome);
+  const shown = (featured.length > 0 ? featured : posts).slice(0, 5);
+  if (shown.length === 0) return null;
 
-      <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
-        {posts.map((post) => (
-          <Link
-            key={post.id}
-            href={`/blog/${post.slug}`}
-            className="block overflow-hidden rounded-2xl border border-white/8 bg-[#15151f]/80 transition duration-300 hover:-translate-y-1 hover:border-white/20"
-          >
-            <img src={post.image} alt="" className="h-48 w-full object-cover" />
-            <div className="p-6 text-right">
-              <p className="font-archivo text-sm text-white/65">{post.tag}</p>
-              <h3 className="mt-3 text-lg font-bold leading-8 text-lilac-gradient">{post.title}</h3>
-              {post.excerpt && <p className="mt-2 text-sm leading-7 text-white/60">{post.excerpt}</p>}
-              <p className="mt-4 font-archivo text-sm text-white/55">{post.date}</p>
-            </div>
-          </Link>
-        ))}
-      </div>
-    </section>
+  return (
+    <BlogShowcase
+      posts={shown}
+      autoplaySeconds={content.blogAutoplaySeconds ?? 5}
+      title={content.sections.blogTitle}
+    />
   );
 }

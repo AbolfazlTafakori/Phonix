@@ -64,6 +64,9 @@ public class BlogPost : IContentItem
     public string Content { get; set; } = "";
     public string Date { get; set; } = "";
     public string Image { get; set; } = "";
+    // When true, the post is eligible for the home-page blog showcase. If no post is flagged, the home
+    // page falls back to the most recent active posts so the section is never empty.
+    public bool FeaturedOnHome { get; set; }
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
 }
@@ -164,6 +167,13 @@ public class SiteContent
     public List<StatItem> Stats { get; set; } = new();
     public SectionTitles Sections { get; set; } = new();
     public FooterContent Footer { get; set; } = new();
+    // Auto-switch interval (seconds) for the home-page blog showcase. 0 disables auto-switching, leaving
+    // only manual selection.
+    public int BlogAutoplaySeconds { get; set; } = 5;
+    // Master switch for the home-page reviews section: off (default) hides it entirely — handy at launch
+    // before any reviews exist. The carousel also stays hidden when no comment is flagged for the home page.
+    public bool TestimonialsEnabled { get; set; }
+    public int TestimonialsAutoplaySeconds { get; set; } = 5;
 }
 
 public class AdvancedSettings

@@ -52,6 +52,28 @@ public partial class StoreData
         }
     }
 
+    public bool SetCommentFeaturedOnHome(int id, bool on)
+    {
+        lock (_gate)
+        {
+            var e = _comments.FirstOrDefault(c => c.Id == id);
+            if (e is null) return false;
+            e.FeaturedOnHome = on;
+            return true;
+        }
+    }
+
+    public IReadOnlyList<Comment> GetHomeTestimonials()
+    {
+        lock (_gate)
+        {
+            return _comments
+                .Where(c => c.FeaturedOnHome && c.Status == CommentStatus.Approved && c.ParentId == null)
+                .OrderByDescending(c => c.Id)
+                .ToList();
+        }
+    }
+
     public Comment? AddReply(int parentId, string body, string author)
     {
         lock (_gate)

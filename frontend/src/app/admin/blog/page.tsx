@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { BlogPost, BlogPostInput } from "@/lib/types";
 import { Card, PageHeader, Spinner, Toggle, Field, inputCls } from "@/components/admin/ui";
+import { useSiteContent } from "@/components/admin/useSiteContent";
 import ImageField from "@/components/admin/ImageField";
 import AdminIcon from "@/components/admin/AdminIcon";
 
@@ -14,6 +15,7 @@ export default function AdminBlogPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
   const [adding, setAdding] = useState(false);
+  const site = useSiteContent();
 
   useEffect(() => {
     (async () => {
@@ -68,6 +70,7 @@ export default function AdminBlogPage() {
         content: "",
         date: "",
         image: "/figma/blog-1.png",
+        featuredOnHome: false,
         sortOrder: posts.length + 1,
         isActive: true,
       });
@@ -104,6 +107,33 @@ export default function AdminBlogPage() {
         <Card className="mb-5 p-4 text-center text-rose-400">{error}</Card>
       )}
 
+      {site.content && (
+        <Card className="mb-5 p-5">
+          <div className="flex flex-wrap items-center gap-4">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-sm font-bold text-white">زمان تعویض خودکار نمایش وبلاگ</h3>
+              <p className="mt-1 text-xs leading-6 text-white/45">بر حسب ثانیه؛ عدد <span className="font-bold text-white/70">۰</span> یعنی تعویض خودکار خاموش است (فقط انتخاب دستی).</p>
+            </div>
+            <input
+              type="number"
+              min={0}
+              dir="ltr"
+              value={site.content.blogAutoplaySeconds}
+              onChange={(e) => site.setContent((c) => (c ? { ...c, blogAutoplaySeconds: Math.max(0, Math.round(Number(e.target.value) || 0)) } : c))}
+              className={`${inputCls} w-24 shrink-0 text-left`}
+            />
+            <button
+              onClick={site.save}
+              disabled={site.saving}
+              className="flex h-11 shrink-0 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 text-sm font-bold text-white transition hover:brightness-110"
+            >
+              {site.saving ? <Spinner /> : "ذخیره زمان"}
+            </button>
+            {site.saved && <span className="text-sm font-medium text-emerald-400">✓ ذخیره شد</span>}
+          </div>
+        </Card>
+      )}
+
       {loading ? (
         <div className="grid place-items-center py-24">
           <Spinner className="h-8 w-8" />
@@ -117,10 +147,16 @@ export default function AdminBlogPage() {
               <Card key={p.id} className="p-5">
                 <div className="flex items-start gap-4">
                   <ImageField aspect="wide" value={d.image} onChange={(v) => setField(p.id, "image", v)} className="w-40 shrink-0" />
-                  <label className="ml-auto flex items-center gap-2 text-xs text-white/60">
-                    نمایش
-                    <Toggle checked={d.isActive} onChange={(v) => setField(p.id, "isActive", v)} />
-                  </label>
+                  <div className="ml-auto flex flex-col items-end gap-2.5">
+                    <label className="flex items-center gap-2 text-xs text-white/60">
+                      نمایش
+                      <Toggle checked={d.isActive} onChange={(v) => setField(p.id, "isActive", v)} />
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-white/60">
+                      صفحه اصلی
+                      <Toggle checked={d.featuredOnHome} onChange={(v) => setField(p.id, "featuredOnHome", v)} />
+                    </label>
+                  </div>
                 </div>
 
                 <div className="mt-4 grid gap-4">

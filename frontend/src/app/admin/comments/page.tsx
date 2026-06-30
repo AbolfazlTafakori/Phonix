@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import type { Comment, CommentStatus } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
-import { Card, PageHeader, Spinner, StatusBadge } from "@/components/admin/ui";
+import { Card, PageHeader, Spinner, StatusBadge, Toggle, inputCls } from "@/components/admin/ui";
+import { useSiteContent } from "@/components/admin/useSiteContent";
 import Stars from "@/components/Stars";
 import AdminIcon from "@/components/admin/AdminIcon";
 
@@ -20,6 +21,7 @@ export default function AdminCommentsPage() {
   const [busy, setBusy] = useState<number | null>(null);
   const [replyFor, setReplyFor] = useState<number | null>(null);
   const [replyText, setReplyText] = useState("");
+  const site = useSiteContent();
 
   useEffect(() => {
     (async () => {
@@ -78,6 +80,16 @@ export default function AdminCommentsPage() {
       setBusy(null);
     }
   }
+  async function toggleHome(c: Comment) {
+    const next = !c.featuredOnHome;
+    setBusy(c.id);
+    try {
+      await api.comments.setHome(c.id, next);
+      setComments((prev) => prev.map((x) => (x.id === c.id ? { ...x, featuredOnHome: next } : x)));
+    } finally {
+      setBusy(null);
+    }
+  }
 
   const filters: { key: Filter; label: string; count?: number }[] = [
     { key: "Pending", label: "در انتظار", count: counts.Pending },
@@ -89,6 +101,43 @@ export default function AdminCommentsPage() {
   return (
     <div>
       <PageHeader title="نظرات و امتیازها" desc="نظرات کاربران پس از تأیید شما زیر محصول نمایش داده می‌شوند" />
+
+      {site.content && (
+        <Card className="mb-5 p-5">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+            <label className="flex items-center gap-3">
+              <Toggle
+                checked={site.content.testimonialsEnabled}
+                onChange={(v) => site.setContent((c) => (c ? { ...c, testimonialsEnabled: v } : c))}
+              />
+              <span className="text-sm font-bold text-white">نمایش بخش نظرات در صفحه اصلی</span>
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/55">زمان چرخش (ثانیه):</span>
+              <input
+                type="number"
+                min={0}
+                dir="ltr"
+                value={site.content.testimonialsAutoplaySeconds}
+                onChange={(e) => site.setContent((c) => (c ? { ...c, testimonialsAutoplaySeconds: Math.max(0, Math.round(Number(e.target.value) || 0)) } : c))}
+                className={`${inputCls} w-20 text-left`}
+              />
+              <span className="text-xs text-white/40">۰ = خاموش</span>
+            </div>
+            <button
+              onClick={site.save}
+              disabled={site.saving}
+              className="ml-auto flex h-10 shrink-0 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-5 text-sm font-bold text-white transition hover:brightness-110"
+            >
+              {site.saving ? <Spinner /> : "ذخیره"}
+            </button>
+            {site.saved && <span className="text-sm font-medium text-emerald-400">✓ ذخیره شد</span>}
+          </div>
+          <p className="mt-3 text-xs leading-6 text-white/45">
+            اگر این کلید خاموش باشد یا هیچ نظری برای صفحه اصلی انتخاب نشده باشد، این بخش اصلاً در صفحه اصلی نمایش داده نمی‌شود. برای انتخاب هر نظر، دکمه‌ی «صفحه اصلی» را روی همان نظر بزنید (فقط نظرهای تأییدشده نمایش داده می‌شوند).
+          </p>
+        </Card>
+      )}
 
       <div className="mb-5 flex flex-wrap gap-2">
         {filters.map((f) => (
@@ -171,6 +220,18 @@ export default function AdminCommentsPage() {
                   <button onClick={() => { setReplyFor(replyFor === c.id ? null : c.id); setReplyText(""); }} className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 px-4 text-xs font-bold text-white/75 transition hover:bg-white/5">
                     <AdminIcon name="chat" className="h-4 w-4" /> پاسخ
                   </button>
+                  {c.status === "Approved" && (
+                    <button
+                      onClick={() => toggleHome(c)}
+                      disabled={busy === c.id}
+                      title="نمایش این نظر در بخش نظرات صفحه اصلی"
+                      className={`flex h-9 items-center gap-1.5 rounded-lg px-4 text-xs font-bold transition ${
+                        c.featuredOnHome ? "bg-[#e60053]/20 text-[#ff5a8a]" : "border border-white/10 text-white/75 hover:bg-white/5"
+                      }`}
+                    >
+                      {c.featuredOnHome ? "★ در صفحه اصلی" : "☆ صفحه اصلی"}
+                    </button>
+                  )}
                   <button onClick={() => remove(c)} className="mr-auto grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-white/55 transition hover:border-rose-500/50 hover:text-rose-400">
                     <AdminIcon name="trash" className="h-4 w-4" />
                   </button>

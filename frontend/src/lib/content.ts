@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { api } from "./api";
-import type { HeroSlide, HomeCategory, Showcase, BlogPost, SiteContent, AdvancedSettings } from "./types";
+import type { HeroSlide, HomeCategory, Showcase, BlogPost, SiteContent, AdvancedSettings, Comment } from "./types";
 import {
   categories as homeCats,
   products as homeProducts,
@@ -96,6 +96,9 @@ export const defaultSiteContent: SiteContent = {
     ],
     copyright: "تمام حقوق برای فونیکس ورفای محفوظ است",
   },
+  blogAutoplaySeconds: 5,
+  testimonialsEnabled: false,
+  testimonialsAutoplaySeconds: 5,
 };
 
 const defaultHomeCategories: HomeCategory[] = homeCats.map((c, i) => ({
@@ -127,6 +130,7 @@ const defaultBlogPosts: BlogPost[] = homeBlog.map((b, i) => ({
   content: "",
   date: b.date,
   image: b.image,
+  featuredOnHome: true,
   sortOrder: i + 1,
   isActive: true,
 }));
@@ -168,6 +172,15 @@ export const getBlogPosts = cache(async (): Promise<BlogPost[]> => {
     return sortActive(await api.blog.list());
   } catch {
     return defaultBlogPosts;
+  }
+});
+
+// Approved reviews the admin flagged for the home page. Empty (or a failed fetch) hides the section.
+export const getTestimonials = cache(async (): Promise<Comment[]> => {
+  try {
+    return await api.testimonials.list();
+  } catch {
+    return [];
   }
 });
 

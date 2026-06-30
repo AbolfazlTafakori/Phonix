@@ -4,6 +4,7 @@ import Hero from "@/components/Hero";
 import Stats from "@/components/Stats";
 import Categories from "@/components/Categories";
 import BestSellers from "@/components/BestSellers";
+import Testimonials from "@/components/Testimonials";
 import Blog from "@/components/Blog";
 import Footer from "@/components/Footer";
 
@@ -17,6 +18,7 @@ export default function Home() {
         <Stats />
         <Categories />
         <BestSellers />
+        <Testimonials />
         <Blog />
         <Footer />
       </main>

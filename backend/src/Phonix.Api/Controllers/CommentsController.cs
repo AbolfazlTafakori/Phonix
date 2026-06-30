@@ -8,6 +8,7 @@ namespace Phonix.Api.Controllers;
 
 public record CommentInput(int ProductId, string Body, int Rating, int? ParentId);
 public record ReplyInput(string Body);
+public record HomeFlagInput(bool On);
 
 [ApiController]
 [Route("api/comments")]
@@ -51,6 +52,17 @@ public class CommentsController : ControllerBase
     [AdminPermission("comments")]
     [HttpPost("{id:int}/reject")]
     public IActionResult Reject(int id) => _store.SetCommentStatus(id, CommentStatus.Rejected) ? NoContent() : NotFound();
+
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("comments")]
+    [HttpPost("{id:int}/home")]
+    public IActionResult SetHome(int id, HomeFlagInput input) =>
+        _store.SetCommentFeaturedOnHome(id, input.On) ? NoContent() : NotFound();
+
+    // Public: approved comments the admin has flagged for the home-page reviews carousel.
+    [AllowAnonymous]
+    [HttpGet("/api/testimonials")]
+    public IEnumerable<Comment> Testimonials() => _store.GetHomeTestimonials();
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("comments")]

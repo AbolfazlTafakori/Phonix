@@ -17,5 +17,7 @@ public class Comment
     public CommentStatus Status { get; set; } = CommentStatus.Pending;
     public int? ParentId { get; set; }
     public bool IsAdminReply { get; set; }
+    // Admin-curated: when true, the (approved) comment is eligible for the home-page reviews carousel.
+    public bool FeaturedOnHome { get; set; }
     public string Date { get; set; } = "";
 }

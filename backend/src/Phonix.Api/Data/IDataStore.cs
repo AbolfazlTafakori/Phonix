@@ -99,6 +99,8 @@ public interface IDataStore
     IReadOnlyList<Comment> GetApprovedForProduct(int productId);
     Comment AddComment(Comment c);
     bool SetCommentStatus(int id, CommentStatus status);
+    bool SetCommentFeaturedOnHome(int id, bool on);
+    IReadOnlyList<Comment> GetHomeTestimonials();
     Comment? AddReply(int parentId, string body, string author);
     bool DeleteComment(int id);
 

@@ -1575,6 +1575,18 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
         c.Status = status;
         return UpdateJson("Comments", id, c);
     }
+    public bool SetCommentFeaturedOnHome(int id, bool on)
+    {
+        var c = OneJson<Comment>("Comments", id);
+        if (c is null) return false;
+        c.FeaturedOnHome = on;
+        return UpdateJson("Comments", id, c);
+    }
+    public IReadOnlyList<Comment> GetHomeTestimonials() =>
+        AllJson<Comment>("Comments")
+            .Where(c => c.FeaturedOnHome && c.Status == CommentStatus.Approved && c.ParentId == null)
+            .OrderByDescending(c => c.Id)
+            .ToList();
     public Comment? AddReply(int parentId, string body, string author)
     {
         var parent = OneJson<Comment>("Comments", parentId);

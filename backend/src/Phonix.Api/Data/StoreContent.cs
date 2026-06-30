@@ -156,6 +156,7 @@ public partial class StoreData
             e.Content = p.Content;
             e.Date = p.Date;
             e.Image = p.Image;
+            e.FeaturedOnHome = p.FeaturedOnHome;
             e.SortOrder = p.SortOrder;
             e.IsActive = p.IsActive;
             return true;
@@ -290,6 +291,7 @@ public partial class StoreData
                 Content = posts[i].Excerpt + "\n\nاین متن نمونه است و می‌توانید آن را از پنل مدیریت ویرایش کنید. تیم فونیکس ورفای همواره در تلاش است تا بهترین و امن‌ترین خدمات را ارائه دهد.\n\nبرای اطلاعات بیشتر با پشتیبانی در ارتباط باشید.",
                 Date = "۱۴۰۳/۰۳/۲۰",
                 Image = $"/figma/blog-{i + 1}.png",
+                FeaturedOnHome = true,
                 SortOrder = i + 1,
             });
 

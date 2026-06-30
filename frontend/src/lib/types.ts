@@ -326,6 +326,7 @@ export type BlogPost = {
   content: string;
   date: string;
   image: string;
+  featuredOnHome: boolean;
   sortOrder: number;
   isActive: boolean;
 };
@@ -361,6 +362,9 @@ export type SiteContent = {
     socials: SocialLink[];
     copyright: string;
   };
+  blogAutoplaySeconds: number;
+  testimonialsEnabled: boolean;
+  testimonialsAutoplaySeconds: number;
 };
 
 export type AdvancedSettings = {
@@ -494,6 +498,7 @@ export type Comment = {
   status: CommentStatus;
   parentId: number | null;
   isAdminReply: boolean;
+  featuredOnHome: boolean;
   date: string;
 };
 
