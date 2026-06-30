@@ -323,11 +323,8 @@ public partial class StoreData
             },
             Footer = new FooterContent
             {
-                AboutTitle = "فونیکس ورفای چیست؟",
-                AboutText =
-                    "به بزرگ‌ترین مرجع ارائه حساب‌های وریفای‌شده پلتفرم‌های محبوب خوش آمدید! ما با افتخار " +
-                    "بهترین و مطمئن‌ترین خدمات را برای شما فراهم می‌کنیم. ما متعهد به ارائه بهترین کیفیت و " +
-                    "پشتیبانی به مشتریان خود هستیم. با ما، بهترین تجربه خرید آنلاین را داشته باشید.",
+                AboutTitle = "فونیکس ورفای",
+                AboutText = "مرجع حساب‌های وریفای‌شده‌ی پلتفرم‌های محبوب، با ضمانت اصالت و پشتیبانی واقعی.",
                 LinksTitle = "لینک های مهم",
                 Links = new List<NavLink>
                 {
@@ -336,6 +333,42 @@ public partial class StoreData
                     new() { Label = "تماس با ما", Href = "#" },
                     new() { Label = "قوانین و مقررات", Href = "#" },
                     new() { Label = "حساب کاربری من", Href = "/account" },
+                },
+                Columns = new List<FooterColumn>
+                {
+                    new()
+                    {
+                        Title = "دسترسی سریع",
+                        Links = new List<NavLink>
+                        {
+                            new() { Label = "فروشگاه", Href = "/films" },
+                            new() { Label = "محصولات پرفروش", Href = "/products" },
+                            new() { Label = "وبلاگ", Href = "/blog" },
+                            new() { Label = "قوانین و مقررات", Href = "#" },
+                        },
+                    },
+                    new()
+                    {
+                        Title = "خدمات مشتریان",
+                        Links = new List<NavLink>
+                        {
+                            new() { Label = "حساب کاربری من", Href = "/account" },
+                            new() { Label = "پیگیری سفارش", Href = "/account/orders" },
+                            new() { Label = "سؤالات متداول", Href = "#" },
+                            new() { Label = "تماس با ما", Href = "#" },
+                        },
+                    },
+                },
+                Contact = new FooterContact
+                {
+                    Phone = "۰۲۱-۱۲۳۴۵۶۷۸",
+                    Email = "support@phonix.ir",
+                    Hours = "هر روز ۹ تا ۲۴",
+                },
+                TrustSeals = new List<TrustSeal>
+                {
+                    new() { Title = "نماد اعتماد", Subtitle = "eNamad", Link = "#", Enabled = true },
+                    new() { Title = "ساماندهی", Subtitle = "ارشاد", Link = "#", Enabled = true },
                 },
                 Socials = new List<SocialLink>
                 {

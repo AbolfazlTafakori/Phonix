@@ -60,11 +60,35 @@ export const defaultSiteContent: SiteContent = {
   ],
   sections: { categoriesTitle: "لیست محصولات", bestSellersTitle: "محصولات پر فروش", blogTitle: "مطالب وبلاگ" },
   footer: {
-    aboutTitle: "فونیکس ورفای چیست؟",
-    aboutText:
-      "به بزرگ‌ترین مرجع ارائه حساب‌های وریفای‌شده پلتفرم‌های محبوب خوش آمدید! ما با افتخار بهترین و مطمئن‌ترین خدمات را برای شما فراهم می‌کنیم. ما متعهد به ارائه بهترین کیفیت و پشتیبانی به مشتریان خود هستیم. با ما، بهترین تجربه خرید آنلاین را داشته باشید.",
+    aboutTitle: "فونیکس ورفای",
+    aboutText: "مرجع حساب‌های وریفای‌شده‌ی پلتفرم‌های محبوب، با ضمانت اصالت و پشتیبانی واقعی.",
     linksTitle: "لینک های مهم",
     links: homeFooter.map((l) => ({ label: l.label, href: l.href })),
+    columns: [
+      {
+        title: "دسترسی سریع",
+        links: [
+          { label: "فروشگاه", href: "/films" },
+          { label: "محصولات پرفروش", href: "/products" },
+          { label: "وبلاگ", href: "/blog" },
+          { label: "قوانین و مقررات", href: "#" },
+        ],
+      },
+      {
+        title: "خدمات مشتریان",
+        links: [
+          { label: "حساب کاربری من", href: "/account" },
+          { label: "پیگیری سفارش", href: "/account/orders" },
+          { label: "سؤالات متداول", href: "#" },
+          { label: "تماس با ما", href: "#" },
+        ],
+      },
+    ],
+    contact: { phone: "۰۲۱-۱۲۳۴۵۶۷۸", email: "support@phonix.ir", hours: "هر روز ۹ تا ۲۴", address: "" },
+    trustSeals: [
+      { title: "نماد اعتماد", subtitle: "eNamad", link: "#", enabled: true },
+      { title: "ساماندهی", subtitle: "ارشاد", link: "#", enabled: true },
+    ],
     socials: [
       { label: "twitter", icon: "twitter", href: "#" },
       { label: "Telegram", icon: "telegram", href: "#" },

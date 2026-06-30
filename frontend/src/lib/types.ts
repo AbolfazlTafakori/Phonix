@@ -334,6 +334,9 @@ export type NavLinkItem = { label: string; href: string; hasMenu?: boolean };
 export type StatItem = { value: string | null; label: string; icon: string | null };
 export type TrustItem = { icon: string; label: string };
 export type SocialLink = { label: string; icon: string; href: string };
+export type FooterColumn = { title: string; links: NavLinkItem[] };
+export type FooterContact = { phone: string; email: string; hours: string; address: string };
+export type TrustSeal = { title: string; subtitle: string; link: string; enabled: boolean };
 
 export type SiteContent = {
   brand: { siteName: string; logoLine1: string; logoLine2: string; logo: string };
@@ -352,6 +355,9 @@ export type SiteContent = {
     aboutText: string;
     linksTitle: string;
     links: NavLinkItem[];
+    columns: FooterColumn[];
+    contact: FooterContact;
+    trustSeals: TrustSeal[];
     socials: SocialLink[];
     copyright: string;
   };

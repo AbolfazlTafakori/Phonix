@@ -120,12 +120,39 @@ public class SectionTitles
     public string BlogTitle { get; set; } = "";
 }
 
+public class FooterColumn
+{
+    public string Title { get; set; } = "";
+    public List<NavLink> Links { get; set; } = new();
+}
+
+public class FooterContact
+{
+    public string Phone { get; set; } = "";
+    public string Email { get; set; } = "";
+    public string Hours { get; set; } = "";
+    public string Address { get; set; } = "";
+}
+
+// One trust badge in the footer (e.g. eNamad, Samandehi). Hidden entirely when Enabled is false, so the
+// admin can take a seal offline without deleting it.
+public class TrustSeal
+{
+    public string Title { get; set; } = "";
+    public string Subtitle { get; set; } = "";
+    public string Link { get; set; } = "";
+    public bool Enabled { get; set; } = true;
+}
+
 public class FooterContent
 {
     public string AboutTitle { get; set; } = "";
     public string AboutText { get; set; } = "";
-    public string LinksTitle { get; set; } = "";
-    public List<NavLink> Links { get; set; } = new();
+    public string LinksTitle { get; set; } = "";        // legacy single-column links (kept for back-compat)
+    public List<NavLink> Links { get; set; } = new();   // legacy — superseded by Columns
+    public List<FooterColumn> Columns { get; set; } = new();
+    public FooterContact Contact { get; set; } = new();
+    public List<TrustSeal> TrustSeals { get; set; } = new();
     public List<SocialLink> Socials { get; set; } = new();
     public string Copyright { get; set; } = "";
 }
