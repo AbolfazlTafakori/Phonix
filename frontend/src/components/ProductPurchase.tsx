@@ -49,6 +49,12 @@ export default function ProductPurchase({ product }: { product: Product }) {
                   className={`rounded-2xl border p-4 text-center transition ${active ? "border-[#e60053] bg-[#e60053]/10" : "border-white/10 hover:border-white/25"}`}
                 >
                   <p className="text-sm font-bold text-white">{toFa(p.months)} ماهه</p>
+                  {p.userCount > 0 && (
+                    <span className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] font-bold text-white/70">
+                      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                      {toFa(p.userCount)} کاربر
+                    </span>
+                  )}
                   <p className="mt-2 text-sm font-bold text-emerald-400">{formatToman(p.finalPrice)}</p>
                   {p.discountPercent > 0 && <p className="mt-0.5 text-[11px] text-white/40 line-through">{formatToman(p.price)}</p>}
                 </button>

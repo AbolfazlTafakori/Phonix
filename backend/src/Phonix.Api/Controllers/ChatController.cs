@@ -10,9 +10,10 @@ public record ChatSendInput(string Body);
 
 public record ConversationSummaryDto(int Id, int UserId, string UserName, string Status, string LastMessageAtUtc, string LastPreview, int Unread);
 
-// Customer-facing projection of a live-chat thread. Deliberately omits AdminReadUpTo (support-side read
-// state) and any other staff bookkeeping — the customer only sees their own thread and messages. Built from
-// a DETACHED snapshot (see StoreData.Clone), so the Messages list it carries is safe to serialize.
+// Customer-facing projection of a live-chat thread. Carries AdminReadUpTo (how far support has read) so the
+// customer can show delivered/read ticks and a "support is responding" hint; everything else staff-only is
+// still left out. Built from a DETACHED snapshot (see StoreData.Clone), so its Messages list is safe to
+// serialize.
 public record ChatThreadDto(
     int Id,
     int UserId,
@@ -21,10 +22,11 @@ public record ChatThreadDto(
     string CreatedAtUtc,
     string LastMessageAtUtc,
     int UserReadUpTo,
+    int AdminReadUpTo,
     IReadOnlyList<ChatMessage> Messages)
 {
     public static ChatThreadDto From(ChatConversation c) => new(
-        c.Id, c.UserId, c.UserName, c.Status.ToString(), c.CreatedAtUtc, c.LastMessageAtUtc, c.UserReadUpTo, c.Messages);
+        c.Id, c.UserId, c.UserName, c.Status.ToString(), c.CreatedAtUtc, c.LastMessageAtUtc, c.UserReadUpTo, c.AdminReadUpTo, c.Messages);
 }
 
 [ApiController]

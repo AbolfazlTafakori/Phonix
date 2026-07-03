@@ -39,6 +39,9 @@ public class ProductPlan
     public double PriceUsd { get; set; }
     public int DiscountPercent { get; set; }
     public bool IsActive { get; set; } = true;
+    // Optional capacity shown on the plan card to help buyers pick — e.g. how many users/devices the plan
+    // covers ("۵ کاربر"). 0 means "no capacity", so the badge is hidden entirely.
+    public int UserCount { get; set; }
 
     // ── Per-plan "collect info from the customer" settings (all optional; off by default) ──
     // Master switch: when false the storefront skips the whole info step for this plan and the fields below

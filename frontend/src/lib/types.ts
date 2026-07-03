@@ -52,6 +52,7 @@ export type ProductPlan = PlanInfoSettings & {
   priceUsd: number;
   discountPercent: number;
   isActive: boolean;
+  userCount: number;
   finalPrice: number;
 };
 
@@ -62,6 +63,7 @@ export type ProductPlanInput = PlanInfoSettings & {
   priceUsd: number;
   discountPercent: number;
   isActive: boolean;
+  userCount: number;
 };
 
 export type Product = {
@@ -172,9 +174,9 @@ export type AdminChatThread = {
   messages: ChatMessage[];
 };
 
-// What the customer widget receives — identical minus the staff-only adminReadUpTo, mirroring the server's
-// ChatThreadDto so the type never claims a field the payload doesn't carry.
-export type CustomerChatThread = Omit<AdminChatThread, "adminReadUpTo">;
+// What the customer widget receives — mirrors the server's ChatThreadDto. Includes adminReadUpTo so the
+// widget can show delivered/read ticks and a "support is responding" hint.
+export type CustomerChatThread = AdminChatThread;
 
 export type ConversationSummary = {
   id: number;

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SiteContent, Notification } from "@/lib/types";
 import { useAuth } from "@/lib/auth";
+import { useMe } from "@/lib/useMe";
 import { useCart } from "@/lib/cart";
 import { api } from "@/lib/api";
 import { SearchIcon, CartIcon, UserIcon, BellIcon } from "./Icons";
@@ -125,6 +126,8 @@ export default function NavbarClient({ brand, header }: Props) {
   const [menu, setMenu] = useState<Menu>(null);
   const [term, setTerm] = useState("");
   const { user, logout } = useAuth();
+  // Live profile so the avatar the user set on their account shows here and updates without a re-login.
+  const { me } = useMe();
   const { count } = useCart();
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
@@ -295,18 +298,26 @@ export default function NavbarClient({ brand, header }: Props) {
 
           {user ? (
             <div className="relative">
-              <button onClick={() => toggle("account")} aria-label="حساب کاربری" className={iconBtn}>
-                <UserIcon className="h-5 w-5" />
+              <button onClick={() => toggle("account")} aria-label="حساب کاربری" className={`${iconBtn} overflow-hidden`}>
+                {me?.avatar ? (
+                  <img src={me.avatar} alt={me.name || me.username} className="h-full w-full object-cover" />
+                ) : (
+                  <UserIcon className="h-5 w-5" />
+                )}
               </button>
               {menu === "account" && (
                 <div className="absolute left-0 top-full z-50 mt-2 w-[min(17rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-white/10 bg-[#15151f] shadow-2xl">
                   <div className="flex items-center gap-3 border-b border-white/8 px-5 py-4">
-                    <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-base font-bold text-white">
-                      {(user.name || user.username || "؟").charAt(0)}
-                    </div>
+                    {me?.avatar ? (
+                      <img src={me.avatar} alt={me.name || me.username} className="h-11 w-11 shrink-0 rounded-full object-cover" />
+                    ) : (
+                      <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-base font-bold text-white">
+                        {(me?.name || user.name || user.username || "؟").charAt(0)}
+                      </div>
+                    )}
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-white">{user.name || user.username}</p>
-                      {user.phone && <p className="truncate text-xs text-white/45" dir="ltr">{user.phone}</p>}
+                      <p className="truncate text-sm font-bold text-white">{me?.name || user.name || user.username}</p>
+                      {(me?.phone || user.phone) && <p className="truncate text-xs text-white/45" dir="ltr">{me?.phone || user.phone}</p>}
                     </div>
                   </div>
                   <nav className="py-1.5">

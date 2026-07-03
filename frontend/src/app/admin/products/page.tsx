@@ -33,7 +33,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
 });
 
 const emptyPlanInfo = { collectsInfo: false, inputFields: [], warningText: "", tutorialText: "", tutorialMedia: [], allowNotes: false } as const;
-const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true, ...emptyPlanInfo, inputFields: [], tutorialMedia: [] });
+const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true, userCount: 0, ...emptyPlanInfo, inputFields: [], tutorialMedia: [] });
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -96,7 +96,7 @@ export default function AdminProductsPage() {
       priceUsd: p.priceUsd ?? 0,
       features: p.features.map((f) => ({ ...f })),
       plans: p.plans.map((pl) => ({
-        type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive,
+        type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive, userCount: pl.userCount ?? 0,
         collectsInfo: pl.collectsInfo ?? false,
         inputFields: (pl.inputFields ?? []).map((fld) => ({ ...fld })),
         warningText: pl.warningText ?? "",
@@ -314,7 +314,7 @@ export default function AdminProductsPage() {
                     const usdPriced = (pl.priceUsd ?? 0) > 0;
                     const planToman = usdPriced && rate > 0 ? Math.round(pl.priceUsd * rate) : pl.price;
                     return (
-                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+                  <div className="grid grid-cols-2 gap-3 sm:grid-cols-6">
                     <Field label="نوع سرویس">
                       <select value={pl.type} onChange={(e) => setPlan(i, "type", e.target.value)} className={inputCls}>
                         {planTypes.map((t) => <option key={t} value={t} className="bg-[#15151f]">{t}</option>)}
@@ -332,6 +332,9 @@ export default function AdminProductsPage() {
                     </Field>
                     <Field label="تخفیف (٪)">
                       <input type="number" dir="ltr" min={0} max={100} value={pl.discountPercent} onChange={(e) => setPlan(i, "discountPercent", Math.min(100, Math.max(0, Number(e.target.value))))} className={`${inputCls} text-left`} />
+                    </Field>
+                    <Field label="تعداد کاربر">
+                      <input type="number" dir="ltr" min={0} value={pl.userCount || ""} placeholder="—" onChange={(e) => setPlan(i, "userCount", Math.max(0, Number(e.target.value)))} className={`${inputCls} text-left`} />
                     </Field>
                   </div>
                     );

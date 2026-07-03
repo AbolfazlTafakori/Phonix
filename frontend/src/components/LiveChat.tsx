@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -12,6 +12,50 @@ function timeOf(iso: string): string {
   return d.toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function dayKey(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+}
+
+// "امروز" / "دیروز" / a Persian date for the day separators between message groups.
+function dayLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((startOf(new Date()) - startOf(d)) / 86400000);
+  if (diff <= 0) return "امروز";
+  if (diff === 1) return "دیروز";
+  return d.toLocaleDateString("fa-IR");
+}
+
+function HeadsetIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 13a8 8 0 0 1 16 0" />
+      <path d="M4 13v3a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2Zm16 0v3a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2Z" />
+    </svg>
+  );
+}
+
+// Telegram-style delivery ticks: a clock while sending, a single check once the server has it, and an
+// overlapping double check once support has read it.
+function Ticks({ state }: { state: "sending" | "sent" | "read" }) {
+  if (state === "sending") {
+    return (
+      <svg viewBox="0 0 24 24" className="h-3 w-3 opacity-70" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7.5V12l2.5 2" />
+      </svg>
+    );
+  }
+  return (
+    <svg viewBox="0 0 16 12" className={`h-3 w-[19px] ${state === "read" ? "opacity-100" : "opacity-70"}`} fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M1.5 7 4.7 10.2 10.7 3.2" />
+      {state === "read" && <path d="M7.6 10.2 13.6 3.2" />}
+    </svg>
+  );
+}
+
 export default function LiveChat() {
   const pathname = usePathname();
   const { user, ready } = useAuth();
@@ -20,20 +64,17 @@ export default function LiveChat() {
   const [unread, setUnread] = useState(0);
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
-  // Gates polling until the per-browser-session reset check has run, so a fresh session never briefly shows
-  // the previous conversation before it's archived.
+  // The newest support reply previewed above the bubble while the panel is closed (Intercom-style toast).
+  const [notif, setNotif] = useState<{ body: string; time: string } | null>(null);
   const [sessionReady, setSessionReady] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
-  // Lets the background poll skip a tick mid-send so it can't briefly wipe the optimistic message.
   const sendingRef = useRef(false);
+  // Highest admin message id we've already surfaced as a toast, so the same reply never pops twice.
+  const notifiedRef = useRef(0);
 
-  // The widget belongs to the storefront/account experience, never the admin panel.
   const hidden = !ready || !user || pathname.startsWith("/admin");
 
-  // Once per browser session, archive any thread left open from a previous session so the customer starts
-  // with an empty chat. sessionStorage is the right tool: it survives refresh and in-session navigation but
-  // is cleared when the browser is fully closed, which is exactly when the chat should reset. The marker is
-  // the user id, so switching accounts within one session also resets. Support keeps the archived history.
+  // Once per browser session, archive any leftover thread so the customer starts with an empty chat.
   useEffect(() => {
     if (hidden) return;
     const uid = String(user!.id);
@@ -53,29 +94,46 @@ export default function LiveChat() {
     return () => { alive = false; };
   }, [hidden, user?.id]);
 
-  // Poll for unread support replies while the panel is closed, so the bubble shows a badge even after the
-  // customer has moved to another page.
+  // While closed: poll the thread so the bubble badge and the toast preview stay current even on other pages.
   useEffect(() => {
     if (hidden || open || !sessionReady) return;
     let alive = true;
-    const tick = () => api.chat.myUnread().then((n) => { if (alive) setUnread(n); }).catch(() => {});
+    const tick = async () => {
+      try {
+        const c = await api.chat.mine();
+        if (!alive) return;
+        if (!c) { setUnread(0); return; }
+        const unreadAdmin = c.messages.filter((m) => m.fromAdmin && m.id > c.userReadUpTo);
+        setUnread(unreadAdmin.length);
+        const last = unreadAdmin[unreadAdmin.length - 1];
+        if (last && last.id > notifiedRef.current) {
+          notifiedRef.current = last.id;
+          setNotif({ body: last.body, time: timeOf(last.createdAtUtc) });
+        }
+      } catch { /* keep last state on a transient error */ }
+    };
     tick();
     const id = setInterval(tick, 12000);
     return () => { alive = false; clearInterval(id); };
   }, [hidden, open, sessionReady]);
 
-  // While open, refresh the thread and keep the customer's read marker current.
+  // While open: refresh the thread, clear the toast, and keep the read marker current.
   useEffect(() => {
     if (hidden || !open || !sessionReady) return;
+    setNotif(null);
     let alive = true;
     const tick = async () => {
-      if (sendingRef.current) return; // don't clobber the in-flight optimistic send
+      if (sendingRef.current) return;
       try {
         const c = await api.chat.mine();
         if (!alive || sendingRef.current) return;
         setConv(c ?? null);
         setUnread(0);
-        if (c) api.chat.readMine().catch(() => {});
+        if (c) {
+          const lastAdmin = c.messages.filter((m) => m.fromAdmin).pop();
+          if (lastAdmin) notifiedRef.current = Math.max(notifiedRef.current, lastAdmin.id);
+          api.chat.readMine().catch(() => {});
+        }
       } catch { /* keep last state on a transient error */ }
     };
     tick();
@@ -94,13 +152,11 @@ export default function LiveChat() {
     const body = text.trim();
     if (!body || sending) return;
 
-    // Optimistic UI: show the message and clear the box immediately, then reconcile with the server's
-    // canonical thread. This is what makes sending feel instant instead of waiting for the round-trip.
     const optimistic: ChatMessage = { id: -Date.now(), fromAdmin: false, authorName: "", body, createdAtUtc: new Date().toISOString() };
     setConv((prev) =>
       prev
         ? { ...prev, messages: [...prev.messages, optimistic] }
-        : { id: 0, userId: user?.id ?? 0, userName: "", status: "Open", createdAtUtc: optimistic.createdAtUtc, lastMessageAtUtc: optimistic.createdAtUtc, userReadUpTo: 0, messages: [optimistic] },
+        : { id: 0, userId: user?.id ?? 0, userName: "", status: "Open", createdAtUtc: optimistic.createdAtUtc, lastMessageAtUtc: optimistic.createdAtUtc, userReadUpTo: 0, adminReadUpTo: 0, messages: [optimistic] },
     );
     setText("");
     setSending(true);
@@ -109,7 +165,6 @@ export default function LiveChat() {
       const c = await api.chat.send(body);
       setConv(c);
     } catch {
-      // restore the failed message so the customer can retry, and drop the optimistic bubble.
       setText(body);
       setConv((prev) => (prev ? { ...prev, messages: prev.messages.filter((m) => m.id !== optimistic.id) } : prev));
     } finally {
@@ -118,14 +173,32 @@ export default function LiveChat() {
     }
   }
 
+  // Telegram-style read receipt for the customer's own messages.
+  function tickFor(m: ChatMessage) {
+    if (m.id <= 0) return <Ticks state="sending" />;
+    const read = !!conv && conv.adminReadUpTo >= m.id;
+    return <Ticks state={read ? "read" : "sent"} />;
+  }
+
+  const msgs = conv?.messages ?? [];
+  const lastMsg = msgs[msgs.length - 1];
+  // Support has read the customer's latest, still-unanswered message → show the typing hint.
+  const showTyping = open && !!conv && !!lastMsg && !lastMsg.fromAdmin && lastMsg.id > 0 && conv.adminReadUpTo >= lastMsg.id;
+
   return (
     <div className="fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-3" dir="rtl">
       {open && (
         <div className="flex h-[28rem] max-h-[72vh] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d15] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)]">
-          <div className="flex items-center justify-between gap-2 border-b border-white/8 bg-gradient-to-l from-[#e60053]/20 to-transparent px-4 py-3">
-            <div>
-              <p className="text-sm font-bold text-white">گفتگوی زنده با پشتیبانی</p>
-              <p className="text-[11px] text-white/50">معمولاً در چند دقیقه پاسخ می‌دهیم</p>
+          <div className="flex items-center gap-2.5 border-b border-white/8 bg-gradient-to-l from-[#e60053]/18 via-[#3e3af2]/8 to-transparent px-4 py-3">
+            <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-white shadow-[0_0_16px_-4px_rgba(230,0,83,0.7)]">
+              <HeadsetIcon className="h-5 w-5" />
+              <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0d0d15] bg-emerald-500" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-white">پشتیبانی فونیکس</p>
+              <p className="flex items-center gap-1.5 text-[11px] text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> آنلاین · معمولاً چند دقیقه
+              </p>
             </div>
             <button onClick={() => setOpen(false)} aria-label="بستن" className="grid h-8 w-8 place-items-center rounded-full text-white/60 transition hover:bg-white/10 hover:text-white">
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
@@ -133,20 +206,44 @@ export default function LiveChat() {
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3.5 py-4">
-            {!conv || conv.messages.length === 0 ? (
+            {msgs.length === 0 ? (
               <div className="grid h-full place-items-center px-4 text-center">
                 <p className="text-sm leading-7 text-white/45">سلام! اگر سؤال یا مورد مهمی دارید بنویسید؛ تیم پشتیبانی همین‌جا پاسخ می‌دهد.</p>
               </div>
             ) : (
-              conv.messages.map((m) => (
-                <div key={m.id} className={`flex ${m.fromAdmin ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-6 ${m.fromAdmin ? "bg-[#1c2740] text-white/90" : "bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white"}`}>
-                    {m.fromAdmin && <p className="mb-0.5 text-[10px] font-bold text-[#9db4ff]">{m.authorName}</p>}
-                    <p className="whitespace-pre-wrap break-words">{m.body}</p>
-                    <p className="mt-1 text-[10px] opacity-60">{timeOf(m.createdAtUtc)}</p>
-                  </div>
+              msgs.map((m, i) => {
+                const prev = msgs[i - 1];
+                const showDay = !prev || dayKey(prev.createdAtUtc) !== dayKey(m.createdAtUtc);
+                return (
+                  <Fragment key={m.id}>
+                    {showDay && (
+                      <div className="flex justify-center py-1">
+                        <span className="rounded-full bg-white/5 px-3 py-1 text-[10px] text-white/40">{dayLabel(m.createdAtUtc)}</span>
+                      </div>
+                    )}
+                    <div className={`flex ${m.fromAdmin ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-6 ${m.fromAdmin ? "rounded-bl-md bg-[#1b2236] text-white/90" : "rounded-br-md bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white"}`}>
+                        {m.fromAdmin && <p className="mb-0.5 text-[10px] font-bold text-[#9db4ff]">{m.authorName}</p>}
+                        <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                        <p className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
+                          {!m.fromAdmin && tickFor(m)}
+                          <span>{timeOf(m.createdAtUtc)}</span>
+                        </p>
+                      </div>
+                    </div>
+                  </Fragment>
+                );
+              })
+            )}
+
+            {showTyping && (
+              <div className="flex justify-end">
+                <div className="flex items-center gap-1 rounded-2xl rounded-bl-md bg-[#1b2236] px-4 py-3">
+                  {[0, 200, 400].map((d) => (
+                    <span key={d} className="h-1.5 w-1.5 rounded-full bg-white/55 motion-safe:animate-pulse" style={{ animationDelay: `${d}ms`, animationDuration: "1s" }} />
+                  ))}
                 </div>
-              ))
+              </div>
             )}
           </div>
 
@@ -169,15 +266,44 @@ export default function LiveChat() {
         </div>
       )}
 
+      {!open && notif && (
+        <div
+          onClick={() => { setOpen(true); setNotif(null); }}
+          className="relative flex w-[20rem] max-w-[calc(100vw-2rem)] cursor-pointer gap-3 rounded-2xl border border-white/10 bg-[#11111b] p-3.5 shadow-[0_24px_50px_-18px_rgba(0,0,0,0.85)]"
+        >
+          <button
+            onClick={(e) => { e.stopPropagation(); setNotif(null); }}
+            aria-label="بستن"
+            className="absolute left-2 top-2 grid h-5 w-5 place-items-center rounded-full text-white/35 transition hover:bg-white/10 hover:text-white"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          </button>
+          <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-white">
+            <HeadsetIcon className="h-[18px] w-[18px]" />
+            <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#11111b] bg-emerald-500" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2 pl-4">
+              <b className="text-[12.5px] font-medium text-white">پشتیبانی فونیکس</b>
+              <span className="text-[10px] text-white/35">{notif.time}</span>
+            </div>
+            <p className="mt-1 line-clamp-2 text-[12.5px] leading-6 text-white/65">{notif.body}</p>
+          </div>
+        </div>
+      )}
+
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="گفتگوی زنده"
         className="relative grid h-14 w-14 place-items-center rounded-full bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white shadow-[0_14px_36px_-10px_rgba(230,0,83,0.8)] transition hover:brightness-110 active:scale-95"
       >
+        {!open && unread > 0 && (
+          <span aria-hidden className="absolute inset-0 rounded-full border-2 border-[#e60053]/50 motion-safe:animate-ping" />
+        )}
         {open ? (
-          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+          <svg viewBox="0 0 24 24" className="relative h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
         ) : (
-          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" /></svg>
+          <svg viewBox="0 0 24 24" className="relative h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" /></svg>
         )}
         {!open && unread > 0 && (
           <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-[#0b0b12] bg-white px-1 text-[11px] font-bold text-[#e60053]">
