@@ -42,6 +42,10 @@ public class ProductPlan
     // Optional capacity shown on the plan card to help buyers pick — e.g. how many users/devices the plan
     // covers ("۵ کاربر"). 0 means "no capacity", so the badge is hidden entirely.
     public int UserCount { get; set; }
+    // Optional per-plan rules/terms the buyer must read and explicitly accept at checkout before this plan
+    // can be ordered. Empty = no acceptance step. A fixed liability warning (misuse → the buyer bears
+    // responsibility for a suspended account) is shown alongside it on the storefront.
+    public string Rules { get; set; } = "";
 
     // ── Per-plan "collect info from the customer" settings (all optional; off by default) ──
     // Master switch: when false the storefront skips the whole info step for this plan and the fields below

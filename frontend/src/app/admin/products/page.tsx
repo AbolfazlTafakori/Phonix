@@ -33,7 +33,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
 });
 
 const emptyPlanInfo = { collectsInfo: false, inputFields: [], warningText: "", tutorialText: "", tutorialMedia: [], allowNotes: false } as const;
-const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true, userCount: 0, ...emptyPlanInfo, inputFields: [], tutorialMedia: [] });
+const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true, userCount: 0, rules: "", ...emptyPlanInfo, inputFields: [], tutorialMedia: [] });
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -96,7 +96,7 @@ export default function AdminProductsPage() {
       priceUsd: p.priceUsd ?? 0,
       features: p.features.map((f) => ({ ...f })),
       plans: p.plans.map((pl) => ({
-        type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive, userCount: pl.userCount ?? 0,
+        type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive, userCount: pl.userCount ?? 0, rules: pl.rules ?? "",
         collectsInfo: pl.collectsInfo ?? false,
         inputFields: (pl.inputFields ?? []).map((fld) => ({ ...fld })),
         warningText: pl.warningText ?? "",
@@ -347,6 +347,19 @@ export default function AdminProductsPage() {
                     <button onClick={() => removePlan(i)} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-white/60 transition hover:border-rose-500/50 hover:text-rose-400">
                       <AdminIcon name="trash" className="h-3.5 w-3.5" /> حذف پلن
                     </button>
+                  </div>
+
+                  {/* per-plan: rules the buyer must read & accept at checkout */}
+                  <div className="mt-3 border-t border-dashed border-white/10 pt-3">
+                    <label className="text-sm font-bold text-white">قوانین این پلن</label>
+                    <p className="mt-0.5 text-[11px] text-white/45">اگر پر شود، مشتری هنگام خرید باید آن را بخواند و تأیید کند. (خالی = بدون مرحله‌ی تأیید)</p>
+                    <textarea
+                      value={pl.rules}
+                      onChange={(e) => setPlan(i, "rules", e.target.value)}
+                      rows={3}
+                      placeholder="مثلاً: تغییر رمز، خروج از سایر دستگاه‌ها یا اشتراک‌گذاری اکانت ممنوع است…"
+                      className={`${inputCls} mt-2 resize-none`}
+                    />
                   </div>
 
                   {/* per-plan: information collected from the customer at checkout */}

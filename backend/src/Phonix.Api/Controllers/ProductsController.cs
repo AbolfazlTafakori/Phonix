@@ -152,6 +152,7 @@ public class ProductsController : ControllerBase
         DiscountPercent = Math.Clamp(plan.DiscountPercent, 0, 100),
         IsActive = plan.IsActive,
         UserCount = Math.Max(0, plan.UserCount),
+        Rules = (plan.Rules ?? "").Trim(),
         // Per-plan customer-info settings. Drop blank/invalid fields and clamp the type to a known control;
         // a "password" field is always treated as sensitive regardless of the supplied flag.
         CollectsInfo = plan.CollectsInfo,

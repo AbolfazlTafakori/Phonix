@@ -53,6 +53,7 @@ export type ProductPlan = PlanInfoSettings & {
   discountPercent: number;
   isActive: boolean;
   userCount: number;
+  rules: string;
   finalPrice: number;
 };
 
@@ -64,6 +65,7 @@ export type ProductPlanInput = PlanInfoSettings & {
   discountPercent: number;
   isActive: boolean;
   userCount: number;
+  rules: string;
 };
 
 export type Product = {
