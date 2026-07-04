@@ -110,6 +110,15 @@ function SectionsPanel() {
   );
 }
 
+// Maps a card's stored href back to the "اتصال به دسته" dropdown value so the current selection is visible
+// (an uncontrolled select always showed the placeholder, making it look like the link never saved). Anything
+// that isn't the all-products or a /products?cat=N link counts as a custom link.
+function hrefToCatValue(href: string): string {
+  if (href === "/products" || href === "/films") return "all";
+  const m = href.match(/[?&]cat=(\d+)/);
+  return m ? m[1] : "";
+}
+
 function CategoriesPanel() {
   const [items, setItems] = useState<HomeCategory[]>([]);
   const [drafts, setDrafts] = useState<Record<number, HomeCategoryInput>>({});
@@ -192,11 +201,11 @@ function CategoriesPanel() {
                 </Field>
                 <Field label="اتصال به دسته">
                   <select
-                    value=""
-                    onChange={(e) => setField(c.id, "href", e.target.value === "all" ? "/products" : e.target.value ? `/products?cat=${e.target.value}` : d.href)}
+                    value={hrefToCatValue(d.href)}
+                    onChange={(e) => setField(c.id, "href", e.target.value === "all" ? "/products" : e.target.value ? `/products?cat=${e.target.value}` : "")}
                     className={`${inputCls} h-10`}
                   >
-                    <option value="" className="bg-[#15151f]">— انتخاب دسته —</option>
+                    <option value="" className="bg-[#15151f]">— لینک دلخواه —</option>
                     <option value="all" className="bg-[#15151f]">همه محصولات</option>
                     {categories.map((cat) => <option key={cat.id} value={cat.id} className="bg-[#15151f]">{cat.name}</option>)}
                   </select>

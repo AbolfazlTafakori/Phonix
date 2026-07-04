@@ -259,7 +259,7 @@ public partial class StoreData
             ("صرافی ارز دیجیتال", "/figma/cat-exchange.png", ""),
         };
         for (var i = 0; i < cats.Length; i++)
-            AddHomeCategory(new HomeCategory { Title = cats[i].Title, Icon = cats[i].Icon, Href = "/films", IconClass = cats[i].IconClass, SortOrder = i + 1 });
+            AddHomeCategory(new HomeCategory { Title = cats[i].Title, Icon = cats[i].Icon, Href = "/products", IconClass = cats[i].IconClass, SortOrder = i + 1 });
 
         var shows = new (string Name, string Image, string? Logo)[]
         {
@@ -330,7 +330,7 @@ public partial class StoreData
                 LinksTitle = "لینک های مهم",
                 Links = new List<NavLink>
                 {
-                    new() { Label = "فروشگاه", Href = "/films" },
+                    new() { Label = "فروشگاه", Href = "/products" },
                     new() { Label = "سبد خرید", Href = "#" },
                     new() { Label = "تماس با ما", Href = "#" },
                     new() { Label = "قوانین و مقررات", Href = "#" },
@@ -343,7 +343,7 @@ public partial class StoreData
                         Title = "دسترسی سریع",
                         Links = new List<NavLink>
                         {
-                            new() { Label = "فروشگاه", Href = "/films" },
+                            new() { Label = "فروشگاه", Href = "/products" },
                             new() { Label = "محصولات پرفروش", Href = "/products" },
                             new() { Label = "وبلاگ", Href = "/blog" },
                             new() { Label = "قوانین و مقررات", Href = "#" },
