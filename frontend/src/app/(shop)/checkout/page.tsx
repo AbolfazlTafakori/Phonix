@@ -39,8 +39,9 @@ export default function CheckoutPage() {
   const [productsById, setProductsById] = useState<Record<number, Product>>({});
   // customer-entered values for plans that collect info, keyed by cart line.
   const [infoData, setInfoData] = useState<Record<string, PlanInfoValue>>({});
-  // per-line acknowledgment of a plan's rules (keyed by cart line), required before the order can be placed.
-  const [rulesAck, setRulesAck] = useState<Record<string, boolean>>({});
+  // Single aggregate acceptance of every product's rules. Each product's full rules were already shown and
+  // accepted in the add-to-cart modal, so checkout only needs one final confirmation.
+  const [rulesAccepted, setRulesAccepted] = useState(false);
 
   const [codeInput, setCodeInput] = useState("");
   const [discount, setDiscount] = useState<DiscountResult | null>(null);
@@ -87,9 +88,9 @@ export default function CheckoutPage() {
     );
   });
 
-  // cart lines whose plan carries rules the buyer must accept before ordering.
-  const rulesLines = items.filter((i) => (planFor(i.productId, i.planId)?.rules ?? "").trim().length > 0);
-  const rulesIncomplete = rulesLines.some((i) => !rulesAck[lineKey(i.productId, i.planId)]);
+  // whether any cart line carries rules → a single aggregate acceptance is required before ordering.
+  const rulesRequired = items.some((i) => (planFor(i.productId, i.planId)?.rules ?? "").trim().length > 0);
+  const rulesIncomplete = rulesRequired && !rulesAccepted;
 
   const patchPay = (p: Partial<CardToCardValue>) => setPay((cur) => ({ ...cur, ...p }));
 
@@ -178,9 +179,9 @@ export default function CheckoutPage() {
       setError("لطفاً اطلاعات موردنیاز سرویس را کامل کنید.");
       return;
     }
-    // any plan with rules must be explicitly accepted first.
+    // the aggregate rules acceptance must be checked when any product carries rules.
     if (rulesIncomplete) {
-      setError("لطفاً قوانین هر پلن را مطالعه و تأیید کنید.");
+      setError("برای ثبت سفارش، پذیرش قوانین محصولات را تأیید کنید.");
       return;
     }
     // a remainder is due → the buyer must pick a method and complete the card-to-card payment (card,
@@ -299,37 +300,8 @@ export default function CheckoutPage() {
             </div>
           </div>
 
-          {/* Rules acceptance and the info forms are gated behind the identity-level check: the customer must
-              first raise their account to the required level, and only then read the rules and enter the
-              service info for the order. */}
-          {overLevelItems.length === 0 && rulesLines.map((i) => {
-            const pl = planFor(i.productId, i.planId)!;
-            const key = lineKey(i.productId, i.planId);
-            const acked = !!rulesAck[key];
-            return (
-              <div key={`rules-${key}`} className="rounded-2xl border border-white/8 bg-[#15151f]/80 p-5" dir="rtl">
-                <h3 className="text-lg font-bold text-white">قوانین و مقررات</h3>
-                <p className="mt-1 text-xs text-white/45">{i.name}{i.plan ? ` · ${i.plan}` : ""}</p>
-                <div className="mt-3 max-h-56 overflow-y-auto rounded-xl border border-white/8 bg-[#0d0d14] p-4 text-sm leading-8 text-white/80 whitespace-pre-wrap">
-                  {pl.rules}
-                </div>
-                <div className="mt-3 flex gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/[0.08] px-3.5 py-3">
-                  <span className="text-rose-300">⚠</span>
-                  <p className="text-xs leading-7 text-rose-100/85">در صورت عدم رعایت قوانین بالا، مسئولیت مسدود شدن اشتراک بر عهده‌ی خریدار است.</p>
-                </div>
-                <label className="mt-3 flex cursor-pointer items-start gap-2.5 text-sm text-white/85">
-                  <input
-                    type="checkbox"
-                    checked={acked}
-                    onChange={(e) => setRulesAck((r) => ({ ...r, [key]: e.target.checked }))}
-                    className="mt-1 h-4 w-4 shrink-0 accent-[#e60053]"
-                  />
-                  <span>قوانین بالا را خواندم و می‌پذیرم.</span>
-                </label>
-              </div>
-            );
-          })}
-
+          {/* The info forms are gated behind the identity-level check: the customer must first raise their
+              account to the required level, and only then enter the service info for the order. */}
           {overLevelItems.length === 0 && infoLines.flatMap((i) =>
             Array.from({ length: i.quantity }).map((_, u) => (
               <PlanInfoForm
@@ -521,6 +493,17 @@ export default function CheckoutPage() {
                 </button>
               )}
             </div>
+          )}
+          {rulesRequired && overLevelItems.length === 0 && (
+            <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-3.5 text-sm text-white/85">
+              <input
+                type="checkbox"
+                checked={rulesAccepted}
+                onChange={(e) => setRulesAccepted(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#e60053]"
+              />
+              <span className="leading-6">تمام قوانین مربوط به محصولات سبد خریدم را خوانده‌ام و می‌پذیرم.</span>
+            </label>
           )}
           {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
           <button

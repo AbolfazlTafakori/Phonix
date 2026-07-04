@@ -4,12 +4,22 @@ import { useState } from "react";
 import Link from "next/link";
 import { addToCart, type CartItem } from "@/lib/cart";
 
-export default function AddToCart({ product }: { product: Omit<CartItem, "quantity"> }) {
+export default function AddToCart({ product, rules }: { product: Omit<CartItem, "quantity">; rules?: string }) {
   const [added, setAdded] = useState(false);
+  // Rules acceptance modal, shown before the item lands in the cart whenever the selected plan carries rules.
+  const [confirming, setConfirming] = useState(false);
 
-  function add() {
+  const hasRules = (rules ?? "").trim().length > 0;
+
+  function commit() {
     addToCart(product);
+    setConfirming(false);
     setAdded(true);
+  }
+
+  function onAdd() {
+    if (hasRules) setConfirming(true);
+    else commit();
   }
 
   if (added) {
@@ -24,11 +34,55 @@ export default function AddToCart({ product }: { product: Omit<CartItem, "quanti
   }
 
   return (
-    <button
-      onClick={add}
-      className="h-12 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-10 text-base font-bold text-white shadow-[0_14px_40px_-12px_rgba(230,0,83,0.7)] transition hover:brightness-110"
-    >
-      افزودن به سبد خرید
-    </button>
+    <>
+      <button
+        onClick={onAdd}
+        className="h-12 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-10 text-base font-bold text-white shadow-[0_14px_40px_-12px_rgba(230,0,83,0.7)] transition hover:brightness-110"
+      >
+        افزودن به سبد خرید
+      </button>
+
+      {confirming && (
+        <div className="fixed inset-0 z-[70] grid place-items-center p-4" dir="rtl">
+          <div onClick={() => setConfirming(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+          <div className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#16161f] shadow-2xl">
+            <div className="flex items-start justify-between gap-3 border-b border-white/8 px-5 py-4">
+              <div>
+                <h3 className="text-lg font-bold text-white">قوانین و مقررات</h3>
+                <p className="mt-0.5 text-xs text-white/45">{product.name}{product.plan ? ` · ${product.plan}` : ""}</p>
+              </div>
+              <button onClick={() => setConfirming(false)} aria-label="بستن" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-white/55 transition hover:bg-white/10 hover:text-white">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-5 py-4">
+              <div className="rounded-xl border border-white/8 bg-[#0d0d14] p-4 text-sm leading-8 text-white/80 whitespace-pre-wrap">
+                {rules}
+              </div>
+              <div className="mt-3 flex gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/[0.08] px-3.5 py-3">
+                <span className="text-rose-300">⚠</span>
+                <p className="text-xs leading-7 text-rose-100/85">در صورت عدم رعایت قوانین بالا، مسئولیت مسدود شدن اشتراک بر عهده‌ی خریدار است.</p>
+              </div>
+            </div>
+
+            <div className="flex gap-3 border-t border-white/8 px-5 py-4">
+              <button
+                onClick={commit}
+                className="grid h-11 flex-1 place-items-center rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-sm font-bold text-white transition hover:brightness-110"
+              >
+                می‌پذیرم و افزودن به سبد
+              </button>
+              <button
+                onClick={() => setConfirming(false)}
+                className="h-11 rounded-xl border border-white/10 px-6 text-sm font-bold text-white/80 transition hover:bg-white/5"
+              >
+                انصراف
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

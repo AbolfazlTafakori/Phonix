@@ -73,6 +73,7 @@ export default function ProductPurchase({ product }: { product: Product }) {
         <AddToCart
           key={planId ?? "base"}
           product={{ productId: product.id, name: product.name, image: product.image, price: unitPrice, planId, plan: planLabel }}
+          rules={selected?.rules ?? ""}
         />
       </div>
     </div>
