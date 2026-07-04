@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { SiteContent, Notification } from "@/lib/types";
+import type { SiteContent, Notification, Product } from "@/lib/types";
+import { formatToman } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/useMe";
 import { useCart } from "@/lib/cart";
@@ -131,6 +132,24 @@ export default function NavbarClient({ brand, header }: Props) {
   const { count } = useCart();
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
+  // Live-search cache: active products are fetched once on first focus, then filtered locally on every
+  // keystroke so suggestions appear instantly without a request per key.
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [searchFocused, setSearchFocused] = useState(false);
+
+  const loadProducts = useCallback(() => {
+    setSearchFocused(true);
+    setProductsLoaded((loaded) => {
+      if (!loaded) api.products.list().then((list) => setProducts(list.filter((p) => p.isActive))).catch(() => setProductsLoaded(false));
+      return true;
+    });
+  }, []);
+
+  const needle = term.trim().toLowerCase();
+  const suggestions = needle
+    ? products.filter((p) => p.name.toLowerCase().includes(needle) || p.sku.toLowerCase().includes(needle)).slice(0, 6)
+    : [];
 
   useEffect(() => {
     if (!user) {
@@ -188,9 +207,41 @@ export default function NavbarClient({ brand, header }: Props) {
     e.preventDefault();
     const q = term.trim();
     router.push(q ? `/products?q=${encodeURIComponent(q)}` : "/products");
+    closeSearch();
+  }
+
+  function closeSearch() {
     setMenu(null);
     setTerm("");
+    setSearchFocused(false);
   }
+
+  // Live suggestions dropdown, shared by the desktop bar and the mobile takeover. Blur is delayed by the
+  // caller so a suggestion click registers before it hides.
+  const suggestBox =
+    needle && searchFocused ? (
+      <div className="absolute inset-x-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-white/10 bg-[#15151f] shadow-2xl">
+        {suggestions.length === 0 ? (
+          <p className="px-4 py-6 text-center text-sm text-white/45">{productsLoaded ? "محصولی یافت نشد" : "در حال جستجو…"}</p>
+        ) : (
+          <ul className="max-h-[60vh] overflow-y-auto py-1.5">
+            {suggestions.map((p) => (
+              <li key={p.id}>
+                <Link
+                  href={`/products/detail?id=${p.id}`}
+                  onClick={closeSearch}
+                  className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-white/5"
+                >
+                  <img src={p.image} alt={p.name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                  <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">{p.name}</span>
+                  <span className="shrink-0 text-xs font-bold text-emerald-400">{formatToman(p.finalPrice)}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    ) : null;
 
   return (
     <>
@@ -198,20 +249,25 @@ export default function NavbarClient({ brand, header }: Props) {
       <div className="mx-auto flex h-[72px] max-w-[1320px] items-center gap-3 px-4 sm:px-5">
         {menu === "search" ? (
           /* mobile/tablet: the inline search bar takes over the whole row */
-          <form onSubmit={submitSearch} className="flex h-11 flex-1 items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4">
-            <SearchIcon className="h-5 w-5 shrink-0 text-white/55" />
-            <input
-              autoFocus
-              dir="rtl"
-              value={term}
-              onChange={(e) => setTerm(e.target.value)}
-              placeholder={header.searchPlaceholder}
-              className="w-full min-w-0 bg-transparent text-[15px] font-bold text-white placeholder:text-white/45 focus:outline-none"
-            />
-            <button type="button" onClick={() => setMenu(null)} aria-label="بستن جستجو" className="shrink-0 text-white/55 transition hover:text-white">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
-            </button>
-          </form>
+          <div className="relative flex-1">
+            <form onSubmit={submitSearch} className="flex h-11 w-full items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4">
+              <SearchIcon className="h-5 w-5 shrink-0 text-white/55" />
+              <input
+                autoFocus
+                dir="rtl"
+                value={term}
+                onChange={(e) => setTerm(e.target.value)}
+                onFocus={loadProducts}
+                onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+                placeholder={header.searchPlaceholder}
+                className="w-full min-w-0 bg-transparent text-[15px] font-bold text-white placeholder:text-white/45 focus:outline-none"
+              />
+              <button type="button" onClick={closeSearch} aria-label="بستن جستجو" className="shrink-0 text-white/55 transition hover:text-white">
+                <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
+              </button>
+            </form>
+            {suggestBox}
+          </div>
         ) : (
           <>
             {/* brand + nav — pinned to the right next to the logo */}
@@ -245,18 +301,23 @@ export default function NavbarClient({ brand, header }: Props) {
 
             {/* desktop search bar fills the centre; an empty spacer below lg */}
             <div className="flex flex-1 justify-center">
-              <form onSubmit={submitSearch} className="hidden h-11 w-full max-w-[360px] items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 transition focus-within:border-white/25 lg:flex">
-                <button type="submit" aria-label="جستجو" className="shrink-0 text-white/55 transition hover:text-white">
-                  <SearchIcon className="h-5 w-5" />
-                </button>
-                <input
-                  dir="rtl"
-                  value={term}
-                  onChange={(e) => setTerm(e.target.value)}
-                  placeholder={header.searchPlaceholder}
-                  className="w-full min-w-0 bg-transparent text-[15px] font-bold text-white placeholder:text-white/45 focus:outline-none"
-                />
-              </form>
+              <div className="relative hidden w-full max-w-[360px] lg:block">
+                <form onSubmit={submitSearch} className="flex h-11 w-full items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 transition focus-within:border-white/25">
+                  <button type="submit" aria-label="جستجو" className="shrink-0 text-white/55 transition hover:text-white">
+                    <SearchIcon className="h-5 w-5" />
+                  </button>
+                  <input
+                    dir="rtl"
+                    value={term}
+                    onChange={(e) => setTerm(e.target.value)}
+                    onFocus={loadProducts}
+                    onBlur={() => setTimeout(() => setSearchFocused(false), 150)}
+                    placeholder={header.searchPlaceholder}
+                    className="w-full min-w-0 bg-transparent text-[15px] font-bold text-white placeholder:text-white/45 focus:outline-none"
+                  />
+                </form>
+                {suggestBox}
+              </div>
             </div>
           </>
         )}
