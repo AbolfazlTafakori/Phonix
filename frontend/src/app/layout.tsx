@@ -105,6 +105,9 @@ export default async function RootLayout({
       ].join(" ")}
     >
       <body suppressHydrationWarning>
+        <Script id="phonix-theme-init" strategy="beforeInteractive">
+          {`(function(){try{var t=localStorage.getItem('phonix-theme');if(!t)t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark')document.documentElement.classList.add('home-dark');}catch(e){}})();`}
+        </Script>
         {children}
 
         <LiveChat />

@@ -9,6 +9,7 @@ import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { api } from "@/lib/api";
 import { SearchIcon, CartIcon, UserIcon } from "../Icons";
+import ThemeToggle from "./ThemeToggle";
 
 type Props = { brand: SiteContent["brand"]; searchPlaceholder: string };
 
@@ -126,6 +127,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
 
         {/* actions (left in RTL) */}
         <div className="flex shrink-0 items-center gap-4">
+          <ThemeToggle />
           <Link
             href={user ? "/account" : "/login"}
             className="flex items-center gap-2 text-[14px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"

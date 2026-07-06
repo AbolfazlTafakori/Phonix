@@ -148,6 +148,34 @@ body:has(.home-light) { background: #ffffff; }
 }
 .hl-cta:hover { filter: brightness(1.06); transform: translateY(-1px); }
 
+/* ── Dark home theme ──────────────────────────────────────────────────────────
+   Same layout as `.home-light`; only surfaces/tokens flip. Brand gradients and
+   CTAs stay untouched. Theme class lives on <html>. */
+html.home-dark body { background: #0e0e12; }
+html.home-dark .home-light {
+  --hl-ink: #f2f3f5;
+  --hl-ink-2: #b4b8c2;
+  --hl-muted: #7c8290;
+  --hl-border: #2a2a34;
+  background: #0e0e12;
+  color: var(--hl-ink);
+}
+html.home-dark .hl-card {
+  background: #17171d;
+  border-color: #2a2a34;
+  box-shadow: 0 8px 22px -12px rgba(0, 0, 0, 0.7);
+}
+/* Light surfaces → dark equivalents (scoped, so light mode stays untouched) */
+html.home-dark .bg-white { background: #17171d; }
+html.home-dark .bg-white\/85 { background: rgba(16, 16, 20, 0.85); }
+html.home-dark .bg-\[\#f7f8fa\] { background: #1c1c24; }
+html.home-dark .bg-\[\#fafbfc\] { background: #141419; }
+html.home-dark .bg-\[\#fafafa\] { background: #121218; }
+html.home-dark .bg-\[\#fff6f2\] { background: rgba(255, 90, 31, 0.14); }
+html.home-dark .hover\:bg-white:hover { background: #1c1c24; }
+html.home-dark .focus-within\:bg-white:focus-within { background: #1c1c24; }
+html.home-dark .hover\:bg-\[\#fff6f2\]:hover { background: rgba(255, 90, 31, 0.16); }
+
 /* Slim scrollbar to match the dark theme */
 ::-webkit-scrollbar {
   width: 10px;
