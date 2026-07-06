@@ -75,12 +75,14 @@ export default function LiveChat() {
   // Highest admin message id we've already surfaced as a toast, so the same reply never pops twice.
   const notifiedRef = useRef(0);
 
-  const hidden = !ready || !user || pathname.startsWith("/admin");
+  // The launcher shows for everyone (guests included) everywhere except the admin panel; the actual
+  // conversation still needs a signed-in customer, so a guest who opens it gets a login prompt.
+  const hidden = !ready || pathname.startsWith("/admin");
 
   // Once per browser session, archive any leftover thread so the customer starts with an empty chat.
   useEffect(() => {
-    if (hidden) return;
-    const uid = String(user!.id);
+    if (hidden || !user) return;
+    const uid = String(user.id);
     const key = "phonix_chat_session";
     if (sessionStorage.getItem(key) === uid) {
       setSessionReady(true);
@@ -208,6 +210,17 @@ export default function LiveChat() {
             </button>
           </div>
 
+          {!user ? (
+            <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+              <span className="grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[#ff7a3c] to-[#ef233c] text-white">
+                <HeadsetIcon className="h-7 w-7" />
+              </span>
+              <p className="text-sm leading-7 text-white/70">برای گفتگو با پشتیبانی ابتدا وارد حساب خود شوید.</p>
+              <a href="/login" className="grid h-11 w-full place-items-center rounded-xl bg-gradient-to-l from-[#ff5a1f] to-[#ef233c] text-sm font-bold text-white transition hover:brightness-110">
+                ورود / ثبت‌نام
+              </a>
+            </div>
+          ) : (<>
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto px-3.5 py-4">
             {msgs.length === 0 ? (
               <div className="grid h-full place-items-center px-4 text-center">
@@ -266,6 +279,7 @@ export default function LiveChat() {
               <svg viewBox="0 0 24 24" className="h-5 w-5 -scale-x-100" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" /></svg>
             </button>
           </form>
+          </>)}
         </div>
       )}
 

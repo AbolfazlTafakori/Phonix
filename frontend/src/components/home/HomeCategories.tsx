@@ -20,7 +20,7 @@ const categories: Cat[] = [
 
 export default function HomeCategories() {
   return (
-    <section className="mx-auto max-w-[1600px] px-16 py-20">
+    <section className="mx-auto max-w-[1840px] px-16 py-20">
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--hl-red)]" />
@@ -28,7 +28,7 @@ export default function HomeCategories() {
         </div>
         <Link
           href="/products"
-          className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[14px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2]"
+          className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[16px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2]"
         >
           مشاهده همه
         </Link>
@@ -41,10 +41,10 @@ export default function HomeCategories() {
             href={c.href}
             className="group flex flex-col items-center gap-4 rounded-[20px] border border-[var(--hl-border)] bg-[#fafbfc] p-6 transition duration-200 hover:-translate-y-1 hover:border-[#ff5a1f] hover:bg-white hover:shadow-[0_18px_40px_-16px_rgba(239,35,60,0.22)]"
           >
-            <div className="flex h-24 items-center justify-center">
-              <img src={c.logo} alt={c.title} className="max-h-24 w-auto object-contain transition duration-200 group-hover:scale-105" />
+            <div className="flex h-32 items-center justify-center">
+              <img src={c.logo} alt={c.title} className="max-h-32 w-auto object-contain transition duration-200 group-hover:scale-105" />
             </div>
-            <h3 className="text-center text-[17px] font-bold text-[var(--hl-ink)]">{c.title}</h3>
+            <h3 className="text-center text-[20px] font-bold text-[var(--hl-ink)]">{c.title}</h3>
           </Link>
         ))}
       </div>

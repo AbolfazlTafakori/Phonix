@@ -21,7 +21,7 @@ export default function HomeHero() {
         <div className="absolute -left-32 top-20 h-[440px] w-[440px] rounded-full bg-[#ef233c]/10 blur-[130px]" />
       </div>
 
-      <div className="mx-auto grid max-w-[1600px] grid-cols-[0.9fr_1.1fr] items-center gap-10 px-16 py-16">
+      <div className="mx-auto grid max-w-[1840px] grid-cols-[0.9fr_1.1fr] items-center gap-10 py-16 pl-2 pr-44">
         {/* illustration (right in RTL) */}
         <div className="hero-anim-art relative order-1 flex items-center justify-center">
           <div className="relative aspect-[4/3] w-full max-w-[640px]">

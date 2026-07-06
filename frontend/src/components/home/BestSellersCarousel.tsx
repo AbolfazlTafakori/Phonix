@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
-const DURATION = 400;
+const DURATION = 520;
+// Ease-out curve: quick start, gentle settle — reads much smoother than plain "ease".
+const EASE = "cubic-bezier(0.22, 1, 0.36, 1)";
 
 export type CarouselCard = {
   key: string;
@@ -31,11 +33,11 @@ function Card({ p }: { p: CarouselCard }) {
   return (
     <div
       data-card
-      className="hl-card group flex w-[calc((100%-16px)/2)] shrink-0 flex-col overflow-hidden rounded-[18px] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_44px_-18px_rgba(239,35,60,0.26)] sm:w-[calc((100%-32px)/3)] lg:w-[calc((100%-48px)/4)] xl:w-[calc((100%-80px)/6)]"
+      className="hl-card group flex w-[calc((100%-16px)/2)] shrink-0 flex-col overflow-hidden rounded-[18px] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_44px_-18px_rgba(239,35,60,0.26)] sm:w-[calc((100%-32px)/3)] lg:w-[calc((100%-48px)/4)] xl:w-[calc((100%-76px)/5)]"
     >
       <Link href={p.href} className="relative block aspect-square bg-[#f7f8fa] p-5">
         <span
-          className="absolute right-2.5 top-2.5 rounded-lg px-2 py-1 text-[10px] font-bold text-white"
+          className="absolute right-2.5 top-2.5 z-10 rounded-lg px-2.5 py-1.5 text-[12px] font-bold text-white shadow-[0_4px_12px_-4px_rgba(239,35,60,0.6)]"
           style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
         >
           {p.badge}
@@ -44,17 +46,17 @@ function Card({ p }: { p: CarouselCard }) {
       </Link>
 
       <div className="flex flex-1 flex-col p-4">
-        <p className="text-[12px] text-[var(--hl-muted)]">{p.categoryName}</p>
-        <Link href={p.href} className="mt-1 line-clamp-1 text-[15px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]">
-          {p.name}
-        </Link>
-        <div className="mt-2">
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-[15px] text-[var(--hl-muted)]">{p.categoryName}</p>
           <Stars />
         </div>
-        <div className="mt-3 text-[15px] font-black text-[var(--hl-ink)]">{p.priceLabel}</div>
+        <Link href={p.href} className="mt-1 line-clamp-1 text-[20px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]">
+          {p.name}
+        </Link>
+        <div className="mt-auto pt-3 text-center text-[18px] font-black text-[var(--hl-ink)]">{p.priceLabel}</div>
         <Link
           href={p.href}
-          className="hl-cta mt-3 block rounded-xl py-2.5 text-center text-[13px] font-bold text-white"
+          className="hl-cta mt-3 block rounded-xl py-2.5 text-center text-[20px] font-bold text-white"
           style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
         >
           خرید
@@ -65,8 +67,9 @@ function Card({ p }: { p: CarouselCard }) {
 }
 
 function Arrow({ dir, onClick }: { dir: "prev" | "next"; onClick: () => void }) {
-  // In RTL "next" (older items) sits on the left, "prev" on the right.
-  const side = dir === "next" ? "left-0 -translate-x-1/2" : "right-0 translate-x-1/2";
+  // In RTL "next" (older items) sits on the left, "prev" on the right. They live in the frame's side
+  // padding — beside the cards, never over them.
+  const side = dir === "next" ? "left-3" : "right-3";
   return (
     <button
       type="button"
@@ -94,7 +97,9 @@ export default function BestSellersCarousel({ products }: { products: CarouselCa
 
   function stepPx() {
     const first = trackRef.current?.querySelector<HTMLElement>("[data-card]");
-    return first ? first.offsetWidth + 16 : 0; // card width + gap-4
+    // Fractional width (getBoundingClientRect, not the integer offsetWidth) so the offset stays
+    // pixel-exact — an integer step accumulates a sub-pixel drift that clips the last card.
+    return first ? first.getBoundingClientRect().width + 16 : 0; // card width + gap-4
   }
 
   // One full list-length in px. Derived from the card step (not scrollWidth)
@@ -136,16 +141,21 @@ export default function BestSellersCarousel({ products }: { products: CarouselCa
     }
   }, [animate]);
 
-  // Start centered in the middle copy so both directions have buffer.
+  // Recenter into the middle copy on mount and whenever the viewport resizes, so the offset is always a
+  // pixel-exact multiple of the current card step and every visible card stays whole (no clipped edges).
   useLayoutEffect(() => {
-    if (offsetRef.current === 0) apply(listWidth(), false);
+    const vp = trackRef.current?.parentElement;
+    if (!vp) return;
+    const ro = new ResizeObserver(() => apply(listWidth(), false));
+    ro.observe(vp);
+    return () => ro.disconnect();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   return (
-    <div className="relative">
+    <div className="hl-offer-frame relative overflow-hidden rounded-[28px] border-2 border-[#ff5a1f] px-20 py-9 shadow-[0_18px_50px_-28px_rgba(239,35,60,0.45)]">
       <Arrow dir="prev" onClick={() => move(-1)} />
       <Arrow dir="next" onClick={() => move(1)} />
 
@@ -155,7 +165,7 @@ export default function BestSellersCarousel({ products }: { products: CarouselCa
           className="flex gap-4"
           style={{
             transform: `translateX(${offset}px)`,
-            transition: animate ? "transform 400ms ease" : "none",
+            transition: animate ? `transform ${DURATION}ms ${EASE}` : "none",
           }}
         >
           {loop.map((p, i) => (

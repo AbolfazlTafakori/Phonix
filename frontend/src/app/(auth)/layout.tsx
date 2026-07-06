@@ -4,18 +4,18 @@ import type { ReactNode } from "react";
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
     <div
-      className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-20"
+      className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-16"
       style={{
-        backgroundColor: "#0b0b12",
+        backgroundColor: "#f7f8fb",
         backgroundImage: `
-          radial-gradient(1250px 950px at -6% -8%, rgba(230, 0, 83, 0.45), transparent 60%),
-          radial-gradient(1350px 1020px at 106% 108%, rgba(62, 58, 242, 0.50), transparent 60%)
+          radial-gradient(1100px 820px at -6% -8%, rgba(255, 90, 31, 0.16), transparent 60%),
+          radial-gradient(1200px 900px at 106% 108%, rgba(239, 35, 60, 0.14), transparent 60%)
         `,
       }}
     >
-      <Link href="/" className="absolute right-6 top-6 flex items-center gap-3 sm:right-10 sm:top-8">
-        <img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-16 w-auto sm:h-[72px]" />
-        <span className="font-bigshot text-lg leading-[1.05] text-white sm:text-xl">
+      <Link href="/" className="absolute right-6 top-6 flex items-center gap-2.5 sm:right-10 sm:top-8">
+        <img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-12 w-auto sm:h-14" />
+        <span className="text-[15px] font-extrabold leading-[1.05] text-[#151515] sm:text-lg">
           Phoenix
           <br />
           Verify

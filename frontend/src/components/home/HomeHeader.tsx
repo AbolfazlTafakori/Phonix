@@ -53,18 +53,18 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--hl-border)] bg-white/85 backdrop-blur">
-      <div className="mx-auto flex h-[80px] max-w-[1600px] items-center gap-6 px-16">
+      <div className="mx-auto flex h-[88px] max-w-[1840px] items-center gap-6 px-16">
         {/* brand + nav (right in RTL) */}
         <div className="flex shrink-0 items-center gap-7">
           <Link href="/" className="flex items-center gap-2.5">
-            <img src={brand.logo} alt={brand.siteName} className="h-11 w-auto" />
-            <span className="text-[15px] font-extrabold leading-[1.1] text-[var(--hl-ink)]">
+            <img src={brand.logo} alt={brand.siteName} className="h-14 w-auto" />
+            <span className="text-[17px] font-extrabold leading-[1.1] text-[var(--hl-ink)]">
               {brand.logoLine1}
               <br />
               {brand.logoLine2}
             </span>
           </Link>
-          <nav className="flex items-center gap-6 text-[15px] font-bold">
+          <nav className="flex items-center gap-6 text-[17px] font-bold">
             {navLinks.map((l) => (
               <Link
                 key={l.label}
@@ -97,7 +97,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
               onFocus={loadProducts}
               onBlur={() => setTimeout(() => setFocused(false), 150)}
               placeholder={searchPlaceholder || "جستجو در بین هزاران محصول..."}
-              className="w-full min-w-0 bg-transparent text-[15px] font-medium text-[var(--hl-ink)] placeholder:text-[var(--hl-muted)] focus:outline-none"
+              className="w-full min-w-0 bg-transparent text-[17px] font-medium text-[var(--hl-ink)] placeholder:text-[var(--hl-muted)] focus:outline-none"
             />
           </form>
           {needle && focused && (
@@ -130,7 +130,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
           <ThemeToggle />
           <Link
             href={user ? "/account" : "/login"}
-            className="flex items-center gap-2 text-[14px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"
+            className="flex items-center gap-2 text-[16px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"
           >
             <UserIcon className="h-5 w-5" />
             {user ? "حساب کاربری" : "ورود / ثبت‌نام"}

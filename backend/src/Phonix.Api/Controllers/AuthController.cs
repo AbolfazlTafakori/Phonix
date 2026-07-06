@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -11,7 +12,9 @@ using Phonix.Api.Services;
 namespace Phonix.Api.Controllers;
 
 public record RegisterInput(string Name, string Username, string Email, string Phone, string Password, string? ReferralCode, string? CaptchaId, string? CaptchaText);
-public record LoginInput(string Identifier, string Password, string? CaptchaId, string? CaptchaText, bool? Admin);
+public record LoginInput(string Identifier, string Password, string? CaptchaId, string? CaptchaText, bool? Admin, bool? Remember);
+// The Google Identity Services credential (an ID token / JWT) posted from the browser sign-in button.
+public record GoogleLoginInput(string Credential);
 // What the admin shell reads to confirm the current session may use the panel (admin-scoped staff).
 public record AdminContextDto(int Id, string Name, string Username, UserRole Role);
 public record ForgotInput(string Email);
@@ -33,10 +36,11 @@ public class AuthController : ControllerBase
     private readonly ITelegramAlertSender _alerts;
     private readonly ICaptchaService _captcha;
     private readonly IMemoryCache _cache;
+    private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<AuthController> _logger;
     public AuthController(IDataStore store, IEmailSender email, ISessionProtector sessions,
         ITwoFactorChallenge twoFactor, ITelegramAlertSender alerts, ICaptchaService captcha,
-        IMemoryCache cache, ILogger<AuthController> logger)
+        IMemoryCache cache, IHttpClientFactory httpFactory, ILogger<AuthController> logger)
     {
         _store = store;
         _email = email;
@@ -45,6 +49,7 @@ public class AuthController : ControllerBase
         _alerts = alerts;
         _captcha = captcha;
         _cache = cache;
+        _httpFactory = httpFactory;
         _logger = logger;
     }
 
@@ -83,12 +88,13 @@ public class AuthController : ControllerBase
     // Issues the session cookie. adminScope=true marks a panel session (password + 2FA satisfied) and is the
     // only kind that may act as staff; a main-site login passes false. The Telegram "staff entered the panel"
     // alert fires only for an admin-scoped login.
-    private LoginResultDto IssueSession(AppUser user, bool adminScope)
+    private LoginResultDto IssueSession(AppUser user, bool adminScope, bool? persistent = null)
     {
         var token = _sessions.Protect(user, adminScope);
         // Admin-scoped sessions get a session-only cookie (persistent: false) so closing the browser ends the
-        // panel session and forces a fresh login + 2FA next time; customer sessions stay persistent.
-        AuthCookies.Issue(Response, token, Request.IsHttps, persistent: !adminScope);
+        // panel session and forces a fresh login + 2FA next time; customer sessions stay persistent unless the
+        // caller opted out (an unchecked "remember me" makes the customer cookie session-only too).
+        AuthCookies.Issue(Response, token, Request.IsHttps, persistent: persistent ?? !adminScope);
         _logger.LogInformation("Login: {Username} (#{UserId}) adminScope={AdminScope} from {ClientIp}",
             user.Username, user.Id, adminScope, ClientIp);
         if (adminScope && IsStaff(user))
@@ -114,13 +120,17 @@ public class AuthController : ControllerBase
             return BadRequest("کد امنیتی تصویر نادرست است. دوباره تلاش کنید.");
         if (string.IsNullOrWhiteSpace(input.Username) || string.IsNullOrWhiteSpace(input.Password))
             return BadRequest("نام کاربری و گذرواژه الزامی است.");
-        if (string.IsNullOrWhiteSpace(input.Email))
-            return BadRequest("ایمیل الزامی است.");
+        var hasEmail = !string.IsNullOrWhiteSpace(input.Email);
+        var hasPhone = !string.IsNullOrWhiteSpace(input.Phone);
+        // The form offers a single "email or mobile" field; at least one contact is required so we can reach
+        // the customer (email also gates verification).
+        if (!hasEmail && !hasPhone)
+            return BadRequest("ایمیل یا شماره موبایل الزامی است.");
         if (PasswordPolicy.Validate(input.Password) is string passwordError)
             return BadRequest(passwordError);
         if (_store.UsernameExists(input.Username.Trim()))
             return Conflict("این نام کاربری قبلاً استفاده شده است.");
-        if (_store.EmailExists(input.Email.Trim()))
+        if (hasEmail && _store.EmailExists(input.Email.Trim()))
             return Conflict("این ایمیل قبلاً ثبت شده است.");
 
         // an optional referral code is a referrer's username; link them so commission can be paid.
@@ -133,11 +143,11 @@ public class AuthController : ControllerBase
             Name = string.IsNullOrWhiteSpace(input.Name) ? input.Username.Trim() : input.Name.Trim(),
             Username = input.Username.Trim(),
             Password = PasswordHasher.Hash(input.Password),
-            Email = input.Email?.Trim() ?? "",
-            Phone = input.Phone?.Trim() ?? "",
+            Email = hasEmail ? input.Email.Trim() : "",
+            Phone = hasPhone ? input.Phone.Trim() : "",
             ReferredBy = referredBy,
         });
-        await SendVerification(user);
+        if (hasEmail) await SendVerification(user);
         _logger.LogInformation("New account registered: {Username} (#{UserId}) from {ClientIp}",
             user.Username, user.Id, ClientIp);
         // Registration is a main-site action → a plain customer session, never admin-scoped.
@@ -236,7 +246,8 @@ public class AuthController : ControllerBase
         var adminLogin = input.Admin == true;
         if (!adminLogin)
             // Main-site login: never a second factor, never an admin-scoped session — even for an admin.
-            return IssueSession(user, adminScope: false);
+            // An unchecked "remember me" keeps the cookie session-only.
+            return IssueSession(user, adminScope: false, persistent: input.Remember ?? true);
 
         // ── Admin-panel login from here on ──
         if (!IsStaff(user))
@@ -247,6 +258,96 @@ public class AuthController : ControllerBase
             return new LoginResultDto(true, _twoFactor.Issue(user.Id), null, null);
         // Staff who haven't enrolled yet get an admin-scoped session so they can reach the mandatory setup.
         return IssueSession(user, adminScope: true);
+    }
+
+    // Google Identity Services sign-in. The browser posts the ID token (JWT); we verify it against Google,
+    // confirm the audience matches our own client id, then find-or-create the matching customer and issue a
+    // normal main-site session. Configured via PHONIX_GOOGLE_CLIENT_ID (same id the frontend loads GIS with).
+    private sealed record GoogleTokenInfo(string? aud, string? email, string? email_verified, string? name, string? sub);
+
+    private static string? GoogleClientId => Environment.GetEnvironmentVariable("PHONIX_GOOGLE_CLIENT_ID");
+
+    private string GenerateUsernameFromEmail(string email)
+    {
+        var local = email.Split('@', 2)[0];
+        var baseName = new string(local.Where(char.IsLetterOrDigit).ToArray());
+        if (string.IsNullOrEmpty(baseName)) baseName = "user";
+        var candidate = baseName;
+        var suffix = 0;
+        while (_store.UsernameExists(candidate)) candidate = baseName + ++suffix;
+        return candidate;
+    }
+
+    [HttpPost("google")]
+    public async Task<ActionResult<AuthResultDto>> Google(GoogleLoginInput input)
+    {
+        var clientId = GoogleClientId;
+        if (string.IsNullOrWhiteSpace(clientId))
+            return StatusCode(503, "ورود با گوگل هنوز پیکربندی نشده است.");
+        if (string.IsNullOrWhiteSpace(input.Credential))
+            return BadRequest("توکن گوگل دریافت نشد.");
+
+        GoogleTokenInfo? info;
+        try
+        {
+            var http = _httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(8);
+            var resp = await http.GetAsync(
+                $"https://oauth2.googleapis.com/tokeninfo?id_token={Uri.EscapeDataString(input.Credential)}");
+            if (!resp.IsSuccessStatusCode)
+            {
+                NoteAuthFailure("google", null);
+                await TarpitAsync();
+                return Unauthorized("توکن گوگل نامعتبر است.");
+            }
+            info = await resp.Content.ReadFromJsonAsync<GoogleTokenInfo>();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Google token verification failed from {ClientIp}", ClientIp);
+            return StatusCode(502, "خطا در ارتباط با گوگل. دوباره تلاش کنید.");
+        }
+
+        // Audience check is the critical step: a token minted for another app must never be accepted here.
+        if (info is null || !string.Equals(info.aud, clientId, StringComparison.Ordinal))
+        {
+            NoteAuthFailure("google", info?.email);
+            return Unauthorized("توکن گوگل نامعتبر است.");
+        }
+        if (!string.Equals(info.email_verified, "true", StringComparison.OrdinalIgnoreCase) || string.IsNullOrWhiteSpace(info.email))
+            return Unauthorized("ایمیل حساب گوگل تأیید نشده است.");
+
+        var email = info.email.Trim();
+        var user = _store.FindByLogin(email);
+        if (user is null)
+        {
+            var username = GenerateUsernameFromEmail(email);
+            user = _store.RegisterUser(new AppUser
+            {
+                Name = string.IsNullOrWhiteSpace(info.name) ? username : info.name!.Trim(),
+                Username = username,
+                // No usable password: a random hash means the account can only be entered via Google until the
+                // customer sets a password through the reset flow.
+                Password = PasswordHasher.Hash(Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N")),
+                Email = email,
+                Phone = "",
+                EmailVerified = true,
+            });
+            _logger.LogInformation("New Google account: {Username} (#{UserId}) from {ClientIp}",
+                user.Username, user.Id, ClientIp);
+        }
+        else if (user.Blocked)
+        {
+            return StatusCode(403, "حساب شما مسدود شده است.");
+        }
+        else if (!user.EmailVerified)
+        {
+            // A verified Google email is proof enough to mark the linked account verified.
+            _store.UpdateUser(user.Id, u => u.EmailVerified = true);
+        }
+
+        var session = IssueSession(user, adminScope: false);
+        return new AuthResultDto(session.Token!, user.ToDto());
     }
 
     [HttpPost("2fa/verify")]

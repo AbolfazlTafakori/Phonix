@@ -148,6 +148,10 @@ body:has(.home-light) { background: #ffffff; }
 }
 .hl-cta:hover { filter: brightness(1.06); transform: translateY(-1px); }
 
+/* Best-sellers carousel frame — vivid orange on the light theme, softened on dark. */
+.hl-offer-frame { background: linear-gradient(180deg, rgba(255, 90, 31, 0.50) 0%, rgba(239, 35, 60, 0.28) 100%); }
+html.home-dark .hl-offer-frame { background: linear-gradient(180deg, rgba(255, 90, 31, 0.16) 0%, rgba(239, 35, 60, 0.08) 100%); }
+
 /* ── Dark home theme ──────────────────────────────────────────────────────────
    Same layout as `.home-light`; only surfaces/tokens flip. Brand gradients and
    CTAs stay untouched. Theme class lives on <html>. */

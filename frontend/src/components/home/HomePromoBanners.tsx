@@ -10,7 +10,7 @@ const banners = [
 
 export default function HomePromoBanners() {
   return (
-    <section className="mx-auto grid max-w-[1600px] grid-cols-3 gap-6 px-16 py-16">
+    <section className="mx-auto grid max-w-[1840px] grid-cols-3 gap-6 px-16 py-16">
       {banners.map((b) => (
         <Link
           key={b.img}

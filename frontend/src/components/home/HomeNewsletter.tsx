@@ -6,7 +6,7 @@ const Plane = ({ className }: { className?: string }) => (
 
 export default function HomeNewsletter() {
   return (
-    <section className="mx-auto max-w-[1600px] px-16 py-10">
+    <section className="mx-auto max-w-[1840px] px-16 py-10">
       <div
         className="flex items-center justify-between gap-8 rounded-[26px] px-9 py-6"
         style={{ background: "linear-gradient(95deg, #F0392C 0%, #FF7A2E 100%)" }}

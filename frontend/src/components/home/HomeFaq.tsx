@@ -32,7 +32,7 @@ export default function HomeFaq() {
   const cols = [items.slice(0, 3), items.slice(3)];
 
   return (
-    <section className="mx-auto max-w-[1600px] px-16 py-16">
+    <section className="mx-auto max-w-[1840px] px-16 py-16">
       <div className="mb-8 flex items-start gap-2">
         <span className="mt-2.5 h-6 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f]" />
         <div>

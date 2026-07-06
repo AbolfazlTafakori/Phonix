@@ -551,8 +551,11 @@ export const api = {
       request<AuthResult>("/auth/register", { method: "POST", body: json(body) }),
     // `admin: true` marks an admin-PANEL login (requires 2FA, yields an admin-scoped session). The main-site
     // login omits it, so an admin signing into the public site is never asked for a second factor.
-    login: (body: { identifier: string; password: string; captchaId?: string; captchaText?: string; admin?: boolean }) =>
+    login: (body: { identifier: string; password: string; captchaId?: string; captchaText?: string; admin?: boolean; remember?: boolean }) =>
       request<LoginResult>("/auth/login", { method: "POST", body: json(body) }),
+    // Google Identity Services sign-in: posts the ID token (credential) for server-side verification.
+    google: (credential: string) =>
+      request<AuthResult>("/auth/google", { method: "POST", body: json({ credential }) }),
     // Confirms the current session is admin-scoped staff (403 otherwise). The admin shell uses this as its gate.
     adminContext: () => request<{ id: number; name: string; username: string; role: UserRole }>("/auth/admin-context"),
     verifyTwoFactor: (token: string, code: string) =>

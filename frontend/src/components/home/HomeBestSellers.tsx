@@ -43,7 +43,7 @@ export default async function HomeBestSellers() {
   });
 
   return (
-    <section className="mx-auto max-w-[1600px] px-16 py-4">
+    <section className="mx-auto max-w-[1840px] px-16 py-4">
       <div className="mb-8 flex items-end justify-between">
         <div className="flex items-start gap-2">
           <span className="mt-2.5 h-6 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f]" />
@@ -54,7 +54,7 @@ export default async function HomeBestSellers() {
         </div>
         <Link
           href="/products"
-          className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[14px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2]"
+          className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[16px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2]"
         >
           مشاهده همه
         </Link>
