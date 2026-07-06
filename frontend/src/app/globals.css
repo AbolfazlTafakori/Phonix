@@ -115,6 +115,39 @@ body {
   .hero-cta:hover::after { animation: none !important; }
 }
 
+/* ── Light home theme ─────────────────────────────────────────────────────────
+   Scoped to the redesigned home page only. Everything lives under `.home-light`
+   so the rest of the site (admin / account / shop) keeps its dark theme. */
+body:has(.home-light) { background: #ffffff; }
+.home-light {
+  --hl-red: #ef233c;
+  --hl-orange: #ff5a1f;
+  --hl-ink: #151515;
+  --hl-ink-2: #5f6470;
+  --hl-muted: #8a8f99;
+  --hl-border: #d6d9e2;
+  background: #ffffff;
+  color: var(--hl-ink);
+  font-family: var(--font-vazir), system-ui, sans-serif;
+}
+.hl-grad { background: linear-gradient(135deg, #ef233c 0%, #ff5a1f 100%); }
+.hl-grad-text {
+  background: linear-gradient(135deg, #ef233c 0%, #ff5a1f 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hl-card {
+  background: #ffffff;
+  border: 1px solid var(--hl-border);
+  box-shadow: 0 6px 20px -10px rgba(20, 20, 20, 0.12);
+}
+.hl-cta {
+  box-shadow: 0 12px 26px -10px rgba(239, 35, 60, 0.5);
+  transition: filter 0.2s ease, transform 0.2s ease;
+}
+.hl-cta:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
 /* Slim scrollbar to match the dark theme */
 ::-webkit-scrollbar {
   width: 10px;
