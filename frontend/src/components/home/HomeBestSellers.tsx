@@ -43,12 +43,12 @@ export default async function HomeBestSellers() {
   });
 
   return (
-    <section className="mx-auto max-w-[1840px] px-16 py-4">
+    <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16 py-4">
       <div className="mb-8 flex items-end justify-between">
         <div className="flex items-start gap-2">
           <span className="mt-2.5 h-6 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f]" />
           <div>
-            <h2 className="text-[30px] font-black text-[var(--hl-ink)]">پرفروش‌ترین محصولات</h2>
+            <h2 className="text-[22px] sm:text-[26px] xl:text-[30px] font-black text-[var(--hl-ink)]">پرفروش‌ترین محصولات</h2>
             <p className="mt-1.5 text-[15px] text-[var(--hl-ink-2)]">محبوب‌ترین انتخاب‌های کاربران فونیکس وریفای</p>
           </div>
         </div>

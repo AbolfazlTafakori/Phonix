@@ -30,6 +30,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
   const [focused, setFocused] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const loadProducts = useCallback(() => {
     setFocused(true);
@@ -53,18 +54,26 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[var(--hl-border)] bg-white/85 backdrop-blur">
-      <div className="mx-auto flex h-[88px] max-w-[1840px] items-center gap-6 px-16">
+      <div className="mx-auto flex h-[72px] max-w-[1840px] items-center gap-3 px-4 sm:h-[88px] sm:gap-6 sm:px-8 xl:px-16">
         {/* brand + nav (right in RTL) */}
-        <div className="flex shrink-0 items-center gap-7">
+        <div className="flex shrink-0 items-center gap-4 lg:gap-7">
+          <button
+            type="button"
+            aria-label="منو"
+            onClick={() => setMenuOpen((o) => !o)}
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[var(--hl-ink)] transition hover:text-[var(--hl-red)] lg:hidden"
+          >
+            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d={menuOpen ? "M18 6 6 18M6 6l12 12" : "M4 7h16M4 12h16M4 17h16"} /></svg>
+          </button>
           <Link href="/" className="flex items-center gap-2.5">
-            <img src={brand.logo} alt={brand.siteName} className="h-14 w-auto" />
-            <span className="text-[17px] font-extrabold leading-[1.1] text-[var(--hl-ink)]">
+            <img src={brand.logo} alt={brand.siteName} className="h-11 w-auto sm:h-14" />
+            <span className="hidden text-[15px] font-extrabold leading-[1.1] text-[var(--hl-ink)] sm:inline-block sm:text-[17px]">
               {brand.logoLine1}
               <br />
               {brand.logoLine2}
             </span>
           </Link>
-          <nav className="flex items-center gap-6 text-[17px] font-bold">
+          <nav className="hidden items-center gap-6 text-[17px] font-bold lg:flex">
             {navLinks.map((l) => (
               <Link
                 key={l.label}
@@ -126,14 +135,15 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
         </div>
 
         {/* actions (left in RTL) */}
-        <div className="flex shrink-0 items-center gap-4">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
           <ThemeToggle />
           <Link
             href={user ? "/account" : "/login"}
+            aria-label={user ? "حساب کاربری" : "ورود / ثبت‌نام"}
             className="flex items-center gap-2 text-[16px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"
           >
             <UserIcon className="h-5 w-5" />
-            {user ? "حساب کاربری" : "ورود / ثبت‌نام"}
+            <span className="hidden md:inline">{user ? "حساب کاربری" : "ورود / ثبت‌نام"}</span>
           </Link>
 
           <Link
@@ -148,6 +158,25 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
           </Link>
         </div>
       </div>
+
+      {/* mobile nav dropdown */}
+      {menuOpen && (
+        <nav className="border-t border-[var(--hl-border)] bg-white/95 backdrop-blur lg:hidden">
+          <ul className="mx-auto flex max-w-[1840px] flex-col px-4 py-2 sm:px-8">
+            {navLinks.map((l) => (
+              <li key={l.label}>
+                <Link
+                  href={l.href}
+                  onClick={() => setMenuOpen(false)}
+                  className={`block rounded-lg px-3 py-3 text-[16px] font-bold transition ${l.active ? "text-[var(--hl-red)]" : "text-[var(--hl-ink-2)] hover:bg-[#f7f8fa] hover:text-[var(--hl-ink)]"}`}
+                >
+                  {l.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
     </header>
   );
 }

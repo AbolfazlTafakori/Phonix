@@ -6,9 +6,9 @@ const Plane = ({ className }: { className?: string }) => (
 
 export default function HomeNewsletter() {
   return (
-    <section className="mx-auto max-w-[1840px] px-16 py-10">
+    <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16 py-10">
       <div
-        className="flex items-center justify-between gap-8 rounded-[26px] px-9 py-6"
+        className="flex flex-col items-stretch gap-5 rounded-[26px] px-6 py-6 sm:px-9 lg:flex-row lg:items-center lg:justify-between lg:gap-8"
         style={{ background: "linear-gradient(95deg, #F0392C 0%, #FF7A2E 100%)" }}
       >
         {/* right: logo */}
@@ -18,13 +18,13 @@ export default function HomeNewsletter() {
         </div>
 
         {/* right-middle: copy */}
-        <div className="shrink-0 text-right text-white">
-          <h2 className="text-[22px] font-black">از تخفیف‌ها و محصولات جدید باخبر شوید!</h2>
+        <div className="shrink-0 text-center text-white lg:text-right">
+          <h2 className="text-[18px] font-black sm:text-[22px]">از تخفیف‌ها و محصولات جدید باخبر شوید!</h2>
           <p className="mt-1.5 text-[13px] text-white/85">ایمیل خود را وارد کنید تا از جدیدترین تخفیف‌ها و اخبار مطلع شوید.</p>
         </div>
 
         {/* middle: form */}
-        <form className="flex flex-1 items-center gap-3">
+        <form className="flex flex-1 flex-col items-stretch gap-3 sm:flex-row sm:items-center">
           <input
             dir="rtl"
             type="email"

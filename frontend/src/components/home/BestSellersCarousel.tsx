@@ -69,13 +69,13 @@ function Card({ p }: { p: CarouselCard }) {
 function Arrow({ dir, onClick }: { dir: "prev" | "next"; onClick: () => void }) {
   // In RTL "next" (older items) sits on the left, "prev" on the right. They live in the frame's side
   // padding — beside the cards, never over them.
-  const side = dir === "next" ? "left-3" : "right-3";
+  const side = dir === "next" ? "left-1.5 sm:left-3" : "right-1.5 sm:right-3";
   return (
     <button
       type="button"
       aria-label={dir === "next" ? "بعدی" : "قبلی"}
       onClick={onClick}
-      className={`absolute top-1/2 z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-[var(--hl-border)] bg-white text-[var(--hl-ink)] shadow-[0_10px_24px_-10px_rgba(20,20,20,0.35)] transition hover:border-[var(--hl-red)]/40 hover:text-[var(--hl-red)] ${side}`}
+      className={`absolute top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-[var(--hl-border)] bg-white text-[var(--hl-ink)] shadow-[0_10px_24px_-10px_rgba(20,20,20,0.35)] transition hover:border-[var(--hl-red)]/40 hover:text-[var(--hl-red)] sm:h-11 sm:w-11 ${side}`}
     >
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d={dir === "next" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />
@@ -155,7 +155,7 @@ export default function BestSellersCarousel({ products }: { products: CarouselCa
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
   return (
-    <div className="hl-offer-frame relative overflow-hidden rounded-[28px] border-2 border-[#ff5a1f] px-20 py-9 shadow-[0_18px_50px_-28px_rgba(239,35,60,0.45)]">
+    <div className="hl-offer-frame relative overflow-hidden rounded-[28px] border-2 border-[#ff5a1f] px-11 py-5 shadow-[0_18px_50px_-28px_rgba(239,35,60,0.45)] sm:px-14 sm:py-7 xl:px-20 xl:py-9">
       <Arrow dir="prev" onClick={() => move(-1)} />
       <Arrow dir="next" onClick={() => move(1)} />
 

@@ -9,8 +9,8 @@ const stats = [
 // wrapping or overflowing at narrower desktop widths.
 export default function TrustStats() {
   return (
-    <section className="mx-auto max-w-[1840px] px-16">
-      <div className="hl-card grid grid-cols-4 gap-4 rounded-[24px] px-6 py-7">
+    <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">
+      <div className="hl-card grid grid-cols-2 gap-4 lg:grid-cols-4 rounded-[24px] px-6 py-7">
         {stats.map((s, i) => (
           <div
             key={s.label}

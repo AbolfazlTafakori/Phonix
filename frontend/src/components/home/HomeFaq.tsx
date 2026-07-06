@@ -32,16 +32,16 @@ export default function HomeFaq() {
   const cols = [items.slice(0, 3), items.slice(3)];
 
   return (
-    <section className="mx-auto max-w-[1840px] px-16 py-16">
+    <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16 py-16">
       <div className="mb-8 flex items-start gap-2">
         <span className="mt-2.5 h-6 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f]" />
         <div>
-          <h2 className="text-[30px] font-black text-[var(--hl-ink)]">سوالات متداول</h2>
+          <h2 className="text-[22px] sm:text-[26px] xl:text-[30px] font-black text-[var(--hl-ink)]">سوالات متداول</h2>
           <p className="mt-1.5 text-[15px] text-[var(--hl-ink-2)]">پاسخ پرتکرارترین سوال‌های شما</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         {cols.map((col, c) => (
           <div key={c} className="flex flex-col gap-4">
             {col.map((item) => {

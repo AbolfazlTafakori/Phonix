@@ -20,11 +20,11 @@ const categories: Cat[] = [
 
 export default function HomeCategories() {
   return (
-    <section className="mx-auto max-w-[1840px] px-16 py-20">
+    <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16 py-20">
       <div className="mb-8 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="h-2.5 w-2.5 rounded-full bg-[var(--hl-red)]" />
-          <h2 className="text-[30px] font-black text-[var(--hl-ink)]">دسته‌بندی خدمات و محصولات</h2>
+          <h2 className="text-[22px] sm:text-[26px] xl:text-[30px] font-black text-[var(--hl-ink)]">دسته‌بندی خدمات و محصولات</h2>
         </div>
         <Link
           href="/products"
@@ -34,7 +34,7 @@ export default function HomeCategories() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-5 gap-5">
+      <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5">
         {categories.map((c) => (
           <Link
             key={c.title}

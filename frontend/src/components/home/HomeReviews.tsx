@@ -21,16 +21,16 @@ function Stars() {
 
 export default function HomeReviews() {
   return (
-    <section className="mx-auto max-w-[1840px] px-16 py-16">
+    <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16 py-16">
       <div className="mb-8 flex items-start gap-2">
         <span className="mt-2.5 h-6 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f]" />
         <div>
-          <h2 className="text-[30px] font-black text-[var(--hl-ink)]">نظرات مشتریان</h2>
+          <h2 className="text-[22px] sm:text-[26px] xl:text-[30px] font-black text-[var(--hl-ink)]">نظرات مشتریان</h2>
           <p className="mt-1.5 text-[15px] text-[var(--hl-ink-2)]">تجربه‌ی واقعی کاربرانی که از ما خرید کرده‌اند</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
         {reviews.map((r) => (
           <div key={r.name} className="hl-card flex flex-col gap-4 rounded-[20px] p-6">
             <Stars />

@@ -12,16 +12,16 @@ const steps: Step[] = [
 
 export default function HomeHowToBuy() {
   return (
-    <section className="mx-auto max-w-[1840px] px-16 py-16">
+    <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16 py-16">
       <div className="mb-8 flex items-start gap-2">
         <span className="mt-2.5 h-6 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f]" />
         <div>
-          <h2 className="text-[30px] font-black text-[var(--hl-ink)]">چطور خرید کنیم؟</h2>
+          <h2 className="text-[22px] sm:text-[26px] xl:text-[30px] font-black text-[var(--hl-ink)]">چطور خرید کنیم؟</h2>
           <p className="mt-1.5 text-[15px] text-[var(--hl-ink-2)]">فقط در چهار قدم ساده خرید خود را کامل کنید</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         {steps.map((s, i) => (
           <div key={s.n} className="relative">
             {/* connector to the next card (to the left in RTL) */}
