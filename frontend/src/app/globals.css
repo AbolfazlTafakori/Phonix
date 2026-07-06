@@ -176,6 +176,17 @@ html.home-dark .hover\:bg-white:hover { background: #1c1c24; }
 html.home-dark .focus-within\:bg-white:focus-within { background: #1c1c24; }
 html.home-dark .hover\:bg-\[\#fff6f2\]:hover { background: rgba(255, 90, 31, 0.16); }
 
+/* Smooth the light ↔ dark switch instead of a hard cut. Colors only (no layout),
+   so it stays cheap; initial paint has nothing to animate. */
+.home-light,
+.home-light *,
+body:has(.home-light) {
+  transition: background-color 0.35s ease, border-color 0.35s ease, color 0.35s ease, fill 0.35s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .home-light, .home-light *, body:has(.home-light) { transition: none; }
+}
+
 /* Slim scrollbar to match the dark theme */
 ::-webkit-scrollbar {
   width: 10px;

@@ -31,8 +31,11 @@ function dayLabel(iso: string): string {
 function HeadsetIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 13a8 8 0 0 1 16 0" />
-      <path d="M4 13v3a2 2 0 0 0 2 2h1v-5H6a2 2 0 0 0-2 2Zm16 0v3a2 2 0 0 1-2 2h-1v-5h1a2 2 0 0 1 2 2Z" />
+      <path d="M5 13a7 7 0 0 1 14 0" />
+      <rect x="3.4" y="12" width="3.6" height="6.2" rx="1.8" />
+      <rect x="17" y="12" width="3.6" height="6.2" rx="1.8" />
+      <path d="M18.8 18.2v1.3a3 3 0 0 1-3 3H13" />
+      <circle cx="12" cy="22.5" r="1.15" />
     </svg>
   );
 }
@@ -186,11 +189,11 @@ export default function LiveChat() {
   const showTyping = open && !!conv && !!lastMsg && !lastMsg.fromAdmin && lastMsg.id > 0 && conv.adminReadUpTo >= lastMsg.id;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[60] flex flex-col items-end gap-3" dir="rtl">
+    <div className="fixed bottom-4 right-4 z-[60] flex flex-col items-start gap-3" dir="rtl">
       {open && (
         <div className="flex h-[28rem] max-h-[72vh] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#0d0d15] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.8)]">
-          <div className="flex items-center gap-2.5 border-b border-white/8 bg-gradient-to-l from-[#e60053]/18 via-[#3e3af2]/8 to-transparent px-4 py-3">
-            <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-white shadow-[0_0_16px_-4px_rgba(230,0,83,0.7)]">
+          <div className="flex items-center gap-2.5 border-b border-white/8 bg-gradient-to-l from-[#ff5a1f]/18 via-[#ef233c]/8 to-transparent px-4 py-3">
+            <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#ff7a3c] to-[#ef233c] text-white shadow-[0_0_16px_-4px_rgba(239,35,60,0.7)]">
               <HeadsetIcon className="h-5 w-5" />
               <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-[#0d0d15] bg-emerald-500" />
             </span>
@@ -222,7 +225,7 @@ export default function LiveChat() {
                       </div>
                     )}
                     <div className={`flex ${m.fromAdmin ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-6 ${m.fromAdmin ? "rounded-bl-md bg-[#1b2236] text-white/90" : "rounded-br-md bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white"}`}>
+                      <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-sm leading-6 ${m.fromAdmin ? "rounded-bl-md bg-[#1b2236] text-white/90" : "rounded-br-md bg-gradient-to-l from-[#ff5a1f] to-[#ef233c] text-white"}`}>
                         {m.fromAdmin && <p className="mb-0.5 text-[10px] font-bold text-[#9db4ff]">{m.authorName}</p>}
                         <p className="whitespace-pre-wrap break-words">{m.body}</p>
                         <p className="mt-1 flex items-center justify-end gap-1 text-[10px] opacity-70">
@@ -252,13 +255,13 @@ export default function LiveChat() {
               value={text}
               onChange={(e) => setText(e.target.value)}
               placeholder="پیام خود را بنویسید…"
-              className="h-11 flex-1 rounded-xl border border-white/10 bg-[#15151f] px-3.5 text-sm text-white outline-none transition focus:border-[#e60053]/50"
+              className="h-11 flex-1 rounded-xl border border-white/10 bg-[#15151f] px-3.5 text-sm text-white outline-none transition focus:border-[#ff5a1f]/50"
             />
             <button
               type="submit"
               disabled={sending || !text.trim()}
               aria-label="ارسال"
-              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white transition hover:brightness-110 disabled:opacity-40"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-gradient-to-l from-[#ff5a1f] to-[#ef233c] text-white transition hover:brightness-110 disabled:opacity-40"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5 -scale-x-100" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 2 11 13M22 2l-7 20-4-9-9-4 20-7Z" /></svg>
             </button>
@@ -278,7 +281,7 @@ export default function LiveChat() {
           >
             <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
           </button>
-          <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-white">
+          <span className="relative grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#ff7a3c] to-[#ef233c] text-white">
             <HeadsetIcon className="h-[18px] w-[18px]" />
             <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-[#11111b] bg-emerald-500" />
           </span>
@@ -295,18 +298,18 @@ export default function LiveChat() {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="گفتگوی زنده"
-        className="relative grid h-14 w-14 place-items-center rounded-full bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white shadow-[0_14px_36px_-10px_rgba(230,0,83,0.8)] transition hover:brightness-110 active:scale-95"
+        className="relative grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-[#ff5a1f] to-[#ef233c] text-white shadow-[0_14px_36px_-10px_rgba(239,35,60,0.8)] transition hover:brightness-110 active:scale-95"
       >
         {!open && unread > 0 && (
-          <span aria-hidden className="absolute inset-0 rounded-full border-2 border-[#e60053]/50 motion-safe:animate-ping" />
+          <span aria-hidden className="absolute inset-0 rounded-full border-2 border-[#ef233c]/50 motion-safe:animate-ping" />
         )}
         {open ? (
           <svg viewBox="0 0 24 24" className="relative h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
         ) : (
-          <svg viewBox="0 0 24 24" className="relative h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5Z" /></svg>
+          <HeadsetIcon className="relative h-7 w-7" />
         )}
         {!open && unread > 0 && (
-          <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-[#0b0b12] bg-white px-1 text-[11px] font-bold text-[#e60053]">
+          <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-[#0b0b12] bg-white px-1 text-[11px] font-bold text-[#ef233c]">
             {unread > 9 ? "۹+" : unread.toLocaleString("fa-IR")}
           </span>
         )}
