@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import type { SiteContent, Product } from "@/lib/types";
 import { formatToman } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
@@ -14,16 +14,22 @@ import ThemeToggle from "./ThemeToggle";
 type Props = { brand: SiteContent["brand"]; searchPlaceholder: string };
 
 const navLinks = [
-  { label: "خانه", href: "/", active: true },
-  { label: "محصولات", href: "/products", active: false },
-  { label: "دسته‌بندی‌ها", href: "/products", active: false },
-  { label: "وبلاگ", href: "/blog", active: false },
-  { label: "درباره ما", href: "#", active: false },
-  { label: "تماس با ما", href: "#", active: false },
+  { label: "خانه", href: "/" },
+  { label: "محصولات", href: "/products" },
+  { label: "دسته‌بندی‌ها", href: "/products" },
+  { label: "وبلاگ", href: "/blog" },
+  { label: "درباره ما", href: "#" },
+  { label: "تماس با ما", href: "#" },
 ];
 
 export default function HomeHeader({ brand, searchPlaceholder }: Props) {
   const router = useRouter();
+  const pathname = usePathname();
+  // Highlight only the FIRST nav link that matches the current route, so two links that share a
+  // destination (محصولات / دسته‌بندی‌ها → /products) don't light up together. Anchors ("#") never match.
+  const activeIndex = navLinks.findIndex(
+    (l) => l.href.startsWith("/") && (l.href === "/" ? pathname === "/" : pathname.startsWith(l.href)),
+  );
   const { user } = useAuth();
   const { count } = useCart();
   const [term, setTerm] = useState("");
@@ -123,12 +129,12 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
             </span>
           </Link>
           <nav className="hidden items-center gap-6 text-[17px] font-bold lg:flex">
-            {navLinks.map((l) => (
+            {navLinks.map((l, i) => (
               <Link
-                key={l.label}
+                key={i}
                 href={l.href}
                 className={`relative py-1 transition ${
-                  l.active
+                  i === activeIndex
                     ? "text-[var(--hl-red)] after:absolute after:inset-x-0 after:-bottom-[6px] after:h-[3px] after:rounded-full after:bg-gradient-to-l after:from-[#ef233c] after:to-[#ff5a1f]"
                     : "text-[var(--hl-ink-2)] hover:text-[var(--hl-ink)]"
                 }`}
@@ -203,23 +209,27 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
       <aside
         className={`fixed right-0 top-0 z-[70] flex h-dvh w-72 max-w-[82vw] flex-col bg-white shadow-2xl transition-transform duration-300 lg:hidden ${menuOpen ? "translate-x-0" : "translate-x-full"}`}
       >
-        <div className="flex items-center justify-between border-b border-[var(--hl-border)] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-[var(--hl-border)] px-4 py-3">
           <div className="flex items-center gap-2">
             <img src={brand.logo} alt={brand.siteName} className="h-9 w-auto" />
             <span className="text-[14px] font-extrabold leading-[1.1] text-[var(--hl-ink)]">{brand.logoLine1}<br />{brand.logoLine2}</span>
           </div>
-          <button type="button" aria-label="بستن" onClick={() => setMenuOpen(false)} className="grid h-9 w-9 place-items-center rounded-lg text-[var(--hl-ink-2)] transition hover:text-[var(--hl-red)]">
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-          </button>
+          {/* theme toggle sits next to the close button */}
+          <div className="flex items-center gap-1">
+            <ThemeToggle />
+            <button type="button" aria-label="بستن" onClick={() => setMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-lg text-[var(--hl-ink-2)] transition hover:text-[var(--hl-red)]">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
+            </button>
+          </div>
         </div>
         <nav className="flex-1 overflow-y-auto p-3">
           <ul className="flex flex-col gap-1">
-            {navLinks.map((l) => (
-              <li key={l.label}>
+            {navLinks.map((l, i) => (
+              <li key={i}>
                 <Link
                   href={l.href}
                   onClick={() => setMenuOpen(false)}
-                  className={`block rounded-xl px-4 py-3 text-[16px] font-bold transition ${l.active ? "bg-[#fff6f2] text-[var(--hl-red)]" : "text-[var(--hl-ink-2)] hover:bg-[#f7f8fa] hover:text-[var(--hl-ink)]"}`}
+                  className={`block rounded-xl px-4 py-3 text-[16px] font-bold transition ${i === activeIndex ? "bg-[#fff6f2] text-[var(--hl-red)]" : "text-[var(--hl-ink-2)] hover:bg-[#f7f8fa] hover:text-[var(--hl-ink)]"}`}
                 >
                   {l.label}
                 </Link>
@@ -227,10 +237,6 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
             ))}
           </ul>
         </nav>
-        <div className="flex items-center justify-between border-t border-[var(--hl-border)] px-5 py-4">
-          <span className="text-[14px] font-bold text-[var(--hl-ink-2)]">حالت تیره / روشن</span>
-          <ThemeToggle />
-        </div>
       </aside>
     </>
   );

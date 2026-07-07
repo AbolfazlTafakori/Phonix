@@ -148,6 +148,27 @@ body:has(.home-light) { background: #ffffff; }
 }
 .hl-cta:hover { filter: brightness(1.06); transform: translateY(-1px); }
 
+/* Live-chat surfaces — theme-aware so the widget matches the site (light by default, dark when
+   the theme toggle is on). Declared globally because the chat renders outside the .home-light scope. */
+:root {
+  --chat-surface: #ffffff;
+  --chat-surface-2: #f4f5f8;
+  --chat-bubble: #f1f2f6;
+  --chat-border: rgba(20, 20, 30, 0.10);
+  --chat-ink: #151515;
+  --chat-ink-2: #5f6470;
+  --chat-muted: #9aa0ab;
+}
+html.home-dark {
+  --chat-surface: #0d0d15;
+  --chat-surface-2: #15151f;
+  --chat-bubble: #1b2236;
+  --chat-border: rgba(255, 255, 255, 0.10);
+  --chat-ink: #ffffff;
+  --chat-ink-2: rgba(255, 255, 255, 0.72);
+  --chat-muted: rgba(255, 255, 255, 0.45);
+}
+
 /* Best-sellers carousel frame — vivid orange on the light theme, softened on dark. */
 .hl-offer-frame { background: linear-gradient(180deg, rgba(255, 90, 31, 0.50) 0%, rgba(239, 35, 60, 0.28) 100%); }
 html.home-dark .hl-offer-frame { background: linear-gradient(180deg, rgba(255, 90, 31, 0.16) 0%, rgba(239, 35, 60, 0.08) 100%); }

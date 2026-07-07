@@ -65,8 +65,10 @@ const display = Space_Grotesk({
 // Declare the site as inherently dark so the browser (and extensions like Dark Reader)
 // don't re-theme it and inject attributes that break React hydration.
 export const viewport: Viewport = {
-  colorScheme: "dark",
-  themeColor: "#0b0b12",
+  width: "device-width",
+  initialScale: 1,
+  colorScheme: "light dark",
+  themeColor: "#ffffff",
 };
 
 export async function generateMetadata(): Promise<Metadata> {
