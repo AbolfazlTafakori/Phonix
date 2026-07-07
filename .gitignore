@@ -52,3 +52,7 @@ Thumbs.db
 # runtime data store (created on first run / by installer)
 App_Data/
 *.json.tmp
+
+# impeccable local tool cache
+.impeccable/
+**/.impeccable/
