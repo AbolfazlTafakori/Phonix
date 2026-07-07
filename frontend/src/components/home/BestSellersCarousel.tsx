@@ -33,7 +33,7 @@ function Card({ p }: { p: CarouselCard }) {
   return (
     <div
       data-card
-      className="hl-card group flex w-[calc((100%-16px)/2)] shrink-0 flex-col overflow-hidden rounded-[18px] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_44px_-18px_rgba(239,35,60,0.26)] sm:w-[calc((100%-32px)/3)] lg:w-[calc((100%-48px)/4)] xl:w-[calc((100%-76px)/5)]"
+      className="hl-card group flex w-full shrink-0 flex-col overflow-hidden rounded-[18px] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_44px_-18px_rgba(239,35,60,0.26)] sm:w-[calc((100%-16px)/2)] md:w-[calc((100%-32px)/3)] lg:w-[calc((100%-48px)/4)] xl:w-[calc((100%-76px)/5)]"
     >
       <Link href={p.href} className="relative block aspect-square bg-[#f7f8fa] p-5">
         <span
@@ -91,6 +91,11 @@ export default function BestSellersCarousel({ products }: { products: CarouselCa
   const offsetRef = useRef(0);
   const animatingRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // pointer-drag / swipe state
+  const draggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const lastXRef = useRef(0);
+  const movedRef = useRef(false);
   // Triple the list and sit in the middle copy, so there's always a full copy
   // of buffer on both sides — head connects to tail with no blank flash.
   const loop = [...products, ...products, ...products];
@@ -133,6 +138,47 @@ export default function BestSellersCarousel({ products }: { products: CarouselCa
     }, DURATION + 20);
   }
 
+  function wrapWithin(v: number) {
+    const len = listWidth();
+    if (!len) return v;
+    if (v >= 2 * len) return v - len;
+    if (v < len) return v + len;
+    return v;
+  }
+
+  // ── pointer drag / swipe ──
+  function onPointerDown(e: React.PointerEvent) {
+    if (animatingRef.current) return;
+    draggingRef.current = true;
+    movedRef.current = false;
+    startXRef.current = e.clientX;
+    lastXRef.current = e.clientX;
+    if (timerRef.current) clearTimeout(timerRef.current);
+    (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId);
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (!draggingRef.current) return;
+    const dx = e.clientX - lastXRef.current;
+    lastXRef.current = e.clientX;
+    if (Math.abs(e.clientX - startXRef.current) > 6) movedRef.current = true;
+    apply(wrapWithin(offsetRef.current + dx), false);
+  }
+  function endDrag() {
+    if (!draggingRef.current) return;
+    draggingRef.current = false;
+    const step = stepPx();
+    const len = listWidth();
+    if (!step || !len) return;
+    // snap to the nearest whole-card position within the centered copy
+    const snapped = len + Math.round((offsetRef.current - len) / step) * step;
+    animatingRef.current = true;
+    apply(snapped, true);
+    timerRef.current = setTimeout(() => {
+      animatingRef.current = false;
+      apply(wrapWithin(offsetRef.current), false);
+    }, DURATION + 20);
+  }
+
   // Re-enable animation on the next frame after a seam jump.
   useLayoutEffect(() => {
     if (!animate) {
@@ -159,7 +205,14 @@ export default function BestSellersCarousel({ products }: { products: CarouselCa
       <Arrow dir="prev" onClick={() => move(-1)} />
       <Arrow dir="next" onClick={() => move(1)} />
 
-      <div className="overflow-hidden">
+      <div
+        className="cursor-grab touch-pan-y select-none overflow-hidden active:cursor-grabbing"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onClickCapture={(e) => { if (movedRef.current) { e.preventDefault(); e.stopPropagation(); movedRef.current = false; } }}
+      >
         <div
           ref={trackRef}
           className="flex gap-4"
