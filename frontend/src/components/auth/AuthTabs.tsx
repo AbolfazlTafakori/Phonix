@@ -6,6 +6,10 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { setCurrentUser } from "@/lib/auth";
 import { useCaptcha } from "./Captcha";
+import AuthShell from "./AuthShell";
+
+const LOGIN_IMAGE = "/figma/auth-login.png";
+const REGISTER_IMAGE = "/figma/auth-register.png";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
@@ -229,7 +233,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
   /* ── 2FA step ─────────────────────────────────────────────────────────────── */
   if (challengeToken) {
     return (
-      <Shell>
+      <AuthShell image={LOGIN_IMAGE}>
         <h1 className="text-center text-[19px] font-extrabold text-[var(--chat-ink)]">تأیید دو‌مرحله‌ای</h1>
         <p className="mb-6 mt-2 text-center text-[12.5px] leading-7 text-[var(--chat-ink-2)]">کد ۶ رقمی برنامه‌ی احرازکننده (Google Authenticator) را وارد کنید.</p>
         <form onSubmit={verifyOtp}>
@@ -250,7 +254,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
             بازگشت
           </button>
         </form>
-      </Shell>
+      </AuthShell>
     );
   }
 
@@ -261,7 +265,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
   );
 
   return (
-    <Shell>
+    <AuthShell image={tab === "register" ? REGISTER_IMAGE : LOGIN_IMAGE}>
       {/* tabs */}
       <div className="mb-6 flex rounded-xl bg-[var(--chat-surface-2)] p-1">
         {(["register", "login"] as Tab[]).map((t) => (
@@ -341,26 +345,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
           {tab === "register" ? "وارد شوید" : "ثبت‌نام کنید"}
         </button>
       </p>
-    </Shell>
-  );
-}
-
-// Split card: promotional visual on the left, the form on the right. A fixed desktop height keeps the
-// frame (and the image) the same size whether the login or the taller register form is shown — only the
-// form content changes. On small screens the visual is dropped and only the form shows.
-function Shell({ children }: { children: ReactNode }) {
-  return (
-    <div className="grid w-full max-w-[980px] overflow-hidden rounded-[26px] border-2 border-[#ff5a1f]/45 bg-[var(--chat-surface)] shadow-[0_30px_80px_-35px_rgba(239,35,60,0.35)] lg:h-[760px] lg:grid-cols-2">
-      {/* form panel (right in RTL) — scrolls inside if content ever exceeds the fixed height */}
-      <div className="flex items-center overflow-y-auto px-6 py-8 sm:px-10">
-        <div className="mx-auto w-full max-w-[380px]">{children}</div>
-      </div>
-      {/* promo panel (left in RTL) — visual only, size never changes with the active tab */}
-      <div className="relative hidden border-r border-[var(--chat-border)] bg-[#fdf1ec] lg:block">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/figma/auth-hero.png" alt="فونیکس وریفای — دنیای خدمات دیجیتال" className="absolute inset-0 h-full w-full object-cover" />
-      </div>
-    </div>
+    </AuthShell>
   );
 }
 

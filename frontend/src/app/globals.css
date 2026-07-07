@@ -118,18 +118,22 @@ body {
 /* ── Light home theme ─────────────────────────────────────────────────────────
    Scoped to the redesigned home page only. Everything lives under `.home-light`
    so the rest of the site (admin / account / shop) keeps its dark theme. */
-body:has(.home-light) { background: #ffffff; }
+body:has(.home-light) { background: #f8f1ea; }
 .home-light {
   --hl-red: #ef233c;
   --hl-orange: #ff5a1f;
   --hl-ink: #151515;
   --hl-ink-2: #5f6470;
   --hl-muted: #8a8f99;
-  --hl-border: #d6d9e2;
-  background: #ffffff;
+  --hl-border: #f0e2d6;
+  background: #f8f1ea;
   color: var(--hl-ink);
   font-family: var(--font-vazir), system-ui, sans-serif;
 }
+/* Warm light palette: soft cream surface inside sections (replaces the cool greys). */
+.home-light .bg-\[\#f7f8fa\],
+.home-light .bg-\[\#fafbfc\],
+.home-light .bg-\[\#fafafa\] { background: #fff7f0; }
 .hl-grad { background: linear-gradient(135deg, #ef233c 0%, #ff5a1f 100%); }
 .hl-grad-text {
   background: linear-gradient(135deg, #ef233c 0%, #ff5a1f 100%);
@@ -153,8 +157,8 @@ body:has(.home-light) { background: #ffffff; }
 :root {
   --chat-surface: #ffffff;
   --chat-surface-2: #f4f5f8;
-  --chat-bubble: #f1f2f6;
-  --chat-border: rgba(20, 20, 30, 0.10);
+  --chat-bubble: #f4ece3;
+  --chat-border: #e3d2c0;
   --chat-ink: #151515;
   --chat-ink-2: #5f6470;
   --chat-muted: #9aa0ab;
@@ -171,7 +175,7 @@ html.home-dark {
 
 /* Auth page backdrop — warm brand base that follows the theme, with slow drifting blobs so the light
    surface never reads as a flat white sheet. */
-.auth-bg { background-color: #f6f7fb; }
+.auth-bg { background-color: #f8f1ea; }
 html.home-dark .auth-bg { background-color: #0e0e12; }
 
 .auth-blob {
