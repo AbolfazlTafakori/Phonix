@@ -49,7 +49,7 @@ function Field({ icon, value, onChange, placeholder, type = "text", dir, right }
   type?: string; dir?: "ltr" | "rtl"; right?: ReactNode;
 }) {
   return (
-    <div className="flex h-12 items-center gap-2.5 rounded-xl border border-[#e6e8ee] bg-white px-3.5 transition focus-within:border-[#ff7a2e] focus-within:ring-2 focus-within:ring-[#ff7a2e]/15">
+    <div className="flex h-12 items-center gap-2.5 rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3.5 transition focus-within:border-[#ff7a2e] focus-within:ring-2 focus-within:ring-[#ff7a2e]/15">
       <span className="shrink-0 text-[#9aa0ab]">{icon}</span>
       <input
         type={type}
@@ -58,7 +58,7 @@ function Field({ icon, value, onChange, placeholder, type = "text", dir, right }
         placeholder={placeholder}
         dir={dir}
         autoComplete="off"
-        className={`flex-1 bg-transparent text-[13.5px] text-[#151515] outline-none placeholder:text-[#a9adb6] ${dir === "ltr" ? "text-left" : ""}`}
+        className={`flex-1 bg-transparent text-[13.5px] text-[var(--chat-ink)] outline-none placeholder:text-[var(--chat-muted)] ${dir === "ltr" ? "text-left" : ""}`}
       />
       {right}
     </div>
@@ -229,9 +229,9 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
   /* ── 2FA step ─────────────────────────────────────────────────────────────── */
   if (challengeToken) {
     return (
-      <Card>
-        <h1 className="text-center text-[19px] font-extrabold text-[#151515]">تأیید دو‌مرحله‌ای</h1>
-        <p className="mb-6 mt-2 text-center text-[12.5px] leading-7 text-[#8a8f99]">کد ۶ رقمی برنامه‌ی احرازکننده (Google Authenticator) را وارد کنید.</p>
+      <Shell>
+        <h1 className="text-center text-[19px] font-extrabold text-[var(--chat-ink)]">تأیید دو‌مرحله‌ای</h1>
+        <p className="mb-6 mt-2 text-center text-[12.5px] leading-7 text-[var(--chat-ink-2)]">کد ۶ رقمی برنامه‌ی احرازکننده (Google Authenticator) را وارد کنید.</p>
         <form onSubmit={verifyOtp}>
           <input
             value={otp}
@@ -240,36 +240,36 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
             autoFocus
             dir="ltr"
             placeholder="------"
-            className="h-12 w-full rounded-xl border border-[#e6e8ee] bg-white text-center text-lg tracking-[0.5em] text-[#151515] outline-none focus:border-[#ff7a2e]"
+            className="h-12 w-full rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface)] text-center text-lg tracking-[0.5em] text-[var(--chat-ink)] outline-none focus:border-[#ff7a2e]"
           />
           {error && <p className="mt-4 text-[12.5px] text-[#ef233c]">{error}</p>}
           <button type="submit" disabled={busy || otp.length !== 6} className={`mt-6 ${gradBtn}`}>
             {busy ? "در حال بررسی..." : "تأیید و ورود"}
           </button>
-          <button type="button" onClick={() => { setChallengeToken(null); setOtp(""); setError(""); }} className="mt-3 h-11 w-full rounded-xl border border-[#e6e8ee] text-[13px] font-bold text-[#8a8f99] transition hover:text-[#151515]">
+          <button type="button" onClick={() => { setChallengeToken(null); setOtp(""); setError(""); }} className="mt-3 h-11 w-full rounded-xl border border-[var(--chat-border)] text-[13px] font-bold text-[var(--chat-ink-2)] transition hover:text-[var(--chat-ink)]">
             بازگشت
           </button>
         </form>
-      </Card>
+      </Shell>
     );
   }
 
   const eye = (show: boolean, toggle: () => void) => (
-    <button type="button" onClick={toggle} tabIndex={-1} aria-label="نمایش رمز" className="shrink-0 text-[#b6bac2] transition hover:text-[#8a8f99]">
+    <button type="button" onClick={toggle} tabIndex={-1} aria-label="نمایش رمز" className="shrink-0 text-[var(--chat-muted)] transition hover:text-[var(--chat-ink-2)]">
       <EyeI off={show} />
     </button>
   );
 
   return (
-    <Card>
+    <Shell>
       {/* tabs */}
-      <div className="mb-6 flex rounded-xl bg-[#f4f5f8] p-1">
+      <div className="mb-6 flex rounded-xl bg-[var(--chat-surface-2)] p-1">
         {(["register", "login"] as Tab[]).map((t) => (
           <button
             key={t}
             type="button"
             onClick={() => switchTab(t)}
-            className={`flex-1 rounded-lg py-2.5 text-[13px] font-bold transition ${tab === t ? "border border-[#ffd9cf] bg-white text-[#ef233c] shadow-sm" : "text-[#8a8f99] hover:text-[#5f6470]"}`}
+            className={`flex-1 rounded-lg py-2.5 text-[13px] font-bold transition ${tab === t ? "border border-[#ffd9cf] bg-[var(--chat-surface)] text-[#ef233c] shadow-sm" : "text-[var(--chat-ink-2)] hover:text-[var(--chat-ink-2)]"}`}
           >
             {t === "register" ? "ثبت‌نام" : "ورود"}
           </button>
@@ -278,8 +278,8 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
 
       {/* heading */}
       <div className="mb-5 text-center">
-        <h1 className="text-[18px] font-extrabold text-[#151515]">{tab === "register" ? "ایجاد حساب کاربری" : "ورود به حساب کاربری"}</h1>
-        <p className="mt-1.5 text-[12px] text-[#8a8f99]">{tab === "register" ? "در کمتر از یک دقیقه عضو شوید و از خدمات ما بهره‌مند شوید." : "خوش آمدید! اطلاعات خود را وارد کنید."}</p>
+        <h1 className="text-[18px] font-extrabold text-[var(--chat-ink)]">{tab === "register" ? "ایجاد حساب کاربری" : "ورود به حساب کاربری"}</h1>
+        <p className="mt-1.5 text-[12px] text-[var(--chat-ink-2)]">{tab === "register" ? "در کمتر از یک دقیقه عضو شوید و از خدمات ما بهره‌مند شوید." : "خوش آمدید! اطلاعات خود را وارد کنید."}</p>
       </div>
 
       {referralCode && tab === "register" && (
@@ -294,7 +294,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
           <Field icon={<LockI />} type={showLoginPw ? "text" : "password"} value={loginPassword} onChange={setLoginPassword} placeholder="رمز عبور" right={eye(showLoginPw, () => setShowLoginPw((s) => !s))} />
           <CaptchaRow captcha={captcha} />
           <div className="flex items-center justify-between">
-            <label className="flex cursor-pointer items-center gap-2 text-[12px] text-[#8a8f99]">
+            <label className="flex cursor-pointer items-center gap-2 text-[12px] text-[var(--chat-ink-2)]">
               <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 rounded border-[#d6d9e2] accent-[#ef233c]" />
               مرا به خاطر بسپار
             </label>
@@ -315,7 +315,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
           <Field icon={<LockI />} type={showRegPw ? "text" : "password"} value={regPassword} onChange={setRegPassword} placeholder="رمز عبور" right={eye(showRegPw, () => setShowRegPw((s) => !s))} />
           <Field icon={<LockI />} type={showRegPw ? "text" : "password"} value={confirm} onChange={setConfirm} placeholder="تکرار رمز عبور" />
           <CaptchaRow captcha={captcha} />
-          <label className="flex items-start gap-2.5 text-[12px] leading-6 text-[#8a8f99]">
+          <label className="flex items-start gap-2.5 text-[12px] leading-6 text-[var(--chat-ink-2)]">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d6d9e2] accent-[#ef233c]" />
             <span><Link href="/terms" target="_blank" className="font-bold text-[#ef233c] hover:underline">قوانین و مقررات</Link> را مطالعه کرده و می‌پذیرم.</span>
           </label>
@@ -328,27 +328,38 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
 
       {GOOGLE_CLIENT_ID && (
         <>
-          <div className="my-5 flex items-center gap-3 text-[11px] text-[#b6bac2]">
-            <span className="h-px flex-1 bg-[#eceef3]" />با<span className="h-px flex-1 bg-[#eceef3]" />
+          <div className="my-5 flex items-center gap-3 text-[11px] text-[var(--chat-muted)]">
+            <span className="h-px flex-1 bg-[var(--chat-border)]" />با<span className="h-px flex-1 bg-[var(--chat-border)]" />
           </div>
           <div ref={googleBox} className="flex justify-center [color-scheme:light]" />
         </>
       )}
 
-      <p className="mt-6 text-center text-[12px] text-[#8a8f99]">
+      <p className="mt-6 text-center text-[12px] text-[var(--chat-ink-2)]">
         {tab === "register" ? "حساب دارید؟ " : "حساب ندارید؟ "}
         <button type="button" onClick={() => switchTab(tab === "register" ? "login" : "register")} className="font-bold text-[#ef233c] hover:underline">
           {tab === "register" ? "وارد شوید" : "ثبت‌نام کنید"}
         </button>
       </p>
-    </Card>
+    </Shell>
   );
 }
 
-function Card({ children }: { children: ReactNode }) {
+// Split card: promotional visual on the left, the form on the right. A fixed desktop height keeps the
+// frame (and the image) the same size whether the login or the taller register form is shown — only the
+// form content changes. On small screens the visual is dropped and only the form shows.
+function Shell({ children }: { children: ReactNode }) {
   return (
-    <div className="w-full max-w-[400px] rounded-[22px] border border-[#eceef3] bg-white px-6 py-7 shadow-[0_24px_60px_-30px_rgba(20,20,20,0.35)]">
-      {children}
+    <div className="grid w-full max-w-[980px] overflow-hidden rounded-[26px] border-2 border-[#ff5a1f]/45 bg-[var(--chat-surface)] shadow-[0_30px_80px_-35px_rgba(239,35,60,0.35)] lg:h-[760px] lg:grid-cols-2">
+      {/* form panel (right in RTL) — scrolls inside if content ever exceeds the fixed height */}
+      <div className="flex items-center overflow-y-auto px-6 py-8 sm:px-10">
+        <div className="mx-auto w-full max-w-[380px]">{children}</div>
+      </div>
+      {/* promo panel (left in RTL) — visual only, size never changes with the active tab */}
+      <div className="relative hidden border-r border-[var(--chat-border)] bg-[#fdf1ec] lg:block">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/figma/auth-hero.png" alt="فونیکس وریفای — دنیای خدمات دیجیتال" className="absolute inset-0 h-full w-full object-cover" />
+      </div>
     </div>
   );
 }
@@ -356,14 +367,14 @@ function Card({ children }: { children: ReactNode }) {
 function CaptchaRow({ captcha }: { captcha: ReturnType<typeof useCaptcha> }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="grid h-12 w-[120px] shrink-0 place-items-center overflow-hidden rounded-xl border border-[#e6e8ee] bg-[#f4f5f8]">
-        {captcha.loading || !captcha.image ? <span className="text-xs text-[#a9adb6]">…</span> : (
+      <div className="grid h-12 w-[120px] shrink-0 place-items-center overflow-hidden rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface-2)]">
+        {captcha.loading || !captcha.image ? <span className="text-xs text-[var(--chat-muted)]">…</span> : (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={captcha.image} alt="کد امنیتی" className="h-full w-full object-cover" />
         )}
       </div>
-      <button type="button" onClick={captcha.refresh} title="تصویر جدید" tabIndex={-1} className="grid h-12 w-10 shrink-0 place-items-center rounded-xl border border-[#e6e8ee] text-[#8a8f99] transition hover:text-[#151515]">↻</button>
-      <input value={captcha.text} onChange={(e) => captcha.setText(e.target.value)} dir="ltr" autoComplete="off" placeholder="کد تصویر" className="h-12 flex-1 rounded-xl border border-[#e6e8ee] bg-white px-3 text-center text-[13px] tracking-[0.2em] text-[#151515] outline-none transition focus:border-[#ff7a2e]" />
+      <button type="button" onClick={captcha.refresh} title="تصویر جدید" tabIndex={-1} className="grid h-12 w-10 shrink-0 place-items-center rounded-xl border border-[var(--chat-border)] text-[var(--chat-ink-2)] transition hover:text-[var(--chat-ink)]">↻</button>
+      <input value={captcha.text} onChange={(e) => captcha.setText(e.target.value)} dir="ltr" autoComplete="off" placeholder="کد تصویر" className="h-12 flex-1 rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3 text-center text-[13px] tracking-[0.2em] text-[var(--chat-ink)] outline-none transition focus:border-[#ff7a2e]" />
     </div>
   );
 }

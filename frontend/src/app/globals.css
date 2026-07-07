@@ -169,6 +169,33 @@ html.home-dark {
   --chat-muted: rgba(255, 255, 255, 0.45);
 }
 
+/* Auth page backdrop — warm brand base that follows the theme, with slow drifting blobs so the light
+   surface never reads as a flat white sheet. */
+.auth-bg { background-color: #f6f7fb; }
+html.home-dark .auth-bg { background-color: #0e0e12; }
+
+.auth-blob {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.55;
+  pointer-events: none;
+  will-change: transform;
+}
+html.home-dark .auth-blob { opacity: 0.4; }
+
+.auth-blob-1 { top: -12%; right: -8%; height: 42vw; width: 42vw; background: radial-gradient(circle, rgba(255, 122, 46, 0.85), transparent 70%); animation: authDrift1 18s ease-in-out infinite; }
+.auth-blob-2 { bottom: -14%; left: -10%; height: 46vw; width: 46vw; background: radial-gradient(circle, rgba(239, 35, 60, 0.8), transparent 70%); animation: authDrift2 22s ease-in-out infinite; }
+.auth-blob-3 { top: 30%; left: 24%; height: 30vw; width: 30vw; background: radial-gradient(circle, rgba(255, 176, 122, 0.7), transparent 70%); animation: authDrift3 26s ease-in-out infinite; }
+
+@keyframes authDrift1 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(-60px, 50px) scale(1.12); } }
+@keyframes authDrift2 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(70px, -40px) scale(0.92); } }
+@keyframes authDrift3 { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(40px, 40px) scale(1.08); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-blob-1, .auth-blob-2, .auth-blob-3 { animation: none; }
+}
+
 /* Best-sellers carousel frame — vivid orange on the light theme, softened on dark. */
 .hl-offer-frame { background: linear-gradient(180deg, rgba(255, 90, 31, 0.50) 0%, rgba(239, 35, 60, 0.28) 100%); }
 html.home-dark .hl-offer-frame { background: linear-gradient(180deg, rgba(255, 90, 31, 0.16) 0%, rgba(239, 35, 60, 0.08) 100%); }
