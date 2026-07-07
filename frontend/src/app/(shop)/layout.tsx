@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import Background from "@/components/Background";
 import SiteHeader from "@/components/home/SiteHeader";
-import Footer from "@/components/Footer";
+import SiteFooter from "@/components/home/SiteFooter";
 
 export default function ShopLayout({ children }: { children: ReactNode }) {
   return (
@@ -9,7 +9,7 @@ export default function ShopLayout({ children }: { children: ReactNode }) {
       <Background />
       <SiteHeader />
       <main>{children}</main>
-      <Footer />
+      <SiteFooter />
     </div>
   );
 }

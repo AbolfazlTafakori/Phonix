@@ -14,25 +14,25 @@ export default function TrustStats() {
         {stats.map((s, i) => (
           <div
             key={s.label}
-            className={`flex items-center justify-center gap-3 ${i > 0 ? "border-r border-[var(--hl-border)]" : ""}`}
+            className={`flex items-center justify-center gap-2 sm:gap-3 ${i > 0 ? "lg:border-r lg:border-[var(--hl-border)]" : ""}`}
           >
             <img
               src={s.icon}
               alt=""
               aria-hidden
               className="shrink-0 object-contain"
-              style={{ width: "clamp(40px, 3.4vw, 56px)", height: "clamp(40px, 3.4vw, 56px)" }}
+              style={{ width: "clamp(30px, 3.4vw, 56px)", height: "clamp(30px, 3.4vw, 56px)" }}
             />
-            <div className="text-right">
+            <div className="min-w-0 text-right">
               <div
                 className="whitespace-nowrap font-black leading-none text-[var(--hl-ink)]"
-                style={{ fontSize: "clamp(16px, 1.5vw, 26px)" }}
+                style={{ fontSize: "clamp(13px, 1.5vw, 26px)" }}
               >
                 {s.value}
               </div>
               <div
                 className="mt-2 whitespace-nowrap font-bold text-[var(--hl-ink-2)]"
-                style={{ fontSize: "clamp(11px, 0.95vw, 15px)" }}
+                style={{ fontSize: "clamp(10px, 0.95vw, 15px)" }}
               >
                 {s.label}
               </div>

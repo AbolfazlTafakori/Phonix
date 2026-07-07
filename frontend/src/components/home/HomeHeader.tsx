@@ -101,6 +101,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
   );
 
   return (
+    <>
     <header className="sticky top-0 z-50 w-full border-b border-[var(--hl-border)] bg-white/85 backdrop-blur">
       <div className="mx-auto flex h-[72px] max-w-[1840px] items-center gap-3 px-4 sm:h-[88px] sm:gap-6 sm:px-8 xl:px-16">
         {/* brand + nav (right in RTL) */}
@@ -191,14 +192,16 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
           {searchBox(true)}
         </div>
       )}
+    </header>
 
-      {/* mobile side drawer + backdrop */}
+      {/* mobile side drawer + backdrop — rendered outside the header so it sits above every layer */}
       <div
         onClick={() => setMenuOpen(false)}
-        className={`fixed inset-0 z-40 bg-black/40 transition-opacity duration-200 lg:hidden ${menuOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        aria-hidden
+        className={`fixed inset-0 z-[60] bg-black/40 transition-opacity duration-200 lg:hidden ${menuOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
       />
       <aside
-        className={`fixed inset-y-0 right-0 z-50 flex h-screen w-72 max-w-[82vw] flex-col bg-white shadow-2xl transition-transform duration-300 lg:hidden ${menuOpen ? "translate-x-0" : "translate-x-full"}`}
+        className={`fixed right-0 top-0 z-[70] flex h-dvh w-72 max-w-[82vw] flex-col bg-white shadow-2xl transition-transform duration-300 lg:hidden ${menuOpen ? "translate-x-0" : "translate-x-full"}`}
       >
         <div className="flex items-center justify-between border-b border-[var(--hl-border)] px-5 py-4">
           <div className="flex items-center gap-2">
@@ -229,6 +232,6 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
           <ThemeToggle />
         </div>
       </aside>
-    </header>
+    </>
   );
 }
