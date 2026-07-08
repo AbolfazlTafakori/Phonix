@@ -72,7 +72,7 @@ export default function OrdersPage() {
         <Panel>
           <div className="py-8 text-center">
             <p className="text-rose-600">{error}</p>
-            <button onClick={() => location.reload()} className="mt-4 inline-block rounded-xl border border-[#EADFD4] px-6 py-2.5 text-sm font-bold transition hover:bg-[#FFF7F1]" style={{ color: "var(--ac-text)" }}>
+            <button onClick={() => location.reload()} className="mt-4 inline-block rounded-xl border border-[color:var(--ac-panel-border)] px-6 py-2.5 text-sm font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
               تلاش مجدد
             </button>
           </div>
@@ -162,7 +162,7 @@ export default function OrdersPage() {
                   href={`/invoice?id=${o.id}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-xl border border-[#EADFD4] px-4 py-2 text-sm font-bold transition hover:bg-[#FFF7F1]"
+                  className="rounded-xl border border-[color:var(--ac-panel-border)] px-4 py-2 text-sm font-bold transition hover:bg-[color:var(--ac-menu-hover)]"
                   style={{ color: "var(--ac-text)" }}
                 >
                   فاکتور
@@ -194,7 +194,7 @@ export default function OrdersPage() {
                 <p className="mt-2 text-center text-sm leading-7" style={{ color: "var(--ac-text)" }}>
                   در صورت لغو این سفارش، جریمه‌ی لغو از مبلغ پرداخت‌شده کسر و باقیمانده به کیف پولتان بازمی‌گردد:
                 </p>
-                <div className="mt-4 space-y-2 rounded-xl bg-[#FFF8F2] p-4 text-sm">
+                <div className="mt-4 space-y-2 rounded-xl bg-[color:var(--ac-menu-hover)] p-4 text-sm">
                   <div className="flex items-center justify-between">
                     <span style={{ color: "var(--ac-muted)" }}>مبلغ پرداخت‌شده</span>
                     <span style={{ color: "var(--ac-title)" }}>{formatToman(collected)}</span>
@@ -227,7 +227,7 @@ export default function OrdersPage() {
               <button
                 onClick={() => setConfirmOrder(null)}
                 disabled={cancelling !== null}
-                className="h-11 flex-1 rounded-xl border border-[#EADFD4] text-sm font-bold transition hover:bg-[#FFF7F1] disabled:opacity-60"
+                className="h-11 flex-1 rounded-xl border border-[color:var(--ac-panel-border)] text-sm font-bold transition hover:bg-[color:var(--ac-menu-hover)] disabled:opacity-60"
                 style={{ color: "var(--ac-text)" }}
               >
                 انصراف

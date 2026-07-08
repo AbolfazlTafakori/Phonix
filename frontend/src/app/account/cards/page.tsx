@@ -20,7 +20,7 @@ function formatCard(raw: string): string {
 }
 
 const inputCls =
-  "h-12 w-full rounded-xl border border-[#E8DDD2] bg-white px-4 text-sm text-[#1F1A17] outline-none transition focus:border-[#FF7A2F] placeholder:text-[#8C8075]";
+  "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-white px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
 
 export default function CardsPage() {
   const { user } = useAuth();
@@ -109,7 +109,7 @@ export default function CardsPage() {
         ) : (
           <ul className="space-y-3">
             {cards.map((c) => (
-              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[#EADFD4] bg-[#FDFAF7] px-4 py-3">
+              <li key={c.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[color:var(--ac-panel-border)] bg-[color:var(--ac-menu-hover)] px-4 py-3">
                 <div className="min-w-0">
                   <p className="font-mono text-sm font-bold" style={{ color: "var(--ac-title)" }} dir="ltr">{formatCard(c.cardNumber)}</p>
                   <p className="mt-1 text-xs" style={{ color: "var(--ac-muted)" }}>
@@ -192,7 +192,7 @@ export default function CardsPage() {
                   <button
                     onClick={() => setStep(0)}
                     disabled={adding}
-                    className="h-12 rounded-xl border border-[#EADFD4] px-6 text-sm font-bold transition hover:bg-[#FFF7F1] disabled:opacity-60"
+                    className="h-12 rounded-xl border border-[color:var(--ac-panel-border)] px-6 text-sm font-bold transition hover:bg-[color:var(--ac-menu-hover)] disabled:opacity-60"
                     style={{ color: "var(--ac-text)" }}
                   >
                     بازگشت

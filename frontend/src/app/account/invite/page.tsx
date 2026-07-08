@@ -42,7 +42,7 @@ export default function InvitePage() {
             readOnly
             dir="ltr"
             value={link}
-            className="h-12 flex-1 rounded-xl border border-[#E8DDD2] bg-[#FFF8F2] px-4 text-left text-sm outline-none"
+            className="h-12 flex-1 rounded-xl border border-[color:var(--ac-input-border)] bg-[color:var(--ac-menu-hover)] px-4 text-left text-sm outline-none"
             style={{ color: "var(--ac-text)" }}
           />
           <button
@@ -64,7 +64,7 @@ export default function InvitePage() {
             `از هر خرید آن‌ها، ٪${toFa(commission)} پورسانت به کیف پول شما اضافه می‌شود.`,
           ].map((step, i) => (
             <li key={i} className="flex items-start gap-3 text-sm leading-7" style={{ color: "var(--ac-text)" }}>
-              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#FFF1E8] text-sm font-bold text-[#FF5A1F]">{toFa(i + 1)}</span>
+              <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[color:var(--ac-stat-icon-orange-bg)] text-sm font-bold text-[#FF5A1F]">{toFa(i + 1)}</span>
               {step}
             </li>
           ))}

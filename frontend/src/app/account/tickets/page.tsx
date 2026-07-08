@@ -16,7 +16,7 @@ const priorities: { value: TicketPriority; label: string }[] = [
   { value: "High", label: "زیاد" },
 ];
 const priorityLabel: Record<TicketPriority, string> = { Low: "کم", Medium: "متوسط", High: "زیاد" };
-const inputCls = "h-11 w-full rounded-xl border border-[#E8DDD2] bg-white px-4 text-sm text-[#1F1A17] outline-none focus:border-[#FF7A2F] placeholder:text-[#8C8075]";
+const inputCls = "h-11 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-white px-4 text-sm text-[color:var(--ac-title)] outline-none focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
 
 export default function TicketsPage() {
   const { user } = useAuth();
@@ -98,13 +98,13 @@ export default function TicketsPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="موضوع" className={inputCls} />
               <select value={department} onChange={(e) => setDepartment(e.target.value)} className={inputCls}>
-                {departments.map((d) => <option key={d} className="bg-white text-[#1F1A17]">{d}</option>)}
+                {departments.map((d) => <option key={d} className="bg-white text-[color:var(--ac-title)]">{d}</option>)}
               </select>
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium" style={{ color: "var(--ac-text)" }}>سطح اهمیت</label>
               <select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)} className={`${inputCls} sm:w-1/2`}>
-                {priorities.map((p) => <option key={p.value} value={p.value} className="bg-white text-[#1F1A17]">{p.label}</option>)}
+                {priorities.map((p) => <option key={p.value} value={p.value} className="bg-white text-[color:var(--ac-title)]">{p.label}</option>)}
               </select>
             </div>
             <div>
@@ -114,7 +114,7 @@ export default function TicketsPage() {
                 onChange={(e) => setBody(e.target.value)}
                 rows={4}
                 placeholder="شرح مشکل یا سوال خود را بنویسید..."
-                className="w-full rounded-xl border border-[#E8DDD2] bg-white px-4 py-3 text-sm text-[#1F1A17] outline-none focus:border-[#FF7A2F] placeholder:text-[#8C8075]"
+                className="w-full rounded-xl border border-[color:var(--ac-input-border)] bg-white px-4 py-3 text-sm text-[color:var(--ac-title)] outline-none focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]"
               />
             </div>
             <div>
@@ -155,7 +155,7 @@ export default function TicketsPage() {
           </div>
 
           {selected.attachment && (
-            <a href={selected.attachment} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[#EADFD4] px-3 py-2 text-xs font-bold text-[#3a64f2] transition hover:bg-[#FFF7F1]">
+            <a href={selected.attachment} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[color:var(--ac-panel-border)] px-3 py-2 text-xs font-bold text-[#3a64f2] transition hover:bg-[color:var(--ac-menu-hover)]">
               مشاهده فایل پیوست
             </a>
           )}
@@ -173,7 +173,7 @@ export default function TicketsPage() {
                 <p className="text-xs font-bold" style={{ color: m.isAdmin ? "#FF5A1F" : "var(--ac-muted)" }}>{m.author} · {m.date}</p>
                 <p className="mt-1.5 text-sm leading-7" style={{ color: "var(--ac-text)" }}>{m.body}</p>
                 {m.attachment && (
-                  <a href={m.attachment} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[#EADFD4] px-3 py-1.5 text-xs font-bold text-[#3a64f2] transition hover:bg-[#FFF7F1]">
+                  <a href={m.attachment} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[color:var(--ac-panel-border)] px-3 py-1.5 text-xs font-bold text-[#3a64f2] transition hover:bg-[color:var(--ac-menu-hover)]">
                     مشاهده فایل پیوست
                   </a>
                 )}
@@ -189,7 +189,7 @@ export default function TicketsPage() {
                   onChange={(e) => setReply(e.target.value)}
                   rows={2}
                   placeholder="پاسخ شما..."
-                  className="flex-1 rounded-xl border border-[#E8DDD2] bg-white px-3 py-2 text-sm text-[#1F1A17] outline-none focus:border-[#FF7A2F] placeholder:text-[#8C8075]"
+                  className="flex-1 rounded-xl border border-[color:var(--ac-input-border)] bg-white px-3 py-2 text-sm text-[color:var(--ac-title)] outline-none focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]"
                 />
                 <button
                   onClick={sendReply}

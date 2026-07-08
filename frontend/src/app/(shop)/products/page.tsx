@@ -29,9 +29,9 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-10">
-      <div className="relative mb-10 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-l from-[#e60053]/20 via-[#6b0a34]/10 to-transparent px-8 py-12">
-        <h1 className="text-3xl font-bold text-white sm:text-4xl">{query ? "نتایج جستجو" : "محصولات"}</h1>
-        <p className="mt-3 max-w-xl text-sm leading-7 text-white/70">
+      <div className="relative mb-10 overflow-hidden rounded-3xl border border-[var(--hl-border)] bg-gradient-to-l from-[#e60053]/20 via-[#6b0a34]/10 to-transparent px-8 py-12">
+        <h1 className="text-3xl font-bold text-[var(--hl-ink)] sm:text-4xl">{query ? "نتایج جستجو" : "محصولات"}</h1>
+        <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--hl-ink-2)]">
           {query
             ? `${formatNumber(shown.length)} نتیجه برای «${query}»`
             : "اکانت‌های وریفای‌شده و اشتراک سرویس‌های محبوب با بهترین قیمت و تحویل آنی."}
@@ -42,7 +42,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
         <Link
           href="/products"
           className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
-            selected === 0 ? "border-transparent bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white" : "border-white/10 text-white/70 hover:bg-white/5 hover:text-white"
+            selected === 0 ? "border-transparent bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white" : "border-[var(--hl-border)] text-[var(--hl-ink-2)] hover:bg-[var(--hl-border)]/40 hover:text-[var(--hl-ink)]"
           }`}
         >
           همه
@@ -52,7 +52,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
             key={c.id}
             href={`/products?cat=${c.id}`}
             className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
-              selected === c.id ? "border-transparent bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white" : "border-white/10 text-white/70 hover:bg-white/5 hover:text-white"
+              selected === c.id ? "border-transparent bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white" : "border-[var(--hl-border)] text-[var(--hl-ink-2)] hover:bg-[var(--hl-border)]/40 hover:text-[var(--hl-ink)]"
             }`}
           >
             {c.name}
@@ -61,14 +61,14 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
       </div>
 
       {shown.length === 0 ? (
-        <p className="py-20 text-center text-white/45">{query ? `برای «${query}» محصولی یافت نشد.` : "محصولی در این دسته یافت نشد."}</p>
+        <p className="py-20 text-center text-[var(--hl-muted)]">{query ? `برای «${query}» محصولی یافت نشد.` : "محصولی در این دسته یافت نشد."}</p>
       ) : (
         <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
           {shown.map((p) => (
             <Link
               key={p.id}
               href={`/products/detail?id=${p.id}`}
-              className="group relative block overflow-hidden rounded-2xl border border-white/8 bg-[#0d0d14] transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
+              className="group relative block overflow-hidden rounded-2xl border border-[var(--hl-border)] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
             >
               <div className="relative aspect-[3/4]">
                 <ProductCardImage src={p.image} alt={p.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />

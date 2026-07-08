@@ -7,7 +7,7 @@ import JalaliDatePicker from "./JalaliDatePicker";
 import type { PaymentMethod, BankCard } from "@/lib/types";
 
 const inputCls =
-  "h-12 w-full rounded-xl border border-[#E8DDD2] bg-white px-4 text-sm text-[#1F1A17] outline-none transition focus:border-[#FF7A2F] placeholder:text-[#8C8075]";
+  "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-[color:var(--ac-input-bg)] px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
 
 export type CardToCardValue = {
   cardId: number | null;
@@ -69,7 +69,7 @@ export function CardToCardForm({
   return (
     <div className="space-y-4">
       {destMethod && (
-        <div className="rounded-xl border border-[#EADFD4] bg-[#FFF8F2] p-4 text-sm">
+        <div className="rounded-xl border p-4 text-sm" style={{ background: "var(--ac-welcome-bg)", borderColor: "var(--ac-panel-border)" }}>
           <p className="mb-3 text-xs font-bold" style={{ color: "var(--ac-muted)" }}>واریز به حساب زیر و سپس ثبت اطلاعات فیش:</p>
           <dl className="grid gap-2">
             {destMethod.holder && <Row label="نام صاحب حساب" value={destMethod.holder} />}
@@ -93,9 +93,9 @@ export function CardToCardForm({
           </div>
         ) : (
           <select value={value.cardId ?? ""} onChange={(e) => onChange({ cardId: Number(e.target.value) })} className={inputCls} dir="ltr">
-            <option value="" disabled className="bg-white text-[#8C8075]">انتخاب کارت</option>
+            <option value="" disabled className="bg-[color:var(--ac-input-bg)] text-[color:var(--ac-muted)]">انتخاب کارت</option>
             {cards.map((c) => (
-              <option key={c.id} value={c.id} className="bg-white text-[#1F1A17]">
+              <option key={c.id} value={c.id} className="bg-[color:var(--ac-input-bg)] text-[color:var(--ac-title)]">
                 {formatCard(c.cardNumber)}{c.bank ? ` — ${c.bank}` : ""}
               </option>
             ))}
@@ -121,14 +121,14 @@ export function CardToCardForm({
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={value.uploading}
-            className="h-12 rounded-xl border border-[#E8DDD2] px-5 text-sm font-bold transition hover:bg-[#FFF7F1] disabled:opacity-60"
+            className="h-12 rounded-xl border border-[color:var(--ac-input-border)] px-5 text-sm font-bold transition hover:bg-[color:var(--ac-menu-hover)] disabled:opacity-60"
             style={{ color: "var(--ac-text)" }}
           >
             {value.uploading ? "در حال بارگذاری..." : value.receiptUrl ? "تغییر تصویر فیش" : "انتخاب تصویر فیش"}
           </button>
           {value.receiptUrl && (
             <a href={api.transactions.receiptSrc(value.receiptUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2">
-              <img src={api.transactions.receiptSrc(value.receiptUrl)} alt="فیش بانکی" className="h-12 w-12 rounded-lg border border-[#EADFD4] object-cover" />
+              <img src={api.transactions.receiptSrc(value.receiptUrl)} alt="فیش بانکی" className="h-12 w-12 rounded-lg border border-[color:var(--ac-panel-border)] object-cover" />
               <span className="text-xs font-bold text-emerald-600">✓ بارگذاری شد</span>
             </a>
           )}
@@ -143,7 +143,7 @@ export function CardToCardForm({
           onChange={(e) => onChange({ desc: e.target.value })}
           rows={2}
           placeholder="اختیاری"
-          className="w-full rounded-xl border border-[#E8DDD2] bg-white px-4 py-3 text-sm text-[#1F1A17] outline-none transition focus:border-[#FF7A2F] placeholder:text-[#8C8075]"
+          className="w-full rounded-xl border border-[color:var(--ac-input-border)] bg-[color:var(--ac-input-bg)] px-4 py-3 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]"
         />
       </div>
     </div>

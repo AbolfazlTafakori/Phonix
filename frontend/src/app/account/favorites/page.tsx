@@ -53,7 +53,7 @@ export default function FavoritesPage() {
       ) : (
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
           {items.map((product) => (
-            <div key={product.id} className="group relative overflow-hidden rounded-2xl border border-[#EADFD4] bg-[#1a1a24]">
+            <div key={product.id} className="group relative overflow-hidden rounded-2xl border border-[color:var(--ac-panel-border)] bg-[color:var(--ac-panel-bg)]">
               <Link href={`/products/detail?id=${product.id}`} className="relative block aspect-[3/4]">
                 <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />

@@ -64,17 +64,17 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
 
   return (
     <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-8">
-      <nav className="mb-6 flex items-center gap-2 text-sm text-white/45">
-        <Link href="/" className="hover:text-white">خانه</Link>
+      <nav className="mb-6 flex items-center gap-2 text-sm text-[var(--hl-muted)]">
+        <Link href="/" className="hover:text-[var(--hl-ink)]">خانه</Link>
         <span>/</span>
-        <Link href="/products" className="hover:text-white">{product.categoryName || "فروشگاه"}</Link>
+        <Link href="/products" className="hover:text-[var(--hl-ink)]">{product.categoryName || "فروشگاه"}</Link>
         <span>/</span>
-        <span className="text-white/70">{product.name}</span>
+        <span className="text-[var(--hl-ink-2)]">{product.name}</span>
       </nav>
 
       <div className="grid gap-8 lg:grid-cols-2">
         {/* gallery */}
-        <div className="relative self-start overflow-hidden rounded-3xl border border-white/10">
+        <div className="relative self-start overflow-hidden rounded-3xl border border-[var(--hl-border)]">
           <img src={product.image} alt={product.name} className="block w-full" />
           {out && (
             <div className="absolute inset-0 grid place-items-center">
@@ -94,12 +94,12 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
             </span>
           </div>
 
-          <h1 className="text-3xl font-bold text-white">{product.name}</h1>
+          <h1 className="text-3xl font-bold text-[var(--hl-ink)]">{product.name}</h1>
 
           {rated.length > 0 && (
             <div className="mt-3 flex items-center gap-2">
               <Stars value={avg} />
-              <span className="text-sm text-white/60">{toFa(avg.toFixed(1))} از ۵ · {formatNumber(rated.length)} نظر</span>
+              <span className="text-sm text-[var(--hl-ink-2)]">{toFa(avg.toFixed(1))} از ۵ · {formatNumber(rated.length)} نظر</span>
             </div>
           )}
 
@@ -107,7 +107,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
             <button
               type="button"
               disabled
-              className="mt-6 h-14 w-full cursor-not-allowed rounded-2xl border border-white/10 bg-white/[0.04] text-base font-bold text-white/55"
+              className="mt-6 h-14 w-full cursor-not-allowed rounded-2xl border border-[var(--hl-border)] bg-white/[0.04] text-base font-bold text-[var(--hl-ink-2)]"
             >
               ناموجود
             </button>
@@ -122,7 +122,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
           {product.features.length > 0 && (
             <ul className="mt-6 grid grid-cols-2 gap-3">
               {product.features.map((f) => (
-                <li key={f.text} className={`flex items-center gap-2 text-sm ${f.included ? "text-white/75" : "text-white/35 line-through"}`}>
+                <li key={f.text} className={`flex items-center gap-2 text-sm ${f.included ? "text-[var(--hl-ink-2)]" : "text-[var(--hl-muted)] line-through"}`}>
                   <span className={f.included ? "text-emerald-400" : "text-rose-400/70"}>{f.included ? "✓" : "✕"}</span>
                   {f.text}
                 </li>
@@ -133,8 +133,8 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
       </div>
 
       {/* description */}
-      <div className="mt-12 rounded-2xl border border-white/8 bg-[#15151f]/80 p-8">
-        <h2 className="mb-4 text-xl font-bold text-white">توضیحات محصول</h2>
+      <div className="mt-12 rounded-2xl border border-[var(--hl-border)] bg-white p-8">
+        <h2 className="mb-4 text-xl font-bold text-[var(--hl-ink)]">توضیحات محصول</h2>
         <RichText content={product.description} />
       </div>
 
@@ -150,36 +150,36 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
 
       {/* reviews */}
       <section className="mt-12">
-        <h2 className="mb-6 text-xl font-bold text-white">نظرات کاربران</h2>
+        <h2 className="mb-6 text-xl font-bold text-[var(--hl-ink)]">نظرات کاربران</h2>
         <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
           <div className="space-y-4">
             {topLevel.length === 0 ? (
-              <p className="rounded-2xl border border-white/8 bg-[#15151f]/60 p-6 text-sm text-white/45">
+              <p className="rounded-2xl border border-[var(--hl-border)] bg-white p-6 text-sm text-[var(--hl-muted)]">
                 هنوز نظری ثبت نشده است. اولین نفری باشید که نظر می‌دهد!
               </p>
             ) : (
               topLevel.map((c) => (
-                <div key={c.id} className="rounded-2xl border border-white/8 bg-[#15151f]/80 p-5">
+                <div key={c.id} className="rounded-2xl border border-[var(--hl-border)] bg-white p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-sm font-bold text-white">
+                      <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-sm font-bold text-[var(--hl-ink)]">
                         {c.userName.charAt(0)}
                       </span>
                       <div>
-                        <p className="text-sm font-bold text-white">{c.userName}</p>
-                        <p className="text-xs text-white/40">{c.date}</p>
+                        <p className="text-sm font-bold text-[var(--hl-ink)]">{c.userName}</p>
+                        <p className="text-xs text-[var(--hl-muted)]">{c.date}</p>
                       </div>
                     </div>
                     {c.rating > 0 && <Stars value={c.rating} />}
                   </div>
-                  <p className="mt-3 text-sm leading-7 text-white/75">{c.body}</p>
+                  <p className="mt-3 text-sm leading-7 text-[var(--hl-ink-2)]">{c.body}</p>
 
                   {comments
                     .filter((r) => r.parentId === c.id)
                     .map((r) => (
-                      <div key={r.id} className="mt-3 rounded-xl border-r-2 border-[#e60053]/40 bg-white/[0.03] p-4">
+                      <div key={r.id} className="mt-3 rounded-xl border-r-2 border-[#e60053]/40 bg-[var(--hl-border)]/20 p-4">
                         <p className="text-xs font-bold text-[#ff5a8a]">{r.userName}</p>
-                        <p className="mt-1.5 text-sm leading-7 text-white/70">{r.body}</p>
+                        <p className="mt-1.5 text-sm leading-7 text-[var(--hl-ink-2)]">{r.body}</p>
                       </div>
                     ))}
                 </div>

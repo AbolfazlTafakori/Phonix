@@ -240,9 +240,9 @@ export default function CheckoutPage() {
     return (
       <div className="mx-auto max-w-[640px] px-5 py-20 text-center">
         <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-emerald-500/15 text-3xl text-emerald-400">✓</div>
-        <h1 className="text-2xl font-bold text-white">سفارش شما ثبت شد</h1>
-        <p className="mt-2 text-sm leading-7 text-white/70">
-          شماره سفارش: <span className="font-mono text-white">{doneCode}</span>
+        <h1 className="text-2xl font-bold text-[var(--hl-ink)]">سفارش شما ثبت شد</h1>
+        <p className="mt-2 text-sm leading-7 text-[var(--hl-ink-2)]">
+          شماره سفارش: <span className="font-mono text-[var(--hl-ink)]">{doneCode}</span>
           <br />
           {donePaid
             ? "مبلغ از کیف پول شما کسر شد و سفارش به مرحله‌ی آماده‌سازی رفت."
@@ -258,8 +258,8 @@ export default function CheckoutPage() {
   if (ready && !user) {
     return (
       <div className="mx-auto max-w-[640px] px-5 py-20 text-center">
-        <h1 className="text-2xl font-bold text-white">ابتدا وارد شوید</h1>
-        <p className="mt-2 text-sm text-white/70">برای ثبت سفارش باید وارد حساب کاربری خود شوید.</p>
+        <h1 className="text-2xl font-bold text-[var(--hl-ink)]">ابتدا وارد شوید</h1>
+        <p className="mt-2 text-sm text-[var(--hl-ink-2)]">برای ثبت سفارش باید وارد حساب کاربری خود شوید.</p>
         <Link href="/login" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
           ورود / ثبت‌نام
         </Link>
@@ -270,7 +270,7 @@ export default function CheckoutPage() {
   if (cartReady && items.length === 0) {
     return (
       <div className="mx-auto max-w-[640px] px-5 py-20 text-center">
-        <h1 className="text-2xl font-bold text-white">سبد خرید خالی است</h1>
+        <h1 className="text-2xl font-bold text-[var(--hl-ink)]">سبد خرید خالی است</h1>
         <Link href="/products" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
           مشاهده محصولات
         </Link>
@@ -280,21 +280,21 @@ export default function CheckoutPage() {
 
   return (
     <div className="mx-auto max-w-[900px] px-5 pb-20 pt-10">
-      <h1 className="mb-6 text-2xl font-bold text-white">پرداخت و ثبت سفارش</h1>
+      <h1 className="mb-6 text-2xl font-bold text-[var(--hl-ink)]">پرداخت و ثبت سفارش</h1>
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
-          <div className="rounded-2xl border border-white/8 bg-[#15151f]/80 p-5">
-            <h3 className="mb-4 text-lg font-bold text-white">اقلام سفارش</h3>
+          <div className="rounded-2xl border border-[var(--hl-border)] bg-white p-5">
+            <h3 className="mb-4 text-lg font-bold text-[var(--hl-ink)]">اقلام سفارش</h3>
             <div className="space-y-3">
               {items.map((i) => (
                 <div key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center gap-3">
                   <img src={i.image} alt={i.name} className="h-11 w-11 rounded-lg object-cover" />
-                  <span className="flex-1 text-sm text-white/85">
+                  <span className="flex-1 text-sm text-[var(--hl-ink-2)]">
                     {i.name} × {i.quantity}
-                    {i.plan && <span className="text-white/45"> · {i.plan}</span>}
+                    {i.plan && <span className="text-[var(--hl-muted)]"> · {i.plan}</span>}
                   </span>
-                  <span className="text-sm text-white/70">{formatToman(i.price * i.quantity)}</span>
+                  <span className="text-sm text-[var(--hl-ink-2)]">{formatToman(i.price * i.quantity)}</span>
                 </div>
               ))}
             </div>
@@ -314,8 +314,8 @@ export default function CheckoutPage() {
             )),
           )}
 
-          <div className="rounded-2xl border border-white/8 bg-[#15151f]/80 p-5">
-            <h3 className="mb-4 text-lg font-bold text-white">روش پرداخت</h3>
+          <div className="rounded-2xl border border-[var(--hl-border)] bg-white p-5">
+            <h3 className="mb-4 text-lg font-bold text-[var(--hl-ink)]">روش پرداخت</h3>
 
             {overLevelItems.length > 0 ? (
               /* identity-level gate: hide every payment destination (card number, wallet
@@ -336,10 +336,10 @@ export default function CheckoutPage() {
                 </div>
                 <ul className="space-y-2">
                   {overLevelItems.map((i) => (
-                    <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5">
+                    <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
                       <div className="flex min-w-0 items-center gap-3">
                         <img src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
-                        <span className="truncate text-sm text-white/85">{i.name}</span>
+                        <span className="truncate text-sm text-[var(--hl-ink-2)]">{i.name}</span>
                       </div>
                       <button
                         onClick={() => removeFromCart(i.productId, i.planId ?? null)}
@@ -360,14 +360,14 @@ export default function CheckoutPage() {
               <button
                 type="button"
                 onClick={() => setUseWallet((v) => !v)}
-                className={`mb-3 flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-right transition ${useWallet ? "border-[#e60053]/50 bg-[#e60053]/10" : "border-white/10 hover:bg-white/5"}`}
+                className={`mb-3 flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-right transition ${useWallet ? "border-[#e60053]/50 bg-[#e60053]/10" : "border-[var(--hl-border)] hover:bg-[var(--hl-border)]/40"}`}
               >
-                <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${useWallet ? "bg-[#e60053]" : "bg-white/15"}`}>
+                <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${useWallet ? "bg-[#e60053]" : "bg-[var(--hl-border)]"}`}>
                   <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${useWallet ? "right-0.5" : "right-[22px]"}`} />
                 </span>
                 <span className="flex-1">
-                  <span className="block text-sm font-bold text-white">استفاده از موجودی کیف پول</span>
-                  <span className="block text-xs text-white/45">موجودی: {formatToman(walletBalance)}</span>
+                  <span className="block text-sm font-bold text-[var(--hl-ink)]">استفاده از موجودی کیف پول</span>
+                  <span className="block text-xs text-[var(--hl-muted)]">موجودی: {formatToman(walletBalance)}</span>
                 </span>
                 {useWallet && walletUse > 0 && <span className="text-xs font-bold text-emerald-400">− {formatToman(walletUse)}</span>}
               </button>
@@ -376,16 +376,16 @@ export default function CheckoutPage() {
             {needsMethod ? (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <p className="text-xs text-white/45">{walletUse > 0 ? "مبلغ باقیمانده را با یکی از روش‌های زیر پرداخت کنید:" : "روش پرداخت را انتخاب کنید:"}</p>
+                  <p className="text-xs text-[var(--hl-muted)]">{walletUse > 0 ? "مبلغ باقیمانده را با یکی از روش‌های زیر پرداخت کنید:" : "روش پرداخت را انتخاب کنید:"}</p>
                   {methods.length === 0 ? (
-                    <p className="text-sm text-white/45">روش پرداختی تعریف نشده است.</p>
+                    <p className="text-sm text-[var(--hl-muted)]">روش پرداختی تعریف نشده است.</p>
                   ) : (
                     methods.map((m) => (
-                      <label key={m.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${methodId === m.id ? "border-[#e60053]/50 bg-[#e60053]/10" : "border-white/10 hover:bg-white/5"}`}>
+                      <label key={m.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${methodId === m.id ? "border-[#e60053]/50 bg-[#e60053]/10" : "border-[var(--hl-border)] hover:bg-[var(--hl-border)]/40"}`}>
                         <input type="radio" name="method" checked={methodId === m.id} onChange={() => setMethodId(m.id)} className="accent-[#e60053]" />
                         <div>
-                          <p className="text-sm font-bold text-white">{m.title}</p>
-                          {m.instructions && <p className="text-xs text-white/45">{m.instructions}</p>}
+                          <p className="text-sm font-bold text-[var(--hl-ink)]">{m.title}</p>
+                          {m.instructions && <p className="text-xs text-[var(--hl-muted)]">{m.instructions}</p>}
                         </div>
                       </label>
                     ))
@@ -397,8 +397,8 @@ export default function CheckoutPage() {
                     destMethod={selectedMethod}
                     cards={cards}
                     amountSlot={
-                      <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm">
-                        <span className="text-white/55">مبلغ قابل پرداخت</span>
+                      <div className="flex items-center justify-between rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-3 text-sm">
+                        <span className="text-[var(--hl-ink-2)]">مبلغ قابل پرداخت</span>
                         <span className="font-bold text-emerald-400">{formatToman(finalPayable)}</span>
                       </div>
                     }
@@ -418,13 +418,13 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        <div className="h-fit rounded-2xl border border-white/8 bg-[#15151f]/80 p-6">
+        <div className="h-fit rounded-2xl border border-[var(--hl-border)] bg-white p-6">
           <div className="mb-4">
-            <label className="mb-2 block text-sm font-bold text-white">کد تخفیف</label>
+            <label className="mb-2 block text-sm font-bold text-[var(--hl-ink)]">کد تخفیف</label>
             {discount?.valid ? (
               <div className="flex items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3">
                 <span className="font-mono text-sm font-bold text-emerald-400" dir="ltr">{codeInput.trim().toUpperCase()}</span>
-                <button onClick={removeCode} className="text-xs font-bold text-white/60 transition hover:text-rose-400">حذف</button>
+                <button onClick={removeCode} className="text-xs font-bold text-[var(--hl-ink-2)] transition hover:text-rose-400">حذف</button>
               </div>
             ) : (
               <div className="flex gap-2">
@@ -433,12 +433,12 @@ export default function CheckoutPage() {
                   onChange={(e) => setCodeInput(e.target.value)}
                   dir="ltr"
                   placeholder="مثلاً WELCOME10"
-                  className="h-11 flex-1 rounded-xl border border-white/10 bg-[#0d0d15] px-3 text-left text-sm text-white outline-none transition focus:border-[#3e3af2] placeholder:text-white/35"
+                  className="h-11 flex-1 rounded-xl border border-[var(--hl-border)] bg-white px-3 text-left text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#3e3af2] placeholder:text-[var(--hl-muted)]"
                 />
                 <button
                   onClick={applyCode}
                   disabled={applyingCode || !codeInput.trim()}
-                  className="h-11 shrink-0 rounded-xl border border-white/15 px-4 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-50"
+                  className="h-11 shrink-0 rounded-xl border border-[var(--hl-border)] px-4 text-sm font-bold text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]/40 disabled:opacity-50"
                 >
                   {applyingCode ? "..." : "اعمال"}
                 </button>
@@ -447,10 +447,10 @@ export default function CheckoutPage() {
             {codeError && <p className="mt-2 text-xs text-rose-400">{codeError}</p>}
           </div>
 
-          <div className="space-y-2 border-t border-white/8 pt-3 text-sm">
-            <div className="flex items-center justify-between text-white/70">
+          <div className="space-y-2 border-t border-[var(--hl-border)] pt-3 text-sm">
+            <div className="flex items-center justify-between text-[var(--hl-ink-2)]">
               <span>مبلغ کل</span>
-              <span className="text-white">{formatToman(total)}</span>
+              <span className="text-[var(--hl-ink)]">{formatToman(total)}</span>
             </div>
             {discount?.valid && (
               <div className="flex items-center justify-between text-emerald-400">
@@ -459,9 +459,9 @@ export default function CheckoutPage() {
               </div>
             )}
             {vat > 0 && (
-              <div className="flex items-center justify-between text-white/70">
+              <div className="flex items-center justify-between text-[var(--hl-ink-2)]">
                 <span>مالیات بر ارزش افزوده ({toFa(vatPercent)}٪)</span>
-                <span className="text-white">+ {formatToman(vat)}</span>
+                <span className="text-[var(--hl-ink)]">+ {formatToman(vat)}</span>
               </div>
             )}
             {walletUse > 0 && (
@@ -476,8 +476,8 @@ export default function CheckoutPage() {
                 <span>+ {formatToman(fee)}</span>
               </div>
             )}
-            <div className="flex items-center justify-between border-t border-white/8 pt-2">
-              <span className="font-bold text-white/85">مبلغ قابل پرداخت</span>
+            <div className="flex items-center justify-between border-t border-[var(--hl-border)] pt-2">
+              <span className="font-bold text-[var(--hl-ink-2)]">مبلغ قابل پرداخت</span>
               <span className="text-lg font-bold text-emerald-400">{formatToman(finalPayable)}</span>
             </div>
           </div>
@@ -495,7 +495,7 @@ export default function CheckoutPage() {
             </div>
           )}
           {rulesRequired && overLevelItems.length === 0 && (
-            <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] p-3.5 text-sm text-white/85">
+            <label className="mt-4 flex cursor-pointer items-start gap-2.5 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 p-3.5 text-sm text-[var(--hl-ink-2)]">
               <input
                 type="checkbox"
                 checked={rulesAccepted}
@@ -519,18 +519,18 @@ export default function CheckoutPage() {
       {levelModal && (
         <div className="fixed inset-0 z-50 grid place-items-center p-4">
           <div onClick={() => setLevelModal(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div className="relative w-full max-w-md rounded-2xl border border-white/10 bg-[#16161f] p-6 shadow-2xl">
+          <div className="relative w-full max-w-md rounded-2xl border border-[var(--hl-border)] bg-white p-6 shadow-2xl">
             <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-amber-500/15 text-2xl text-amber-300">!</div>
-            <h3 className="text-center text-lg font-bold text-white">نیاز به ارتقای سطح حساب</h3>
-            <p className="mt-2 text-center text-sm leading-7 text-white/60">
+            <h3 className="text-center text-lg font-bold text-[var(--hl-ink)]">نیاز به ارتقای سطح حساب</h3>
+            <p className="mt-2 text-center text-sm leading-7 text-[var(--hl-ink-2)]">
               این محصول(ها) برای سطح فعلی حساب شما در دسترس نیستند. می‌توانید آن‌ها را از سبد حذف کنید یا سطح حساب خود را ارتقا دهید:
             </p>
             <ul className="mt-4 space-y-2">
               {overLevelItems.map((i) => (
-                <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2.5">
+                <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
                   <div className="flex min-w-0 items-center gap-3">
                     <img src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
-                    <span className="truncate text-sm text-white/85">{i.name}</span>
+                    <span className="truncate text-sm text-[var(--hl-ink-2)]">{i.name}</span>
                   </div>
                   <button
                     onClick={() => removeFromCart(i.productId, i.planId ?? null)}
@@ -545,7 +545,7 @@ export default function CheckoutPage() {
               <Link href="/account/kyc" className="grid h-11 flex-1 place-items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-sm font-bold text-white transition hover:brightness-110">
                 ارتقای سطح حساب
               </Link>
-              <button onClick={() => setLevelModal(false)} className="h-11 rounded-xl border border-white/10 px-6 text-sm font-bold text-white/80 transition hover:bg-white/5">
+              <button onClick={() => setLevelModal(false)} className="h-11 rounded-xl border border-[var(--hl-border)] px-6 text-sm font-bold text-white/80 transition hover:bg-[var(--hl-border)]/40">
                 بستن
               </button>
             </div>

@@ -351,15 +351,17 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
 
 function CaptchaRow({ captcha }: { captcha: ReturnType<typeof useCaptcha> }) {
   return (
-    <div className="flex items-center gap-2.5">
-      <div className="grid h-12 w-[120px] shrink-0 place-items-center overflow-hidden rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface-2)]">
-        {captcha.loading || !captcha.image ? <span className="text-xs text-[var(--chat-muted)]">…</span> : (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={captcha.image} alt="کد امنیتی" className="h-full w-full object-cover" />
-        )}
+    <div className="space-y-2.5">
+      <div className="flex items-center gap-2.5">
+        <div className="grid h-14 min-w-0 flex-1 place-items-center overflow-hidden rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface-2)]">
+          {captcha.loading || !captcha.image ? <span className="text-xs text-[var(--chat-muted)]">…</span> : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={captcha.image} alt="کد امنیتی" className="h-14 w-auto max-w-full" />
+          )}
+        </div>
+        <button type="button" onClick={captcha.refresh} title="تصویر جدید" tabIndex={-1} className="grid h-14 w-11 shrink-0 place-items-center rounded-xl border border-[var(--chat-border)] text-[var(--chat-ink-2)] transition hover:text-[var(--chat-ink)]">↻</button>
       </div>
-      <button type="button" onClick={captcha.refresh} title="تصویر جدید" tabIndex={-1} className="grid h-12 w-10 shrink-0 place-items-center rounded-xl border border-[var(--chat-border)] text-[var(--chat-ink-2)] transition hover:text-[var(--chat-ink)]">↻</button>
-      <input value={captcha.text} onChange={(e) => captcha.setText(e.target.value)} dir="ltr" autoComplete="off" placeholder="کد تصویر" className="h-12 flex-1 rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3 text-center text-[13px] tracking-[0.2em] text-[var(--chat-ink)] outline-none transition focus:border-[#ff7a2e]" />
+      <input value={captcha.text} onChange={(e) => captcha.setText(e.target.value)} dir="ltr" autoComplete="off" placeholder="کد تصویر" className="h-12 w-full rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3 text-center text-[13px] tracking-[0.2em] text-[var(--chat-ink)] outline-none transition focus:border-[#ff7a2e]" />
     </div>
   );
 }

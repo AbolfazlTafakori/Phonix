@@ -105,26 +105,22 @@ function StatCard({
         (e.currentTarget as HTMLElement).style.transform = "";
       }}
     >
-      {/* label + icon row */}
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-[13px] font-semibold leading-snug" style={{ color: "var(--ac-text)" }}>{label}</span>
-        <span
-          className="flex h-[44px] w-[44px] shrink-0 items-center justify-center rounded-[12px]"
-          style={{ background: iconBg, direction: "ltr" }}
-        >
-          <img src={iconSrc} alt="" className="h-[26px] w-[26px] object-contain" style={{ display: "block" }} />
-        </span>
+      {/* logo (right) + label (left, next to it) */}
+      <div className="flex items-center gap-3">
+        <img src={iconSrc} alt="" className="h-[48px] w-[48px] shrink-0 object-contain" />
+        <span className="text-[14px] font-bold leading-snug" style={{ color: "var(--ac-text)" }}>{label}</span>
       </div>
 
       {/* value + unit */}
-      <div className="flex-1">
+      <div className="flex-1 text-center">
         <p className="text-[28px] font-black leading-none" style={{ color: "var(--ac-title)" }}>{value}</p>
         <p className="mt-1 text-[12px]" style={{ color: "var(--ac-muted)" }}>{unit}</p>
       </div>
 
       {/* link */}
-      <span className="flex items-center gap-1 text-[13px] font-bold transition-opacity group-hover:opacity-60" style={{ color: "#F2551F" }}>
-        {linkText} ‹
+      <span className="flex items-center justify-center gap-1.5 text-[13px] font-bold transition-opacity group-hover:opacity-60" style={{ color: "#F2551F" }}>
+        {linkText}
+        <span className="text-[17px] leading-none" style={{ direction: "ltr" }}>‹</span>
       </span>
     </Link>
   );
@@ -234,14 +230,9 @@ export default function AccountDashboard() {
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
-          label="موجودی کیف پول" value={formatNumber(wallet)} unit="تومان"
-          link="/account/wallet" linkText="مشاهده کیف پول"
-          iconBg="var(--ac-stat-icon-orange-bg)" iconSrc="/figma/icon-wallet.png"
-        />
-        <StatCard
-          label="کل سفارش‌ها" value={toFa(totalOrders)} unit="سفارش"
-          link="/account/orders" linkText="مشاهده سفارش‌ها"
-          iconBg="var(--ac-stat-icon-orange-bg)" iconSrc="/figma/icon-bag.png"
+          label="سطح احراز هویت" value={`سطح ${toFa(kycLevel)}`} unit="تأیید شده"
+          link="/account/kyc" linkText="مشاهده جزئیات"
+          iconBg="var(--ac-stat-icon-purple-bg)" iconSrc="/figma/icon-shield.png"
         />
         <StatCard
           label="تیکت‌های باز" value={toFa(openTickets)} unit="تیکت"
@@ -249,9 +240,14 @@ export default function AccountDashboard() {
           iconBg="var(--ac-stat-icon-green-bg)" iconSrc="/figma/icon-headset.png"
         />
         <StatCard
-          label="سطح احراز هویت" value={`سطح ${toFa(kycLevel)}`} unit="تأیید شده"
-          link="/account/kyc" linkText="مشاهده جزئیات"
-          iconBg="var(--ac-stat-icon-purple-bg)" iconSrc="/figma/icon-shield.png"
+          label="کل سفارش‌ها" value={toFa(totalOrders)} unit="سفارش"
+          link="/account/orders" linkText="مشاهده سفارش‌ها"
+          iconBg="var(--ac-stat-icon-orange-bg)" iconSrc="/figma/icon-bag.png"
+        />
+        <StatCard
+          label="موجودی کیف پول" value={formatNumber(wallet)} unit="تومان"
+          link="/account/wallet" linkText="مشاهده کیف پول"
+          iconBg="var(--ac-stat-icon-orange-bg)" iconSrc="/figma/icon-wallet.png"
         />
       </div>
 

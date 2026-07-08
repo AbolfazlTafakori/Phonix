@@ -10,7 +10,7 @@ import { PageTitle, Panel } from "@/components/account/Panel";
 import ImageField from "@/components/admin/ImageField";
 
 const inputCls =
-  "h-12 w-full rounded-xl border border-[#E8DDD2] bg-white px-4 text-sm text-[#1F1A17] outline-none transition focus:border-[#FF7A2F] placeholder:text-[#8C8075]";
+  "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-white px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
 
 const LEVELS = [
   { n: 0, title: "ثبت‌نام", desc: "حساب ساخته شد" },
@@ -97,14 +97,14 @@ export default function KycPage() {
                         className={`grid h-11 w-11 place-items-center rounded-full text-sm font-bold transition ${
                           done
                             ? "text-white"
-                            : "border text-[#8C8075]"
+                            : "border text-[color:var(--ac-muted)]"
                         } ${current ? "ring-2 ring-[#FF6A2B]/50 ring-offset-2 ring-offset-white" : ""}`}
                         style={done ? { background: "var(--ac-btn)" } : { borderColor: "#EADFD4" }}
                       >
                         {done ? "✓" : toFa(l.n)}
                       </div>
-                      <p className={`mt-2 text-xs font-bold ${done ? "" : "text-[#8C8075]"}`} style={done ? { color: "var(--ac-title)" } : {}}>سطح {toFa(l.n)}</p>
-                      <p className="text-[11px] text-[#8C8075]">{l.title}</p>
+                      <p className={`mt-2 text-xs font-bold ${done ? "" : "text-[color:var(--ac-muted)]"}`} style={done ? { color: "var(--ac-title)" } : {}}>سطح {toFa(l.n)}</p>
+                      <p className="text-[11px] text-[color:var(--ac-muted)]">{l.title}</p>
                     </div>
                     {i < LEVELS.length - 1 && (
                       <div
@@ -124,7 +124,7 @@ export default function KycPage() {
           {level === 0 ? (
             <Panel>
               <div className="flex flex-col items-center gap-3 py-6 text-center">
-                <div className="grid h-16 w-16 place-items-center rounded-full bg-[#FFF1E8] text-3xl text-[#FF5A1F]">۱</div>
+                <div className="grid h-16 w-16 place-items-center rounded-full bg-[color:var(--ac-stat-icon-orange-bg)] text-3xl text-[#FF5A1F]">۱</div>
                 <h2 className="text-lg font-bold" style={{ color: "var(--ac-title)" }}>ارتقا به سطح ۱ — ثبت کارت بانکی</h2>
                 <p className="max-w-md text-sm leading-7" style={{ color: "var(--ac-muted)" }}>
                   برای خرید در سایت، ابتدا یک کارت بانکی به نام خودتان ثبت کنید. پس از تأیید توسط پشتیبانی، حساب شما به سطح ۱ ارتقا می‌یابد.

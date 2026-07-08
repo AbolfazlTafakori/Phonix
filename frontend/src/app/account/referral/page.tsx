@@ -45,7 +45,7 @@ export default function ReferralPage() {
         ) : (
           <table className="w-full min-w-[680px] text-right">
             <thead>
-              <tr className="border-b border-[#EADFD4] text-sm" style={{ color: "var(--ac-muted)" }}>
+              <tr className="border-b border-[color:var(--ac-panel-border)] text-sm" style={{ color: "var(--ac-muted)" }}>
                 <th className="px-6 py-4 font-medium">کاربر معرفی‌شده</th>
                 <th className="px-6 py-4 font-medium">شماره سفارش</th>
                 <th className="px-6 py-4 font-medium">مبلغ سفارش</th>
@@ -55,7 +55,7 @@ export default function ReferralPage() {
             </thead>
             <tbody>
               {earnings.map((r, i) => (
-                <tr key={i} className="border-b border-[#F3E8DE] text-sm transition hover:bg-[#FFF7F1]" style={{ color: "var(--ac-title)" }}>
+                <tr key={i} className="border-b border-[color:var(--ac-divider)] text-sm transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-title)" }}>
                   <td className="px-6 py-4">{r.referredName}</td>
                   <td className="px-6 py-4 font-mono" style={{ color: "var(--ac-muted)" }}>{r.orderCode}</td>
                   <td className="px-6 py-4">{formatToman(r.orderAmount)}</td>

@@ -12,7 +12,7 @@ import { CardToCardForm, emptyCardToCard, isCardToCardComplete, type CardToCardV
 const statusLabel: Record<TxStatus, string> = { Pending: "در انتظار", Approved: "تایید شده", Rejected: "رد شده" };
 
 const inputCls =
-  "h-12 w-full rounded-xl border border-[#E8DDD2] bg-white px-4 text-sm text-[#1F1A17] outline-none transition focus:border-[#FF7A2F] placeholder:text-[#8C8075]";
+  "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-[color:var(--ac-input-bg)] px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
 
 const QUICK: { value: number; label: string }[] = [
   { value: 500_000, label: "۵۰۰ هزار" },
@@ -153,7 +153,7 @@ export default function WalletPage() {
             key={q.value}
             type="button"
             onClick={() => setAmount(String(q.value))}
-            className="rounded-lg border border-[#EADFD4] px-3 py-1.5 text-xs font-bold transition hover:border-[#FF7A2F] hover:text-[#FF5A1F]"
+            className="rounded-lg border border-[color:var(--ac-panel-border)] px-3 py-1.5 text-xs font-bold transition hover:border-[color:var(--ac-input-focus)] hover:text-[#FF5A1F]"
             style={{ color: "var(--ac-text)" }}
           >
             {q.label}
@@ -191,7 +191,7 @@ export default function WalletPage() {
             <h2 className="mb-4 text-lg font-bold" style={{ color: "var(--ac-title)" }}>واریز و افزایش موجودی</h2>
 
             {/* Tab switcher */}
-            <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-[#EADFD4] bg-[#FFF8F2] p-1.5">
+            <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border p-1.5" style={{ background: "var(--ac-welcome-bg)", borderColor: "var(--ac-panel-border)" }}>
               <button
                 onClick={() => setTab("toman")}
                 className={`h-11 rounded-xl text-sm font-bold transition ${tab === "toman" ? "bg-white shadow-sm" : "hover:bg-white/50"}`}
@@ -205,30 +205,30 @@ export default function WalletPage() {
                 style={{ color: tab === "crypto" ? "var(--ac-title)" : "var(--ac-muted)" }}
               >
                 واریز رمزارز
-                <span className="rounded-md bg-[#EADFD4] px-1.5 py-0.5 text-[10px] font-bold" style={{ color: "var(--ac-muted)" }}>به‌زودی</span>
+                <span className="rounded-md px-1.5 py-0.5 text-[10px] font-bold" style={{ background: "var(--ac-divider)", color: "var(--ac-muted)" }}>به‌زودی</span>
               </button>
             </div>
 
             {tab === "crypto" ? (
-              <div className="rounded-xl border border-[#EADFD4] bg-[#FFF8F2] px-4 py-10 text-center text-sm" style={{ color: "var(--ac-muted)" }}>
+              <div className="rounded-xl border px-4 py-10 text-center text-sm" style={{ background: "var(--ac-welcome-bg)", borderColor: "var(--ac-panel-border)", color: "var(--ac-muted)" }}>
                 واریز رمزارز به‌زودی فعال می‌شود.
               </div>
             ) : (
               <div className="space-y-4">
                 <div className="grid gap-2">
-                  <div className="flex items-center justify-between rounded-xl border border-[#EADFD4] bg-[#F7F0E8] px-4 py-3 opacity-60">
+                  <div className="flex items-center justify-between rounded-xl border px-4 py-3 opacity-60" style={{ background: "var(--ac-welcome-bg)", borderColor: "var(--ac-panel-border)" }}>
                     <span className="flex items-center gap-2 text-sm font-bold" style={{ color: "var(--ac-muted)" }}>
-                      <span className="grid h-5 w-5 place-items-center rounded-full border border-[#EADFD4]" />
+                      <span className="grid h-5 w-5 place-items-center rounded-full border" style={{ borderColor: "var(--ac-panel-border)" }} />
                       واریز آنلاین
                     </span>
-                    <span className="rounded-md bg-[#EADFD4] px-2 py-0.5 text-[11px] font-bold" style={{ color: "var(--ac-muted)" }}>به‌زودی</span>
+                    <span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: "var(--ac-divider)", color: "var(--ac-muted)" }}>به‌زودی</span>
                   </div>
-                  <div className="flex items-center justify-between rounded-xl border border-[#FF6A2B]/40 bg-[#FFF1E8] px-4 py-3">
+                  <div className="flex items-center justify-between rounded-xl border px-4 py-3" style={{ background: "var(--ac-menu-active-bg)", borderColor: "var(--ac-menu-active-border)" }}>
                     <span className="flex items-center gap-2 text-sm font-bold" style={{ color: "var(--ac-title)" }}>
-                      <span className="grid h-5 w-5 place-items-center rounded-full border-[5px] border-[#FF6A2B]" />
+                      <span className="grid h-5 w-5 place-items-center rounded-full border-[5px]" style={{ borderColor: "var(--ac-menu-active-border)" }} />
                       واریز آفلاین (کارت‌به‌کارت)
                     </span>
-                    <span className="rounded-md bg-[#EADFD4] px-2 py-0.5 text-[11px] font-bold" style={{ color: "var(--ac-muted)" }}>حداکثر ۱۰ دقیقه</span>
+                    <span className="rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: "var(--ac-divider)", color: "var(--ac-muted)" }}>حداکثر ۱۰ دقیقه</span>
                   </div>
                 </div>
 
@@ -270,7 +270,7 @@ export default function WalletPage() {
             <button
               onClick={withdraw}
               disabled={withdrawing || wAmountValue <= 0 || !wDest.trim()}
-              className="h-12 rounded-xl border border-[#EADFD4] px-8 text-sm font-bold transition hover:bg-[#FFF7F1] disabled:opacity-60"
+              className="h-12 rounded-xl border border-[color:var(--ac-panel-border)] px-8 text-sm font-bold transition hover:bg-[color:var(--ac-menu-hover)] disabled:opacity-60"
               style={{ color: "var(--ac-text)" }}
             >
               {withdrawing ? "در حال ثبت..." : "ثبت درخواست برداشت"}
@@ -289,7 +289,7 @@ export default function WalletPage() {
         ) : txs.length === 0 ? (
           <p className="py-8 text-center text-sm" style={{ color: "var(--ac-muted)" }}>هنوز تراکنشی ندارید.</p>
         ) : (
-          <ul className="divide-y divide-[#EADFD4]">
+          <ul className="divide-y divide-[color:var(--ac-divider)]">
             {txs.map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-3 py-4">
                 <div className="min-w-0">

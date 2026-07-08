@@ -133,17 +133,17 @@ export default function Sidebar() {
               onClick={handleLogout}
               className="flex h-[48px] w-full items-center justify-center gap-2 rounded-xl border text-[14px] font-bold transition-all"
               style={{
-                background: "#FFF8F3",
-                border: "1px solid #F4CFC0",
-                color: "#F2551F",
+                background: "var(--ac-btn-secondary-bg)",
+                border: "1px solid var(--ac-btn-secondary-border)",
+                color: "var(--ac-btn-secondary-text)",
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "#FFF1E8";
-                (e.currentTarget as HTMLElement).style.borderColor = "#FF6A2B";
+                (e.currentTarget as HTMLElement).style.background = "var(--ac-menu-active-bg)";
+                (e.currentTarget as HTMLElement).style.borderColor = "var(--ac-menu-active-border)";
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = "#FFF8F3";
-                (e.currentTarget as HTMLElement).style.borderColor = "#F4CFC0";
+                (e.currentTarget as HTMLElement).style.background = "var(--ac-btn-secondary-bg)";
+                (e.currentTarget as HTMLElement).style.borderColor = "var(--ac-btn-secondary-border)";
               }}
             >
               <MenuIcon name="logout" className="h-4 w-4" />
@@ -163,7 +163,7 @@ export default function Sidebar() {
         }}
       >
         <div className="mb-5 flex items-center gap-2">
-          <MenuIcon name="wallet" className="h-5 w-5" style={{ color: "#4B4037" }} />
+          <MenuIcon name="wallet" className="h-5 w-5" style={{ color: "var(--ac-menu-text)" }} />
           <span className="text-[17px] font-black" style={{ color: "var(--ac-title)" }}>کیف پول من</span>
         </div>
 
@@ -171,7 +171,7 @@ export default function Sidebar() {
         <p className="text-center text-[30px] font-black leading-tight" style={{ color: "var(--ac-title)" }}>
           {formatNumber(wallet)}
         </p>
-        <p className="mb-6 text-center text-[13px]" style={{ color: "#6C5F54" }}>تومان</p>
+        <p className="mb-6 text-center text-[13px]" style={{ color: "var(--ac-muted)" }}>تومان</p>
 
         <Link
           href="/account/wallet"
@@ -187,9 +187,9 @@ export default function Sidebar() {
         <Link
           href="/account/wallet"
           className="mt-[10px] flex h-[46px] w-full items-center justify-center gap-2 rounded-xl border text-[14px] font-bold transition"
-          style={{ background: "#FFFFFF", border: "1px solid #F4A58A", color: "#F2551F" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#FFF8F5"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#FFFFFF"; }}
+          style={{ background: "var(--ac-btn-secondary-bg)", border: "1px solid var(--ac-btn-secondary-border)", color: "var(--ac-btn-secondary-text)" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ac-menu-hover)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ac-btn-secondary-bg)"; }}
         >
           برداشت
         </Link>
@@ -197,9 +197,9 @@ export default function Sidebar() {
         <Link
           href="/account/wallet"
           className="mt-[10px] flex h-[46px] w-full items-center justify-center gap-2 rounded-xl border text-[14px] font-bold transition"
-          style={{ background: "#FFFFFF", border: "1px solid #F4A58A", color: "#F2551F" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "#FFF8F5"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "#FFFFFF"; }}
+          style={{ background: "var(--ac-btn-secondary-bg)", border: "1px solid var(--ac-btn-secondary-border)", color: "var(--ac-btn-secondary-text)" }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ac-menu-hover)"; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ac-btn-secondary-bg)"; }}
         >
           تراکنش‌ها
         </Link>
