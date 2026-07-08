@@ -6,11 +6,11 @@ import AccountGuard from "@/components/account/AccountGuard";
 
 export default function AccountLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="home-light relative flex min-h-screen flex-col">
+    <div className="home-light relative flex min-h-screen flex-col" style={{ background: "var(--ac-page-bg)" }}>
       <SiteHeader />
-      <div className="mx-auto w-full max-w-[1320px] flex-1 px-5 py-10">
+      <div className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-8 md:px-6 md:py-10">
         <AccountGuard>
-          <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+          <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
             <Sidebar />
             <main className="min-w-0">{children}</main>
           </div>

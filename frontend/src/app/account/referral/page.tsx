@@ -36,16 +36,16 @@ export default function ReferralPage() {
       <Panel className="overflow-x-auto p-0">
         {loading ? (
           <div className="grid h-32 place-items-center">
-            <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-[#e60053]" />
+            <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[rgba(166,102,45,0.2)] border-t-[#FF5A1F]" />
           </div>
         ) : earnings.length === 0 ? (
-          <p className="py-12 text-center text-sm text-white/45">
+          <p className="py-12 text-center text-sm" style={{ color: "var(--ac-muted)" }}>
             هنوز پورسانتی ثبت نشده است. با لینک دعوت خود دوستانتان را به خرید دعوت کنید.
           </p>
         ) : (
           <table className="w-full min-w-[680px] text-right">
             <thead>
-              <tr className="border-b border-white/8 text-sm text-white/55">
+              <tr className="border-b border-[#EADFD4] text-sm" style={{ color: "var(--ac-muted)" }}>
                 <th className="px-6 py-4 font-medium">کاربر معرفی‌شده</th>
                 <th className="px-6 py-4 font-medium">شماره سفارش</th>
                 <th className="px-6 py-4 font-medium">مبلغ سفارش</th>
@@ -55,12 +55,12 @@ export default function ReferralPage() {
             </thead>
             <tbody>
               {earnings.map((r, i) => (
-                <tr key={i} className="border-b border-white/5 text-sm text-white/85 transition hover:bg-white/[0.03]">
+                <tr key={i} className="border-b border-[#F3E8DE] text-sm transition hover:bg-[#FFF7F1]" style={{ color: "var(--ac-title)" }}>
                   <td className="px-6 py-4">{r.referredName}</td>
-                  <td className="px-6 py-4 font-mono text-white/70">{r.orderCode}</td>
+                  <td className="px-6 py-4 font-mono" style={{ color: "var(--ac-muted)" }}>{r.orderCode}</td>
                   <td className="px-6 py-4">{formatToman(r.orderAmount)}</td>
-                  <td className="px-6 py-4 font-bold text-emerald-400">{formatToman(r.commission)}</td>
-                  <td className="px-6 py-4 text-white/55">{r.date}</td>
+                  <td className="px-6 py-4 font-bold text-emerald-600">{formatToman(r.commission)}</td>
+                  <td className="px-6 py-4" style={{ color: "var(--ac-muted)" }}>{r.date}</td>
                 </tr>
               ))}
             </tbody>

@@ -270,6 +270,104 @@ body:has(.home-light) {
   .home-light, .home-light *, body:has(.home-light) { transition: none; }
 }
 
+/* ── Account Panel — Phoenix Verify warm light palette ────────────────────────
+   CSS custom properties scoped to .home-light (which account/layout.tsx sets).
+   The admin panel and dark shell are completely unaffected.
+   Dark mode override lives under html.home-dark .home-light below. */
+.home-light {
+  --ac-page-bg: linear-gradient(180deg, #fffcfa 0%, #f8f1ea 45%, #f3e7dc 100%);
+
+  --ac-panel-bg: #ffffff;
+  --ac-panel-border: #eadfd4;
+  /* Layered shadow: ambient + directional + inset top-edge highlight = raised card */
+  --ac-panel-shadow:
+    0 1px 2px rgba(166, 102, 45, 0.04),
+    0 6px 16px -4px rgba(166, 102, 45, 0.10),
+    0 20px 44px -10px rgba(166, 102, 45, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.90);
+  --ac-panel-shadow-hover:
+    0 2px 4px rgba(166, 102, 45, 0.06),
+    0 10px 24px -4px rgba(166, 102, 45, 0.16),
+    0 32px 60px -12px rgba(166, 102, 45, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+
+  --ac-sidebar-bg: #fffdfb;
+  --ac-sidebar-border: #e8ddd2;
+  --ac-welcome-bg: linear-gradient(135deg, #fff8f2 0%, #fff1e8 100%);
+  --ac-welcome-border: #f1d8c5;
+  --ac-input-bg: #ffffff;
+  --ac-input-border: #e8ddd2;
+  --ac-input-focus: #ff7a2f;
+  --ac-title: #1f1a17;
+  --ac-text: #5e5248;
+  --ac-muted: #8c8075;
+  --ac-icon: #8c7b6c;
+  --ac-divider: #eadfd4;
+  --ac-menu-active-bg: #fff1e8;
+  --ac-menu-active-border: #ff6a2b;
+  --ac-menu-active-text: #f2551f;
+  --ac-menu-text: #4b4037;
+  --ac-menu-hover: #fff7f1;
+  --ac-btn: linear-gradient(135deg, #ff8a2b 0%, #ff5a1f 55%, #ff3d2e 100%);
+  --ac-btn-secondary-bg: #ffffff;
+  --ac-btn-secondary-border: #f0d7c3;
+  --ac-btn-secondary-text: #e85b28;
+  --ac-spinner-ring: rgba(166, 102, 45, 0.20);
+  --ac-spinner-tip: #ff5a1f;
+
+  /* stat card accent chips */
+  --ac-stat-icon-orange-bg: #fff1e8;
+  --ac-stat-icon-green-bg: #eaf9f1;
+  --ac-stat-icon-purple-bg: #f2e9ff;
+}
+
+/* ── Account Panel — dark mode overrides ─────────────────────────────────── */
+html.home-dark body:has(.home-light) { background: #110e18; }
+html.home-dark .home-light {
+  --ac-page-bg: linear-gradient(180deg, #181220 0%, #130f1b 55%, #0f0b15 100%);
+
+  --ac-panel-bg: #1c1625;
+  --ac-panel-border: rgba(255, 160, 100, 0.10);
+  --ac-panel-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.25),
+    0 6px 18px -4px rgba(0, 0, 0, 0.35),
+    0 22px 48px -10px rgba(0, 0, 0, 0.40),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --ac-panel-shadow-hover:
+    0 2px 4px rgba(0, 0, 0, 0.30),
+    0 10px 28px -4px rgba(0, 0, 0, 0.44),
+    0 34px 64px -12px rgba(0, 0, 0, 0.50),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
+
+  --ac-sidebar-bg: #17111f;
+  --ac-sidebar-border: rgba(255, 160, 100, 0.09);
+  --ac-welcome-bg: linear-gradient(135deg, #1f1530 0%, #1a1228 100%);
+  --ac-welcome-border: rgba(255, 140, 80, 0.18);
+  --ac-input-bg: #1a1424;
+  --ac-input-border: rgba(255, 255, 255, 0.10);
+  --ac-input-focus: #ff7a2f;
+  --ac-title: #f0ebe5;
+  --ac-text: #c4b4a4;
+  --ac-muted: #7a6e65;
+  --ac-icon: #6a5e58;
+  --ac-divider: rgba(255, 255, 255, 0.07);
+  --ac-menu-active-bg: rgba(255, 106, 43, 0.12);
+  --ac-menu-active-border: #ff6a2b;
+  --ac-menu-active-text: #ff884a;
+  --ac-menu-text: #b0a090;
+  --ac-menu-hover: rgba(255, 106, 43, 0.07);
+  --ac-btn: linear-gradient(135deg, #ff8a2b 0%, #ff5a1f 55%, #ff3d2e 100%);
+  --ac-btn-secondary-bg: rgba(255, 255, 255, 0.04);
+  --ac-btn-secondary-border: rgba(255, 150, 90, 0.25);
+  --ac-btn-secondary-text: #ff884a;
+  --ac-spinner-ring: rgba(255, 160, 80, 0.18);
+  --ac-spinner-tip: #ff5a1f;
+
+  --ac-stat-icon-orange-bg: rgba(255, 106, 43, 0.12);
+  --ac-stat-icon-green-bg: rgba(34, 181, 115, 0.10);
+  --ac-stat-icon-purple-bg: rgba(138, 82, 255, 0.12);
+}
+
 /* Slim scrollbar to match the dark theme */
 ::-webkit-scrollbar {
   width: 10px;

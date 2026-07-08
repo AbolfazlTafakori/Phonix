@@ -19,9 +19,7 @@ export default function FavoritesPage() {
     setItems(products.filter((p) => ids.includes(p.id)));
     setLoading(false);
   }
-  useEffect(() => {
-    load();
-  }, [user]);
+  useEffect(() => { load(); }, [user]);
 
   async function remove(productId: number) {
     if (!user) return;
@@ -34,18 +32,28 @@ export default function FavoritesPage() {
       <PageTitle title="محصولات موردعلاقه" desc="محصولاتی که برای خرید بعدی ذخیره کرده‌اید." />
 
       {loading ? (
-        <Panel><div className="grid h-24 place-items-center"><span className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-white/20 border-t-[#e60053]" /></div></Panel>
+        <Panel>
+          <div className="grid h-24 place-items-center">
+            <span className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[rgba(166,102,45,0.2)] border-t-[#FF5A1F]" />
+          </div>
+        </Panel>
       ) : items.length === 0 ? (
         <Panel>
           <div className="py-8 text-center">
-            <p className="text-white/60">لیست علاقه‌مندی شما خالی است.</p>
-            <Link href="/products" className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 py-2.5 text-sm font-bold text-white transition hover:brightness-110">مشاهده محصولات</Link>
+            <p style={{ color: "var(--ac-muted)" }}>لیست علاقه‌مندی شما خالی است.</p>
+            <Link
+              href="/products"
+              className="mt-4 inline-block rounded-xl px-6 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+              style={{ background: "var(--ac-btn)" }}
+            >
+              مشاهده محصولات
+            </Link>
           </div>
         </Panel>
       ) : (
         <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
           {items.map((product) => (
-            <div key={product.id} className="group relative overflow-hidden rounded-2xl border border-white/8 bg-[#0d0d14]">
+            <div key={product.id} className="group relative overflow-hidden rounded-2xl border border-[#EADFD4] bg-[#1a1a24]">
               <Link href={`/products/detail?id=${product.id}`} className="relative block aspect-[3/4]">
                 <img src={product.image} alt={product.name} className="h-full w-full object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />

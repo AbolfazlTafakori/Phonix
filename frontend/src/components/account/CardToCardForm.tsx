@@ -7,7 +7,7 @@ import JalaliDatePicker from "./JalaliDatePicker";
 import type { PaymentMethod, BankCard } from "@/lib/types";
 
 const inputCls =
-  "h-12 w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 text-sm text-white outline-none transition focus:border-[#3e3af2] placeholder:text-white/35";
+  "h-12 w-full rounded-xl border border-[#E8DDD2] bg-white px-4 text-sm text-[#1F1A17] outline-none transition focus:border-[#FF7A2F] placeholder:text-[#8C8075]";
 
 export type CardToCardValue = {
   cardId: number | null;
@@ -33,9 +33,6 @@ export function formatCard(raw: string): string {
 // to the public uploads folder. Returns the opaque id stored as receiptUrl.
 const upload = (file: File): Promise<string> => api.transactions.uploadReceipt(file);
 
-// The shared card-to-card payment form used by both the wallet top-up and the checkout remainder, so
-// the two look and behave identically. `amountSlot` is rendered between the destination account and the
-// rest of the fields (the wallet passes an amount input, checkout passes a fixed payable amount).
 export function CardToCardForm({
   destMethod,
   cards,
@@ -72,8 +69,8 @@ export function CardToCardForm({
   return (
     <div className="space-y-4">
       {destMethod && (
-        <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4 text-sm">
-          <p className="mb-3 text-xs font-bold text-white/45">واریز به حساب زیر و سپس ثبت اطلاعات فیش:</p>
+        <div className="rounded-xl border border-[#EADFD4] bg-[#FFF8F2] p-4 text-sm">
+          <p className="mb-3 text-xs font-bold" style={{ color: "var(--ac-muted)" }}>واریز به حساب زیر و سپس ثبت اطلاعات فیش:</p>
           <dl className="grid gap-2">
             {destMethod.holder && <Row label="نام صاحب حساب" value={destMethod.holder} />}
             {destMethod.sheba && <Row label="شماره شبا" value={destMethod.sheba} mono />}
@@ -87,18 +84,18 @@ export function CardToCardForm({
       {amountSlot}
 
       <div>
-        <label className="mb-2 block text-sm font-bold text-white/85">شماره کارت (مبدأ پرداخت) *</label>
+        <label className="mb-2 block text-sm font-bold" style={{ color: "var(--ac-text)" }}>شماره کارت (مبدأ پرداخت) *</label>
         {cards.length === 0 ? (
-          <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-4 py-3 text-sm text-amber-200/90">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
             کارت بانکی تأییدشده‌ای ندارید. ابتدا از بخش{" "}
-            <Link href={noCardsHref} className="font-bold text-amber-200 underline">کارت‌های من</Link>{" "}
+            <Link href={noCardsHref} className="font-bold text-amber-800 underline">کارت‌های من</Link>{" "}
             کارت خود را ثبت و منتظر تأیید بمانید.
           </div>
         ) : (
           <select value={value.cardId ?? ""} onChange={(e) => onChange({ cardId: Number(e.target.value) })} className={inputCls} dir="ltr">
-            <option value="" disabled className="bg-[#15151f]">انتخاب کارت</option>
+            <option value="" disabled className="bg-white text-[#8C8075]">انتخاب کارت</option>
             {cards.map((c) => (
-              <option key={c.id} value={c.id} className="bg-[#15151f]">
+              <option key={c.id} value={c.id} className="bg-white text-[#1F1A17]">
                 {formatCard(c.cardNumber)}{c.bank ? ` — ${c.bank}` : ""}
               </option>
             ))}
@@ -108,30 +105,31 @@ export function CardToCardForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="mb-2 block text-sm font-bold text-white/85">شماره پیگیری *</label>
+          <label className="mb-2 block text-sm font-bold" style={{ color: "var(--ac-text)" }}>شماره پیگیری *</label>
           <input value={value.tracking} onChange={(e) => onChange({ tracking: e.target.value })} dir="ltr" placeholder="کد پیگیری تراکنش" className={`${inputCls} text-left`} />
         </div>
         <div>
-          <label className="mb-2 block text-sm font-bold text-white/85">تاریخ پرداخت *</label>
+          <label className="mb-2 block text-sm font-bold" style={{ color: "var(--ac-text)" }}>تاریخ پرداخت *</label>
           <JalaliDatePicker value={value.payDate} onChange={(v) => onChange({ payDate: v })} />
         </div>
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-bold text-white/85">بارگذاری عکس فیش بانکی *</label>
+        <label className="mb-2 block text-sm font-bold" style={{ color: "var(--ac-text)" }}>بارگذاری عکس فیش بانکی *</label>
         <div className="flex flex-wrap items-center gap-3">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={value.uploading}
-            className="h-12 rounded-xl border border-white/15 px-5 text-sm font-bold text-white/85 transition hover:bg-white/5 disabled:opacity-60"
+            className="h-12 rounded-xl border border-[#E8DDD2] px-5 text-sm font-bold transition hover:bg-[#FFF7F1] disabled:opacity-60"
+            style={{ color: "var(--ac-text)" }}
           >
             {value.uploading ? "در حال بارگذاری..." : value.receiptUrl ? "تغییر تصویر فیش" : "انتخاب تصویر فیش"}
           </button>
           {value.receiptUrl && (
             <a href={api.transactions.receiptSrc(value.receiptUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2">
-              <img src={api.transactions.receiptSrc(value.receiptUrl)} alt="فیش بانکی" className="h-12 w-12 rounded-lg border border-white/10 object-cover" />
-              <span className="text-xs font-bold text-emerald-400">✓ بارگذاری شد</span>
+              <img src={api.transactions.receiptSrc(value.receiptUrl)} alt="فیش بانکی" className="h-12 w-12 rounded-lg border border-[#EADFD4] object-cover" />
+              <span className="text-xs font-bold text-emerald-600">✓ بارگذاری شد</span>
             </a>
           )}
         </div>
@@ -139,8 +137,14 @@ export function CardToCardForm({
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-bold text-white/85">توضیحات</label>
-        <textarea value={value.desc} onChange={(e) => onChange({ desc: e.target.value })} rows={2} placeholder="اختیاری" className="w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 py-3 text-sm text-white outline-none transition focus:border-[#3e3af2] placeholder:text-white/35" />
+        <label className="mb-2 block text-sm font-bold" style={{ color: "var(--ac-text)" }}>توضیحات</label>
+        <textarea
+          value={value.desc}
+          onChange={(e) => onChange({ desc: e.target.value })}
+          rows={2}
+          placeholder="اختیاری"
+          className="w-full rounded-xl border border-[#E8DDD2] bg-white px-4 py-3 text-sm text-[#1F1A17] outline-none transition focus:border-[#FF7A2F] placeholder:text-[#8C8075]"
+        />
       </div>
     </div>
   );
@@ -149,8 +153,8 @@ export function CardToCardForm({
 function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <dt className="shrink-0 text-white/45">{label}</dt>
-      <dd className={`min-w-0 break-all text-left text-white/90 ${mono ? "font-mono" : ""}`} dir={mono ? "ltr" : undefined}>{value}</dd>
+      <dt className="shrink-0" style={{ color: "var(--ac-muted)" }}>{label}</dt>
+      <dd className={`min-w-0 break-all text-left ${mono ? "font-mono" : ""}`} style={{ color: "var(--ac-title)" }} dir={mono ? "ltr" : undefined}>{value}</dd>
     </div>
   );
 }

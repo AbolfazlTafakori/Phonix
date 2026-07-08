@@ -12,7 +12,7 @@ import { CardToCardForm, emptyCardToCard, isCardToCardComplete, type CardToCardV
 const statusLabel: Record<TxStatus, string> = { Pending: "در انتظار", Approved: "تایید شده", Rejected: "رد شده" };
 
 const inputCls =
-  "h-12 w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 text-sm text-white outline-none transition focus:border-[#3e3af2] placeholder:text-white/35";
+  "h-12 w-full rounded-xl border border-[#E8DDD2] bg-white px-4 text-sm text-[#1F1A17] outline-none transition focus:border-[#FF7A2F] placeholder:text-[#8C8075]";
 
 const QUICK: { value: number; label: string }[] = [
   { value: 500_000, label: "۵۰۰ هزار" },
@@ -32,14 +32,12 @@ export default function WalletPage() {
   const [level, setLevel] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // deposit (واریز)
   const [tab, setTab] = useState<"toman" | "crypto">("toman");
   const [amount, setAmount] = useState("");
   const [pay, setPay] = useState<CardToCardValue>(emptyCardToCard);
   const [charging, setCharging] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
 
-  // withdrawal (برداشت)
   const [wAmount, setWAmount] = useState("");
   const [wDest, setWDest] = useState("");
   const [withdrawing, setWithdrawing] = useState(false);
@@ -76,8 +74,6 @@ export default function WalletPage() {
   }
   useEffect(() => {
     load();
-    // instant KYC propagation: re-check the level (and balance) when the tab regains focus, so an admin
-    // lowering the user to level 0 immediately re-gates the wallet within the active session.
     const sync = () => load();
     window.addEventListener("focus", sync);
     document.addEventListener("visibilitychange", sync);
@@ -149,7 +145,7 @@ export default function WalletPage() {
 
   const amountSlot = (
     <div>
-      <label className="mb-2 block text-sm font-bold text-white/85">مبلغ (تومان) *</label>
+      <label className="mb-2 block text-sm font-bold" style={{ color: "var(--ac-text)" }}>مبلغ (تومان) *</label>
       <input value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="numeric" placeholder="مثلاً ۵۰۰٬۰۰۰" className={inputCls} />
       <div className="mt-2 flex flex-wrap gap-2">
         {QUICK.map((q) => (
@@ -157,7 +153,8 @@ export default function WalletPage() {
             key={q.value}
             type="button"
             onClick={() => setAmount(String(q.value))}
-            className="rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-white/65 transition hover:border-[#3e3af2] hover:text-white"
+            className="rounded-lg border border-[#EADFD4] px-3 py-1.5 text-xs font-bold transition hover:border-[#FF7A2F] hover:text-[#FF5A1F]"
+            style={{ color: "var(--ac-text)" }}
           >
             {q.label}
           </button>
@@ -178,131 +175,135 @@ export default function WalletPage() {
 
       {level === 0 ? (
         <Panel className="mb-6">
-          {/* KYC gate: a level-0 account never sees destination card numbers or deposit details. */}
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-5">
-            <p className="font-bold text-amber-300">برای واریز و برداشت ابتدا احراز هویت کنید</p>
-            <p className="mt-1.5 text-sm leading-7 text-amber-100/80">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+            <p className="font-bold text-amber-700">برای واریز و برداشت ابتدا احراز هویت کنید</p>
+            <p className="mt-1.5 text-sm leading-7 text-amber-600">
               حساب شما در سطح ۰ است. برای مشاهده‌ی اطلاعات واریز و امکان شارژ یا برداشت کیف پول، ابتدا کارت بانکی خود را ثبت و تأیید کنید تا به سطح ۱ ارتقا یابید.
             </p>
-            <Link href="/account/kyc" className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 py-3 text-sm font-bold text-white transition hover:brightness-110">
+            <Link href="/account/kyc" className="mt-4 inline-block rounded-xl px-6 py-3 text-sm font-bold text-white transition hover:brightness-110" style={{ background: "var(--ac-btn)" }}>
               رفتن به احراز هویت
             </Link>
           </div>
         </Panel>
       ) : (
         <>
-      <Panel className="mb-6">
-        <h2 className="mb-4 text-lg font-bold text-white">واریز و افزایش موجودی</h2>
+          <Panel className="mb-6">
+            <h2 className="mb-4 text-lg font-bold" style={{ color: "var(--ac-title)" }}>واریز و افزایش موجودی</h2>
 
-        <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-white/8 bg-[#0d0d15] p-1.5">
-          <button
-            onClick={() => setTab("toman")}
-            className={`h-11 rounded-xl text-sm font-bold transition ${tab === "toman" ? "bg-[#3a64f2]/20 text-[#8fa9ff]" : "text-white/55 hover:text-white"}`}
-          >
-            واریز تومان
-          </button>
-          <button
-            onClick={() => setTab("crypto")}
-            className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold transition ${tab === "crypto" ? "bg-[#3a64f2]/20 text-[#8fa9ff]" : "text-white/55 hover:text-white"}`}
-          >
-            واریز رمزارز
-            <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-white/50">به‌زودی</span>
-          </button>
-        </div>
-
-        {tab === "crypto" ? (
-          <div className="rounded-xl border border-white/8 bg-white/[0.02] px-4 py-10 text-center text-sm text-white/55">
-            واریز رمزارز به‌زودی فعال می‌شود.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 opacity-60">
-                <span className="flex items-center gap-2 text-sm font-bold text-white/55">
-                  <span className="grid h-5 w-5 place-items-center rounded-full border border-white/20" />
-                  واریز آنلاین
-                </span>
-                <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white/45">به‌زودی</span>
-              </div>
-              <div className="flex items-center justify-between rounded-xl border border-[#e60053]/40 bg-[#e60053]/10 px-4 py-3">
-                <span className="flex items-center gap-2 text-sm font-bold text-white">
-                  <span className="grid h-5 w-5 place-items-center rounded-full border-[5px] border-[#e60053]" />
-                  واریز آفلاین (کارت‌به‌کارت)
-                </span>
-                <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white/55">حداکثر ۱۰ دقیقه</span>
-              </div>
+            {/* Tab switcher */}
+            <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border border-[#EADFD4] bg-[#FFF8F2] p-1.5">
+              <button
+                onClick={() => setTab("toman")}
+                className={`h-11 rounded-xl text-sm font-bold transition ${tab === "toman" ? "bg-white shadow-sm" : "hover:bg-white/50"}`}
+                style={{ color: tab === "toman" ? "var(--ac-title)" : "var(--ac-muted)" }}
+              >
+                واریز تومان
+              </button>
+              <button
+                onClick={() => setTab("crypto")}
+                className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold transition ${tab === "crypto" ? "bg-white shadow-sm" : "hover:bg-white/50"}`}
+                style={{ color: tab === "crypto" ? "var(--ac-title)" : "var(--ac-muted)" }}
+              >
+                واریز رمزارز
+                <span className="rounded-md bg-[#EADFD4] px-1.5 py-0.5 text-[10px] font-bold" style={{ color: "var(--ac-muted)" }}>به‌زودی</span>
+              </button>
             </div>
 
-            <CardToCardForm
-              destMethod={destMethod}
-              cards={cards}
-              amountSlot={amountSlot}
-              value={pay}
-              onChange={patchPay}
-              onError={(m) => setNote({ ok: false, text: m })}
-            />
+            {tab === "crypto" ? (
+              <div className="rounded-xl border border-[#EADFD4] bg-[#FFF8F2] px-4 py-10 text-center text-sm" style={{ color: "var(--ac-muted)" }}>
+                واریز رمزارز به‌زودی فعال می‌شود.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between rounded-xl border border-[#EADFD4] bg-[#F7F0E8] px-4 py-3 opacity-60">
+                    <span className="flex items-center gap-2 text-sm font-bold" style={{ color: "var(--ac-muted)" }}>
+                      <span className="grid h-5 w-5 place-items-center rounded-full border border-[#EADFD4]" />
+                      واریز آنلاین
+                    </span>
+                    <span className="rounded-md bg-[#EADFD4] px-2 py-0.5 text-[11px] font-bold" style={{ color: "var(--ac-muted)" }}>به‌زودی</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl border border-[#FF6A2B]/40 bg-[#FFF1E8] px-4 py-3">
+                    <span className="flex items-center gap-2 text-sm font-bold" style={{ color: "var(--ac-title)" }}>
+                      <span className="grid h-5 w-5 place-items-center rounded-full border-[5px] border-[#FF6A2B]" />
+                      واریز آفلاین (کارت‌به‌کارت)
+                    </span>
+                    <span className="rounded-md bg-[#EADFD4] px-2 py-0.5 text-[11px] font-bold" style={{ color: "var(--ac-muted)" }}>حداکثر ۱۰ دقیقه</span>
+                  </div>
+                </div>
+
+                <CardToCardForm
+                  destMethod={destMethod}
+                  cards={cards}
+                  amountSlot={amountSlot}
+                  value={pay}
+                  onChange={patchPay}
+                  onError={(m) => setNote({ ok: false, text: m })}
+                />
+
+                <button
+                  onClick={charge}
+                  disabled={charging || amountValue <= 0 || !isCardToCardComplete(pay)}
+                  className="h-12 rounded-xl px-10 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+                  style={{ background: "var(--ac-btn)" }}
+                >
+                  {charging ? "در حال ثبت..." : "ثبت درخواست واریز"}
+                </button>
+                {note && <p className={`text-sm ${note.ok ? "text-emerald-600" : "text-rose-600"}`}>{note.text}</p>}
+              </div>
+            )}
+          </Panel>
+
+          <Panel className="mb-6">
+            <h2 className="mb-1 text-lg font-bold" style={{ color: "var(--ac-title)" }}>برداشت وجه</h2>
+            <p className="mb-4 text-sm" style={{ color: "var(--ac-muted)" }}>
+              مبلغ و شماره کارت/شبای مقصد را وارد کنید. مبلغ بلافاصله از موجودی شما کسر و درخواست برای تأیید ارسال می‌شود؛ پس از تأیید پشتیبانی، وجه واریز می‌گردد.
+              {minWithdraw > 0 && <> حداقل مبلغ برداشت {formatToman(minWithdraw)} است.</>}
+            </p>
+
+            <label className="mb-2 block text-sm font-bold" style={{ color: "var(--ac-text)" }}>مبلغ (تومان)</label>
+            <input value={wAmount} onChange={(e) => setWAmount(e.target.value)} inputMode="numeric" placeholder="مثلاً ۲۰۰٬۰۰۰" className={`${inputCls} mb-4`} />
+
+            <label className="mb-2 block text-sm font-bold" style={{ color: "var(--ac-text)" }}>شماره کارت یا شبای مقصد</label>
+            <input value={wDest} onChange={(e) => setWDest(e.target.value)} dir="ltr" placeholder="6037-xxxx-xxxx-xxxx" className={`${inputCls} mb-5 text-left`} />
 
             <button
-              onClick={charge}
-              disabled={charging || amountValue <= 0 || !isCardToCardComplete(pay)}
-              className="h-12 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-10 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+              onClick={withdraw}
+              disabled={withdrawing || wAmountValue <= 0 || !wDest.trim()}
+              className="h-12 rounded-xl border border-[#EADFD4] px-8 text-sm font-bold transition hover:bg-[#FFF7F1] disabled:opacity-60"
+              style={{ color: "var(--ac-text)" }}
             >
-              {charging ? "در حال ثبت..." : "ثبت درخواست واریز"}
+              {withdrawing ? "در حال ثبت..." : "ثبت درخواست برداشت"}
             </button>
-            {note && <p className={`text-sm ${note.ok ? "text-emerald-400" : "text-rose-400"}`}>{note.text}</p>}
-          </div>
-        )}
-      </Panel>
-
-      <Panel className="mb-6">
-        <h2 className="mb-1 text-lg font-bold text-white">برداشت وجه</h2>
-        <p className="mb-4 text-sm text-white/45">
-          مبلغ و شماره کارت/شبای مقصد را وارد کنید. مبلغ بلافاصله از موجودی شما کسر و درخواست برای تأیید ارسال می‌شود؛ پس از تأیید پشتیبانی، وجه واریز می‌گردد.
-          {minWithdraw > 0 && <> حداقل مبلغ برداشت {formatToman(minWithdraw)} است.</>}
-        </p>
-
-        <label className="mb-2 block text-sm font-bold text-white/85">مبلغ (تومان)</label>
-        <input value={wAmount} onChange={(e) => setWAmount(e.target.value)} inputMode="numeric" placeholder="مثلاً ۲۰۰٬۰۰۰" className={`${inputCls} mb-4`} />
-
-        <label className="mb-2 block text-sm font-bold text-white/85">شماره کارت یا شبای مقصد</label>
-        <input value={wDest} onChange={(e) => setWDest(e.target.value)} dir="ltr" placeholder="6037-xxxx-xxxx-xxxx" className={`${inputCls} mb-5 text-left`} />
-
-        <button
-          onClick={withdraw}
-          disabled={withdrawing || wAmountValue <= 0 || !wDest.trim()}
-          className="h-12 rounded-xl border border-white/15 bg-white/[0.04] px-8 text-sm font-bold text-white transition hover:bg-white/10 disabled:opacity-60"
-        >
-          {withdrawing ? "در حال ثبت..." : "ثبت درخواست برداشت"}
-        </button>
-        {wNote && <p className={`mt-3 text-sm ${wNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{wNote.text}</p>}
-      </Panel>
+            {wNote && <p className={`mt-3 text-sm ${wNote.ok ? "text-emerald-600" : "text-rose-600"}`}>{wNote.text}</p>}
+          </Panel>
         </>
       )}
 
       <Panel>
-        <h2 className="mb-4 text-lg font-bold text-white">تراکنش‌های اخیر</h2>
+        <h2 className="mb-4 text-lg font-bold" style={{ color: "var(--ac-title)" }}>تراکنش‌های اخیر</h2>
         {loading ? (
           <div className="grid h-24 place-items-center">
-            <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-[#e60053]" />
+            <span className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-[rgba(166,102,45,0.2)] border-t-[#FF5A1F]" />
           </div>
         ) : txs.length === 0 ? (
-          <p className="py-8 text-center text-sm text-white/45">هنوز تراکنشی ندارید.</p>
+          <p className="py-8 text-center text-sm" style={{ color: "var(--ac-muted)" }}>هنوز تراکنشی ندارید.</p>
         ) : (
-          <ul className="divide-y divide-white/8">
+          <ul className="divide-y divide-[#EADFD4]">
             {txs.map((t) => (
               <li key={t.id} className="flex items-center justify-between gap-3 py-4">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-white">{t.type}</p>
-                  <p className="text-xs text-white/45">
+                  <p className="truncate text-sm font-medium" style={{ color: "var(--ac-title)" }}>{t.type}</p>
+                  <p className="text-xs" style={{ color: "var(--ac-muted)" }}>
                     {t.date} · {statusLabel[t.status]}
                     {t.method ? ` · ${t.method}` : ""}
                   </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-3">
                   {t.status === "Pending" && (
-                    <span className="rounded-lg bg-amber-500/15 px-2.5 py-1 text-xs font-bold text-amber-300">در انتظار تأیید</span>
+                    <span className="rounded-lg bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-700">در انتظار تأیید</span>
                   )}
-                  <span className={`text-sm font-bold ${t.amount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                  <span className={`text-sm font-bold ${t.amount >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                     {t.amount >= 0 ? "+" : "−"}
                     {formatToman(Math.abs(t.amount))}
                   </span>
