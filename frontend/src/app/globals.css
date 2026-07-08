@@ -126,6 +126,7 @@ body:has(.home-light) { background: #f8f1ea; }
   --hl-ink-2: #5f6470;
   --hl-muted: #8a8f99;
   --hl-border: #f0e2d6;
+  --cat-shadow: 0 12px 24px -10px rgba(180, 120, 80, 0.32), 0 3px 7px -3px rgba(180, 120, 80, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   background: #f8f1ea;
   color: var(--hl-ink);
   font-family: var(--font-vazir), system-ui, sans-serif;
@@ -200,6 +201,31 @@ html.home-dark .auth-blob { opacity: 0.4; }
   .auth-blob-1, .auth-blob-2, .auth-blob-3 { animation: none; }
 }
 
+/* Category tiles — raised / embossed so they pop off the warm surface. */
+.cat-raised {
+  box-shadow:
+    0 12px 24px -10px rgba(180, 120, 80, 0.32),
+    0 3px 7px -3px rgba(180, 120, 80, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+.cat-raised:hover {
+  box-shadow:
+    0 26px 46px -14px rgba(239, 35, 60, 0.34),
+    0 6px 14px -6px rgba(239, 35, 60, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+html.home-dark .cat-raised {
+  box-shadow:
+    0 14px 26px -10px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+html.home-dark .cat-raised:hover {
+  box-shadow:
+    0 24px 44px -14px rgba(239, 35, 60, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
 /* Best-sellers carousel frame — vivid orange on the light theme, softened on dark. */
 .hl-offer-frame { background: linear-gradient(180deg, rgba(255, 90, 31, 0.50) 0%, rgba(239, 35, 60, 0.28) 100%); }
 html.home-dark .hl-offer-frame { background: linear-gradient(180deg, rgba(255, 90, 31, 0.16) 0%, rgba(239, 35, 60, 0.08) 100%); }
@@ -213,6 +239,7 @@ html.home-dark .home-light {
   --hl-ink-2: #b4b8c2;
   --hl-muted: #7c8290;
   --hl-border: #2a2a34;
+  --cat-shadow: 0 14px 26px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   background: #0e0e12;
   color: var(--hl-ink);
 }

@@ -39,7 +39,8 @@ export default function HomeCategories() {
           <Link
             key={c.title}
             href={c.href}
-            className="group flex flex-col items-center gap-4 rounded-[20px] border border-[var(--hl-border)] bg-[#fafbfc] p-6 transition duration-200 hover:-translate-y-1 hover:border-[#ff5a1f] hover:bg-white hover:shadow-[0_18px_40px_-16px_rgba(239,35,60,0.22)]"
+            style={{ boxShadow: "var(--cat-shadow)" }}
+            className="group flex flex-col items-center gap-4 rounded-[20px] border border-[var(--hl-border)] bg-white p-6 transition duration-200 hover:-translate-y-1.5 hover:border-[#ff5a1f]/60"
           >
             <div className="flex h-32 items-center justify-center">
               <img src={c.logo} alt={c.title} className="max-h-32 w-auto object-contain transition duration-200 group-hover:scale-105" />
