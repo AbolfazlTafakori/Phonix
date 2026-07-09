@@ -4,22 +4,16 @@ import { formatNumber } from "@/lib/format";
 import type { Category } from "@/lib/types";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import HomeFaq from "@/components/home/HomeFaq";
+import TrustStats from "@/components/home/TrustStats";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "دسته‌بندی محصولات | Phoenix Verify" };
 
-const stats = [
-  { value: "۱۰,۰۰۰+", label: "سفارش موفق", icon: "📦" },
-  { value: "۵,۰۰۰+", label: "مشتری فعال", icon: "👥" },
-  { value: "۹۹٪", label: "رضایت مشتریان", icon: "⭐" },
-  { value: "آنی", label: "تحویل فوری", icon: "⚡" },
-];
-
 const heroFeatures = [
-  { text: "تحویل سریع و آنی", icon: "🚀" },
-  { text: "پشتیبانی ۲۴ ساعته", icon: "🎧" },
-  { text: "قیمت رقابتی", icon: "💰" },
-  { text: "تضمین کیفیت", icon: "✅" },
+  "تحویل آنی و خودکار",
+  "پشتیبانی ۲۴/۷",
+  "قیمت‌های رقابتی",
+  "تضمین کیفیت و اصالت",
 ];
 
 const categoryMeta: Record<string, { desc: string; logo: string }> = {
@@ -71,47 +65,68 @@ export default async function CategoriesPage() {
   return (
     <>
       {/* ── Hero ── */}
-      <section className="relative overflow-hidden bg-gradient-to-l from-[#1a0a1e] via-[#2d0a2e] to-[#0f0c29]">
-        <div className="absolute inset-0 opacity-20" style={{ background: "radial-gradient(ellipse at 30% 50%, #ef233c 0%, transparent 70%)" }} />
-        <div className="relative mx-auto flex max-w-[1840px] flex-col gap-8 px-4 py-16 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:py-24 xl:px-16">
-          <div className="max-w-2xl text-center lg:text-right">
-            <h1 className="text-3xl font-black leading-[1.5] text-white sm:text-4xl xl:text-5xl">
-              دسته‌بندی خدمات و محصولات
-              <br />
-              <span className="text-[#ff5a1f]">فونیکس وریفای</span>
-            </h1>
-            <p className="mt-4 text-[15px] leading-8 text-white/70 sm:text-[17px]">
-              تمامی خدمات و محصولات دیجیتال را در یک نگاه مشاهده کنید. از اشتراک سرویس‌های استریم تا شماره مجازی و گیفت کارت.
-            </p>
-          </div>
-          <div className="mx-auto w-full max-w-sm rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-md lg:mx-0">
-            <h3 className="mb-4 text-center text-[17px] font-bold text-white lg:text-right">چرا فونیکس وریفای؟</h3>
-            <div className="grid grid-cols-2 gap-3">
-              {heroFeatures.map((f) => (
-                <div key={f.text} className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-3 text-[13px] font-medium text-white/90">
-                  <span className="text-lg">{f.icon}</span>
-                  <span>{f.text}</span>
-                </div>
-              ))}
+      <section className="border-b border-[var(--hl-border)] bg-[var(--hl-surface)]">
+        <div className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">
+          <nav className="flex items-center justify-end gap-2 pb-2 pt-6 text-[13px] text-[var(--hl-muted)]">
+            <Link href="/" className="flex items-center gap-1 transition hover:text-[var(--hl-red)]">
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z" /><path d="M9 22V12h6v10" /></svg>
+              خانه
+            </Link>
+            <span>/</span>
+            <span className="font-medium text-[var(--hl-ink)]">دسته‌بندی‌ها</span>
+          </nav>
+
+          <div className="flex flex-col-reverse items-center gap-8 pb-10 pt-4 lg:flex-row-reverse lg:items-center lg:gap-6 xl:gap-12">
+            <div className="hidden shrink-0 lg:block lg:w-[44%] xl:w-[48%]">
+              <img src="/figma/catpage-hero-shield.png" alt="" className="h-auto w-full max-w-[620px] -translate-x-20 object-contain xl:-translate-x-32 xl:max-w-[680px]" />
+            </div>
+
+            <div className="flex-1 text-center lg:text-right">
+              <p className="text-[28px] font-black text-[var(--hl-red)] sm:text-[34px] xl:text-[40px]">دسته‌بندی</p>
+              <h1 className="mt-1 text-[24px] font-extrabold leading-[1.5] text-[var(--hl-ink)] sm:text-[30px] xl:text-[36px]">
+                خدمات و محصولات فونیکس وریفای
+              </h1>
+              <p className="mt-4 text-[14px] leading-8 text-[var(--hl-muted)] sm:text-[16px]">
+                همه خدمات دیجیتال موردنیازت را در دسته‌بندی‌های متنوع
+                <br className="hidden sm:inline" />
+                به صورت امن، سریع و با بهترین قیمت پیدا کن.
+              </p>
+            </div>
+
+            <div className="w-full max-w-xs shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-6 pb-5 shadow-sm lg:w-[280px] xl:w-[310px]">
+              <h3 className="text-center text-[20px] font-black leading-[1.6] text-[var(--hl-ink)]">دسترسی آسان به<br /><span className="text-[24px]">خدمات دیجیتال</span></h3>
+              <div className="mt-6 flex items-end gap-1">
+                <ul className="flex-1 space-y-6">
+                  {heroFeatures.map((text) => (
+                    <li key={text} className="flex items-center gap-2 whitespace-nowrap text-[15px] font-bold text-[var(--hl-ink)]">
+                      <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-[var(--hl-red)]" fill="currentColor">
+                        <path d="M12 2a10 10 0 110 20 10 10 0 010-20zm-1.7 14.3l6.4-6.4-1.4-1.4-5 5-2.3-2.3-1.4 1.4 3.7 3.7z" />
+                      </svg>
+                      {text}
+                    </li>
+                  ))}
+                </ul>
+                <img src="/figma/catpage-hero-support.png" alt="" className="-mr-2 -mb-1 h-28 w-28 shrink-0 object-contain" />
+              </div>
+              <Link
+                href="/products"
+                className="mt-4 flex items-center justify-center gap-2 rounded-xl py-3 text-[16px] font-bold text-white"
+                style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
+              >
+                مشاهده راهنما
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 6l6 6-6 6" />
+                </svg>
+              </Link>
             </div>
           </div>
         </div>
       </section>
 
       {/* ── Stats ── */}
-      <section className="mx-auto -mt-8 max-w-[1840px] px-4 sm:px-8 xl:px-16">
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          {stats.map((s) => (
-            <div key={s.label} className="hl-card flex items-center gap-3 rounded-2xl p-5">
-              <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-[#ef233c]/10 to-[#ff5a1f]/10 text-2xl">{s.icon}</span>
-              <div>
-                <p className="text-[20px] font-black text-[var(--hl-ink)]">{s.value}</p>
-                <p className="text-[13px] text-[var(--hl-muted)]">{s.label}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
+      <div className="py-8">
+        <TrustStats />
+      </div>
 
       {/* ── Category Grid ── */}
       <section className="mx-auto max-w-[1840px] px-4 py-16 sm:px-8 xl:px-16">
