@@ -16,7 +16,7 @@ type Props = { brand: SiteContent["brand"]; searchPlaceholder: string };
 const navLinks = [
   { label: "خانه", href: "/" },
   { label: "محصولات", href: "/products" },
-  { label: "دسته‌بندی‌ها", href: "/products" },
+  { label: "دسته‌بندی‌ها", href: "/categories" },
   { label: "وبلاگ", href: "/blog" },
   { label: "درباره ما", href: "#" },
   { label: "تماس با ما", href: "#" },
