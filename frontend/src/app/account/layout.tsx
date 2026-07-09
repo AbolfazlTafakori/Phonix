@@ -11,8 +11,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
       <div className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-8 md:px-6 md:py-10">
         <AccountGuard>
           <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-            <div className="hidden lg:block"><div className="sticky top-6 max-h-[calc(100vh-3rem)] overflow-y-auto"><Sidebar /></div></div>
-            <div className="lg:hidden"><Sidebar /></div>
+            <Sidebar />
             <main className="min-w-0">{children}</main>
           </div>
         </AccountGuard>
