@@ -98,12 +98,12 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
       {/* mobile title (spec: title before gallery on mobile) */}
       <h1 className="mb-4 text-[24px] font-black leading-snug lg:hidden" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
 
-      {/* main grid */}
-      <div className="grid items-start gap-6 lg:grid-cols-[420px_1fr_320px]">
+      {/* main grid — purchase card pinned right, gallery on the left (desktop) */}
+      <div className="grid items-start gap-6 lg:grid-cols-[320px_1fr_420px]">
         {/* gallery */}
-        <div>
+        <div className="order-1 lg:order-3">
           <div className="relative overflow-hidden rounded-[22px] border bg-white" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
-            <ProductCardImage src={product.image} alt={product.name} className="aspect-square w-full object-cover" />
+            <ProductCardImage src={product.image} alt={product.name} className="aspect-square w-full object-cover lg:aspect-[4/5]" />
             {product.featured && (
               <span className="absolute right-4 top-4 rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
                 محبوب‌ترین
@@ -120,7 +120,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
         </div>
 
         {/* info */}
-        <div>
+        <div className="order-2 lg:order-2">
           <h1 className="hidden text-[30px] font-black leading-snug lg:block" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
 
           <p className="mt-3 text-[14px] leading-8 line-clamp-3" style={{ color: "var(--ac-text)" }}>
@@ -167,7 +167,9 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
         </div>
 
         {/* purchase card */}
-        <PurchaseCard product={product} />
+        <div className="order-3 lg:sticky lg:top-[100px] lg:order-1">
+          <PurchaseCard product={product} />
+        </div>
       </div>
 
       {/* trust row */}
