@@ -129,6 +129,8 @@ public class ProductsController : ControllerBase
         target.IsActive = input.IsActive;
         target.Featured = input.Featured;
         target.Image = input.Image ?? "";
+        target.Logo = input.Logo ?? "";
+        target.Gallery = input.Gallery ?? new();
         target.Sku = input.Sku ?? "";
         target.Description = input.Description ?? "";
         target.Warning = input.Warning ?? "";

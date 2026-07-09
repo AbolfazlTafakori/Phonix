@@ -18,6 +18,8 @@ const emptyForm = (categoryId: number): ProductInput => ({
   isActive: true,
   featured: false,
   image: "",
+  logo: "",
+  gallery: [],
   sku: "",
   description: "",
   warning: "",
@@ -88,6 +90,8 @@ export default function AdminProductsPage() {
       isActive: p.isActive,
       featured: p.featured,
       image: p.image,
+      logo: p.logo,
+      gallery: p.gallery ?? [],
       sku: p.sku,
       description: p.description,
       warning: p.warning,
@@ -211,7 +215,21 @@ export default function AdminProductsPage() {
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editingId === null ? "افزودن محصول" : "ویرایش محصول"} size="3xl">
         {/* the shared Modal now caps height and scrolls its own body, so no inner scroll container is needed. */}
         <div className="grid gap-5">
-          <ImageField label="تصویر محصول" aspect="wide" value={form.image} onChange={(v) => set("image", v)} className="w-48" />
+          <div className="flex flex-wrap gap-5">
+            <ImageField label="تصویر محصول" aspect="wide" value={form.image} onChange={(v) => set("image", v)} className="w-48" />
+            <ImageField label="لوگو سرویس" aspect="square" value={form.logo} onChange={(v) => set("logo", v)} className="w-24" />
+          </div>
+
+          <Field label="گالری تصاویر">
+            <div className="flex flex-wrap gap-3">
+              {form.gallery.map((img, i) => (
+                <div key={i} className="group relative">
+                  <ImageField aspect="square" value={img} onChange={(v) => { const g = [...form.gallery]; if (v) g[i] = v; else g.splice(i, 1); set("gallery", g); }} className="w-20" />
+                </div>
+              ))}
+              <ImageField aspect="square" value="" onChange={(v) => { if (v) set("gallery", [...form.gallery, v]); }} className="w-20" />
+            </div>
+          </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="نام محصول">

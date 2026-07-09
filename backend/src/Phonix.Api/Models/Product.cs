@@ -80,6 +80,8 @@ public class Product
     public bool IsActive { get; set; } = true;
     public bool Featured { get; set; }
     public string Image { get; set; } = "";
+    public string Logo { get; set; } = "";
+    public List<string> Gallery { get; set; } = new();
     public string Sku { get; set; } = "";
     public string Description { get; set; } = "";
     public string Warning { get; set; } = "";

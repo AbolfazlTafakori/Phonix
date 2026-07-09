@@ -3,10 +3,11 @@ import { api } from "@/lib/api";
 import { formatNumber, formatToman, toFa } from "@/lib/format";
 import type { Product, Comment } from "@/lib/types";
 import Stars from "@/components/Stars";
-import ProductCardImage from "@/components/ProductCardImage";
+import BestSellersCarousel, { type CarouselCard } from "@/components/home/BestSellersCarousel";
 import PurchaseCard from "@/components/product/PurchaseCard";
 import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
 import OpenChatButton from "@/components/product/OpenChatButton";
+import ProductGallery from "@/components/product/ProductGallery";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 
 export const dynamic = "force-dynamic";
@@ -78,8 +79,8 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
   const types = [...new Set(plans.map((p) => p.type))];
   const bestDiscount = Math.max(0, ...plans.map((p) => p.discountPercent));
 
-  return (
-    <div className="mx-auto max-w-[1240px] px-5 pb-16 pt-6 md:px-6">
+  return (<>
+    <div className="mx-auto max-w-[1840px] px-4 pb-16 pt-6 sm:px-8 xl:px-16">
       {/* breadcrumb */}
       <nav className="mb-5 flex flex-wrap items-center gap-2 text-[13px]" style={{ color: "var(--ac-muted)" }}>
         <Link href="/" className="transition hover:text-[color:var(--ac-title)]">صفحه اصلی</Link>
@@ -95,45 +96,51 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
         <span className="font-bold" style={{ color: "var(--ac-title)" }}>{product.name}</span>
       </nav>
 
-      {/* mobile title (spec: title before gallery on mobile) */}
-      <h1 className="mb-4 text-[24px] font-black leading-snug lg:hidden" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
+      {/* mobile title + logo + rating */}
+      <div className="mb-4 lg:hidden">
+        <div className="flex items-center gap-3">
+          {product.logo && (
+            <img src={product.logo} alt="" className="h-12 w-12 shrink-0 rounded-xl object-contain" />
+          )}
+          <h1 className="text-[24px] font-black leading-snug" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
+        </div>
+        {rated.length > 0 && (
+          <div className="mt-2 flex items-center gap-2">
+            <span className="text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(avg.toFixed(1))}</span>
+            <Stars value={avg} />
+            <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>({formatNumber(rated.length)} نظر)</span>
+          </div>
+        )}
+      </div>
 
       {/* main grid — purchase card pinned right, gallery on the left (desktop) */}
       <div className="grid items-start gap-6 lg:grid-cols-[320px_1fr_420px]">
         {/* gallery */}
         <div className="order-1 lg:order-3">
-          <div className="relative overflow-hidden rounded-[22px] border bg-white" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
-            <ProductCardImage src={product.image} alt={product.name} className="aspect-square w-full object-cover lg:aspect-[4/5]" />
-            {product.featured && (
-              <span className="absolute right-4 top-4 rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
-                محبوب‌ترین
-              </span>
-            )}
-            {out && (
-              <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-[2px]">
-                <span className="-rotate-6 rounded-2xl border border-white/25 bg-black/55 px-7 py-3 text-xl font-black tracking-wide text-white shadow-2xl">
-                  ناموجود
-                </span>
-              </div>
-            )}
-          </div>
+          <ProductGallery image={product.image} gallery={product.gallery ?? []} name={product.name} featured={product.featured} out={out} />
         </div>
 
         {/* info */}
         <div className="order-2 lg:order-2">
-          <h1 className="hidden text-[30px] font-black leading-snug lg:block" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
+          <div className="hidden lg:block">
+            <div className="flex items-center gap-3">
+              {product.logo && (
+                <img src={product.logo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-contain" />
+              )}
+              <h1 className="text-[30px] font-black leading-snug" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
+            </div>
+            {rated.length > 0 && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(avg.toFixed(1))}</span>
+                <Stars value={avg} />
+                <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>({formatNumber(rated.length)} نظر)</span>
+              </div>
+            )}
+          </div>
 
           <p className="mt-3 text-[14px] leading-8 line-clamp-3" style={{ color: "var(--ac-text)" }}>
             {product.description.replace(/[#*_\[\]()]/g, "").slice(0, 220)}
           </p>
-
-          {rated.length > 0 && (
-            <div className="mt-3 flex items-center gap-2">
-              <span className="text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(avg.toFixed(1))}</span>
-              <Stars value={avg} />
-              <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>({formatNumber(rated.length)} نظر)</span>
-            </div>
-          )}
 
           {/* mini benefits */}
           <div className="mt-5 grid grid-cols-3 gap-2.5">
@@ -170,15 +177,15 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
         <div className="order-3 lg:sticky lg:top-[100px] lg:order-1">
           <PurchaseCard product={product} />
         </div>
-      </div>
 
-      {/* trust row */}
-      <div className="mt-8 grid grid-cols-2 divide-x divide-x-reverse rounded-[22px] border bg-white sm:grid-cols-3 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)", ["--tw-divide-opacity" as string]: 1, borderCollapse: "collapse" }}>
-        <TrustItem icon={<Icon d={I.tag} />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
-        <TrustItem icon={<Icon d={I.shield} />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
-        <TrustItem icon={<Icon d={I.lock} />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
-        <TrustItem icon={<Icon d={I.headset} />} title="پشتیبانی ۲۴/۷" desc="همیشه پاسخگوی شما" />
-        <TrustItem icon={<Icon d={I.bolt} />} title="تحویل آنی" desc="بلافاصله پس از پرداخت" />
+        {/* trust row — below gallery+info, beside purchase card */}
+        <div className="order-4 lg:col-start-2 lg:col-span-2 grid grid-cols-2 rounded-[22px] border bg-white sm:grid-cols-3 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+          <TrustItem icon={<Icon d={I.tag} />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
+          <TrustItem icon={<Icon d={I.shield} />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
+          <TrustItem icon={<Icon d={I.lock} />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
+          <TrustItem icon={<Icon d={I.headset} />} title="پشتیبانی ۲۴/۷" desc="همیشه پاسخگوی شما" />
+          <TrustItem icon={<Icon d={I.bolt} />} title="تحویل آنی" desc="بلافاصله پس از پرداخت" />
+        </div>
       </div>
 
       {/* tabs */}
@@ -253,38 +260,40 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
         )}
       </div>
 
-      {/* related products */}
-      {related.length > 0 && (
-        <section className="mt-12">
-          <div className="mb-5 flex items-center gap-2">
-            <span className="h-6 w-1.5 rounded-full" style={{ background: "var(--ac-btn)" }} />
-            <h2 className="text-[20px] font-black" style={{ color: "var(--ac-title)" }}>محصولات مرتبط</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {related.map((p) => (
-              <Link
-                key={p.id}
-                href={`/products/detail?id=${p.id}`}
-                className="group overflow-hidden rounded-2xl border bg-white transition duration-300 hover:-translate-y-1"
-                style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
-              >
-                <div className="aspect-square overflow-hidden">
-                  <ProductCardImage src={p.image} alt={p.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-                </div>
-                <div className="p-3">
-                  <p className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{p.name}</p>
-                  <p className="mt-1.5 text-[12px] font-bold" style={{ color: "#F2551F" }}>از {formatToman(Math.min(p.finalPrice, ...p.plans.filter((x) => x.isActive).map((x) => x.finalPrice)))}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* newsletter */}
-      <div className="mt-12 -mx-5 md:-mx-6">
-        <HomeNewsletter />
-      </div>
     </div>
+
+    {/* related products — full width like homepage */}
+    {related.length > 0 && (
+      <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16 py-4 mt-8">
+        <div className="mb-8 flex items-end justify-between">
+          <div className="flex items-start gap-2">
+            <span className="mt-2.5 h-6 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f]" />
+            <div>
+              <h2 className="text-[22px] sm:text-[26px] font-black text-[var(--hl-ink)]">محصولات مرتبط</h2>
+              <p className="mt-1.5 text-[15px] text-[var(--hl-ink-2)]">پیشنهادهای مشابه برای شما</p>
+            </div>
+          </div>
+          <Link
+            href="/products"
+            className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[16px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2]"
+          >
+            مشاهده همه
+          </Link>
+        </div>
+        <BestSellersCarousel products={related.map((p): CarouselCard => ({
+          key: String(p.id),
+          name: p.name,
+          categoryName: p.categoryName,
+          priceLabel: formatToman(Math.min(p.finalPrice, ...p.plans.filter((x) => x.isActive).map((x) => x.finalPrice))),
+          badge: p.featured ? "پرفروش" : "تحویل فوری",
+          image: p.image,
+          href: `/products/detail?id=${p.id}`,
+        }))} />
+      </section>
+    )}
+
+    {/* newsletter */}
+    <HomeNewsletter />
+  </>
   );
 }

@@ -80,6 +80,8 @@ export type Product = {
   isActive: boolean;
   featured: boolean;
   image: string;
+  logo: string;
+  gallery: string[];
   sku: string;
   description: string;
   warning: string;
@@ -99,6 +101,8 @@ export type ProductInput = {
   isActive: boolean;
   featured: boolean;
   image: string;
+  logo: string;
+  gallery: string[];
   sku: string;
   description: string;
   warning: string;
