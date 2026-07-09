@@ -1,4 +1,4 @@
-type Props = { name: string; className?: string };
+type Props = { name: string; className?: string; style?: React.CSSProperties };
 
 const paths: Record<string, React.ReactNode> = {
   user: (
@@ -98,10 +98,11 @@ const paths: Record<string, React.ReactNode> = {
   ),
 };
 
-export default function MenuIcon({ name, className }: Props) {
+export default function MenuIcon({ name, className, style }: Props) {
   return (
     <svg
       className={className}
+      style={style}
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"

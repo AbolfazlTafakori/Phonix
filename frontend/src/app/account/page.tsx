@@ -332,7 +332,7 @@ export default function AccountDashboard() {
               <tbody>
                 {orders.map((order) => {
                   const badge = orderStatusBadge(order.status);
-                  const productName = order.items[0]?.productName ?? "—";
+                  const productName = order.items[0]?.name ?? "—";
                   return (
                     <tr
                       key={order.id}
