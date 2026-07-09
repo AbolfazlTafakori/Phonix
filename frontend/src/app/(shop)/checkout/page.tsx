@@ -239,7 +239,7 @@ export default function CheckoutPage() {
   if (doneCode) {
     return (
       <div className="mx-auto max-w-[640px] px-5 py-20 text-center">
-        <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-emerald-500/15 text-3xl text-emerald-400">✓</div>
+        <div className="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-emerald-500/15 text-3xl text-emerald-500">✓</div>
         <h1 className="text-2xl font-bold text-[var(--hl-ink)]">سفارش شما ثبت شد</h1>
         <p className="mt-2 text-sm leading-7 text-[var(--hl-ink-2)]">
           شماره سفارش: <span className="font-mono text-[var(--hl-ink)]">{doneCode}</span>
@@ -284,7 +284,7 @@ export default function CheckoutPage() {
 
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-6">
-          <div className="rounded-2xl border border-[var(--hl-border)] bg-white p-5">
+          <div className="rounded-2xl border border-[var(--hl-border)] hl-card p-5">
             <h3 className="mb-4 text-lg font-bold text-[var(--hl-ink)]">اقلام سفارش</h3>
             <div className="space-y-3">
               {items.map((i) => (
@@ -314,7 +314,7 @@ export default function CheckoutPage() {
             )),
           )}
 
-          <div className="rounded-2xl border border-[var(--hl-border)] bg-white p-5">
+          <div className="rounded-2xl border border-[var(--hl-border)] hl-card p-5">
             <h3 className="mb-4 text-lg font-bold text-[var(--hl-ink)]">روش پرداخت</h3>
 
             {overLevelItems.length > 0 ? (
@@ -322,11 +322,11 @@ export default function CheckoutPage() {
                  address, gateway) until the account reaches the level the cart requires. */
               <div className="space-y-4">
                 <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4">
-                  <p className="font-bold text-amber-300">نیاز به ارتقای سطح حساب</p>
-                  <p className="mt-1 text-sm leading-7 text-amber-100/80">
+                  <p className="font-bold text-amber-600">نیاز به ارتقای سطح حساب</p>
+                  <p className="mt-1 text-sm leading-7 text-amber-700">
                     {overLevelItems.length === 1 ? (
                       <>
-                        محصول <span className="font-bold text-amber-200">«{overLevelItems[0].name}»</span> برای سطح فعلی حساب شما قابل خرید نیست.
+                        محصول <span className="font-bold text-amber-800">«{overLevelItems[0].name}»</span> برای سطح فعلی حساب شما قابل خرید نیست.
                       </>
                     ) : (
                       "محصول‌های زیر برای سطح فعلی حساب شما قابل خرید نیستند."
@@ -343,7 +343,7 @@ export default function CheckoutPage() {
                       </div>
                       <button
                         onClick={() => removeFromCart(i.productId, i.planId ?? null)}
-                        className="shrink-0 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-bold text-rose-400 transition hover:bg-rose-500/10"
+                        className="shrink-0 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-bold text-rose-500 transition hover:bg-rose-500/10"
                       >
                         حذف از سبد
                       </button>
@@ -363,13 +363,13 @@ export default function CheckoutPage() {
                 className={`mb-3 flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-right transition ${useWallet ? "border-[#e60053]/50 bg-[#e60053]/10" : "border-[var(--hl-border)] hover:bg-[var(--hl-border)]/40"}`}
               >
                 <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${useWallet ? "bg-[#e60053]" : "bg-[var(--hl-border)]"}`}>
-                  <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${useWallet ? "right-0.5" : "right-[22px]"}`} />
+                  <span className={`absolute top-0.5 h-5 w-5 rounded-full hl-card transition-all ${useWallet ? "right-0.5" : "right-[22px]"}`} />
                 </span>
                 <span className="flex-1">
                   <span className="block text-sm font-bold text-[var(--hl-ink)]">استفاده از موجودی کیف پول</span>
                   <span className="block text-xs text-[var(--hl-muted)]">موجودی: {formatToman(walletBalance)}</span>
                 </span>
-                {useWallet && walletUse > 0 && <span className="text-xs font-bold text-emerald-400">− {formatToman(walletUse)}</span>}
+                {useWallet && walletUse > 0 && <span className="text-xs font-bold text-emerald-500">− {formatToman(walletUse)}</span>}
               </button>
             )}
 
@@ -399,7 +399,7 @@ export default function CheckoutPage() {
                     amountSlot={
                       <div className="flex items-center justify-between rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-3 text-sm">
                         <span className="text-[var(--hl-ink-2)]">مبلغ قابل پرداخت</span>
-                        <span className="font-bold text-emerald-400">{formatToman(finalPayable)}</span>
+                        <span className="font-bold text-emerald-500">{formatToman(finalPayable)}</span>
                       </div>
                     }
                     value={pay}
@@ -409,7 +409,7 @@ export default function CheckoutPage() {
                 )}
               </div>
             ) : (
-              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-600">
                 کل مبلغ از کیف پول شما پرداخت می‌شود.
               </div>
             )}
@@ -418,13 +418,13 @@ export default function CheckoutPage() {
           </div>
         </div>
 
-        <div className="h-fit rounded-2xl border border-[var(--hl-border)] bg-white p-6">
+        <div className="h-fit rounded-2xl border border-[var(--hl-border)] hl-card p-6">
           <div className="mb-4">
             <label className="mb-2 block text-sm font-bold text-[var(--hl-ink)]">کد تخفیف</label>
             {discount?.valid ? (
               <div className="flex items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3">
-                <span className="font-mono text-sm font-bold text-emerald-400" dir="ltr">{codeInput.trim().toUpperCase()}</span>
-                <button onClick={removeCode} className="text-xs font-bold text-[var(--hl-ink-2)] transition hover:text-rose-400">حذف</button>
+                <span className="font-mono text-sm font-bold text-emerald-500" dir="ltr">{codeInput.trim().toUpperCase()}</span>
+                <button onClick={removeCode} className="text-xs font-bold text-[var(--hl-ink-2)] transition hover:text-rose-500">حذف</button>
               </div>
             ) : (
               <div className="flex gap-2">
@@ -433,7 +433,7 @@ export default function CheckoutPage() {
                   onChange={(e) => setCodeInput(e.target.value)}
                   dir="ltr"
                   placeholder="مثلاً WELCOME10"
-                  className="h-11 flex-1 rounded-xl border border-[var(--hl-border)] bg-white px-3 text-left text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#3e3af2] placeholder:text-[var(--hl-muted)]"
+                  className="h-11 flex-1 rounded-xl border border-[var(--hl-border)] hl-card px-3 text-left text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#3e3af2] placeholder:text-[var(--hl-muted)]"
                 />
                 <button
                   onClick={applyCode}
@@ -444,7 +444,7 @@ export default function CheckoutPage() {
                 </button>
               </div>
             )}
-            {codeError && <p className="mt-2 text-xs text-rose-400">{codeError}</p>}
+            {codeError && <p className="mt-2 text-xs text-rose-500">{codeError}</p>}
           </div>
 
           <div className="space-y-2 border-t border-[var(--hl-border)] pt-3 text-sm">
@@ -453,7 +453,7 @@ export default function CheckoutPage() {
               <span className="text-[var(--hl-ink)]">{formatToman(total)}</span>
             </div>
             {discount?.valid && (
-              <div className="flex items-center justify-between text-emerald-400">
+              <div className="flex items-center justify-between text-emerald-500">
                 <span>تخفیف</span>
                 <span>− {formatToman(discount.amount)}</span>
               </div>
@@ -465,30 +465,30 @@ export default function CheckoutPage() {
               </div>
             )}
             {walletUse > 0 && (
-              <div className="flex items-center justify-between text-emerald-400">
+              <div className="flex items-center justify-between text-emerald-500">
                 <span>پرداخت از کیف پول</span>
                 <span>− {formatToman(walletUse)}</span>
               </div>
             )}
             {fee > 0 && (
-              <div className="flex items-center justify-between text-amber-300/90">
+              <div className="flex items-center justify-between text-amber-600/90">
                 <span>کارمزد/مالیات درگاه</span>
                 <span>+ {formatToman(fee)}</span>
               </div>
             )}
             <div className="flex items-center justify-between border-t border-[var(--hl-border)] pt-2">
               <span className="font-bold text-[var(--hl-ink-2)]">مبلغ قابل پرداخت</span>
-              <span className="text-lg font-bold text-emerald-400">{formatToman(finalPayable)}</span>
+              <span className="text-lg font-bold text-emerald-500">{formatToman(finalPayable)}</span>
             </div>
           </div>
           {!emailVerified && (
             <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] p-4 text-sm">
-              <p className="font-bold text-amber-300">تأیید ایمیل لازم است</p>
-              <p className="mt-1 leading-7 text-amber-100/80">برای ثبت سفارش ابتدا ایمیل خود را تأیید کنید. لینک تأیید به ایمیل شما ارسال شده است.</p>
+              <p className="font-bold text-amber-600">تأیید ایمیل لازم است</p>
+              <p className="mt-1 leading-7 text-amber-700">برای ثبت سفارش ابتدا ایمیل خود را تأیید کنید. لینک تأیید به ایمیل شما ارسال شده است.</p>
               {resent ? (
-                <p className="mt-2 text-emerald-400">ایمیل تأیید دوباره ارسال شد.</p>
+                <p className="mt-2 text-emerald-500">ایمیل تأیید دوباره ارسال شد.</p>
               ) : (
-                <button onClick={resendVerification} disabled={resending} className="mt-2 rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-60">
+                <button onClick={resendVerification} disabled={resending} className="mt-2 rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-600 transition hover:bg-amber-500/10 disabled:opacity-60">
                   {resending ? "در حال ارسال..." : "ارسال مجدد ایمیل تأیید"}
                 </button>
               )}
@@ -505,7 +505,7 @@ export default function CheckoutPage() {
               <span className="leading-6">تمام قوانین مربوط به محصولات سبد خریدم را خوانده‌ام و می‌پذیرم.</span>
             </label>
           )}
-          {error && <p className="mt-3 text-sm text-rose-400">{error}</p>}
+          {error && <p className="mt-3 text-sm text-rose-500">{error}</p>}
           <button
             onClick={placeOrder}
             disabled={placing || items.length === 0 || !emailVerified || overLevelItems.length > 0 || infoIncomplete || rulesIncomplete || (needsMethod && (methodId === null || !isCardToCardComplete(pay)))}
@@ -519,8 +519,8 @@ export default function CheckoutPage() {
       {levelModal && (
         <div className="fixed inset-0 z-50 grid place-items-center p-4">
           <div onClick={() => setLevelModal(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div className="relative w-full max-w-md rounded-2xl border border-[var(--hl-border)] bg-white p-6 shadow-2xl">
-            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-amber-500/15 text-2xl text-amber-300">!</div>
+          <div className="relative w-full max-w-md rounded-2xl border border-[var(--hl-border)] hl-card p-6 shadow-2xl">
+            <div className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-full bg-amber-500/15 text-2xl text-amber-600">!</div>
             <h3 className="text-center text-lg font-bold text-[var(--hl-ink)]">نیاز به ارتقای سطح حساب</h3>
             <p className="mt-2 text-center text-sm leading-7 text-[var(--hl-ink-2)]">
               این محصول(ها) برای سطح فعلی حساب شما در دسترس نیستند. می‌توانید آن‌ها را از سبد حذف کنید یا سطح حساب خود را ارتقا دهید:
@@ -534,7 +534,7 @@ export default function CheckoutPage() {
                   </div>
                   <button
                     onClick={() => removeFromCart(i.productId, i.planId ?? null)}
-                    className="shrink-0 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-bold text-rose-400 transition hover:bg-rose-500/10"
+                    className="shrink-0 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-bold text-rose-500 transition hover:bg-rose-500/10"
                   >
                     حذف از سبد
                   </button>
@@ -545,7 +545,7 @@ export default function CheckoutPage() {
               <Link href="/account/kyc" className="grid h-11 flex-1 place-items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-sm font-bold text-white transition hover:brightness-110">
                 ارتقای سطح حساب
               </Link>
-              <button onClick={() => setLevelModal(false)} className="h-11 rounded-xl border border-[var(--hl-border)] px-6 text-sm font-bold text-white/80 transition hover:bg-[var(--hl-border)]/40">
+              <button onClick={() => setLevelModal(false)} className="h-11 rounded-xl border border-[var(--hl-border)] px-6 text-sm font-bold text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]/40">
                 بستن
               </button>
             </div>

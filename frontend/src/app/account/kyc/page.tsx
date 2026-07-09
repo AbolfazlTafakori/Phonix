@@ -10,7 +10,7 @@ import { PageTitle, Panel } from "@/components/account/Panel";
 import ImageField from "@/components/admin/ImageField";
 
 const inputCls =
-  "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-white px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
+  "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-[color:var(--ac-input-bg)] px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
 
 const LEVELS = [
   { n: 0, title: "ثبت‌نام", desc: "حساب ساخته شد" },
@@ -98,8 +98,8 @@ export default function KycPage() {
                           done
                             ? "text-white"
                             : "border text-[color:var(--ac-muted)]"
-                        } ${current ? "ring-2 ring-[#FF6A2B]/50 ring-offset-2 ring-offset-white" : ""}`}
-                        style={done ? { background: "var(--ac-btn)" } : { borderColor: "#EADFD4" }}
+                        } ${current ? "ring-2 ring-[#FF6A2B]/50 ring-offset-2 ring-offset-[var(--ac-panel-bg)]" : ""}`}
+                        style={done ? { background: "var(--ac-btn)" } : { borderColor: "var(--ac-panel-border)" }}
                       >
                         {done ? "✓" : toFa(l.n)}
                       </div>
@@ -109,7 +109,7 @@ export default function KycPage() {
                     {i < LEVELS.length - 1 && (
                       <div
                         className="mx-1 h-0.5 flex-1 rounded"
-                        style={{ background: level > l.n ? "#FF6A2B" : "#EADFD4" }}
+                        style={{ background: level > l.n ? "#FF6A2B" : "var(--ac-panel-border)" }}
                       />
                     )}
                   </div>
@@ -144,7 +144,7 @@ export default function KycPage() {
             </Panel>
           ) : kyc?.status === "Pending" ? (
             <Panel>
-              <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              <div className="mb-6 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-600 dark:text-amber-400">
                 <span>⏳</span>
                 مدارک کارت ملی شما ارسال شد و در حال بررسی توسط تیم پشتیبانی است. پس از تأیید به سطح ۲ ارتقا می‌یابید.
               </div>
@@ -161,7 +161,7 @@ export default function KycPage() {
               <p className="mb-5 text-sm" style={{ color: "var(--ac-muted)" }}>برای دسترسی به همه‌ی محصولات، اطلاعات کارت ملی خود را ثبت کنید.</p>
 
               {kyc?.status === "Rejected" && (
-                <div className="mb-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-600">
+                <div className="mb-6 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400">
                   مدارک شما تأیید نشد{kyc.note ? `: ${kyc.note}` : "."} لطفاً اطلاعات را اصلاح و دوباره ارسال کنید.
                 </div>
               )}

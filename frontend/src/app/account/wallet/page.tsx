@@ -194,14 +194,14 @@ export default function WalletPage() {
             <div className="mb-5 grid grid-cols-2 gap-2 rounded-2xl border p-1.5" style={{ background: "var(--ac-welcome-bg)", borderColor: "var(--ac-panel-border)" }}>
               <button
                 onClick={() => setTab("toman")}
-                className={`h-11 rounded-xl text-sm font-bold transition ${tab === "toman" ? "bg-white shadow-sm" : "hover:bg-white/50"}`}
+                className={`h-11 rounded-xl text-sm font-bold transition ${tab === "toman" ? "bg-[color:var(--ac-input-bg)] shadow-sm" : "hover:bg-[color:var(--ac-input-bg)]/50"}`}
                 style={{ color: tab === "toman" ? "var(--ac-title)" : "var(--ac-muted)" }}
               >
                 واریز تومان
               </button>
               <button
                 onClick={() => setTab("crypto")}
-                className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold transition ${tab === "crypto" ? "bg-white shadow-sm" : "hover:bg-white/50"}`}
+                className={`flex h-11 items-center justify-center gap-2 rounded-xl text-sm font-bold transition ${tab === "crypto" ? "bg-[color:var(--ac-input-bg)] shadow-sm" : "hover:bg-[color:var(--ac-input-bg)]/50"}`}
                 style={{ color: tab === "crypto" ? "var(--ac-title)" : "var(--ac-muted)" }}
               >
                 واریز رمزارز

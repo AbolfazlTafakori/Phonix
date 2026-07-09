@@ -20,7 +20,7 @@ function formatCard(raw: string): string {
 }
 
 const inputCls =
-  "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-white px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
+  "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-[color:var(--ac-input-bg)] px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
 
 export default function CardsPage() {
   const { user } = useAuth();
@@ -159,7 +159,7 @@ export default function CardsPage() {
               </>
             ) : (
               <>
-                <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-700">
+                <div className="mb-5 rounded-xl border px-4 py-3 text-center text-sm" style={{ borderColor: "var(--ac-welcome-border)", background: "var(--ac-welcome-bg)", color: "var(--ac-text)" }}>
                   کارت بانکی باید به نام صاحب حساب کاربری باشد.
                 </div>
 

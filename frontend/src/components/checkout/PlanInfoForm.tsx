@@ -33,7 +33,7 @@ export default function PlanInfoForm({
   const setField = (label: string, v: string) => onChange({ ...value, values: { ...value.values, [label]: v } });
 
   return (
-    <div className="rounded-2xl border border-[var(--hl-border)] bg-white p-5" dir="rtl">
+    <div className="rounded-2xl border border-[var(--hl-border)] hl-card p-5" dir="rtl">
       <h3 className="text-lg font-bold text-[var(--hl-ink)]">اطلاعات موردنیاز سرویس</h3>
       <p className="mt-1 text-xs text-[var(--hl-muted)]">{title}</p>
 
@@ -55,7 +55,7 @@ export default function PlanInfoForm({
             <span className={`text-[var(--hl-muted)] transition-transform ${tutorialOpen ? "" : "-rotate-90"}`}>▾</span>
           </button>
           {tutorialOpen && (
-            <div className="mt-2 rounded-xl border border-[var(--hl-border)] bg-white p-4 text-sm leading-8 text-[var(--hl-ink-2)] whitespace-pre-wrap">
+            <div className="mt-2 rounded-xl border border-[var(--hl-border)] hl-card p-4 text-sm leading-8 text-[var(--hl-ink-2)] whitespace-pre-wrap">
               {plan.tutorialText}
             </div>
           )}
@@ -73,7 +73,7 @@ export default function PlanInfoForm({
                 value={value.values[f.label] ?? ""}
                 onChange={(e) => setField(f.label, e.target.value)}
                 rows={3}
-                className="w-full resize-none rounded-xl border border-[var(--hl-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#e60053]/50"
+                className="w-full resize-none rounded-xl border border-[var(--hl-border)] hl-card px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#e60053]/50"
               />
             ) : (
               <input
@@ -81,7 +81,7 @@ export default function PlanInfoForm({
                 dir={f.type === "email" || f.type === "phone" || f.type === "password" ? "ltr" : "rtl"}
                 value={value.values[f.label] ?? ""}
                 onChange={(e) => setField(f.label, e.target.value)}
-                className="w-full rounded-xl border border-[var(--hl-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#e60053]/50"
+                className="w-full rounded-xl border border-[var(--hl-border)] hl-card px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#e60053]/50"
               />
             )}
           </div>
@@ -95,7 +95,7 @@ export default function PlanInfoForm({
               onChange={(e) => onChange({ ...value, note: e.target.value })}
               rows={2}
               placeholder="اگر نکته‌ای دارید بنویسید…"
-              className="w-full resize-none rounded-xl border border-[var(--hl-border)] bg-white px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#e60053]/50 placeholder:text-[var(--hl-muted)]"
+              className="w-full resize-none rounded-xl border border-[var(--hl-border)] hl-card px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#e60053]/50 placeholder:text-[var(--hl-muted)]"
             />
           </div>
         )}

@@ -110,7 +110,7 @@ export default function PurchaseCard({ product }: { product: Product }) {
 
   return (
     <div
-      className="rounded-[22px] border bg-white p-5"
+      className="rounded-[22px] border bg-[var(--ac-panel-bg)] p-5"
       style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
     >
       {/* price */}
@@ -220,7 +220,7 @@ export default function PurchaseCard({ product }: { product: Product }) {
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="18" cy="21" r="1" /><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L23 7H5.5" /></svg>
             افزودن به سبد خرید
           </button>
-          <button type="button" onClick={() => onAdd(true)} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border bg-white text-[14px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-btn-secondary-border)", color: "var(--ac-btn-secondary-text)" }}>
+          <button type="button" onClick={() => onAdd(true)} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border bg-[var(--ac-panel-bg)] text-[14px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-btn-secondary-border)", color: "var(--ac-btn-secondary-text)" }}>
             <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M13 2L3 14h7l-1 8 11-13h-7z" /></svg>
             خرید سریع
           </button>
@@ -247,7 +247,7 @@ export default function PurchaseCard({ product }: { product: Product }) {
       {confirming && (
         <div className="fixed inset-0 z-[70] grid place-items-center p-4" dir="rtl">
           <div onClick={() => setConfirming(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-          <div className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border bg-white shadow-2xl" style={{ borderColor: "var(--ac-panel-border)" }}>
+          <div className="relative flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl border bg-[var(--ac-panel-bg)] shadow-2xl" style={{ borderColor: "var(--ac-panel-border)" }}>
             <div className="flex items-start justify-between gap-3 border-b px-5 py-4" style={{ borderColor: "var(--ac-divider)" }}>
               <div>
                 <h3 className="text-lg font-bold" style={{ color: "var(--ac-title)" }}>قوانین و مقررات</h3>

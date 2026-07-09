@@ -14,7 +14,7 @@ export default async function TermsPage() {
   return (
     <div className="mx-auto max-w-[820px] px-5 pb-20 pt-10">
       <h1 className="mb-6 text-2xl font-bold text-[var(--hl-ink)]">قوانین و مقررات</h1>
-      <div className="rounded-2xl border border-[var(--hl-border)] bg-white p-8">
+      <div className="hl-card rounded-2xl p-8">
         {terms.trim() ? (
           <p className="whitespace-pre-wrap text-sm leading-8 text-[var(--hl-ink-2)]">{terms}</p>
         ) : (

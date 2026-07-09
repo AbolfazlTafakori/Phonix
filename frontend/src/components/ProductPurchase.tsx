@@ -64,7 +64,7 @@ export default function ProductPurchase({ product }: { product: Product }) {
         </>
       )}
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--hl-border)] bg-white p-5">
+      <div className="mt-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[var(--hl-border)] hl-card p-5">
         <div>
           <p className="text-xs text-[var(--hl-muted)]">قیمت نهایی</p>
           <p className="text-2xl font-bold text-[var(--hl-ink)]">{formatToman(unitPrice)}</p>

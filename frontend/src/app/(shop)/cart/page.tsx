@@ -12,9 +12,9 @@ export default function CartPage() {
       <h1 className="mb-6 text-2xl font-bold text-[var(--hl-ink)]">سبد خرید</h1>
 
       {!ready ? null : items.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--hl-border)] bg-white p-12 text-center">
+        <div className="hl-card rounded-2xl p-12 text-center">
           <p className="text-[var(--hl-ink-2)]">سبد خرید شما خالی است.</p>
-          <Link href="/products" className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 py-2.5 text-sm font-bold text-white transition hover:brightness-110">
+          <Link href="/products" className="hl-cta mt-4 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 py-2.5 text-sm font-bold text-white">
             مشاهده محصولات
           </Link>
         </div>
@@ -22,26 +22,26 @@ export default function CartPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="space-y-3">
             {items.map((i) => (
-              <div key={`${i.productId}:${i.planId ?? ""}`} className="flex flex-wrap items-center gap-3 rounded-2xl border border-[var(--hl-border)] bg-white p-4 sm:gap-4">
+              <div key={`${i.productId}:${i.planId ?? ""}`} className="hl-card flex flex-wrap items-center gap-3 rounded-2xl p-4 sm:gap-4">
                 <img src={i.image} alt={i.name} className="h-14 w-14 shrink-0 rounded-lg object-cover sm:h-16 sm:w-16" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-bold text-[var(--hl-ink)]">{i.name}</p>
                   {i.plan && <p className="text-xs text-[var(--hl-muted)]">{i.plan}</p>}
-                  <p className="text-sm text-emerald-400">{formatToman(i.price)}</p>
+                  <p className="text-sm font-bold text-emerald-500">{formatToman(i.price)}</p>
                 </div>
                 <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-4">
                   <div className="flex items-center gap-2">
-                    <button onClick={() => setQuantity(i.productId, i.quantity - 1, i.planId)} className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--hl-border)] text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]/40">−</button>
+                    <button onClick={() => setQuantity(i.productId, i.quantity - 1, i.planId)} className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--hl-border)] text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]">−</button>
                     <span className="w-8 text-center text-sm font-bold text-[var(--hl-ink)]">{i.quantity}</span>
-                    <button onClick={() => setQuantity(i.productId, i.quantity + 1, i.planId)} className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--hl-border)] text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]/40">+</button>
+                    <button onClick={() => setQuantity(i.productId, i.quantity + 1, i.planId)} className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--hl-border)] text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]">+</button>
                   </div>
-                  <button onClick={() => removeFromCart(i.productId, i.planId)} className="text-sm text-rose-400 transition hover:text-rose-300">حذف</button>
+                  <button onClick={() => removeFromCart(i.productId, i.planId)} className="text-sm text-rose-500 transition hover:text-rose-400">حذف</button>
                 </div>
               </div>
             ))}
           </div>
 
-          <div className="h-fit rounded-2xl border border-[var(--hl-border)] bg-white p-6">
+          <div className="hl-card h-fit rounded-2xl p-6">
             <h3 className="mb-4 text-lg font-bold text-[var(--hl-ink)]">خلاصه سفارش</h3>
             <div className="flex items-center justify-between text-sm text-[var(--hl-ink-2)]">
               <span>تعداد اقلام</span>
@@ -49,9 +49,9 @@ export default function CartPage() {
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-[var(--hl-border)] pt-3">
               <span className="text-sm text-[var(--hl-ink-2)]">مبلغ کل</span>
-              <span className="text-lg font-bold text-emerald-400">{formatToman(total)}</span>
+              <span className="text-lg font-bold text-emerald-500">{formatToman(total)}</span>
             </div>
-            <Link href="/checkout" className="mt-5 flex h-12 items-center justify-center rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-sm font-bold text-white transition hover:brightness-110">
+            <Link href="/checkout" className="hl-cta mt-5 flex h-12 items-center justify-center rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-sm font-bold text-white">
               ادامه و پرداخت
             </Link>
           </div>

@@ -22,7 +22,7 @@ export default async function BlogPage() {
             <Link
               key={post.id}
               href={`/blog/${post.slug}`}
-              className="block overflow-hidden rounded-2xl border border-[var(--hl-border)] bg-white transition duration-300 hover:-translate-y-1 hover:border-[var(--hl-border)]"
+              className="block overflow-hidden rounded-2xl border border-[var(--hl-border)] hl-card transition duration-300 hover:-translate-y-1 hover:border-[var(--hl-border)]"
             >
               <img src={post.image} alt={post.title} className="h-48 w-full object-cover" />
               <div className="p-6 text-right">

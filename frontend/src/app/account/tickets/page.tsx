@@ -16,7 +16,9 @@ const priorities: { value: TicketPriority; label: string }[] = [
   { value: "High", label: "زیاد" },
 ];
 const priorityLabel: Record<TicketPriority, string> = { Low: "کم", Medium: "متوسط", High: "زیاد" };
-const inputCls = "h-11 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-white px-4 text-sm text-[color:var(--ac-title)] outline-none focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
+const inputCls = "h-11 w-full rounded-xl border px-4 text-sm outline-none transition placeholder:text-[color:var(--ac-muted)]";
+const inputStyle = { borderColor: "var(--ac-input-border)", background: "var(--ac-input-bg)", color: "var(--ac-title)" };
+const inputFocusCls = "focus:border-[color:var(--ac-input-focus)]";
 
 export default function TicketsPage() {
   const { user } = useAuth();
@@ -86,7 +88,7 @@ export default function TicketsPage() {
         <button
           onClick={() => setOpenForm((v) => !v)}
           className="h-11 shrink-0 rounded-xl px-6 text-sm font-bold text-white transition hover:brightness-110"
-          style={{ background: "linear-gradient(135deg, #e60053, #9c0038)" }}
+          style={{ background: "var(--ac-btn)" }}
         >
           {openForm ? "بستن" : "ثبت تیکت جدید"}
         </button>
@@ -96,15 +98,15 @@ export default function TicketsPage() {
         <Panel className="mb-6">
           <div className="grid gap-4">
             <div className="grid gap-4 sm:grid-cols-2">
-              <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="موضوع" className={inputCls} />
-              <select value={department} onChange={(e) => setDepartment(e.target.value)} className={inputCls}>
-                {departments.map((d) => <option key={d} className="bg-white text-[color:var(--ac-title)]">{d}</option>)}
+              <input value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="موضوع" className={`${inputCls} ${inputFocusCls}`} style={inputStyle} />
+              <select value={department} onChange={(e) => setDepartment(e.target.value)} className={`${inputCls} ${inputFocusCls}`} style={inputStyle}>
+                {departments.map((d) => <option key={d}>{d}</option>)}
               </select>
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium" style={{ color: "var(--ac-text)" }}>سطح اهمیت</label>
-              <select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)} className={`${inputCls} sm:w-1/2`}>
-                {priorities.map((p) => <option key={p.value} value={p.value} className="bg-white text-[color:var(--ac-title)]">{p.label}</option>)}
+              <select value={priority} onChange={(e) => setPriority(e.target.value as TicketPriority)} className={`${inputCls} ${inputFocusCls} sm:w-1/2`} style={inputStyle}>
+                {priorities.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
               </select>
             </div>
             <div>
@@ -114,7 +116,8 @@ export default function TicketsPage() {
                 onChange={(e) => setBody(e.target.value)}
                 rows={4}
                 placeholder="شرح مشکل یا سوال خود را بنویسید..."
-                className="w-full rounded-xl border border-[color:var(--ac-input-border)] bg-white px-4 py-3 text-sm text-[color:var(--ac-title)] outline-none focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]"
+                className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]"
+                style={inputStyle}
               />
             </div>
             <div>
@@ -138,12 +141,12 @@ export default function TicketsPage() {
       {loading ? (
         <Panel>
           <div className="grid h-24 place-items-center">
-            <span className="inline-block h-7 w-7 animate-spin rounded-full border-2 border-[rgba(166,102,45,0.2)] border-t-[#FF5A1F]" />
+            <span className="inline-block h-7 w-7 animate-spin rounded-full border-2" style={{ borderColor: "var(--ac-spinner-ring)", borderTopColor: "var(--ac-spinner-tip)" }} />
           </div>
         </Panel>
       ) : selected ? (
         <Panel>
-          <button onClick={() => setSelected(null)} className="mb-4 text-sm font-medium text-[#FF5A1F] hover:underline">→ بازگشت به لیست</button>
+          <button onClick={() => setSelected(null)} className="mb-4 text-sm font-medium hover:underline" style={{ color: "var(--ac-btn-secondary-text)" }}>→ بازگشت به لیست</button>
           <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: "var(--ac-divider)" }}>
             <div>
               <p className="font-bold" style={{ color: "var(--ac-title)" }}>{selected.subject}</p>
@@ -155,7 +158,7 @@ export default function TicketsPage() {
           </div>
 
           {selected.attachment && (
-            <a href={selected.attachment} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg border border-[color:var(--ac-panel-border)] px-3 py-2 text-xs font-bold text-[#3a64f2] transition hover:bg-[color:var(--ac-menu-hover)]">
+            <a href={selected.attachment} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-bold transition" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-btn-secondary-text)", background: "transparent" }}>
               مشاهده فایل پیوست
             </a>
           )}
@@ -166,14 +169,14 @@ export default function TicketsPage() {
                 key={i}
                 className="rounded-xl p-3"
                 style={m.isAdmin
-                  ? { background: "#FFF1E8", borderRight: "2px solid rgba(255,106,43,0.5)" }
-                  : { background: "#F7F0E8" }
+                  ? { background: "var(--ac-menu-active-bg)", borderRight: "2px solid var(--ac-menu-active-border)" }
+                  : { background: "var(--ac-welcome-bg)" }
                 }
               >
-                <p className="text-xs font-bold" style={{ color: m.isAdmin ? "#FF5A1F" : "var(--ac-muted)" }}>{m.author} · {m.date}</p>
+                <p className="text-xs font-bold" style={{ color: m.isAdmin ? "var(--ac-menu-active-text)" : "var(--ac-muted)" }}>{m.author} · {m.date}</p>
                 <p className="mt-1.5 text-sm leading-7" style={{ color: "var(--ac-text)" }}>{m.body}</p>
                 {m.attachment && (
-                  <a href={m.attachment} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 rounded-lg border border-[color:var(--ac-panel-border)] px-3 py-1.5 text-xs font-bold text-[#3a64f2] transition hover:bg-[color:var(--ac-menu-hover)]">
+                  <a href={m.attachment} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-bold transition" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-btn-secondary-text)" }}>
                     مشاهده فایل پیوست
                   </a>
                 )}
@@ -189,7 +192,8 @@ export default function TicketsPage() {
                   onChange={(e) => setReply(e.target.value)}
                   rows={2}
                   placeholder="پاسخ شما..."
-                  className="flex-1 rounded-xl border border-[color:var(--ac-input-border)] bg-white px-3 py-2 text-sm text-[color:var(--ac-title)] outline-none focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]"
+                  className="flex-1 rounded-xl border px-3 py-2 text-sm outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]"
+                  style={inputStyle}
                 />
                 <button
                   onClick={sendReply}

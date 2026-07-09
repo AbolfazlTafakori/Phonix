@@ -28,7 +28,7 @@ export default function ProductTabs({ product, comments }: { product: Product; c
   const [active, setActive] = useState("desc");
 
   return (
-    <section className="mt-10 rounded-[22px] border bg-white" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+    <section className="mt-10 rounded-[22px] border bg-[var(--ac-panel-bg)]" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
       {/* tab bar */}
       <div className="flex gap-1 overflow-x-auto border-b px-3 pt-3" style={{ borderColor: "var(--ac-divider)" }}>
         {tabs.map((t) => {

@@ -68,7 +68,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
             <Link
               key={p.id}
               href={`/products/detail?id=${p.id}`}
-              className="group relative block overflow-hidden rounded-2xl border border-[var(--hl-border)] bg-white transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
+              className="group relative block overflow-hidden rounded-2xl border border-[var(--hl-border)] hl-card transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
             >
               <div className="relative aspect-[3/4]">
                 <ProductCardImage src={p.image} alt={p.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />

@@ -51,7 +51,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
   if (failed || !product) {
     return (
       <div className="mx-auto max-w-[640px] px-6 py-24 text-center">
-        <div className="rounded-[22px] border bg-white p-10" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+        <div className="rounded-[22px] border bg-[var(--ac-panel-bg)] p-10" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
           <p className="text-lg font-black" style={{ color: "var(--ac-title)" }}>مشکلی در دریافت اطلاعات محصول پیش آمد.</p>
           <p className="mt-2 text-sm" style={{ color: "var(--ac-muted)" }}>لطفاً چند لحظه بعد دوباره تلاش کنید.</p>
           <a href="" className="mt-6 inline-block rounded-xl px-8 py-3 text-sm font-bold text-white transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
@@ -179,7 +179,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
         </div>
 
         {/* trust row — below gallery+info, beside purchase card */}
-        <div className="order-4 lg:col-start-2 lg:col-span-2 grid grid-cols-2 rounded-[22px] border bg-white sm:grid-cols-3 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+        <div className="order-4 lg:col-start-2 lg:col-span-2 grid grid-cols-2 rounded-[22px] border bg-[var(--ac-panel-bg)] sm:grid-cols-3 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
           <TrustItem icon={<Icon d={I.tag} />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
           <TrustItem icon={<Icon d={I.shield} />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
           <TrustItem icon={<Icon d={I.lock} />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
@@ -193,7 +193,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
 
       {/* support + comparison */}
       <div className="mt-10 grid items-start gap-6 lg:grid-cols-[320px_1fr]">
-        <div className="rounded-[22px] border bg-white p-6 text-center" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+        <div className="rounded-[22px] border bg-[var(--ac-panel-bg)] p-6 text-center" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
           <span className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
             <Icon d={I.headset} className="h-7 w-7" />
           </span>
@@ -206,7 +206,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
         </div>
 
         {months.length > 0 && (
-          <div id="plan-compare" className="overflow-hidden rounded-[22px] border bg-white" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+          <div id="plan-compare" className="overflow-hidden rounded-[22px] border bg-[var(--ac-panel-bg)]" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
             <h3 className="border-b px-6 py-4 text-[16px] font-black" style={{ borderColor: "var(--ac-divider)", color: "var(--ac-title)" }}>مقایسه پلن‌ها</h3>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[520px] border-collapse text-center text-[13px]">
@@ -275,7 +275,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
           </div>
           <Link
             href="/products"
-            className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[16px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2]"
+            className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-[var(--ac-panel-bg)] px-4 py-2 text-[16px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2]"
           >
             مشاهده همه
           </Link>

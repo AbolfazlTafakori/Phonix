@@ -33,12 +33,12 @@ export default function ReviewForm({ productId }: { productId: number }) {
   }
 
   if (!ready) {
-    return <div className="h-40 rounded-2xl border border-[var(--hl-border)] bg-white" />;
+    return <div className="h-40 rounded-2xl border border-[var(--hl-border)] hl-card" />;
   }
 
   if (!user) {
     return (
-      <div className="rounded-2xl border border-[var(--hl-border)] bg-white p-6 text-center">
+      <div className="rounded-2xl border border-[var(--hl-border)] hl-card p-6 text-center">
         <p className="text-sm leading-7 text-[var(--hl-ink-2)]">برای ثبت نظر و امتیاز ابتدا باید وارد حساب کاربری خود شوید.</p>
         <Link
           href="/login"
@@ -60,7 +60,7 @@ export default function ReviewForm({ productId }: { productId: number }) {
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--hl-border)] bg-white p-6">
+    <div className="rounded-2xl border border-[var(--hl-border)] hl-card p-6">
       <h3 className="mb-1 text-lg font-bold text-[var(--hl-ink)]">ثبت نظر و امتیاز</h3>
       <p className="mb-4 text-xs text-[var(--hl-muted)]">
         به نام <span className="font-bold text-[var(--hl-ink-2)]">{user.username}</span>
@@ -89,7 +89,7 @@ export default function ReviewForm({ productId }: { productId: number }) {
         onChange={(e) => setBody(e.target.value)}
         rows={4}
         placeholder="نظر خود را درباره این محصول بنویسید..."
-        className="w-full rounded-xl border border-[var(--hl-border)] bg-white px-4 py-3 text-sm text-[var(--hl-ink)] outline-none focus:border-[#e60053]"
+        className="w-full rounded-xl border border-[var(--hl-border)] hl-card px-4 py-3 text-sm text-[var(--hl-ink)] outline-none focus:border-[#e60053]"
       />
 
       {error && <p className="mt-2 text-sm text-rose-400">{error}</p>}
