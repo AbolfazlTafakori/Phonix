@@ -1,195 +1,288 @@
 import Link from "next/link";
 import { api } from "@/lib/api";
-import { formatNumber, toFa } from "@/lib/format";
+import { formatNumber, formatToman, toFa } from "@/lib/format";
 import type { Product, Comment } from "@/lib/types";
 import Stars from "@/components/Stars";
-import ReviewForm from "@/components/ReviewForm";
-import ProductPurchase from "@/components/ProductPurchase";
-import FavoriteButton from "@/components/FavoriteButton";
-import RichText from "@/components/RichText";
+import ProductCardImage from "@/components/ProductCardImage";
+import PurchaseCard from "@/components/product/PurchaseCard";
+import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
+import OpenChatButton from "@/components/product/OpenChatButton";
+import HomeNewsletter from "@/components/home/HomeNewsletter";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "جزئیات محصول | Phoenix Verify" };
 
-const fallbackProduct: Product = {
-  id: 0,
-  name: "اشتراک نتفلیکس پریمیوم",
-  categoryId: 0,
-  categoryName: "فیلم و سریال",
-  price: 290000,
-  discountPercent: 0,
-  finalPrice: 290000,
-  stock: 1,
-  isActive: true,
-  featured: true,
-  image: "/figma/prod-netflix.png",
-  sku: "",
-  description:
-    "دسترسی کامل به کتابخانه‌ی نتفلیکس با کیفیت 4K، امکان تماشا روی چند دستگاه و تحویل آنی اطلاعات اکانت بلافاصله پس از پرداخت.",
-  warning: "",
-  requiredLevel: 1,
-  deliveryTemplate: "",
-  priceUsd: 0,
-  features: [
-    { text: "تحویل آنی پس از پرداخت", included: true },
-    { text: "کیفیت 4K Ultra HD", included: true },
-    { text: "پشتیبانی ۲۴ ساعته", included: true },
-    { text: "گارانتی بازگشت وجه", included: true },
-  ],
-  plans: [],
+const Icon = ({ d, className = "h-5 w-5" }: { d: string; className?: string }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
+);
+
+const I = {
+  headset: "M3 12a9 9 0 0 1 18 0M3 12v4a2 2 0 0 0 2 2h1a1 1 0 0 0 1-1v-4a1 1 0 0 0-1-1H4M21 12v4a2 2 0 0 1-2 2h-1a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1h2",
+  shield: "M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z",
+  bolt: "M13 2L3 14h7l-1 8 11-13h-7z",
+  tag: "M20 10L11 2H4v7l9 9a2 2 0 0 0 2.8 0l4.2-4.2a2 2 0 0 0 0-2.8zM7 7h.01",
+  lock: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
+  check: "M20 6L9 17l-5-5",
 };
 
 export default async function ProductDetailPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
   const { id } = await searchParams;
 
-  let product = fallbackProduct;
+  let product: Product | null = null;
+  let related: Product[] = [];
+  let failed = false;
   try {
     const products = await api.products.list();
-    const wanted = id ? products.find((p) => p.id === Number(id)) : null;
-    product = wanted ?? products.find((p) => p.isActive) ?? products[0] ?? fallbackProduct;
+    const active = products.filter((p) => p.isActive);
+    product = (id ? active.find((p) => p.id === Number(id)) : null) ?? active[0] ?? null;
+    if (product) {
+      const pid = product.id;
+      related = active.filter((p) => p.id !== pid && p.categoryId === product!.categoryId).slice(0, 6);
+      if (related.length < 3) {
+        const extra = active.filter((p) => p.id !== pid && !related.includes(p)).slice(0, 6 - related.length);
+        related = [...related, ...extra];
+      }
+    }
   } catch {
-    // keep fallback
+    failed = true;
+  }
+
+  if (failed || !product) {
+    return (
+      <div className="mx-auto max-w-[640px] px-6 py-24 text-center">
+        <div className="rounded-[22px] border bg-white p-10" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+          <p className="text-lg font-black" style={{ color: "var(--ac-title)" }}>مشکلی در دریافت اطلاعات محصول پیش آمد.</p>
+          <p className="mt-2 text-sm" style={{ color: "var(--ac-muted)" }}>لطفاً چند لحظه بعد دوباره تلاش کنید.</p>
+          <a href="" className="mt-6 inline-block rounded-xl px-8 py-3 text-sm font-bold text-white transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
+            تلاش مجدد
+          </a>
+        </div>
+      </div>
+    );
   }
 
   let comments: Comment[] = [];
   try {
     comments = await api.comments.forProduct(product.id);
   } catch {
-    // optional
+    // reviews are optional
   }
   const topLevel = comments.filter((c) => c.parentId == null);
   const rated = topLevel.filter((c) => c.rating > 0);
   const avg = rated.length ? rated.reduce((s, c) => s + c.rating, 0) / rated.length : 0;
   const out = product.stock <= 0;
 
+  // plan comparison data: months columns × type rows, from real plans.
+  const plans = product.plans.filter((p) => p.isActive);
+  const months = [...new Set(plans.map((p) => p.months))].sort((a, b) => a - b);
+  const types = [...new Set(plans.map((p) => p.type))];
+  const bestDiscount = Math.max(0, ...plans.map((p) => p.discountPercent));
+
   return (
-    <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-8">
-      <nav className="mb-6 flex items-center gap-2 text-sm text-[var(--hl-muted)]">
-        <Link href="/" className="hover:text-[var(--hl-ink)]">خانه</Link>
+    <div className="mx-auto max-w-[1240px] px-5 pb-16 pt-6 md:px-6">
+      {/* breadcrumb */}
+      <nav className="mb-5 flex flex-wrap items-center gap-2 text-[13px]" style={{ color: "var(--ac-muted)" }}>
+        <Link href="/" className="transition hover:text-[color:var(--ac-title)]">صفحه اصلی</Link>
         <span>/</span>
-        <Link href="/products" className="hover:text-[var(--hl-ink)]">{product.categoryName || "فروشگاه"}</Link>
+        <Link href="/products" className="transition hover:text-[color:var(--ac-title)]">محصولات</Link>
+        {product.categoryName && (
+          <>
+            <span>/</span>
+            <Link href={`/products?cat=${product.categoryId}`} className="transition hover:text-[color:var(--ac-title)]">{product.categoryName}</Link>
+          </>
+        )}
         <span>/</span>
-        <span className="text-[var(--hl-ink-2)]">{product.name}</span>
+        <span className="font-bold" style={{ color: "var(--ac-title)" }}>{product.name}</span>
       </nav>
 
-      <div className="grid gap-8 lg:grid-cols-2">
+      {/* mobile title (spec: title before gallery on mobile) */}
+      <h1 className="mb-4 text-[24px] font-black leading-snug lg:hidden" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
+
+      {/* main grid */}
+      <div className="grid items-start gap-6 lg:grid-cols-[420px_1fr_320px]">
         {/* gallery */}
-        <div className="relative self-start overflow-hidden rounded-3xl border border-[var(--hl-border)]">
-          <img src={product.image} alt={product.name} className="block w-full" />
-          {out && (
-            <div className="absolute inset-0 grid place-items-center">
-              <span className="-rotate-6 rounded-2xl border border-white/25 bg-black/55 px-7 py-3 text-xl font-black tracking-wide text-white shadow-2xl backdrop-blur-sm">
-                ناموجود
+        <div>
+          <div className="relative overflow-hidden rounded-[22px] border bg-white" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+            <ProductCardImage src={product.image} alt={product.name} className="aspect-square w-full object-cover" />
+            {product.featured && (
+              <span className="absolute right-4 top-4 rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
+                محبوب‌ترین
               </span>
-            </div>
-          )}
+            )}
+            {out && (
+              <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-[2px]">
+                <span className="-rotate-6 rounded-2xl border border-white/25 bg-black/55 px-7 py-3 text-xl font-black tracking-wide text-white shadow-2xl">
+                  ناموجود
+                </span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* info */}
         <div>
-          <div className="mb-3 flex items-center gap-2">
-            {product.featured && <span className="rounded-full bg-[#e60053]/15 px-3 py-1 text-xs font-medium text-[#e60053]">پرفروش‌ترین</span>}
-            <span className={`rounded-full px-3 py-1 text-xs font-medium ${product.stock > 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-rose-500/15 text-rose-400"}`}>
-              {product.stock > 0 ? "موجود" : "ناموجود"}
-            </span>
-          </div>
+          <h1 className="hidden text-[30px] font-black leading-snug lg:block" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
 
-          <h1 className="text-3xl font-bold text-[var(--hl-ink)]">{product.name}</h1>
+          <p className="mt-3 text-[14px] leading-8 line-clamp-3" style={{ color: "var(--ac-text)" }}>
+            {product.description.replace(/[#*_\[\]()]/g, "").slice(0, 220)}
+          </p>
 
           {rated.length > 0 && (
             <div className="mt-3 flex items-center gap-2">
+              <span className="text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(avg.toFixed(1))}</span>
               <Stars value={avg} />
-              <span className="text-sm text-[var(--hl-ink-2)]">{toFa(avg.toFixed(1))} از ۵ · {formatNumber(rated.length)} نظر</span>
+              <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>({formatNumber(rated.length)} نظر)</span>
             </div>
           )}
 
-          {out ? (
-            <button
-              type="button"
-              disabled
-              className="mt-6 h-14 w-full cursor-not-allowed rounded-2xl border border-[var(--hl-border)] bg-white/[0.04] text-base font-bold text-[var(--hl-ink-2)]"
-            >
-              ناموجود
-            </button>
-          ) : (
-            <ProductPurchase product={product} />
-          )}
-
-          <div className="mt-4">
-            <FavoriteButton productId={product.id} />
+          {/* mini benefits */}
+          <div className="mt-5 grid grid-cols-3 gap-2.5">
+            {[
+              { icon: I.headset, label: "پشتیبانی ۲۴/۷" },
+              { icon: I.shield, label: "ضمانت اصالت" },
+              { icon: I.bolt, label: "تحویل آنی" },
+            ].map((b) => (
+              <div key={b.label} className="flex flex-col items-center gap-2 rounded-xl border px-2 py-3.5 text-center" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)" }}>
+                <span style={{ color: "#F2551F" }}><Icon d={b.icon} /></span>
+                <span className="text-[12px] font-bold" style={{ color: "var(--ac-text)" }}>{b.label}</span>
+              </div>
+            ))}
           </div>
 
-          {product.features.length > 0 && (
-            <ul className="mt-6 grid grid-cols-2 gap-3">
-              {product.features.map((f) => (
-                <li key={f.text} className={`flex items-center gap-2 text-sm ${f.included ? "text-[var(--hl-ink-2)]" : "text-[var(--hl-muted)] line-through"}`}>
-                  <span className={f.included ? "text-emerald-400" : "text-rose-400/70"}>{f.included ? "✓" : "✕"}</span>
-                  {f.text}
-                </li>
-              ))}
-            </ul>
+          {/* stock box */}
+          <div className={`mt-4 flex items-center justify-between rounded-xl px-4 py-3.5 ${out ? "bg-rose-500/10" : "bg-emerald-500/10"}`}>
+            <span className={`flex items-center gap-2 text-[13px] font-black ${out ? "text-rose-500" : "text-emerald-600"}`}>
+              <span className={`h-2 w-2 rounded-full ${out ? "bg-rose-500" : "bg-emerald-500"}`} />
+              {out ? "موجود نیست" : "موجود در انبار"}
+            </span>
+            {!out && <span className="text-[13px] font-bold text-emerald-600">تحویل آنی</span>}
+          </div>
+
+          {/* sku */}
+          {product.sku && (
+            <p className="mt-4 text-[12px]" style={{ color: "var(--ac-muted)" }}>
+              شناسه محصول: <span className="font-mono" dir="ltr">{product.sku}</span>
+            </p>
           )}
         </div>
+
+        {/* purchase card */}
+        <PurchaseCard product={product} />
       </div>
 
-      {/* description */}
-      <div className="mt-12 rounded-2xl border border-[var(--hl-border)] bg-white p-8">
-        <h2 className="mb-4 text-xl font-bold text-[var(--hl-ink)]">توضیحات محصول</h2>
-        <RichText content={product.description} />
+      {/* trust row */}
+      <div className="mt-8 grid grid-cols-2 divide-x divide-x-reverse rounded-[22px] border bg-white sm:grid-cols-3 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)", ["--tw-divide-opacity" as string]: 1, borderCollapse: "collapse" }}>
+        <TrustItem icon={<Icon d={I.tag} />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
+        <TrustItem icon={<Icon d={I.shield} />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
+        <TrustItem icon={<Icon d={I.lock} />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
+        <TrustItem icon={<Icon d={I.headset} />} title="پشتیبانی ۲۴/۷" desc="همیشه پاسخگوی شما" />
+        <TrustItem icon={<Icon d={I.bolt} />} title="تحویل آنی" desc="بلافاصله پس از پرداخت" />
       </div>
 
-      {/* mandatory reading / warning */}
-      {product.warning && (
-        <div className="mt-6 rounded-2xl border border-amber-500/30 bg-amber-500/[0.07] p-8">
-          <h2 className="mb-4 flex items-center gap-2 text-xl font-bold text-amber-300">
-            <span>⚠</span> مطالعه اجباری
-          </h2>
-          <p className="text-sm leading-8 text-amber-100/80">{product.warning}</p>
+      {/* tabs */}
+      <ProductTabs product={product} comments={comments} />
+
+      {/* support + comparison */}
+      <div className="mt-10 grid items-start gap-6 lg:grid-cols-[320px_1fr]">
+        <div className="rounded-[22px] border bg-white p-6 text-center" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+          <span className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
+            <Icon d={I.headset} className="h-7 w-7" />
+          </span>
+          <h3 className="mt-4 text-[17px] font-black" style={{ color: "var(--ac-title)" }}>سوالی دارید؟</h3>
+          <p className="mt-2 text-[13px] leading-6" style={{ color: "var(--ac-muted)" }}>تیم پشتیبانی فونیکس وریفای به‌صورت شبانه‌روزی آماده‌ی پاسخگویی است.</p>
+          <Link href="/account/tickets" className="mt-5 flex h-12 items-center justify-center rounded-xl text-[14px] font-black text-white transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
+            ارسال تیکت
+          </Link>
+          <OpenChatButton />
         </div>
+
+        {months.length > 0 && (
+          <div id="plan-compare" className="overflow-hidden rounded-[22px] border bg-white" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+            <h3 className="border-b px-6 py-4 text-[16px] font-black" style={{ borderColor: "var(--ac-divider)", color: "var(--ac-title)" }}>مقایسه پلن‌ها</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] border-collapse text-center text-[13px]">
+                <thead>
+                  <tr style={{ background: "var(--ac-menu-hover)" }}>
+                    <th className="px-4 py-3.5 text-right font-bold" style={{ color: "var(--ac-text)" }}>نوع پلن</th>
+                    {months.map((m) => {
+                      const best = plans.some((p) => p.months === m && p.discountPercent === bestDiscount && bestDiscount > 0);
+                      return (
+                        <th key={m} className="px-4 py-3.5 font-black" style={{ color: "var(--ac-title)" }}>
+                          {toFa(m)} ماهه
+                          {best && <span className="mr-1.5 rounded-full bg-emerald-500 px-2 py-0.5 text-[10px] font-black text-white">٪{toFa(bestDiscount)}−</span>}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                </thead>
+                <tbody>
+                  {types.map((t) => (
+                    <tr key={t} className="border-t" style={{ borderColor: "var(--ac-divider)" }}>
+                      <td className="px-4 py-3.5 text-right font-bold" style={{ color: "var(--ac-title)" }}>{t}</td>
+                      {months.map((m) => {
+                        const p = plans.find((x) => x.type === t && x.months === m);
+                        return (
+                          <td key={m} className="px-4 py-3.5" style={{ color: "var(--ac-text)" }}>
+                            {p ? (
+                              <span className="inline-flex flex-col items-center gap-0.5">
+                                <span className="font-bold">{formatToman(p.finalPrice)}</span>
+                                {p.userCount > 0 && <span className="text-[11px]" style={{ color: "var(--ac-muted)" }}>{toFa(p.userCount)} کاربره</span>}
+                              </span>
+                            ) : (
+                              <span style={{ color: "var(--ac-muted)" }}>—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                  {product.features.filter((f) => f.included).slice(0, 3).map((f) => (
+                    <tr key={f.text} className="border-t" style={{ borderColor: "var(--ac-divider)" }}>
+                      <td className="px-4 py-3 text-right text-[12px]" style={{ color: "var(--ac-text)" }}>{f.text}</td>
+                      {months.map((m) => (
+                        <td key={m} className="px-4 py-3 text-emerald-500"><Icon d={I.check} className="mx-auto h-4 w-4" /></td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* related products */}
+      {related.length > 0 && (
+        <section className="mt-12">
+          <div className="mb-5 flex items-center gap-2">
+            <span className="h-6 w-1.5 rounded-full" style={{ background: "var(--ac-btn)" }} />
+            <h2 className="text-[20px] font-black" style={{ color: "var(--ac-title)" }}>محصولات مرتبط</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+            {related.map((p) => (
+              <Link
+                key={p.id}
+                href={`/products/detail?id=${p.id}`}
+                className="group overflow-hidden rounded-2xl border bg-white transition duration-300 hover:-translate-y-1"
+                style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
+              >
+                <div className="aspect-square overflow-hidden">
+                  <ProductCardImage src={p.image} alt={p.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                </div>
+                <div className="p-3">
+                  <p className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{p.name}</p>
+                  <p className="mt-1.5 text-[12px] font-bold" style={{ color: "#F2551F" }}>از {formatToman(Math.min(p.finalPrice, ...p.plans.filter((x) => x.isActive).map((x) => x.finalPrice)))}</p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
       )}
 
-      {/* reviews */}
-      <section className="mt-12">
-        <h2 className="mb-6 text-xl font-bold text-[var(--hl-ink)]">نظرات کاربران</h2>
-        <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
-          <div className="space-y-4">
-            {topLevel.length === 0 ? (
-              <p className="rounded-2xl border border-[var(--hl-border)] bg-white p-6 text-sm text-[var(--hl-muted)]">
-                هنوز نظری ثبت نشده است. اولین نفری باشید که نظر می‌دهد!
-              </p>
-            ) : (
-              topLevel.map((c) => (
-                <div key={c.id} className="rounded-2xl border border-[var(--hl-border)] bg-white p-5">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3">
-                      <span className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-sm font-bold text-[var(--hl-ink)]">
-                        {c.userName.charAt(0)}
-                      </span>
-                      <div>
-                        <p className="text-sm font-bold text-[var(--hl-ink)]">{c.userName}</p>
-                        <p className="text-xs text-[var(--hl-muted)]">{c.date}</p>
-                      </div>
-                    </div>
-                    {c.rating > 0 && <Stars value={c.rating} />}
-                  </div>
-                  <p className="mt-3 text-sm leading-7 text-[var(--hl-ink-2)]">{c.body}</p>
-
-                  {comments
-                    .filter((r) => r.parentId === c.id)
-                    .map((r) => (
-                      <div key={r.id} className="mt-3 rounded-xl border-r-2 border-[#e60053]/40 bg-[var(--hl-border)]/20 p-4">
-                        <p className="text-xs font-bold text-[#ff5a8a]">{r.userName}</p>
-                        <p className="mt-1.5 text-sm leading-7 text-[var(--hl-ink-2)]">{r.body}</p>
-                      </div>
-                    ))}
-                </div>
-              ))
-            )}
-          </div>
-
-          <ReviewForm productId={product.id} />
-        </div>
-      </section>
+      {/* newsletter */}
+      <div className="mt-12 -mx-5 md:-mx-6">
+        <HomeNewsletter />
+      </div>
     </div>
   );
 }

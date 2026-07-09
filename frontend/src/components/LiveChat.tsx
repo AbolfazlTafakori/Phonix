@@ -79,6 +79,13 @@ export default function LiveChat() {
   // conversation still needs a signed-in customer, so a guest who opens it gets a login prompt.
   const hidden = !ready || pathname.startsWith("/admin");
 
+  // Other parts of the site (e.g. the product-page support card) can open the chat panel remotely.
+  useEffect(() => {
+    const openChat = () => { setOpen(true); setNotif(null); };
+    window.addEventListener("phonix:open-chat", openChat);
+    return () => window.removeEventListener("phonix:open-chat", openChat);
+  }, []);
+
   // Once per browser session, archive any leftover thread so the customer starts with an empty chat.
   useEffect(() => {
     if (hidden || !user) return;

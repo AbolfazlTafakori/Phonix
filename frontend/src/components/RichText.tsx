@@ -25,7 +25,7 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
       const href = safeUrl(m[4]);
       nodes.push(href ? <a key={key} href={href} target="_blank" rel="noreferrer" className="text-[#6f93ff] underline">{m[3]}</a> : m[3]);
     } else if (m[5] !== undefined) {
-      nodes.push(<strong key={key} className="font-bold text-white">{m[5]}</strong>);
+      nodes.push(<strong key={key} className="font-bold text-[var(--hl-ink)]">{m[5]}</strong>);
     } else if (m[6] !== undefined) {
       nodes.push(<em key={key}>{m[6]}</em>);
     }
@@ -41,16 +41,16 @@ export default function RichText({ content, className = "" }: { content: string;
 
   const blocks = text.split(/\n{2,}/);
   return (
-    <div className={`space-y-4 text-sm leading-8 text-white/75 ${className}`}>
+    <div className={`space-y-4 text-sm leading-8 text-[var(--hl-ink-2)] ${className}`}>
       {blocks.map((block, bi) => {
         const imgOnly = block.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
         if (imgOnly) {
           const src = safeUrl(imgOnly[2]);
-          return src ? <img key={bi} src={src} alt={imgOnly[1]} className="mx-auto max-w-full rounded-xl border border-white/10" /> : null;
+          return src ? <img key={bi} src={src} alt={imgOnly[1]} className="mx-auto max-w-full rounded-xl border border-[var(--hl-border)]" /> : null;
         }
-        if (block.startsWith("### ")) return <h4 key={bi} className="text-base font-bold text-white">{renderInline(block.slice(4), `h${bi}`)}</h4>;
-        if (block.startsWith("## ")) return <h3 key={bi} className="text-lg font-bold text-white">{renderInline(block.slice(3), `h${bi}`)}</h3>;
-        if (block.startsWith("# ")) return <h2 key={bi} className="text-xl font-bold text-white">{renderInline(block.slice(2), `h${bi}`)}</h2>;
+        if (block.startsWith("### ")) return <h4 key={bi} className="text-base font-bold text-[var(--hl-ink)]">{renderInline(block.slice(4), `h${bi}`)}</h4>;
+        if (block.startsWith("## ")) return <h3 key={bi} className="text-lg font-bold text-[var(--hl-ink)]">{renderInline(block.slice(3), `h${bi}`)}</h3>;
+        if (block.startsWith("# ")) return <h2 key={bi} className="text-xl font-bold text-[var(--hl-ink)]">{renderInline(block.slice(2), `h${bi}`)}</h2>;
 
         const lines = block.split("\n");
         if (lines.some((l) => l.startsWith("- ")) && lines.every((l) => l.startsWith("- ") || l.trim() === "")) {
