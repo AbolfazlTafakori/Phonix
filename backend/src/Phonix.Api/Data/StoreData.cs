@@ -237,6 +237,7 @@ public partial class StoreData : IDataStore
             existing.Name = category.Name;
             existing.Slug = category.Slug;
             existing.Icon = category.Icon;
+            existing.Description = category.Description;
             existing.IsActive = category.IsActive;
             existing.SortOrder = category.SortOrder;
             RebuildCatalogView();

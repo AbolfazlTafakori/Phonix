@@ -8,7 +8,7 @@ import { Card, PageHeader, Spinner, Toggle, StatusBadge, Modal, DataTable, input
 import ImageField from "@/components/admin/ImageField";
 import AdminIcon from "@/components/admin/AdminIcon";
 
-const empty: CategoryInput = { name: "", slug: "", icon: "", isActive: true, sortOrder: 0 };
+const empty: CategoryInput = { name: "", slug: "", icon: "", description: "", isActive: true, sortOrder: 0 };
 
 export default function AdminCategoriesPage() {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -42,7 +42,7 @@ export default function AdminCategoriesPage() {
 
   function openEdit(c: Category) {
     setEditingId(c.id);
-    setForm({ name: c.name, slug: c.slug, icon: c.icon, isActive: c.isActive, sortOrder: c.sortOrder });
+    setForm({ name: c.name, slug: c.slug, icon: c.icon, description: c.description ?? "", isActive: c.isActive, sortOrder: c.sortOrder });
     setModalOpen(true);
   }
 
@@ -67,6 +67,7 @@ export default function AdminCategoriesPage() {
       name: c.name,
       slug: c.slug,
       icon: c.icon,
+      description: c.description ?? "",
       isActive: !c.isActive,
       sortOrder: c.sortOrder,
     });
@@ -168,7 +169,17 @@ export default function AdminCategoriesPage() {
               <input value={form.slug} onChange={(e) => set("slug", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="music" />
             </label>
           </div>
-          <ImageField label="آیکن دسته‌بندی" aspect="square" value={form.icon} onChange={(v) => set("icon", v)} className="w-40" />
+          <label>
+            <span className="mb-2 block text-sm text-white/70">توضیح کوتاه <span className="text-white/40">(زیر عنوان در صفحه دسته‌بندی‌ها)</span></span>
+            <textarea
+              value={form.description}
+              onChange={(e) => set("description", e.target.value)}
+              rows={2}
+              className={`${inputCls} resize-none`}
+              placeholder="مثلاً اشتراک‌های اپل موزیک، اسپاتیفای و پادکست‌های برتر"
+            />
+          </label>
+          <ImageField label="آیکن / لوگوی دسته‌بندی" aspect="square" value={form.icon} onChange={(v) => set("icon", v)} className="w-40" />
           <label className="w-40">
             <span className="mb-2 block text-sm text-white/70">ترتیب نمایش</span>
             <input type="number" dir="ltr" value={form.sortOrder} onChange={(e) => set("sortOrder", Number(e.target.value))} className={`${inputCls} text-left`} />

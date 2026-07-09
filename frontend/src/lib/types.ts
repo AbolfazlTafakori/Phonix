@@ -5,6 +5,7 @@ export type Category = {
   name: string;
   slug: string;
   icon: string;
+  description: string;
   isActive: boolean;
   sortOrder: number;
   productCount: number;
@@ -14,6 +15,7 @@ export type CategoryInput = {
   name: string;
   slug: string;
   icon: string;
+  description: string;
   isActive: boolean;
   sortOrder: number;
 };

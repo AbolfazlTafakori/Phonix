@@ -1281,6 +1281,7 @@ LIMIT 1;",
         var existing = GetCategory(category.Id);
         if (existing is null) return false;
         existing.Name = category.Name; existing.Slug = category.Slug; existing.Icon = category.Icon;
+        existing.Description = category.Description;
         existing.IsActive = category.IsActive; existing.SortOrder = category.SortOrder;
         return UpdateJson("Categories", existing.Id, existing);
     }

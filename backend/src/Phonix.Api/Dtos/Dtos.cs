@@ -18,10 +18,10 @@ public record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int Pa
 }
 
 public record CategoryDto(
-    int Id, string Name, string Slug, string Icon, bool IsActive, int SortOrder, int ProductCount);
+    int Id, string Name, string Slug, string Icon, string Description, bool IsActive, int SortOrder, int ProductCount);
 
 public record CategoryInput(
-    string Name, string Slug, string Icon, bool IsActive, int SortOrder);
+    string Name, string Slug, string Icon, string? Description, bool IsActive, int SortOrder);
 
 public record ProductDto(
     int Id, string Name, int CategoryId, string CategoryName, long Price, int DiscountPercent,
@@ -55,7 +55,7 @@ public record PlanInput(string Label, int Months, long Price, int DiscountPercen
 public static class Mapping
 {
     public static CategoryDto ToDto(this Category c, int productCount) =>
-        new(c.Id, c.Name, c.Slug, c.Icon, c.IsActive, c.SortOrder, productCount);
+        new(c.Id, c.Name, c.Slug, c.Icon, c.Description, c.IsActive, c.SortOrder, productCount);
 
     public static ProductDto ToDto(this Product p, string categoryName) =>
         new(p.Id, p.Name, p.CategoryId, categoryName, p.Price, p.DiscountPercent, p.FinalPrice,

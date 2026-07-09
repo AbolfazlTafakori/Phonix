@@ -3,8 +3,8 @@ import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import type { Category } from "@/lib/types";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
-import HomeFaq from "@/components/home/HomeFaq";
 import TrustStats from "@/components/home/TrustStats";
+import CategoriesFaq from "@/components/categories/CategoriesFaq";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "دسته‌بندی محصولات | Phoenix Verify" };
@@ -65,7 +65,7 @@ export default async function CategoriesPage() {
   return (
     <>
       {/* ── Hero ── */}
-      <section className="border-b border-[var(--hl-border)] bg-[var(--hl-surface)]">
+      <section className="overflow-hidden border-b border-[var(--hl-border)] bg-[var(--hl-surface)]">
         <div className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">
           <nav className="flex items-center justify-end gap-2 pb-2 pt-6 text-[13px] text-[var(--hl-muted)]">
             <Link href="/" className="flex items-center gap-1 transition hover:text-[var(--hl-red)]">
@@ -142,6 +142,7 @@ export default async function CategoriesPage() {
           {categories.map((cat) => {
             const meta = categoryMeta[cat.name] ?? defaultMeta;
             const logo = cat.icon || meta.logo;
+            const desc = cat.description?.trim() || meta.desc;
             return (
               <Link
                 key={cat.id}
@@ -156,7 +157,7 @@ export default async function CategoriesPage() {
                   )}
                 </div>
                 <h3 className="text-[16px] font-bold text-[var(--hl-ink)] transition group-hover:text-[var(--hl-red)] sm:text-[18px]">{cat.name}</h3>
-                <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[var(--hl-muted)] sm:text-[13px] sm:leading-6">{meta.desc}</p>
+                <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[var(--hl-muted)] sm:text-[13px] sm:leading-6">{desc}</p>
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-[13px] font-medium text-[var(--hl-muted)]">{formatNumber(cat.productCount)} محصول</span>
                   <span className="grid h-6 w-6 place-items-center rounded-lg bg-[var(--hl-red)]/10 text-[var(--hl-red)] transition group-hover:bg-[var(--hl-red)] group-hover:text-white">
@@ -230,7 +231,7 @@ export default async function CategoriesPage() {
       </section>
 
       {/* ── FAQ ── */}
-      <HomeFaq />
+      <CategoriesFaq />
 
       {/* ── Newsletter ── */}
       <HomeNewsletter />

@@ -38,6 +38,7 @@ public class CategoriesController : ControllerBase
             Name = input.Name,
             Slug = input.Slug,
             Icon = input.Icon,
+            Description = input.Description ?? "",
             IsActive = input.IsActive,
             SortOrder = input.SortOrder,
         });
@@ -53,6 +54,7 @@ public class CategoriesController : ControllerBase
             Name = input.Name,
             Slug = input.Slug,
             Icon = input.Icon,
+            Description = input.Description ?? "",
             IsActive = input.IsActive,
             SortOrder = input.SortOrder,
         });
