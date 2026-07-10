@@ -7,6 +7,12 @@ import type { Product, Category } from "@/lib/types";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "محصولات | Phoenix Verify" };
 
+const heroStats = [
+  { value: "+۱۰,۰۰۰", label: "سفارش موفق", icon: "/figma/stat-orders.png" },
+  { value: "+۵,۰۰۰", label: "مشتری رضایت‌مند", icon: "/figma/stat-customers.png" },
+  { value: "۹۹٪", label: "تضمین کیفیت", icon: "/figma/stat-satisfaction.png" },
+];
+
 export default async function FilmsPage({ searchParams }: { searchParams: Promise<{ cat?: string; q?: string }> }) {
   const { cat, q } = await searchParams;
   const query = (q ?? "").trim();
@@ -28,15 +34,73 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
   const activeCats = categories.filter((c) => c.isActive);
 
   return (
-    <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-10">
-      <div className="relative mb-10 overflow-hidden rounded-3xl border border-[var(--hl-border)] bg-gradient-to-l from-[#e60053]/20 via-[#6b0a34]/10 to-transparent px-8 py-12">
-        <h1 className="text-3xl font-bold text-[var(--hl-ink)] sm:text-4xl">{query ? "نتایج جستجو" : "محصولات"}</h1>
-        <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--hl-ink-2)]">
-          {query
-            ? `${formatNumber(shown.length)} نتیجه برای «${query}»`
-            : "اکانت‌های وریفای‌شده و اشتراک سرویس‌های محبوب با بهترین قیمت و تحویل آنی."}
-        </p>
-      </div>
+    <>
+      {/* ── Hero (hidden while searching — a compact results header shows instead) ── */}
+      {!query && (
+        <section className="overflow-hidden border-b border-[var(--hl-border)] bg-[var(--hl-surface)]">
+          <div className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">
+            <nav className="flex items-center justify-end gap-2 pb-2 pt-6 text-[13px] text-[var(--hl-muted)]">
+              <Link href="/" className="flex items-center gap-1 transition hover:text-[var(--hl-red)]">
+                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z" /><path d="M9 22V12h6v10" /></svg>
+                خانه
+              </Link>
+              <span>/</span>
+              <span className="font-medium text-[var(--hl-ink)]">محصولات</span>
+            </nav>
+
+            <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:gap-6 xl:gap-12">
+              <div className="shrink-0 lg:w-[44%] xl:w-[48%]">
+                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-full lg:max-w-[620px] lg:-translate-x-20 xl:max-w-[680px] xl:-translate-x-32" />
+              </div>
+
+              <div className="flex-1 text-center lg:text-right">
+                <h1 className="text-[24px] font-black leading-[1.5] text-[var(--hl-ink)] sm:text-[32px] xl:text-[38px]">
+                  محصولات <span className="text-[var(--hl-red)]">فونیکس وریفای</span>
+                </h1>
+                <p className="mx-auto mt-3 max-w-lg text-[14px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[16px] sm:leading-8 lg:mx-0">
+                  بزرگ‌ترین مرجع خرید محصولات دیجیتال و خدمات مجازی
+                  <br className="hidden sm:inline" />
+                  با تحویل سریع و تضمین اصالت
+                </p>
+                <div className="mt-6 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 lg:justify-start">
+                  {heroStats.map((s) => (
+                    <div key={s.label} className="flex items-center gap-2.5">
+                      <img src={s.icon} alt="" aria-hidden className="h-9 w-9 shrink-0 object-contain sm:h-11 sm:w-11" />
+                      <div className="text-right">
+                        <div className="text-[17px] font-black leading-none text-[var(--hl-ink)] sm:text-[20px]">{s.value}</div>
+                        <div className="mt-1 text-[12px] font-bold text-[var(--hl-muted)] sm:text-[13px]">{s.label}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="w-full max-w-sm shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-center shadow-sm sm:p-6 lg:w-[280px] lg:max-w-none xl:w-[310px]">
+                <h3 className="text-[19px] font-black leading-[1.6] text-[var(--hl-ink)]">دسترسی جهانی،<br />پرداخت امن</h3>
+                <p className="mt-2 text-[13px] leading-7 text-[var(--hl-muted)]">بهترین اشتراک‌ها و خدمات دیجیتال را با قیمت مناسب و تحویل تهیه کنید.</p>
+                <img src="/figma/productpage-hero-offer.png" alt="" className="mx-auto my-4 h-28 w-28 object-contain" />
+                <Link
+                  href="/products"
+                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--hl-red)] py-3 text-[15px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff2ee]"
+                >
+                  مشاهده پیشنهادها
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-10">
+      {query && (
+        <div className="relative mb-10 overflow-hidden rounded-3xl border border-[var(--hl-border)] bg-gradient-to-l from-[#e60053]/20 via-[#6b0a34]/10 to-transparent px-8 py-12">
+          <h1 className="text-3xl font-bold text-[var(--hl-ink)] sm:text-4xl">نتایج جستجو</h1>
+          <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--hl-ink-2)]">{formatNumber(shown.length)} نتیجه برای «{query}»</p>
+        </div>
+      )}
 
       <div className="mb-8 flex flex-wrap gap-3">
         <Link
@@ -81,6 +145,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
           ))}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
