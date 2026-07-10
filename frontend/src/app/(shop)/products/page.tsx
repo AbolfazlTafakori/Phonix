@@ -2,6 +2,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import ProductCardImage from "@/components/ProductCardImage";
+import ProductsBrowser from "@/components/products/ProductsBrowser";
 import type { Product, Category } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -96,58 +97,33 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
         </section>
       )}
 
-      <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-10">
-      {query && (
-        <div className="relative mb-10 overflow-hidden rounded-3xl border border-[var(--hl-border)] bg-gradient-to-l from-[#e60053]/20 via-[#6b0a34]/10 to-transparent px-8 py-12">
-          <h1 className="text-3xl font-bold text-[var(--hl-ink)] sm:text-4xl">نتایج جستجو</h1>
-          <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--hl-ink-2)]">{formatNumber(shown.length)} نتیجه برای «{query}»</p>
+      {query ? (
+        <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-10">
+          {shown.length === 0 ? (
+            <p className="py-20 text-center text-[var(--hl-muted)]">برای «{query}» محصولی یافت نشد.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
+              {shown.map((p) => (
+                <Link
+                  key={p.id}
+                  href={`/products/detail?id=${p.id}`}
+                  className="group relative block overflow-hidden rounded-2xl border border-[var(--hl-border)] hl-card transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
+                >
+                  <div className="relative aspect-[3/4]">
+                    <ProductCardImage src={p.image} alt={p.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
+                    <div className="absolute inset-x-0 bottom-0 p-4">
+                      <h3 className="text-center text-sm font-bold text-white">{p.name}</h3>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
-      )}
-
-      <div className="mb-8 flex flex-wrap gap-3">
-        <Link
-          href="/products"
-          className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
-            selected === 0 ? "border-transparent bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white" : "border-[var(--hl-border)] text-[var(--hl-ink-2)] hover:bg-[var(--hl-border)]/40 hover:text-[var(--hl-ink)]"
-          }`}
-        >
-          همه
-        </Link>
-        {activeCats.map((c) => (
-          <Link
-            key={c.id}
-            href={`/products?cat=${c.id}`}
-            className={`rounded-full border px-5 py-2 text-sm font-medium transition ${
-              selected === c.id ? "border-transparent bg-gradient-to-l from-[#e60053] to-[#9c0038] text-white" : "border-[var(--hl-border)] text-[var(--hl-ink-2)] hover:bg-[var(--hl-border)]/40 hover:text-[var(--hl-ink)]"
-            }`}
-          >
-            {c.name}
-          </Link>
-        ))}
-      </div>
-
-      {shown.length === 0 ? (
-        <p className="py-20 text-center text-[var(--hl-muted)]">{query ? `برای «${query}» محصولی یافت نشد.` : "محصولی در این دسته یافت نشد."}</p>
       ) : (
-        <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-4">
-          {shown.map((p) => (
-            <Link
-              key={p.id}
-              href={`/products/detail?id=${p.id}`}
-              className="group relative block overflow-hidden rounded-2xl border border-[var(--hl-border)] hl-card transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
-            >
-              <div className="relative aspect-[3/4]">
-                <ProductCardImage src={p.image} alt={p.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
-                <div className="absolute inset-x-0 bottom-0 p-4">
-                  <h3 className="text-center text-sm font-bold text-white">{p.name}</h3>
-                </div>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <ProductsBrowser products={active} categories={activeCats} initialCatId={selected || undefined} />
       )}
-      </div>
     </>
   );
 }
