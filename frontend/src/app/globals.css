@@ -129,6 +129,10 @@ body:has(.home-light) { background: #f8f1ea; }
   /* Section surface — a warm off-white, ~2 shades lighter than the page cream so hero
      bands read brighter (close to the shield logo's tone). */
   --hl-surface: #fdf9f5;
+  /* Card fill — pure white, clearly lighter than the cream page so cards pop off it. */
+  --hl-card: #ffffff;
+  /* Warmer, more saturated border for cards so their edges read as coloured, not flat. */
+  --hl-card-border: #f4cdb2;
   --cat-shadow: 0 12px 24px -10px rgba(180, 120, 80, 0.32), 0 3px 7px -3px rgba(180, 120, 80, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   background: #f8f1ea;
   color: var(--hl-ink);
@@ -243,6 +247,8 @@ html.home-dark .home-light {
   --hl-muted: #7c8290;
   --hl-border: #2a2a34;
   --hl-surface: #14141a;
+  --hl-card: #17171d;
+  --hl-card-border: #3a3a46;
   --cat-shadow: 0 14px 26px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   background: #0e0e12;
   color: var(--hl-ink);

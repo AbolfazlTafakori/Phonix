@@ -140,7 +140,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
   const activeCats = categories.filter((c) => c.isActive);
 
   const sidebar = (
-    <div className="overflow-hidden rounded-[18px] border border-[var(--hl-border)] bg-[var(--hl-card)]">
+    <div className="overflow-hidden rounded-[18px] border border-[var(--hl-card-border)] bg-[var(--hl-card)]">
       <div className="flex items-center justify-between gap-2 px-5 py-4">
         <h2 className="text-[17px] font-black text-[var(--hl-ink)]">فیلتر محصولات</h2>
         <svg viewBox="0 0 24 24" className="h-5 w-5 text-[var(--hl-red)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
@@ -151,40 +151,6 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
           <CheckRow label="همه دسته‌بندی‌ها" checked={selectedCats.size === 0} onClick={() => { setSelectedCats(new Set()); setPage(1); }} />
           {activeCats.map((c) => (
             <CheckRow key={c.id} label={c.name} count={catCount.get(c.id) ?? 0} checked={selectedCats.has(c.id)} onClick={() => toggleCat(c.id)} />
-          ))}
-        </div>
-      </Section>
-
-      <Section title="محدوده قیمت (تومان)">
-        <div className="mb-3 flex items-center justify-between text-[13px] font-bold tabular-nums text-[var(--hl-ink-2)]">
-          <span>{formatNumber(maxPrice)}</span>
-          <span>۰</span>
-        </div>
-        <input
-          type="range"
-          min={0}
-          max={PRICE_MAX}
-          step={100000}
-          value={maxPrice}
-          onChange={(e) => { setMaxPrice(Number(e.target.value)); setPage(1); }}
-          dir="ltr"
-          className="hl-range w-full"
-        />
-        <div className="mt-4 grid grid-cols-4 gap-2">
-          {[
-            { label: "همه", v: PRICE_MAX },
-            { label: "۱M–۵M", v: 5_000_000 },
-            { label: "۵M+", v: PRICE_MAX },
-            { label: "بیشتر", v: PRICE_MAX },
-          ].map((b, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => { setMaxPrice(b.v); setPage(1); }}
-              className="rounded-lg border border-[var(--hl-border)] py-1.5 text-[12px] font-bold text-[var(--hl-ink-2)] transition hover:border-[var(--hl-red)]/50 hover:text-[var(--hl-red)]"
-            >
-              {b.label}
-            </button>
           ))}
         </div>
       </Section>
@@ -235,7 +201,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
         {/* Main */}
         <div className="min-w-0 flex-1">
           {/* Top bar */}
-          <div className="mb-6 flex flex-col gap-3 rounded-[18px] border border-[var(--hl-border)] bg-[var(--hl-card)] p-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="mb-6 flex flex-col gap-3 rounded-[18px] border border-[var(--hl-card-border)] bg-[var(--hl-card)] p-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -281,7 +247,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                   const discounted = p.discountPercent > 0;
                   const out = p.stock <= 0;
                   return (
-                    <div key={p.id} className="group flex flex-col overflow-hidden rounded-[16px] border border-[var(--hl-border)] bg-[var(--hl-card)] transition duration-200 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-20px_rgba(239,35,60,0.28)]">
+                    <div key={p.id} className="group flex flex-col overflow-hidden rounded-[16px] border border-[var(--hl-card-border)] bg-[var(--hl-card)] transition duration-200 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-20px_rgba(239,35,60,0.28)]">
                       <div className="relative bg-[#f7f8fa] p-5">
                         <div className="absolute inset-x-3 top-3 flex items-start justify-between">
                           {discounted ? (
