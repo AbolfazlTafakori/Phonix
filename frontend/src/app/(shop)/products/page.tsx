@@ -50,32 +50,32 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
 
             <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:grid lg:items-center lg:gap-4 xl:gap-8" style={{ gridTemplateColumns: "minmax(0,1fr) auto minmax(0,1fr)" }}>
               <div className="shrink-0 lg:col-start-3 lg:row-start-1 lg:justify-self-end">
-                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-52 max-w-full object-contain sm:w-64 lg:w-[380px] lg:max-w-none xl:w-[430px]" />
+                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-[430px] lg:max-w-none xl:w-[490px]" />
               </div>
 
               <div className="w-full text-center lg:col-start-2 lg:row-start-1 lg:w-auto lg:justify-self-center lg:text-right">
-                <h1 className="text-[24px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[32px] xl:text-[38px]">
+                <h1 className="text-[28px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[38px] xl:text-[46px]">
                   محصولات فونیکس وریفای
                 </h1>
-                <p className="mx-auto mt-3 max-w-xl text-[14px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[16px] sm:leading-8 lg:mx-0">
+                <p className="mx-auto mt-3 max-w-xl text-[15px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[18px] sm:leading-9 lg:mx-0">
                   بزرگ‌ترین مرجع خرید محصولات دیجیتال و خدمات مجازی با تحویل سریع
                   <br className="hidden sm:inline" />
                   و تضمین اصالت
                 </p>
-                <div className="mt-6 flex flex-nowrap items-center justify-center gap-x-3 sm:gap-x-4 lg:justify-start">
+                <div className="mt-7 flex flex-nowrap items-center justify-center gap-x-4 sm:gap-x-5 lg:justify-start">
                   {heroStats.map((s) => (
-                    <div key={s.label} className="flex shrink-0 items-center gap-1.5">
-                      <img src={s.icon} alt="" aria-hidden className="h-8 w-8 shrink-0 object-contain sm:h-10 sm:w-10" />
+                    <div key={s.label} className="flex shrink-0 items-center gap-2">
+                      <img src={s.icon} alt="" aria-hidden className="h-9 w-9 shrink-0 object-contain sm:h-12 sm:w-12" />
                       <div className="text-right">
-                        <div className="whitespace-nowrap text-[15px] font-black leading-none text-[var(--hl-ink)] sm:text-[20px]">{s.value}</div>
-                        <div className="mt-1 whitespace-nowrap text-[11px] font-bold text-[var(--hl-muted)] sm:text-[13px]">{s.label}</div>
+                        <div className="whitespace-nowrap text-[16px] font-black leading-none text-[var(--hl-ink)] sm:text-[23px]">{s.value}</div>
+                        <div className="mt-1 whitespace-nowrap text-[12px] font-bold text-[var(--hl-muted)] sm:text-[14px]">{s.label}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="w-full max-w-md shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-right shadow-sm sm:p-6 lg:col-start-1 lg:row-start-1 lg:w-[330px] lg:max-w-none lg:justify-self-start xl:w-[365px]">
+              <div className="w-full max-w-md shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-right shadow-sm sm:p-6 lg:col-start-1 lg:row-start-1 lg:w-[370px] lg:max-w-none lg:justify-self-start xl:w-[410px]">
                 <h3 className="text-[19px] font-black leading-[1.5] text-[var(--hl-ink)]">دسترسی جهانی، پرداخت امن</h3>
                 <p className="mt-2 text-[13px] leading-7 text-[var(--hl-muted)]">بهترین اشتراک‌ها و خدمات دیجیتال را با قیمت مناسب و تحویل آنی تهیه کنید.</p>
                 <div className="mt-4 flex items-end justify-between gap-3">
