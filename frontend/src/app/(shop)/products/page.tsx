@@ -8,9 +8,9 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "محصولات | Phoenix Verify" };
 
 const heroStats = [
-  { value: "+۱۰,۰۰۰", label: "سفارش موفق", icon: "/figma/stat-orders.png" },
-  { value: "+۵,۰۰۰", label: "مشتری رضایت‌مند", icon: "/figma/stat-customers.png" },
-  { value: "۹۹٪", label: "تضمین کیفیت", icon: "/figma/stat-satisfaction.png" },
+  { value: "+10,000", label: "سفارش موفق", icon: "/figma/stat-orders.png" },
+  { value: "+5,000", label: "مشتری رضایت‌مند", icon: "/figma/stat-customers.png" },
+  { value: "99%", label: "تضمین کیفیت", icon: "/figma/stat-satisfaction.png" },
 ];
 
 export default async function FilmsPage({ searchParams }: { searchParams: Promise<{ cat?: string; q?: string }> }) {
@@ -50,17 +50,17 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
 
             <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:gap-6 xl:gap-12">
               <div className="shrink-0 lg:w-[44%] xl:w-[48%]">
-                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-full lg:max-w-[620px] lg:-translate-x-20 xl:max-w-[680px] xl:-translate-x-32" />
+                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-full lg:max-w-[560px] xl:max-w-[600px]" />
               </div>
 
               <div className="flex-1 text-center lg:text-right">
-                <h1 className="text-[24px] font-black leading-[1.5] text-[var(--hl-ink)] sm:text-[32px] xl:text-[38px]">
-                  محصولات <span className="text-[var(--hl-red)]">فونیکس وریفای</span>
+                <h1 className="text-[24px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[32px] xl:text-[38px]">
+                  محصولات فونیکس وریفای
                 </h1>
-                <p className="mx-auto mt-3 max-w-lg text-[14px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[16px] sm:leading-8 lg:mx-0">
-                  بزرگ‌ترین مرجع خرید محصولات دیجیتال و خدمات مجازی
+                <p className="mx-auto mt-3 max-w-xl text-[14px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[16px] sm:leading-8 lg:mx-0">
+                  بزرگ‌ترین مرجع خرید محصولات دیجیتال و خدمات مجازی با تحویل سریع
                   <br className="hidden sm:inline" />
-                  با تحویل سریع و تضمین اصالت
+                  و تضمین اصالت
                 </p>
                 <div className="mt-6 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 lg:justify-start">
                   {heroStats.map((s) => (
