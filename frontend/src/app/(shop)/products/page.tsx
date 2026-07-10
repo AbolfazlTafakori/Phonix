@@ -49,27 +49,27 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
               <span className="font-medium text-[var(--hl-ink)]">محصولات</span>
             </nav>
 
-            <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:grid lg:items-center lg:gap-4 xl:gap-8" style={{ gridTemplateColumns: "minmax(0,1fr) auto minmax(0,1fr)" }}>
-              <div className="shrink-0 lg:col-start-3 lg:row-start-1 lg:justify-self-end">
+            <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:justify-center lg:gap-10 xl:gap-16">
+              <div className="shrink-0">
                 <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-[430px] lg:max-w-none xl:w-[490px]" />
               </div>
 
-              <div className="w-full text-center lg:col-start-2 lg:row-start-1 lg:w-auto lg:justify-self-center lg:text-right">
-                <h1 className="text-[28px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[38px] xl:text-[46px]">
+              <div className="w-full text-center lg:w-auto lg:text-right">
+                <h1 className="text-[30px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[42px] xl:text-[52px]">
                   محصولات فونیکس وریفای
                 </h1>
-                <p className="mx-auto mt-3 max-w-xl text-[15px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[18px] sm:leading-9 lg:mx-0">
+                <p className="mx-auto mt-3 max-w-xl text-[16px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[20px] sm:leading-9 lg:mx-0">
                   بزرگ‌ترین مرجع خرید محصولات دیجیتال و خدمات مجازی با تحویل سریع
                   <br className="hidden sm:inline" />
                   و تضمین اصالت
                 </p>
-                <div className="mt-7 flex flex-nowrap items-center justify-center gap-x-4 sm:gap-x-5 lg:justify-start">
+                <div className="mt-7 flex flex-nowrap items-center justify-center gap-x-4 sm:gap-x-6 lg:justify-start">
                   {heroStats.map((s) => (
                     <div key={s.label} className="flex shrink-0 items-center gap-2">
                       <img src={s.icon} alt="" aria-hidden className="h-9 w-9 shrink-0 object-contain sm:h-12 sm:w-12" />
                       <div className="text-right">
-                        <div className="whitespace-nowrap text-[16px] font-black leading-none text-[var(--hl-ink)] sm:text-[23px]">{s.value}</div>
-                        <div className="mt-1 whitespace-nowrap text-[12px] font-bold text-[var(--hl-muted)] sm:text-[14px]">{s.label}</div>
+                        <div className="whitespace-nowrap text-[17px] font-black leading-none text-[var(--hl-ink)] sm:text-[25px]">{s.value}</div>
+                        <div className="mt-1 whitespace-nowrap text-[12px] font-bold text-[var(--hl-muted)] sm:text-[15px]">{s.label}</div>
                       </div>
                     </div>
                   ))}
