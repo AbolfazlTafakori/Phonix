@@ -50,7 +50,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
 
             <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:gap-6 xl:gap-12">
               <div className="shrink-0 lg:w-[44%] xl:w-[48%]">
-                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-full lg:max-w-[560px] xl:max-w-[600px]" />
+                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-full lg:max-w-[560px] lg:-translate-x-10 xl:max-w-[600px] xl:-translate-x-16" />
               </div>
 
               <div className="flex-1 text-center lg:text-right">
@@ -62,32 +62,34 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
                   <br className="hidden sm:inline" />
                   و تضمین اصالت
                 </p>
-                <div className="mt-6 flex flex-wrap items-center justify-center gap-x-8 gap-y-4 lg:justify-start">
+                <div className="mt-6 flex flex-nowrap items-center justify-center gap-x-4 sm:gap-x-6 lg:justify-start">
                   {heroStats.map((s) => (
-                    <div key={s.label} className="flex items-center gap-2.5">
-                      <img src={s.icon} alt="" aria-hidden className="h-9 w-9 shrink-0 object-contain sm:h-11 sm:w-11" />
+                    <div key={s.label} className="flex shrink-0 items-center gap-2">
+                      <img src={s.icon} alt="" aria-hidden className="h-8 w-8 shrink-0 object-contain sm:h-11 sm:w-11" />
                       <div className="text-right">
-                        <div className="text-[17px] font-black leading-none text-[var(--hl-ink)] sm:text-[20px]">{s.value}</div>
-                        <div className="mt-1 text-[12px] font-bold text-[var(--hl-muted)] sm:text-[13px]">{s.label}</div>
+                        <div className="whitespace-nowrap text-[15px] font-black leading-none text-[var(--hl-ink)] sm:text-[20px]">{s.value}</div>
+                        <div className="mt-1 whitespace-nowrap text-[11px] font-bold text-[var(--hl-muted)] sm:text-[13px]">{s.label}</div>
                       </div>
                     </div>
                   ))}
                 </div>
               </div>
 
-              <div className="w-full max-w-sm shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-center shadow-sm sm:p-6 lg:w-[280px] lg:max-w-none xl:w-[310px]">
-                <h3 className="text-[19px] font-black leading-[1.6] text-[var(--hl-ink)]">دسترسی جهانی،<br />پرداخت امن</h3>
-                <p className="mt-2 text-[13px] leading-7 text-[var(--hl-muted)]">بهترین اشتراک‌ها و خدمات دیجیتال را با قیمت مناسب و تحویل تهیه کنید.</p>
-                <img src="/figma/productpage-hero-offer.png" alt="" className="mx-auto my-4 h-28 w-28 object-contain" />
-                <Link
-                  href="/products"
-                  className="flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--hl-red)] py-3 text-[15px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff2ee]"
-                >
-                  مشاهده پیشنهادها
-                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M9 6l6 6-6 6" />
-                  </svg>
-                </Link>
+              <div className="w-full max-w-md shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-right shadow-sm sm:p-6 lg:w-[330px] lg:max-w-none xl:w-[370px]">
+                <h3 className="text-[19px] font-black leading-[1.5] text-[var(--hl-ink)]">دسترسی جهانی، پرداخت امن</h3>
+                <p className="mt-2 text-[13px] leading-7 text-[var(--hl-muted)]">بهترین اشتراک‌ها و خدمات دیجیتال را با قیمت مناسب و تحویل آنی تهیه کنید.</p>
+                <div className="mt-4 flex items-end justify-between gap-3">
+                  <img src="/figma/productpage-hero-offer.png" alt="" className="-mb-1 h-24 w-24 shrink-0 object-contain sm:h-28 sm:w-28" />
+                  <Link
+                    href="/products"
+                    className="mb-2 inline-flex items-center gap-2 rounded-xl border border-[var(--hl-red)] px-5 py-2.5 text-[14px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff2ee]"
+                  >
+                    مشاهده پیشنهادها
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 6l6 6-6 6" />
+                    </svg>
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
