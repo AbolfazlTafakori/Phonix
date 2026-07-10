@@ -48,12 +48,12 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
               <span className="font-medium text-[var(--hl-ink)]">محصولات</span>
             </nav>
 
-            <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:gap-6 xl:gap-12">
-              <div className="shrink-0 lg:w-[44%] xl:w-[48%]">
-                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-full lg:max-w-[560px] lg:-translate-x-10 xl:max-w-[600px] xl:-translate-x-16" />
+            <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:gap-4 xl:gap-8">
+              <div className="shrink-0 lg:w-[32%] xl:w-[34%]">
+                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-52 max-w-full object-contain sm:w-64 lg:w-full lg:max-w-[380px] xl:max-w-[430px]" />
               </div>
 
-              <div className="flex-1 text-center lg:text-right">
+              <div className="flex-1 text-center lg:pr-6 lg:text-right xl:pr-14">
                 <h1 className="text-[24px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[32px] xl:text-[38px]">
                   محصولات فونیکس وریفای
                 </h1>
