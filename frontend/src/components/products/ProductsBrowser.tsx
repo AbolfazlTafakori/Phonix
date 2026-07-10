@@ -70,6 +70,67 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function ProductCard({ p }: { p: Product }) {
+  const rt = rating(p.id);
+  const discounted = p.discountPercent > 0;
+  const out = p.stock <= 0;
+  return (
+    <div className="group flex flex-col overflow-hidden rounded-[16px] border border-[var(--hl-card-border)] bg-[var(--hl-card)] transition duration-200 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-20px_rgba(239,35,60,0.28)]">
+      <div className="relative bg-[var(--hl-tile)] p-5">
+        <div className="absolute inset-x-3 top-3 flex items-start justify-between">
+          {discounted ? (
+            <span className="rounded-lg bg-[var(--hl-red)] px-2 py-1 text-[11px] font-black text-white">تخفیف {formatNumber(p.discountPercent)}٪</span>
+          ) : (
+            <span className="rounded-lg bg-[#e7f7ee] px-2 py-1 text-[11px] font-black text-[#12a150]">تحویل آنی</span>
+          )}
+          {p.featured && <span className="rounded-lg bg-[#fff1e8] px-2 py-1 text-[11px] font-black text-[#f2551f]">پرفروش</span>}
+        </div>
+        <div className="grid h-24 place-items-center">
+          <ProductCardImage src={p.logo || p.image} alt={p.name} className="max-h-24 w-auto object-contain transition duration-300 group-hover:scale-105" />
+        </div>
+        {out && (
+          <span className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-bold text-white">ناموجود</span>
+        )}
+      </div>
+
+      <div className="flex flex-1 flex-col p-4">
+        <h3 className="line-clamp-1 text-center text-[16px] font-black text-[var(--hl-ink)]">{p.name}</h3>
+        <p className="mt-1 line-clamp-1 text-center text-[12px] text-[var(--hl-muted)]">{p.plans[0]?.type || p.categoryName}</p>
+
+        <div className="mt-2 flex items-center justify-center gap-1.5 text-[12px]">
+          <Star className="h-3.5 w-3.5 text-[#ffb020]" />
+          <span className="font-black text-[var(--hl-ink)]">{rt.score}</span>
+          <span className="text-[var(--hl-muted)]">({rt.label})</span>
+        </div>
+
+        <div className="mt-3 flex flex-col items-center">
+          {discounted && (
+            <span className="text-[11px] text-[var(--hl-muted)] line-through">{formatNumber(p.price)}</span>
+          )}
+          <span className="text-[17px] font-black text-[var(--hl-ink)]">{formatToman(p.finalPrice)}</span>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2">
+          <Link
+            href={`/products/detail?id=${p.id}`}
+            className="flex-1 rounded-xl border border-[var(--hl-red)] py-2 text-center text-[13px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff4f1]"
+          >
+            مشاهده
+          </Link>
+          <Link
+            href={`/products/detail?id=${p.id}`}
+            aria-label="افزودن به سبد"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition hover:brightness-105"
+            style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6" /></svg>
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsBrowser({ products, categories, initialCatId }: { products: Product[]; categories: Category[]; initialCatId?: number }) {
   const [selectedCats, setSelectedCats] = useState<Set<number>>(() => (initialCatId ? new Set([initialCatId]) : new Set()));
   const [maxPrice, setMaxPrice] = useState(PRICE_MAX);
@@ -242,68 +303,9 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
           ) : (
             <>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                {pageItems.map((p, i) => {
-                  const rt = rating(p.id);
-                  const discounted = p.discountPercent > 0;
-                  const out = p.stock <= 0;
-                  return (
-                    <div key={p.id} className="group flex flex-col overflow-hidden rounded-[16px] border border-[var(--hl-card-border)] bg-[var(--hl-card)] transition duration-200 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-20px_rgba(239,35,60,0.28)]">
-                      <div className="relative bg-[var(--hl-tile)] p-5">
-                        <div className="absolute inset-x-3 top-3 flex items-start justify-between">
-                          {discounted ? (
-                            <span className="rounded-lg bg-[var(--hl-red)] px-2 py-1 text-[11px] font-black text-white">تخفیف {formatNumber(p.discountPercent)}٪</span>
-                          ) : (
-                            <span className="rounded-lg bg-[#e7f7ee] px-2 py-1 text-[11px] font-black text-[#12a150]">تحویل آنی</span>
-                          )}
-                          {p.featured && <span className="rounded-lg bg-[#fff1e8] px-2 py-1 text-[11px] font-black text-[#f2551f]">پرفروش</span>}
-                        </div>
-                        <div className="grid h-24 place-items-center">
-                          <ProductCardImage src={p.logo || p.image} alt={p.name} className="max-h-24 w-auto object-contain transition duration-300 group-hover:scale-105" />
-                        </div>
-                        {out && (
-                          <span className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-bold text-white">ناموجود</span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-1 flex-col p-4">
-                        <h3 className="line-clamp-1 text-center text-[16px] font-black text-[var(--hl-ink)]">{p.name}</h3>
-                        <p className="mt-1 line-clamp-1 text-center text-[12px] text-[var(--hl-muted)]">{p.plans[0]?.type || p.categoryName}</p>
-
-                        <div className="mt-2 flex items-center justify-center gap-1.5 text-[12px]">
-                          <Star className="h-3.5 w-3.5 text-[#ffb020]" />
-                          <span className="font-black text-[var(--hl-ink)]">{rt.score}</span>
-                          <span className="text-[var(--hl-muted)]">({rt.label})</span>
-                        </div>
-
-                        <div className="mt-3 flex flex-col items-center">
-                          {discounted && (
-                            <span className="text-[11px] text-[var(--hl-muted)] line-through">{formatNumber(p.price)}</span>
-                          )}
-                          <span className="text-[17px] font-black text-[var(--hl-ink)]">{formatToman(p.finalPrice)}</span>
-                        </div>
-
-                        <div className="mt-3 flex items-center gap-2">
-                          <Link
-                            href={`/products/detail?id=${p.id}`}
-                            className="flex-1 rounded-xl border border-[var(--hl-red)] py-2 text-center text-[13px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff4f1]"
-                          >
-                            مشاهده
-                          </Link>
-                          <Link
-                            href={`/products/detail?id=${p.id}`}
-                            aria-label="افزودن به سبد"
-                            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition hover:brightness-105"
-                            style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
-                          >
-                            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6" /></svg>
-                          </Link>
-                        </div>
-                      </div>
-
-                      {/* Inline promo banners after the first full row (desktop) */}
-                    </div>
-                  );
-                })}
+                {pageItems.slice(0, 8).map((p) => (
+                  <ProductCard key={p.id} p={p} />
+                ))}
               </div>
 
               {/* Promo banners row */}
@@ -317,6 +319,15 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                   </Link>
                 ))}
               </div>
+
+              {/* Remaining products below the banners */}
+              {pageItems.length > 8 && (
+                <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+                  {pageItems.slice(8).map((p) => (
+                    <ProductCard key={p.id} p={p} />
+                  ))}
+                </div>
+              )}
 
               {/* Pagination */}
               {totalPages > 1 && (
