@@ -48,12 +48,12 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
               <span className="font-medium text-[var(--hl-ink)]">محصولات</span>
             </nav>
 
-            <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:gap-4 xl:gap-8">
-              <div className="shrink-0">
+            <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:grid lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center lg:gap-4 xl:gap-8">
+              <div className="shrink-0 lg:col-start-3 lg:justify-self-end">
                 <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-52 max-w-full object-contain sm:w-64 lg:w-[380px] lg:max-w-none xl:w-[430px]" />
               </div>
 
-              <div className="w-full text-center lg:w-auto lg:flex-none lg:text-right">
+              <div className="w-full text-center lg:col-start-2 lg:w-auto lg:justify-self-center lg:text-right">
                 <h1 className="text-[24px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[32px] xl:text-[38px]">
                   محصولات فونیکس وریفای
                 </h1>
@@ -75,7 +75,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
                 </div>
               </div>
 
-              <div className="w-full max-w-md shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-right shadow-sm sm:p-6 lg:w-[300px] lg:max-w-none xl:w-[330px]">
+              <div className="w-full max-w-md shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-right shadow-sm sm:p-6 lg:col-start-1 lg:w-[330px] lg:max-w-none lg:justify-self-start xl:w-[365px]">
                 <h3 className="text-[19px] font-black leading-[1.5] text-[var(--hl-ink)]">دسترسی جهانی، پرداخت امن</h3>
                 <p className="mt-2 text-[13px] leading-7 text-[var(--hl-muted)]">بهترین اشتراک‌ها و خدمات دیجیتال را با قیمت مناسب و تحویل آنی تهیه کنید.</p>
                 <div className="mt-4 flex items-end justify-between gap-3">
@@ -91,9 +91,6 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
                   </Link>
                 </div>
               </div>
-
-              {/* flexible spacer: pushes the free space to the far side so the text + offer card sit toward the shield */}
-              <div className="hidden lg:block lg:flex-1" aria-hidden />
             </div>
           </div>
         </section>
