@@ -331,13 +331,14 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
 
               {/* Pagination */}
               {totalPages > 1 && (
-                <div className="mt-8 flex items-center justify-center gap-1.5">
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
                   <button
                     type="button"
                     disabled={pageClamped === 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="rounded-lg border border-[var(--hl-border)] px-3 py-2 text-[13px] font-bold text-[var(--hl-ink-2)] transition enabled:hover:border-[var(--hl-red)]/50 enabled:hover:text-[var(--hl-red)] disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-xl border border-[var(--hl-card-border)] bg-[var(--hl-card)] px-3.5 py-2 text-[13px] font-bold text-[var(--hl-ink-2)] transition enabled:hover:border-[var(--hl-red)]/50 enabled:hover:text-[var(--hl-red)] disabled:opacity-40"
                   >
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                     قبلی
                   </button>
                   {Array.from({ length: totalPages }).map((_, i) => i + 1).filter((n) => n === 1 || n === totalPages || Math.abs(n - pageClamped) <= 1).reduce<(number | "…")[]>((acc, n, idx, arr) => {
@@ -346,14 +347,13 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                     return acc;
                   }, []).map((n, i) =>
                     n === "…" ? (
-                      <span key={`e${i}`} className="px-2 text-[var(--hl-muted)]">…</span>
+                      <span key={`e${i}`} className="px-1 text-[var(--hl-muted)]">…</span>
                     ) : (
                       <button
                         key={n}
                         type="button"
                         onClick={() => setPage(n)}
-                        className={`h-9 w-9 rounded-lg text-[13px] font-bold transition ${n === pageClamped ? "text-white" : "border border-[var(--hl-border)] text-[var(--hl-ink-2)] hover:border-[var(--hl-red)]/50 hover:text-[var(--hl-red)]"}`}
-                        style={n === pageClamped ? { background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" } : undefined}
+                        className={`h-9 w-9 rounded-xl text-[13px] font-bold transition ${n === pageClamped ? "bg-[var(--hl-red)] text-white shadow-[0_8px_18px_-8px_rgba(239,35,60,0.6)]" : "border border-[var(--hl-card-border)] bg-[var(--hl-card)] text-[var(--hl-ink-2)] hover:border-[var(--hl-red)]/50 hover:text-[var(--hl-red)]"}`}
                       >
                         {formatNumber(n)}
                       </button>
@@ -363,9 +363,10 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                     type="button"
                     disabled={pageClamped === totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="rounded-lg border border-[var(--hl-border)] px-3 py-2 text-[13px] font-bold text-[var(--hl-ink-2)] transition enabled:hover:border-[var(--hl-red)]/50 enabled:hover:text-[var(--hl-red)] disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-xl border border-[var(--hl-card-border)] bg-[var(--hl-card)] px-3.5 py-2 text-[13px] font-bold text-[var(--hl-ink-2)] transition enabled:hover:border-[var(--hl-red)]/50 enabled:hover:text-[var(--hl-red)] disabled:opacity-40"
                   >
                     بعدی
+                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>
                   </button>
                 </div>
               )}
