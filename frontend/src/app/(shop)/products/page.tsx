@@ -49,11 +49,11 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
             </nav>
 
             <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:gap-4 xl:gap-8">
-              <div className="shrink-0 lg:w-[32%] xl:w-[34%]">
-                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-52 max-w-full object-contain sm:w-64 lg:w-full lg:max-w-[380px] xl:max-w-[430px]" />
+              <div className="shrink-0">
+                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-52 max-w-full object-contain sm:w-64 lg:w-[380px] lg:max-w-none xl:w-[430px]" />
               </div>
 
-              <div className="flex-1 text-center lg:pr-6 lg:text-right xl:pr-14">
+              <div className="w-full text-center lg:w-auto lg:flex-none lg:text-right">
                 <h1 className="text-[24px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[32px] xl:text-[38px]">
                   محصولات فونیکس وریفای
                 </h1>
@@ -62,10 +62,10 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
                   <br className="hidden sm:inline" />
                   و تضمین اصالت
                 </p>
-                <div className="mt-6 flex flex-nowrap items-center justify-center gap-x-4 sm:gap-x-6 lg:justify-start">
+                <div className="mt-6 flex flex-nowrap items-center justify-center gap-x-3 sm:gap-x-4 lg:justify-start">
                   {heroStats.map((s) => (
-                    <div key={s.label} className="flex shrink-0 items-center gap-2">
-                      <img src={s.icon} alt="" aria-hidden className="h-8 w-8 shrink-0 object-contain sm:h-11 sm:w-11" />
+                    <div key={s.label} className="flex shrink-0 items-center gap-1.5">
+                      <img src={s.icon} alt="" aria-hidden className="h-8 w-8 shrink-0 object-contain sm:h-10 sm:w-10" />
                       <div className="text-right">
                         <div className="whitespace-nowrap text-[15px] font-black leading-none text-[var(--hl-ink)] sm:text-[20px]">{s.value}</div>
                         <div className="mt-1 whitespace-nowrap text-[11px] font-bold text-[var(--hl-muted)] sm:text-[13px]">{s.label}</div>
@@ -75,7 +75,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
                 </div>
               </div>
 
-              <div className="w-full max-w-md shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-right shadow-sm sm:p-6 lg:w-[330px] lg:max-w-none xl:w-[370px]">
+              <div className="w-full max-w-md shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-right shadow-sm sm:p-6 lg:w-[300px] lg:max-w-none xl:w-[330px]">
                 <h3 className="text-[19px] font-black leading-[1.5] text-[var(--hl-ink)]">دسترسی جهانی، پرداخت امن</h3>
                 <p className="mt-2 text-[13px] leading-7 text-[var(--hl-muted)]">بهترین اشتراک‌ها و خدمات دیجیتال را با قیمت مناسب و تحویل آنی تهیه کنید.</p>
                 <div className="mt-4 flex items-end justify-between gap-3">
@@ -91,6 +91,9 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
                   </Link>
                 </div>
               </div>
+
+              {/* flexible spacer: pushes the free space to the far side so the text + offer card sit toward the shield */}
+              <div className="hidden lg:block lg:flex-1" aria-hidden />
             </div>
           </div>
         </section>
