@@ -94,7 +94,7 @@ export default async function CategoriesPage() {
               </p>
             </div>
 
-            <div className="w-full max-w-sm shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 pb-5 shadow-sm sm:p-6 lg:w-[280px] lg:max-w-none xl:w-[310px]">
+            <div className="w-full max-w-sm shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[var(--hl-tint)] p-5 pb-5 shadow-sm sm:p-6 lg:w-[280px] lg:max-w-none xl:w-[310px]">
               <h3 className="text-center text-[20px] font-black leading-[1.6] text-[var(--hl-ink)]">دسترسی آسان به<br /><span className="text-[24px]">خدمات دیجیتال</span></h3>
               <div className="mt-6 flex items-end gap-1">
                 <ul className="flex-1 space-y-6">

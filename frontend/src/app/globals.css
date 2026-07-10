@@ -133,6 +133,10 @@ body:has(.home-light) { background: #f8f1ea; }
   --hl-card: #ffffff;
   /* Warmer, more saturated border for cards so their edges read as coloured, not flat. */
   --hl-card-border: #f4cdb2;
+  /* Soft tint used behind hero side-cards. */
+  --hl-tint: #fdf0ec;
+  /* Warm tile behind product logos (matches the site's cream palette). */
+  --hl-tile: #fff7f0;
   --cat-shadow: 0 12px 24px -10px rgba(180, 120, 80, 0.32), 0 3px 7px -3px rgba(180, 120, 80, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.9);
   background: #f8f1ea;
   color: var(--hl-ink);
@@ -249,6 +253,8 @@ html.home-dark .home-light {
   --hl-surface: #14141a;
   --hl-card: #17171d;
   --hl-card-border: #3a3a46;
+  --hl-tint: #1e1e26;
+  --hl-tile: #202028;
   --cat-shadow: 0 14px 26px -10px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   background: #0e0e12;
   color: var(--hl-ink);
@@ -265,6 +271,13 @@ html.home-dark .bg-\[\#f7f8fa\] { background: #1c1c24; }
 html.home-dark .bg-\[\#fafbfc\] { background: #141419; }
 html.home-dark .bg-\[\#fafafa\] { background: #121218; }
 html.home-dark .bg-\[\#fff6f2\] { background: rgba(255, 90, 31, 0.14); }
+html.home-dark .bg-white\/95 { background: rgba(16, 16, 20, 0.92); }
+/* Soft accent chips (delivery / featured / hover) — keep the coloured glow, drop the light fill. */
+html.home-dark .bg-\[\#e7f7ee\] { background: rgba(18, 161, 80, 0.18); }
+html.home-dark .bg-\[\#fff1e8\] { background: rgba(242, 85, 31, 0.18); }
+html.home-dark .bg-\[\#fff4f1\],
+html.home-dark .hover\:bg-\[\#fff4f1\]:hover,
+html.home-dark .hover\:bg-\[\#fff2ee\]:hover { background: rgba(255, 90, 31, 0.14); }
 html.home-dark .hover\:bg-white:hover { background: #1c1c24; }
 html.home-dark .focus-within\:bg-white:focus-within { background: #1c1c24; }
 html.home-dark .hover\:bg-\[\#fff6f2\]:hover { background: rgba(255, 90, 31, 0.16); }

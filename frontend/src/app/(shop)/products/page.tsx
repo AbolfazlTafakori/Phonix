@@ -76,7 +76,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
                 </div>
               </div>
 
-              <div className="w-full max-w-md shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[#fdf0ec]/60 p-5 text-right shadow-sm sm:p-6 lg:col-start-1 lg:row-start-1 lg:w-[370px] lg:max-w-none lg:justify-self-start xl:w-[410px]">
+              <div className="w-full max-w-md shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[var(--hl-tint)] p-5 text-right shadow-sm sm:p-6 lg:col-start-1 lg:row-start-1 lg:w-[370px] lg:max-w-none lg:justify-self-start xl:w-[410px]">
                 <h3 className="text-[19px] font-black leading-[1.5] text-[var(--hl-ink)]">دسترسی جهانی، پرداخت امن</h3>
                 <p className="mt-2 text-[13px] leading-7 text-[var(--hl-muted)]">بهترین اشتراک‌ها و خدمات دیجیتال را با قیمت مناسب و تحویل آنی تهیه کنید.</p>
                 <div className="mt-4 flex items-end justify-between gap-3">

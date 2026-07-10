@@ -248,7 +248,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                   const out = p.stock <= 0;
                   return (
                     <div key={p.id} className="group flex flex-col overflow-hidden rounded-[16px] border border-[var(--hl-card-border)] bg-[var(--hl-card)] transition duration-200 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-20px_rgba(239,35,60,0.28)]">
-                      <div className="relative bg-[#f7f8fa] p-5">
+                      <div className="relative bg-[var(--hl-tile)] p-5">
                         <div className="absolute inset-x-3 top-3 flex items-start justify-between">
                           {discounted ? (
                             <span className="rounded-lg bg-[var(--hl-red)] px-2 py-1 text-[11px] font-black text-white">تخفیف {formatNumber(p.discountPercent)}٪</span>
