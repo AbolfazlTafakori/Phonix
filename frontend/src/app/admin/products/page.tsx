@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { Product, ProductInput, Category, ProductFeature, ProductPlanInput, PlanInputField, PlanFieldType } from "@/lib/types";
+import type { Product, ProductInput, Category, ProductFeature, ProductFaq, ProductPlanInput, PlanInputField, PlanFieldType } from "@/lib/types";
 import { formatToman, formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner, Toggle, StatusBadge, Modal, DataTable, Field, inputCls, type Column } from "@/components/admin/ui";
 import ImageField from "@/components/admin/ImageField";
@@ -37,6 +37,46 @@ const emptyForm = (categoryId: number): ProductInput => ({
 
 const emptyPlanInfo = { collectsInfo: false, inputFields: [], warningText: "", tutorialText: "", tutorialMedia: [], allowNotes: false } as const;
 const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true, userCount: 0, rules: "", ...emptyPlanInfo, inputFields: [], tutorialMedia: [] });
+
+// Parse an uploaded product-content .md file into { description, faq } so the admin
+// doesn't retype anything. Convention (matches the files in seo-content/): the description
+// block and the FAQ block are separated by a horizontal rule (`---`), FAQ items are a bold
+// question line (**...**) followed by the answer text. Falls back to a «سوالات متداول/FAQ»
+// heading when no rule is present.
+function parseProductMd(text: string): { description: string; faq: ProductFaq[] } {
+  const raw = text.replace(/\r\n/g, "\n");
+  let descBlock = raw;
+  let faqBlock = "";
+  const byRule = raw.split(/\n-{3,}\n/);
+  if (byRule.length > 1) {
+    descBlock = byRule[0];
+    faqBlock = byRule.slice(1).join("\n");
+  } else {
+    const m = raw.match(/\n#{1,6}[^\n]*(FAQ|سوالات متداول)[^\n]*\n/i);
+    if (m && m.index != null) {
+      descBlock = raw.slice(0, m.index);
+      faqBlock = raw.slice(m.index);
+    }
+  }
+  // Drop wrapper/instruction headings from the description so only the real content remains.
+  const description = descBlock
+    .split("\n")
+    .filter((l) => !/^#{1,6}\s*(محتوای|بخش)/.test(l.trim()))
+    .join("\n")
+    .replace(/^\n+/, "")
+    .replace(/\n+$/, "")
+    .trim();
+  // Each **bold** line is a question; the text until the next **bold** line is its answer.
+  const faq: ProductFaq[] = [];
+  const re = /\*\*(.+?)\*\*[^\n]*\n([\s\S]*?)(?=\n\s*\*\*|$)/g;
+  let mm: RegExpExecArray | null;
+  while ((mm = re.exec(faqBlock)) !== null) {
+    const question = mm[1].replace(/^[\s]*[۰-۹0-9]+\s*[)．.،\-]\s*/, "").trim();
+    const answer = mm[2].trim();
+    if (question && answer) faq.push({ question, answer });
+  }
+  return { description, faq };
+}
 
 export default function AdminProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -77,11 +117,13 @@ export default function AdminProductsPage() {
 
   function openNew() {
     setEditingId(null);
+    setImportMsg("");
     setForm(emptyForm(categories[0]?.id ?? 0));
     setModalOpen(true);
   }
   function openEdit(p: Product) {
     setEditingId(p.id);
+    setImportMsg("");
     setForm({
       name: p.name,
       categoryId: p.categoryId,
@@ -145,6 +187,28 @@ export default function AdminProductsPage() {
     setForm((f) => ({ ...f, faq: f.faq.map((q, idx) => (idx === i ? { ...q, [key]: value } : q)) }));
   const addFaq = () => setForm((f) => ({ ...f, faq: [...f.faq, { question: "", answer: "" }] }));
   const removeFaq = (i: number) => setForm((f) => ({ ...f, faq: f.faq.filter((_, idx) => idx !== i) }));
+
+  // Import a product-content .md file: auto-fills the description + FAQ fields (no manual entry).
+  const [importMsg, setImportMsg] = useState("");
+  function importMd(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const { description, faq } = parseProductMd(String(reader.result ?? ""));
+      if (!description && faq.length === 0) {
+        setImportMsg("⚠ محتوایی از فایل خوانده نشد. قالب فایل را بررسی کنید.");
+        return;
+      }
+      setForm((f) => ({
+        ...f,
+        description: description || f.description,
+        faq: faq.length > 0 ? faq : f.faq,
+      }));
+      const parts = [description ? "توضیحات" : "", faq.length ? `${faq.length} سوال متداول` : ""].filter(Boolean);
+      setImportMsg(`✓ ${parts.join(" و ")} از فایل بارگذاری شد. بررسی و سپس ذخیره کنید.`);
+    };
+    reader.onerror = () => setImportMsg("⚠ خواندن فایل ناموفق بود.");
+    reader.readAsText(file, "utf-8");
+  }
 
   // plan editor helpers
   const setPlan = <K extends keyof ProductPlanInput>(i: number, key: K, value: ProductPlanInput[K]) =>
@@ -478,6 +542,20 @@ export default function AdminProductsPage() {
               ))}
               {form.plans.length === 0 && <p className="text-xs text-white/40">پلنی تعریف نشده است؛ در این حالت قیمت پایه محصول اعمال می‌شود.</p>}
             </div>
+          </div>
+
+          <div className="rounded-xl border border-dashed border-white/15 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-bold text-white">بارگذاری از فایل Markdown (.md)</h4>
+                <p className="mt-1 text-xs text-white/45">فایل محتوای محصول را آپلود کنید تا «توضیحات» و «سوالات متداول» به‌صورت خودکار در فرم پر شوند و نیازی به ورود دستی نباشد. مقادیر فعلی جایگزین می‌شوند؛ پس از بررسی، «ذخیره محصول» را بزنید.</p>
+              </div>
+              <label className="shrink-0 cursor-pointer rounded-lg border border-white/10 px-4 py-2 text-xs font-bold text-white/80 transition hover:bg-white/5">
+                انتخاب فایل .md
+                <input type="file" accept=".md,.markdown,text/markdown,text/plain" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) importMd(f); e.target.value = ""; }} />
+              </label>
+            </div>
+            {importMsg && <p className={`mt-2 text-xs font-bold ${importMsg.startsWith("✓") ? "text-emerald-400" : "text-amber-400"}`}>{importMsg}</p>}
           </div>
 
           <div className="flex gap-3">
