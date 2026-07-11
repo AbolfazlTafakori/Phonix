@@ -2,7 +2,10 @@ import Link from "next/link";
 import { getBlogPosts, getSiteContent } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "بلاگ | Phoenix Verify" };
+export const metadata = {
+  title: "بلاگ",
+  description: "مقالات و راهنمای خرید اکانت‌های پریمیوم، وریفای حساب‌ها و خدمات دیجیتال در بلاگ فونیکس وریفای.",
+};
 
 export default async function BlogPage() {
   const [posts, content] = await Promise.all([getBlogPosts(), getSiteContent()]);
@@ -24,7 +27,7 @@ export default async function BlogPage() {
               href={`/blog/${post.slug}`}
               className="block overflow-hidden rounded-2xl border border-[var(--hl-border)] hl-card transition duration-300 hover:-translate-y-1 hover:border-[var(--hl-border)]"
             >
-              <img src={post.image} alt={post.title} className="h-48 w-full object-cover" />
+              <img loading="lazy" decoding="async" src={post.image} alt={post.title} className="h-48 w-full object-cover" />
               <div className="p-6 text-right">
                 <p className="font-archivo text-sm text-[var(--hl-ink-2)]">{post.tag}</p>
                 <h3 className="mt-3 text-lg font-bold leading-8 text-lilac-gradient">{post.title}</h3>

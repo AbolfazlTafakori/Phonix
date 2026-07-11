@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound, permanentRedirect } from "next/navigation";
 import { api } from "@/lib/api";
 import { formatNumber, formatToman, toFa } from "@/lib/format";
 import type { Product, Comment } from "@/lib/types";
@@ -9,9 +10,52 @@ import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
 import OpenChatButton from "@/components/product/OpenChatButton";
 import ProductGallery from "@/components/product/ProductGallery";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
+import { absoluteUrl, plainExcerpt, productPath, productSlug } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "جزئیات محصول | Phoenix Verify" };
+
+// slug format: "{id}-{name-slug}" — resolve by the numeric id prefix.
+function idFromSlug(slug: string): number | null {
+  const m = /^(\d+)/.exec(decodeURIComponent(slug));
+  return m ? Number(m[1]) : null;
+}
+
+async function findProduct(slug: string): Promise<Product | null> {
+  const id = idFromSlug(slug);
+  if (id == null) return null;
+  const products = await api.products.list();
+  return products.find((p) => p.isActive && p.id === id) ?? null;
+}
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  try {
+    const product = await findProduct(slug);
+    if (!product) return { title: "جزئیات محصول" };
+    const description = plainExcerpt(product.description);
+    const canonical = productPath(product);
+    return {
+      title: `خرید ${product.name}`,
+      description,
+      alternates: { canonical },
+      openGraph: {
+        type: "website",
+        title: `خرید ${product.name} | Phoenix Verify`,
+        description,
+        url: canonical,
+        images: product.image ? [{ url: product.image, alt: product.name }] : undefined,
+      },
+      twitter: {
+        card: "summary_large_image",
+        title: `خرید ${product.name} | Phoenix Verify`,
+        description,
+        images: product.image ? [product.image] : undefined,
+      },
+    };
+  } catch {
+    return { title: "جزئیات محصول" };
+  }
+}
 
 const Icon = ({ d, className = "h-5 w-5" }: { d: string; className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={d} /></svg>
@@ -26,16 +70,18 @@ const I = {
   check: "M20 6L9 17l-5-5",
 };
 
-export default async function ProductDetailPage({ searchParams }: { searchParams: Promise<{ id?: string }> }) {
-  const { id } = await searchParams;
+export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
 
   let product: Product | null = null;
   let related: Product[] = [];
   let failed = false;
+  const id = idFromSlug(slug);
+  if (id == null) notFound();
   try {
     const products = await api.products.list();
     const active = products.filter((p) => p.isActive);
-    product = (id ? active.find((p) => p.id === Number(id)) : null) ?? active[0] ?? null;
+    product = active.find((p) => p.id === id) ?? null;
     if (product) {
       const pid = product.id;
       related = active.filter((p) => p.id !== pid && p.categoryId === product!.categoryId).slice(0, 6);
@@ -46,6 +92,12 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
     }
   } catch {
     failed = true;
+  }
+
+  // Unknown id → 404; wrong/renamed slug → 301 to the canonical URL.
+  if (!failed && !product) notFound();
+  if (product && decodeURIComponent(slug) !== productSlug(product)) {
+    permanentRedirect(productPath(product));
   }
 
   if (failed || !product) {
@@ -78,7 +130,47 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
   const types = [...new Set(plans.map((p) => p.type))];
   const bestDiscount = Math.max(0, ...plans.map((p) => p.discountPercent));
 
+  const prices = plans.length ? plans.map((p) => p.finalPrice) : [product.finalPrice];
+  const productLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: plainExcerpt(product.description, 300),
+    image: product.image ? absoluteUrl(product.image) : undefined,
+    sku: product.sku || undefined,
+    ...(rated.length > 0 && {
+      aggregateRating: {
+        "@type": "AggregateRating",
+        ratingValue: Number(avg.toFixed(1)),
+        reviewCount: rated.length,
+      },
+    }),
+    offers: {
+      "@type": "AggregateOffer",
+      priceCurrency: "IRT",
+      lowPrice: Math.min(...prices),
+      highPrice: Math.max(...prices),
+      offerCount: Math.max(plans.length, 1),
+      availability: out ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+      url: absoluteUrl(productPath(product)),
+    },
+  };
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "صفحه اصلی", item: absoluteUrl("/") },
+      { "@type": "ListItem", position: 2, name: "محصولات", item: absoluteUrl("/products") },
+      ...(product.categoryName
+        ? [{ "@type": "ListItem", position: 3, name: product.categoryName, item: absoluteUrl(`/products?cat=${product.categoryId}`) }]
+        : []),
+      { "@type": "ListItem", position: product.categoryName ? 4 : 3, name: product.name, item: absoluteUrl(productPath(product)) },
+    ],
+  };
+
   return (<>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
     <div className="mx-auto max-w-[1840px] px-4 pb-16 pt-6 sm:px-6 lg:px-8 xl:px-16">
       {/* breadcrumb */}
       <nav className="mb-5 flex flex-wrap items-center gap-1.5 text-[12px] sm:gap-2 sm:text-[13px]" style={{ color: "var(--ac-muted)" }}>
@@ -99,7 +191,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
       <div className="mb-4 lg:hidden">
         <div className="flex items-center gap-3">
           {product.logo && (
-            <img src={product.logo} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain sm:h-12 sm:w-12" />
+            <img loading="lazy" decoding="async" src={product.logo} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain sm:h-12 sm:w-12" />
           )}
           <h1 className="text-[20px] font-black leading-snug sm:text-[24px]" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
         </div>
@@ -124,7 +216,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
           <div className="hidden lg:block">
             <div className="flex items-center gap-3">
               {product.logo && (
-                <img src={product.logo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-contain" />
+                <img loading="lazy" decoding="async" src={product.logo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-contain" />
               )}
               <h1 className="text-[26px] font-black leading-snug xl:text-[30px]" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
             </div>
@@ -286,7 +378,7 @@ export default async function ProductDetailPage({ searchParams }: { searchParams
           priceLabel: formatToman(Math.min(p.finalPrice, ...p.plans.filter((x) => x.isActive).map((x) => x.finalPrice))),
           badge: p.featured ? "پرفروش" : "تحویل فوری",
           image: p.image,
-          href: `/products/detail?id=${p.id}`,
+          href: productPath(p),
         }))} />
       </section>
     )}

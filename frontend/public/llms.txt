@@ -1,0 +1,19 @@
+# Phoenix Verify (فونیکس وریفای)
+
+> فروشگاه محصولات دیجیتال و خدمات مجازی: اکانت‌های وریفای‌شده و اشتراک پلتفرم‌های محبوب (نتفلیکس، اسپاتیفای، یوتیوب پرمیوم)، گیفت‌کارت، شماره مجازی، لایسنس نرم‌افزار و خدمات VPN — با تحویل آنی، پرداخت امن و پشتیبانی ۲۴/۷.
+
+Phoenix Verify is a Persian-language (fa-IR) digital goods marketplace selling
+verified premium accounts, streaming subscriptions, gift cards, virtual phone
+numbers, and software licenses with instant delivery.
+
+## Pages
+
+- [محصولات / Products](https://phoenixverify.com/products): full product catalog
+- [دسته‌بندی‌ها / Categories](https://phoenixverify.com/categories): product categories
+- [وبلاگ / Blog](https://phoenixverify.com/blog): guides and articles
+- [قوانین / Terms](https://phoenixverify.com/terms): terms of service
+
+## Contact
+
+- Email: support@phoenixverify.com
+- Support hours: 9:00–24:00 (Tehran time), online ticketing 24/7

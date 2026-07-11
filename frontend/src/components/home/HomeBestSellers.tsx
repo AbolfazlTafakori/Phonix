@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { productPath } from "@/lib/seo";
 import { api } from "@/lib/api";
 import { formatToman } from "@/lib/format";
 import type { Product } from "@/lib/types";
@@ -38,7 +39,7 @@ export default async function HomeBestSellers() {
       priceLabel: formatToman(p.finalPrice),
       badge,
       image: p.image,
-      href: p.id > 0 ? `/products/detail?id=${p.id}` : "/products",
+      href: p.id > 0 ? productPath(p) : "/products",
     };
   });
 

@@ -289,7 +289,7 @@ export default function CheckoutPage() {
             <div className="space-y-3">
               {items.map((i) => (
                 <div key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center gap-3">
-                  <img src={i.image} alt={i.name} className="h-11 w-11 rounded-lg object-cover" />
+                  <img loading="lazy" decoding="async" src={i.image} alt={i.name} className="h-11 w-11 rounded-lg object-cover" />
                   <span className="flex-1 text-sm text-[var(--hl-ink-2)]">
                     {i.name} × {i.quantity}
                     {i.plan && <span className="text-[var(--hl-muted)]"> · {i.plan}</span>}
@@ -338,7 +338,7 @@ export default function CheckoutPage() {
                   {overLevelItems.map((i) => (
                     <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
                       <div className="flex min-w-0 items-center gap-3">
-                        <img src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
+                        <img loading="lazy" decoding="async" src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
                         <span className="truncate text-sm text-[var(--hl-ink-2)]">{i.name}</span>
                       </div>
                       <button
@@ -529,7 +529,7 @@ export default function CheckoutPage() {
               {overLevelItems.map((i) => (
                 <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
                   <div className="flex min-w-0 items-center gap-3">
-                    <img src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
+                    <img loading="lazy" decoding="async" src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
                     <span className="truncate text-sm text-[var(--hl-ink-2)]">{i.name}</span>
                   </div>
                   <button

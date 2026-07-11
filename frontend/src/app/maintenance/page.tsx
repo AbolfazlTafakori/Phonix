@@ -1,7 +1,7 @@
 import { getAdvancedSettings, getSiteContent } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "در حال به‌روزرسانی | Phoenix Verify" };
+export const metadata = { title: "در حال به‌روزرسانی" };
 
 export default async function MaintenancePage() {
   const [adv, content] = await Promise.all([getAdvancedSettings(), getSiteContent()]);

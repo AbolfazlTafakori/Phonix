@@ -7,6 +7,7 @@ import { useSiteContent } from "@/components/admin/useSiteContent";
 import { Card, PageHeader, Spinner, Toggle, Field, inputCls } from "@/components/admin/ui";
 import ImageField from "@/components/admin/ImageField";
 import AdminIcon from "@/components/admin/AdminIcon";
+import { productPath } from "@/lib/seo";
 
 type Tab = "sections" | "categories" | "showcase";
 
@@ -263,7 +264,7 @@ function ShowcasePanel() {
       ...p,
       [id]: {
         ...p[id],
-        href: `/products/detail?id=${prod.id}`,
+        href: productPath(prod),
         name: p[id].name && p[id].name !== "محصول جدید" ? p[id].name : prod.name,
         image: p[id].image || prod.image,
       },

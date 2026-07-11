@@ -17,7 +17,7 @@ export default function HomePromoBanners() {
           href={b.href}
           className="group block overflow-hidden rounded-[22px] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_44px_-18px_rgba(20,20,20,0.28)]"
         >
-          <img
+          <img loading="lazy" decoding="async"
             src={b.img}
             alt={b.alt}
             className="aspect-[16/9] w-full object-cover transition duration-300 group-hover:scale-[1.03]"

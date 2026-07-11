@@ -19,5 +19,5 @@ export default function ProductCardImage({ src, alt, className }: { src: string;
     );
   }
 
-  return <img src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
+  return <img loading="lazy" decoding="async" src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
 }

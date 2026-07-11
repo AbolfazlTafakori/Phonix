@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { productPath } from "@/lib/seo";
 import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import ProductCardImage from "@/components/ProductCardImage";
@@ -6,7 +7,10 @@ import ProductsBrowser from "@/components/products/ProductsBrowser";
 import type { Product, Category } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "محصولات | Phoenix Verify" };
+export const metadata = {
+  title: "محصولات",
+  description: "خرید انواع اکانت پریمیوم، اشتراک، گیفت‌کارت، شماره مجازی و لایسنس نرم‌افزار با تحویل آنی و پرداخت امن در فونیکس وریفای.",
+};
 
 const heroStats = [
   { value: "+10,000", label: "سفارش موفق", icon: "/figma/stat-orders.png" },
@@ -51,7 +55,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
 
             <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:justify-center lg:gap-10 xl:gap-16">
               <div className="shrink-0">
-                <img src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-[430px] lg:max-w-none xl:w-[490px]" />
+                <img fetchPriority="high" decoding="async" src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-[430px] lg:max-w-none xl:w-[490px]" />
               </div>
 
               <div className="w-full text-center lg:w-auto lg:text-right">
@@ -66,7 +70,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
                 <div className="mt-7 flex flex-nowrap items-center justify-center gap-x-4 sm:gap-x-6 lg:justify-start">
                   {heroStats.map((s) => (
                     <div key={s.label} className="flex shrink-0 items-center gap-2">
-                      <img src={s.icon} alt="" aria-hidden className="h-9 w-9 shrink-0 object-contain sm:h-12 sm:w-12" />
+                      <img loading="lazy" decoding="async" src={s.icon} alt="" aria-hidden className="h-9 w-9 shrink-0 object-contain sm:h-12 sm:w-12" />
                       <div className="text-right">
                         <div className="whitespace-nowrap text-[17px] font-black leading-none text-[var(--hl-ink)] sm:text-[25px]">{s.value}</div>
                         <div className="mt-1 whitespace-nowrap text-[12px] font-bold text-[var(--hl-muted)] sm:text-[15px]">{s.label}</div>
@@ -90,7 +94,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
               {shown.map((p) => (
                 <Link
                   key={p.id}
-                  href={`/products/detail?id=${p.id}`}
+                  href={productPath(p)}
                   className="group relative block overflow-hidden rounded-2xl border border-[var(--hl-border)] hl-card transition duration-300 hover:-translate-y-1 hover:border-[#e60053]/40 hover:shadow-[0_28px_70px_-28px_rgba(230,0,83,0.55)]"
                 >
                   <div className="relative aspect-[3/4]">

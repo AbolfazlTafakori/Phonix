@@ -17,7 +17,7 @@ export default async function Categories() {
           >
             <div className="flex h-40 items-center justify-center">
               <span className={`inline-flex ${cat.iconClass}`}>
-                <img
+                <img loading="lazy" decoding="async"
                   src={cat.icon}
                   alt={cat.title}
                   className="max-h-40 w-auto object-contain transition duration-300 group-hover:scale-105"

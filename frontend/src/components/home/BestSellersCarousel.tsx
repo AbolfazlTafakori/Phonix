@@ -42,7 +42,7 @@ function Card({ p }: { p: CarouselCard }) {
         >
           {p.badge}
         </span>
-        <img src={p.image} alt={p.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-105" />
+        <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-105" />
       </Link>
 
       <div className="flex flex-1 flex-col p-4">

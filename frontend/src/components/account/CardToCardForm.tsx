@@ -128,7 +128,7 @@ export function CardToCardForm({
           </button>
           {value.receiptUrl && (
             <a href={api.transactions.receiptSrc(value.receiptUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2">
-              <img src={api.transactions.receiptSrc(value.receiptUrl)} alt="فیش بانکی" className="h-12 w-12 rounded-lg border border-[color:var(--ac-panel-border)] object-cover" />
+              <img loading="lazy" decoding="async" src={api.transactions.receiptSrc(value.receiptUrl)} alt="فیش بانکی" className="h-12 w-12 rounded-lg border border-[color:var(--ac-panel-border)] object-cover" />
               <span className="text-xs font-bold text-emerald-600">✓ بارگذاری شد</span>
             </a>
           )}

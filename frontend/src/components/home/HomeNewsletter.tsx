@@ -14,7 +14,7 @@ export default function HomeNewsletter() {
         {/* right: logo */}
         <div className="hidden shrink-0 items-center gap-2.5 border-l border-white/25 pl-6 text-white xl:flex">
           <span className="text-[16px] font-extrabold leading-[1.1]">Phoenix<br />Verify</span>
-          <img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-12 w-auto" />
+          <img loading="lazy" decoding="async" src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-12 w-auto" />
         </div>
 
         {/* right-middle: copy */}

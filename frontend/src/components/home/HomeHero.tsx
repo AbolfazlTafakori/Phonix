@@ -27,6 +27,7 @@ export default function HomeHero() {
           <div className="relative aspect-[4/3] w-full max-w-[360px] sm:max-w-[520px] lg:max-w-[640px]">
             <div aria-hidden className="hero-aura absolute inset-[6%] rounded-full bg-[#ff5a1f]/15 blur-3xl" />
             <img
+              fetchPriority="high"
               src="/figma/hero-phoenix.png"
               alt="فونیکس وریفای"
               className="hero-float absolute inset-0 h-full w-full object-contain drop-shadow-[0_24px_50px_rgba(239,35,60,0.22)]"

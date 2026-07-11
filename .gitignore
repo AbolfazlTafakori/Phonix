@@ -56,3 +56,9 @@ App_Data/
 # impeccable local tool cache
 .impeccable/
 **/.impeccable/
+
+# local working files
+graphify-out/
+frontend/home.html
+frontend/detail.html
+frontend/slugpage.html

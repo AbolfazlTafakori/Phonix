@@ -101,7 +101,7 @@ export default function OrdersPage() {
               <div className="mt-3 space-y-2">
                 {o.items.map((it) => (
                   <div key={`${it.productId}:${it.plan ?? ""}`} className="flex items-center gap-3">
-                    <img src={it.image} alt={it.name} className="h-10 w-10 rounded-lg object-cover" />
+                    <img loading="lazy" decoding="async" src={it.image} alt={it.name} className="h-10 w-10 rounded-lg object-cover" />
                     <span className="flex-1 text-sm" style={{ color: "var(--ac-text)" }}>
                       {it.name} × {it.quantity}
                       {it.plan && <span style={{ color: "var(--ac-muted)" }}> · {it.plan}</span>}

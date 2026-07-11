@@ -21,7 +21,7 @@ export default async function Stats() {
 
             <div className="flex h-14 items-center justify-center">
               {s.icon ? (
-                <img src={s.icon} alt="" aria-hidden className="h-14 w-14 object-contain" />
+                <img loading="lazy" decoding="async" src={s.icon} alt="" aria-hidden className="h-14 w-14 object-contain" />
               ) : (
                 <span className="font-display text-[40px] font-bold italic leading-none text-white">{s.value}</span>
               )}

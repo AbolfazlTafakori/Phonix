@@ -16,7 +16,7 @@ export default function TrustStats() {
             key={s.label}
             className={`flex items-center justify-center gap-2 sm:gap-3 ${i > 0 ? "lg:border-r lg:border-[var(--hl-border)]" : ""}`}
           >
-            <img
+            <img loading="lazy" decoding="async"
               src={s.icon}
               alt=""
               aria-hidden

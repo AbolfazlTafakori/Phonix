@@ -23,7 +23,7 @@ export default function CartPage() {
           <div className="space-y-3">
             {items.map((i) => (
               <div key={`${i.productId}:${i.planId ?? ""}`} className="hl-card flex flex-wrap items-center gap-3 rounded-2xl p-4 sm:gap-4">
-                <img src={i.image} alt={i.name} className="h-14 w-14 shrink-0 rounded-lg object-cover sm:h-16 sm:w-16" />
+                <img loading="lazy" decoding="async" src={i.image} alt={i.name} className="h-14 w-14 shrink-0 rounded-lg object-cover sm:h-16 sm:w-16" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-bold text-[var(--hl-ink)]">{i.name}</p>
                   {i.plan && <p className="text-xs text-[var(--hl-muted)]">{i.plan}</p>}
@@ -51,6 +51,7 @@ export default function CartPage() {
               <span className="text-sm text-[var(--hl-ink-2)]">مبلغ کل</span>
               <span className="text-lg font-bold text-emerald-500">{formatToman(total)}</span>
             </div>
+            <p className="mt-2 text-[11px] leading-5 text-[var(--hl-ink-2)]">مالیات بر ارزش افزوده و کارمزد درگاه در مرحله پرداخت محاسبه می‌شود.</p>
             <Link href="/checkout" className="hl-cta mt-5 flex h-12 items-center justify-center rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-sm font-bold text-white">
               ادامه و پرداخت
             </Link>

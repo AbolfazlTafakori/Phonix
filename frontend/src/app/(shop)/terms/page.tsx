@@ -1,7 +1,7 @@
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "قوانین و مقررات | Phoenix Verify" };
+export const metadata = { title: "قوانین و مقررات" };
 
 export default async function TermsPage() {
   let terms = "";

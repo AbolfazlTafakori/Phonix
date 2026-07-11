@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import { getAdvancedSettings } from "@/lib/content";
+import { SITE_URL, absoluteUrl } from "@/lib/seo";
 import LiveChat from "@/components/LiveChat";
 import {
   Vazirmatn,
@@ -73,12 +74,33 @@ export const viewport: Viewport = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getAdvancedSettings();
+  const title = s.metaTitle || "فونیکس ورفای | Phoenix Verify";
+  const description =
+    s.metaDescription ||
+    "بزرگ‌ترین مرجع ارائه حساب‌های وریفای‌شده پلتفرم‌های محبوب. خرید امن، پشتیبانی آنلاین و بهترین تجربه خرید دیجیتال.";
   return {
-    title: s.metaTitle || "فونیکس ورفای | Phoenix Verify",
-    description:
-      s.metaDescription ||
-      "بزرگ‌ترین مرجع ارائه حساب‌های وریفای‌شده پلتفرم‌های محبوب. خرید امن، پشتیبانی آنلاین و بهترین تجربه خرید دیجیتال.",
+    metadataBase: new URL(SITE_URL),
+    title: { default: title, template: "%s | Phoenix Verify" },
+    description,
     keywords: s.metaKeywords || undefined,
+    // "./" resolves to the current path against metadataBase, giving every page
+    // a self-referencing canonical unless it overrides alternates itself.
+    alternates: { canonical: "./" },
+    openGraph: {
+      type: "website",
+      siteName: "Phoenix Verify",
+      locale: "fa_IR",
+      title,
+      description,
+      url: SITE_URL,
+      images: [{ url: "/figma/logo-phoenix.png", alt: "Phoenix Verify" }],
+    },
+    twitter: {
+      card: "summary",
+      title,
+      description,
+      images: ["/figma/logo-phoenix.png"],
+    },
   };
 }
 
@@ -107,6 +129,42 @@ export default async function RootLayout({
       ].join(" ")}
     >
       <body suppressHydrationWarning>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: "Phoenix Verify",
+              alternateName: "فونیکس وریفای",
+              url: SITE_URL,
+              logo: absoluteUrl("/figma/logo-phoenix.png"),
+              contactPoint: {
+                "@type": "ContactPoint",
+                email: "support@phoenixverify.com",
+                contactType: "customer support",
+                availableLanguage: ["fa"],
+              },
+            }),
+          }}
+        />
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "WebSite",
+              name: "Phoenix Verify",
+              url: SITE_URL,
+              inLanguage: "fa",
+              potentialAction: {
+                "@type": "SearchAction",
+                target: { "@type": "EntryPoint", urlTemplate: `${SITE_URL}/products?q={search_term_string}` },
+                "query-input": "required name=search_term_string",
+              },
+            }),
+          }}
+        />
         <Script id="phonix-theme-init" strategy="beforeInteractive">
           {`(function(){try{var t=localStorage.getItem('phonix-theme');if(!t)t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark')document.documentElement.classList.add('home-dark');}catch(e){}})();`}
         </Script>

@@ -7,7 +7,10 @@ import TrustStats from "@/components/home/TrustStats";
 import CategoriesFaq from "@/components/categories/CategoriesFaq";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "دسته‌بندی محصولات | Phoenix Verify" };
+export const metadata = {
+  title: "دسته‌بندی محصولات",
+  description: "دسته‌بندی کامل خدمات و محصولات دیجیتال فونیکس وریفای: استریم، وریفای، گیفت‌کارت، VPN، شماره مجازی و نرم‌افزار.",
+};
 
 const heroFeatures = [
   "تحویل آنی و خودکار",
@@ -79,7 +82,7 @@ export default async function CategoriesPage() {
           <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:gap-6 xl:gap-12">
             {/* mobile hero image: the shield reads well centered & smaller on phones */}
             <div className="shrink-0 lg:w-[44%] xl:w-[48%]">
-              <img src="/figma/catpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-full lg:max-w-[620px] lg:-translate-x-20 xl:max-w-[680px] xl:-translate-x-32" />
+              <img fetchPriority="high" decoding="async" src="/figma/catpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-full lg:max-w-[620px] lg:-translate-x-20 xl:max-w-[680px] xl:-translate-x-32" />
             </div>
 
             <div className="flex-1 text-center lg:text-right">
@@ -107,7 +110,7 @@ export default async function CategoriesPage() {
                     </li>
                   ))}
                 </ul>
-                <img src="/figma/catpage-hero-support.png" alt="" className="-mr-2 -mb-1 h-28 w-28 shrink-0 object-contain" />
+                <img loading="lazy" decoding="async" src="/figma/catpage-hero-support.png" alt="" className="-mr-2 -mb-1 h-28 w-28 shrink-0 object-contain" />
               </div>
               <Link
                 href="/products"
@@ -152,7 +155,7 @@ export default async function CategoriesPage() {
               >
                 <div className="mb-4 flex h-24 w-24 items-center justify-center sm:h-28 sm:w-28">
                   {logo ? (
-                    <img src={logo} alt={cat.name} className="max-h-full max-w-full object-contain transition duration-200 group-hover:scale-110" />
+                    <img loading="lazy" decoding="async" src={logo} alt={cat.name} className="max-h-full max-w-full object-contain transition duration-200 group-hover:scale-110" />
                   ) : (
                     <span className="text-5xl">📌</span>
                   )}
@@ -181,7 +184,7 @@ export default async function CategoriesPage() {
             href={b.href}
             className="group block overflow-hidden rounded-[22px] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_44px_-18px_rgba(20,20,20,0.28)]"
           >
-            <img src={b.img} alt={b.alt} className="aspect-[3/1] w-full scale-[1.03] object-cover transition duration-300 group-hover:scale-[1.06]" />
+            <img loading="lazy" decoding="async" src={b.img} alt={b.alt} className="aspect-[3/1] w-full scale-[1.03] object-cover transition duration-300 group-hover:scale-[1.06]" />
           </Link>
         ))}
       </section>
@@ -202,7 +205,7 @@ export default async function CategoriesPage() {
               href="/products"
               className="hl-card group flex items-center gap-3 rounded-2xl px-5 py-3 transition hover:-translate-y-0.5 hover:border-[#ff5a1f]/60"
             >
-              <img src={s.logo} alt={s.name} className="h-10 w-10 object-contain transition group-hover:scale-110" />
+              <img loading="lazy" decoding="async" src={s.logo} alt={s.name} className="h-10 w-10 object-contain transition group-hover:scale-110" />
               <span className="text-[15px] font-bold text-[var(--hl-ink)]">{s.name}</span>
             </Link>
           ))}
@@ -225,7 +228,7 @@ export default async function CategoriesPage() {
               href={n.href}
               className="group block overflow-hidden rounded-[14px] transition duration-200 hover:-translate-y-1 hover:shadow-xl"
             >
-              <img src={n.img} alt={n.alt} className="aspect-[41/24] w-full scale-[1.03] object-cover transition duration-300 group-hover:scale-[1.06]" />
+              <img loading="lazy" decoding="async" src={n.img} alt={n.alt} className="aspect-[41/24] w-full scale-[1.03] object-cover transition duration-300 group-hover:scale-[1.06]" />
             </Link>
           ))}
         </div>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Middleware always runs server-side, so it targets the API over the loopback rather than a relative URL.
+// Proxy (ex-middleware) always runs server-side, so it targets the API over the loopback rather than a relative URL.
 const BASE = process.env.PHONIX_INTERNAL_API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:5228";
 
 let cache = { on: false, at: 0 };
@@ -17,7 +17,7 @@ async function maintenanceOn(): Promise<boolean> {
   return cache.on;
 }
 
-export async function middleware(req: NextRequest) {
+export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   // admin, api, the maintenance page itself, and static files always pass through

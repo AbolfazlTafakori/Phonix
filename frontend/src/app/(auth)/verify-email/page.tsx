@@ -34,7 +34,7 @@ export default function VerifyEmailPage() {
   return (
     <AuthShell image={VERIFY_IMAGE}>
       <div className="mb-6 flex items-center gap-2">
-        <img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-10 w-auto" />
+        <img loading="lazy" decoding="async" src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-10 w-auto" />
         <span className="text-[16px] font-extrabold leading-[1.05] text-[var(--chat-ink)]">Phoenix<br />Verify</span>
       </div>
 

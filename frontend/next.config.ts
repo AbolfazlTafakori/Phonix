@@ -42,6 +42,15 @@ const nextConfig: NextConfig = {
     return [
       { source: "/films", destination: "/products", permanent: true },
       { source: "/films/:path*", destination: "/products/:path*", permanent: true },
+      // Legacy product URLs: /products/detail?id=N → /products/N, which the
+      // [slug] page then 308s to the full canonical slug.
+      {
+        source: "/products/detail",
+        has: [{ type: "query", key: "id", value: "(?<id>\\d+)" }],
+        destination: "/products/:id",
+        permanent: true,
+      },
+      { source: "/products/detail", destination: "/products", permanent: true },
     ];
   },
 };

@@ -10,6 +10,7 @@ import { useCart } from "@/lib/cart";
 import { api } from "@/lib/api";
 import { SearchIcon, CartIcon, UserIcon } from "../Icons";
 import ThemeToggle from "./ThemeToggle";
+import { productPath } from "@/lib/seo";
 
 type Props = { brand: SiteContent["brand"]; searchPlaceholder: string };
 
@@ -89,7 +90,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
               {suggestions.map((p) => (
                 <li key={p.id}>
                   <Link
-                    href={`/products/detail?id=${p.id}`}
+                    href={productPath(p)}
                     onClick={() => { setFocused(false); setSearchOpen(false); }}
                     className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-[#f7f8fa]"
                   >

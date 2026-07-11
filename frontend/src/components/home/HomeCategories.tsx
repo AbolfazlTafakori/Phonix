@@ -43,7 +43,7 @@ export default function HomeCategories() {
             className="group flex flex-col items-center gap-4 rounded-[20px] border border-[var(--hl-border)] bg-white p-6 transition duration-200 hover:-translate-y-1.5 hover:border-[#ff5a1f]/60"
           >
             <div className="flex h-32 items-center justify-center">
-              <img src={c.logo} alt={c.title} className="max-h-32 w-auto object-contain transition duration-200 group-hover:scale-105" />
+              <img loading="lazy" decoding="async" src={c.logo} alt={c.title} className="max-h-32 w-auto object-contain transition duration-200 group-hover:scale-105" />
             </div>
             <h3 className="text-center text-[20px] font-bold text-[var(--hl-ink)]">{c.title}</h3>
           </Link>

@@ -68,7 +68,7 @@ export default function Sidebar() {
             }}
           >
             {avatar ? (
-              <img src={avatar} alt={name} className="h-full w-full object-cover" />
+              <img loading="lazy" decoding="async" src={avatar} alt={name} className="h-full w-full object-cover" />
             ) : (
               <svg viewBox="0 0 92 92" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-full w-full">
                 <circle cx="46" cy="46" r="46" fill="#FFF1E8" />

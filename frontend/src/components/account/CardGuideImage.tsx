@@ -15,7 +15,7 @@ export default function CardGuideImage() {
   if (idx < SOURCES.length) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img
+      <img loading="lazy" decoding="async"
         key={idx}
         src={SOURCES[idx]}
         alt="نمونه عکس کارت بانکی"

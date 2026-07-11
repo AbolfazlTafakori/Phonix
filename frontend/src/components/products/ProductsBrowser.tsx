@@ -5,6 +5,7 @@ import Link from "next/link";
 import ProductCardImage from "@/components/ProductCardImage";
 import { formatNumber, formatToman } from "@/lib/format";
 import type { Product, Category } from "@/lib/types";
+import { productPath } from "@/lib/seo";
 
 const PAGE_SIZE = 12;
 const PRICE_MAX = 20_000_000;
@@ -112,13 +113,13 @@ function ProductCard({ p }: { p: Product }) {
 
         <div className="mt-3 flex items-center gap-2">
           <Link
-            href={`/products/detail?id=${p.id}`}
+            href={productPath(p)}
             className="flex-1 rounded-xl border border-[var(--hl-red)] py-2 text-center text-[13px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff4f1]"
           >
             مشاهده
           </Link>
           <Link
-            href={`/products/detail?id=${p.id}`}
+            href={productPath(p)}
             aria-label="افزودن به سبد"
             className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition hover:brightness-105"
             style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
@@ -315,7 +316,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                   { img: "/figma/catpage-banner-number.png", alt: "شماره مجازی برای همه سرویس‌ها" },
                 ].map((b) => (
                   <Link key={b.img} href="/products" className="group block overflow-hidden rounded-[16px]">
-                    <img src={b.img} alt={b.alt} className="aspect-[3/1] w-full scale-[1.02] object-cover transition duration-300 group-hover:scale-[1.05]" />
+                    <img loading="lazy" decoding="async" src={b.img} alt={b.alt} className="aspect-[3/1] w-full scale-[1.02] object-cover transition duration-300 group-hover:scale-[1.05]" />
                   </Link>
                 ))}
               </div>

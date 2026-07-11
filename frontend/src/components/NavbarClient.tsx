@@ -12,6 +12,7 @@ import { api } from "@/lib/api";
 import { SearchIcon, CartIcon, UserIcon, BellIcon } from "./Icons";
 import MenuIcon from "./account/MenuIcon";
 import NavLink from "./NavLink";
+import { productPath } from "@/lib/seo";
 
 type Props = { brand: SiteContent["brand"]; header: SiteContent["header"] };
 type Menu = "search" | "bell" | "account" | null;
@@ -228,7 +229,7 @@ export default function NavbarClient({ brand, header }: Props) {
             {suggestions.map((p) => (
               <li key={p.id}>
                 <Link
-                  href={`/products/detail?id=${p.id}`}
+                  href={productPath(p)}
                   onClick={closeSearch}
                   className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-white/5"
                 >

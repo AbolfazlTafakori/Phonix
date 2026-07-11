@@ -46,7 +46,7 @@ export default function HomeBlog() {
                 <span>{p.date}</span>
               </div>
             </div>
-            <img src={p.image} alt={p.title} className="h-24 w-32 shrink-0 rounded-xl object-cover" />
+            <img loading="lazy" decoding="async" src={p.image} alt={p.title} className="h-24 w-32 shrink-0 rounded-xl object-cover" />
           </Link>
         ))}
       </div>

@@ -64,7 +64,7 @@ export default function BlogShowcase({
                 }`}
               >
                 <div className="relative h-[180px] overflow-hidden sm:h-[210px]">
-                  <img src={p.image} alt={p.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
+                  <img loading="lazy" decoding="async" src={p.image} alt={p.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d15] via-[#0d0d15]/25 to-transparent" />
                   {p.tag && (
                     <span className="absolute right-4 top-4 inline-flex rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] text-[#dac8ff] backdrop-blur-sm">
@@ -90,7 +90,7 @@ export default function BlogShowcase({
               onClick={() => setActive(i)}
               className="group relative flex gap-3 overflow-hidden rounded-[13px] border border-white/8 bg-[#0b0b12] p-2.5 text-right transition hover:-translate-y-0.5 hover:border-white/20"
             >
-              <img src={p.image} alt="" className="h-16 w-16 shrink-0 rounded-[10px] object-cover" />
+              <img loading="lazy" decoding="async" src={p.image} alt="" className="h-16 w-16 shrink-0 rounded-[10px] object-cover" />
               <span className="flex min-w-0 flex-col justify-center">
                 {p.tag && <span className="mb-1 text-[10px] text-[#9b8cff]">{p.tag.split("|")[0].trim()}</span>}
                 <span className="line-clamp-2 text-[13px] font-medium leading-6 text-white">{p.title}</span>
