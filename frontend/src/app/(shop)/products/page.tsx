@@ -40,7 +40,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
       {!query && (
         <section className="overflow-hidden border-b border-[var(--hl-border)] bg-[var(--hl-surface)]">
           <div className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">
-            <nav className="flex items-center justify-end gap-2 pb-2 pt-6 text-[13px] text-[var(--hl-muted)]">
+            <nav className="flex items-center justify-start gap-2 pb-2 pt-6 text-[13px] text-[var(--hl-muted)]">
               <Link href="/" className="flex items-center gap-1 transition hover:text-[var(--hl-red)]">
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z" /><path d="M9 22V12h6v10" /></svg>
                 خانه
