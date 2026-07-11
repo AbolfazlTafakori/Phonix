@@ -31,6 +31,20 @@ export function productPath(p: { id: number; name: string }): string {
   return `/products/${encodeURIComponent(productSlug(p))}`;
 }
 
+// Page title for a product: admin-entered names may already start with «خرید»,
+// so only prepend it when missing to avoid «خرید خرید …».
+export function productTitle(name: string): string {
+  const n = name.trim();
+  return /^خرید([\s‌]|$)/.test(n) ? n : `خرید ${n}`;
+}
+
+// Latin brand token from a product name (e.g. "Netflix" out of
+// «خرید اکانت نتفلیکس Netflix»), for schema.org brand markup.
+export function latinBrand(name: string): string | null {
+  const m = name.match(/[A-Za-z][A-Za-z0-9.+&-]*(?:\s+[A-Za-z0-9.+&-]+)*/);
+  return m ? m[0].trim() : null;
+}
+
 // Strip markdown syntax and collapse whitespace for use in meta descriptions.
 export function plainExcerpt(text: string, max = 160): string {
   const plain = text.replace(/[#*_\[\]()`>]/g, "").replace(/\s+/g, " ").trim();

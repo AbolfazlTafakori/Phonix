@@ -1,6 +1,9 @@
 import Link from "next/link";
 
-export const metadata = { title: "صفحه پیدا نشد" };
+export const metadata = {
+  title: "صفحه پیدا نشد",
+  description: "صفحه مورد نظر شما در فونیکس وریفای پیدا نشد.",
+};
 
 export default function NotFound() {
   return (

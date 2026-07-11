@@ -1,7 +1,10 @@
 import { api } from "@/lib/api";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "قوانین و مقررات" };
+export const metadata = {
+  title: "قوانین و مقررات",
+  description: "قوانین و مقررات استفاده از فروشگاه فونیکس وریفای: شرایط خرید، تحویل، بازگشت وجه و مسئولیت‌های کاربران.",
+};
 
 export default async function TermsPage() {
   let terms = "";

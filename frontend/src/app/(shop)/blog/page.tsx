@@ -14,7 +14,7 @@ export default async function BlogPage() {
     <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-10">
       <div className="relative mb-10 overflow-hidden rounded-3xl border border-[var(--hl-border)] bg-gradient-to-l from-[#6d28d9]/20 via-[#2a1330]/10 to-transparent px-8 py-12">
         <h1 className="text-3xl font-bold text-[var(--hl-ink)] sm:text-4xl">{content.sections.blogTitle}</h1>
-        <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--hl-ink-2)]">آخرین مقالات، آموزش‌ها و اخبار فونیکس ورفای.</p>
+        <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--hl-ink-2)]">آخرین مقالات، آموزش‌ها و اخبار فونیکس وریفای.</p>
       </div>
 
       {posts.length === 0 ? (

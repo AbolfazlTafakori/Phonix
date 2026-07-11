@@ -6,7 +6,7 @@ namespace Phonix.Api.Services;
 // (the fallback) and an HTML body, so callers pass them straight to IEmailSender.SendAsync(to, subj, text, html).
 public static class EmailTemplates
 {
-    private const string Brand = "فونیکس ورفای";
+    private const string Brand = "فونیکس وریفای";
     private const string Site = "phoenixverify.com";
     private const string SupportUrl = "https://phoenixverify.com/support";
     private const string Accent = "#e60053";
@@ -72,12 +72,12 @@ public static class EmailTemplates
     public static (string text, string html) VerifyEmail(string link)
     {
         var text = $"به {Brand} خوش آمدید!\n\nتنها یک قدم تا فعال‌سازی حساب شما باقی مانده است. برای تأیید ایمیل و شروع خرید، این نشانی را باز کنید (تا ۱ ساعت معتبر است):\n{link}\n\nاگر شما در {Brand} ثبت‌نام نکرده‌اید، این ایمیل را نادیده بگیرید.";
-        var html = Shell("به فونیکس ورفای خوش آمدید 🎉",
+        var html = Shell("به فونیکس وریفای خوش آمدید 🎉",
             "تنها یک قدم تا فعال‌سازی حساب شما باقی مانده است.",
-            "<p style=\"margin:0;\">از اینکه به <b>فونیکس ورفای</b> پیوستید خوشحالیم. تنها یک قدم باقی مانده — برای فعال‌سازی حساب و شروع خرید، روی دکمه‌ی زیر بزنید.</p>"
+            "<p style=\"margin:0;\">از اینکه به <b>فونیکس وریفای</b> پیوستید خوشحالیم. تنها یک قدم باقی مانده — برای فعال‌سازی حساب و شروع خرید، روی دکمه‌ی زیر بزنید.</p>"
             + Button("فعال‌سازی حساب", link)
             + LinkFallback(link)
-            + Note("این لینک تا <b>۱ ساعت</b> معتبر است. اگر شما در فونیکس ورفای ثبت‌نام نکرده‌اید، می‌توانید با خیال راحت این ایمیل را نادیده بگیرید."));
+            + Note("این لینک تا <b>۱ ساعت</b> معتبر است. اگر شما در فونیکس وریفای ثبت‌نام نکرده‌اید، می‌توانید با خیال راحت این ایمیل را نادیده بگیرید."));
         return (text, html);
     }
 

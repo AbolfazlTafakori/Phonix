@@ -288,7 +288,7 @@ public partial class StoreData
                 Tag = posts[i].Tag,
                 Title = posts[i].Title,
                 Excerpt = posts[i].Excerpt,
-                Content = posts[i].Excerpt + "\n\nاین متن نمونه است و می‌توانید آن را از پنل مدیریت ویرایش کنید. تیم فونیکس ورفای همواره در تلاش است تا بهترین و امن‌ترین خدمات را ارائه دهد.\n\nبرای اطلاعات بیشتر با پشتیبانی در ارتباط باشید.",
+                Content = posts[i].Excerpt + "\n\nاین متن نمونه است و می‌توانید آن را از پنل مدیریت ویرایش کنید. تیم فونیکس وریفای همواره در تلاش است تا بهترین و امن‌ترین خدمات را ارائه دهد.\n\nبرای اطلاعات بیشتر با پشتیبانی در ارتباط باشید.",
                 Date = "۱۴۰۳/۰۳/۲۰",
                 Image = $"/figma/blog-{i + 1}.png",
                 FeaturedOnHome = true,
@@ -325,7 +325,7 @@ public partial class StoreData
             },
             Footer = new FooterContent
             {
-                AboutTitle = "فونیکس ورفای",
+                AboutTitle = "فونیکس وریفای",
                 AboutText = "مرجع حساب‌های وریفای‌شده‌ی پلتفرم‌های محبوب، با ضمانت اصالت و پشتیبانی واقعی.",
                 LinksTitle = "لینک های مهم",
                 Links = new List<NavLink>
@@ -378,13 +378,13 @@ public partial class StoreData
                     new() { Label = "Telegram", Icon = "telegram", Href = "#" },
                     new() { Label = "instagram", Icon = "instagram", Href = "#" },
                 },
-                Copyright = "تمام حقوق برای فونیکس ورفای محفوظ است",
+                Copyright = "تمام حقوق برای فونیکس وریفای محفوظ است",
             },
         };
 
         _advancedSettings = new AdvancedSettings
         {
-            MetaTitle = "فونیکس ورفای | Phoenix Verify",
+            MetaTitle = "فونیکس وریفای | Phoenix Verify",
             MetaDescription = "بزرگ‌ترین مرجع ارائه حساب‌های وریفای‌شده پلتفرم‌های محبوب. خرید امن، پشتیبانی آنلاین و بهترین تجربه خرید دیجیتال.",
             MetaKeywords = "وریفای, اکانت پریمیوم, نتفلیکس, اسپاتیفای",
             MaintenanceMode = false,

@@ -10,7 +10,7 @@ import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
 import OpenChatButton from "@/components/product/OpenChatButton";
 import ProductGallery from "@/components/product/ProductGallery";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
-import { absoluteUrl, plainExcerpt, productPath, productSlug } from "@/lib/seo";
+import { absoluteUrl, latinBrand, plainExcerpt, productPath, productSlug, productTitle } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -34,20 +34,21 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     if (!product) return { title: "جزئیات محصول" };
     const description = plainExcerpt(product.description);
     const canonical = productPath(product);
+    const title = productTitle(product.name);
     return {
-      title: `خرید ${product.name}`,
+      title,
       description,
       alternates: { canonical },
       openGraph: {
         type: "website",
-        title: `خرید ${product.name} | Phoenix Verify`,
+        title: `${title} | Phoenix Verify`,
         description,
         url: canonical,
         images: product.image ? [{ url: product.image, alt: product.name }] : undefined,
       },
       twitter: {
         card: "summary_large_image",
-        title: `خرید ${product.name} | Phoenix Verify`,
+        title: `${title} | Phoenix Verify`,
         description,
         images: product.image ? [product.image] : undefined,
       },
@@ -138,6 +139,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     description: plainExcerpt(product.description, 300),
     image: product.image ? absoluteUrl(product.image) : undefined,
     sku: product.sku || undefined,
+    ...(latinBrand(product.name) && { brand: { "@type": "Brand", name: latinBrand(product.name) } }),
     ...(rated.length > 0 && {
       aggregateRating: {
         "@type": "AggregateRating",
@@ -147,9 +149,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     }),
     offers: {
       "@type": "AggregateOffer",
-      priceCurrency: "IRT",
-      lowPrice: Math.min(...prices),
-      highPrice: Math.max(...prices),
+      // Prices are stored in Toman; IRR (the ISO 4217 code Google accepts) is 10 rials per toman.
+      priceCurrency: "IRR",
+      lowPrice: Math.min(...prices) * 10,
+      highPrice: Math.max(...prices) * 10,
       offerCount: Math.max(plans.length, 1),
       availability: out ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
       url: absoluteUrl(productPath(product)),
@@ -218,7 +221,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               {product.logo && (
                 <img loading="lazy" decoding="async" src={product.logo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-contain" />
               )}
-              <h1 className="text-[26px] font-black leading-snug xl:text-[30px]" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
+              {/* the page's single <h1> lives in the mobile block above; this desktop copy stays a <p> */}
+              <p className="text-[26px] font-black leading-snug xl:text-[30px]" style={{ color: "var(--ac-title)" }}>{product.name}</p>
             </div>
             {rated.length > 0 && (
               <div className="mt-2 flex items-center gap-2">

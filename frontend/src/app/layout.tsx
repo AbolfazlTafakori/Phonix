@@ -74,7 +74,7 @@ export const viewport: Viewport = {
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getAdvancedSettings();
-  const title = s.metaTitle || "فونیکس ورفای | Phoenix Verify";
+  const title = s.metaTitle || "فونیکس وریفای | Phoenix Verify";
   const description =
     s.metaDescription ||
     "بزرگ‌ترین مرجع ارائه حساب‌های وریفای‌شده پلتفرم‌های محبوب. خرید امن، پشتیبانی آنلاین و بهترین تجربه خرید دیجیتال.";
@@ -93,13 +93,13 @@ export async function generateMetadata(): Promise<Metadata> {
       title,
       description,
       url: SITE_URL,
-      images: [{ url: "/figma/logo-phoenix.png", alt: "Phoenix Verify" }],
+      images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "Phoenix Verify" }],
     },
     twitter: {
-      card: "summary",
+      card: "summary_large_image",
       title,
       description,
-      images: ["/figma/logo-phoenix.png"],
+      images: ["/og-image.png"],
     },
   };
 }

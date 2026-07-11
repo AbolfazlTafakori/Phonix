@@ -1,13 +1,34 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBlogPosts } from "@/lib/content";
+import { absoluteUrl, plainExcerpt } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const post = (await getBlogPosts()).find((p) => p.slug === slug);
-  return { title: post ? `${post.title} | بلاگ` : "بلاگ" };
+  if (!post) return { title: "بلاگ" };
+  const description = plainExcerpt(post.excerpt || post.content);
+  const canonical = `/blog/${post.slug}`;
+  return {
+    title: `${post.title} | بلاگ`,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "article",
+      title: `${post.title} | Phoenix Verify`,
+      description,
+      url: canonical,
+      images: post.image ? [{ url: post.image, alt: post.title }] : undefined,
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${post.title} | Phoenix Verify`,
+      description,
+      images: post.image ? [post.image] : undefined,
+    },
+  };
 }
 
 export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
@@ -18,8 +39,28 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
   const paragraphs = post.content.split("\n").filter((p) => p.trim().length > 0);
 
+  const articleLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: plainExcerpt(post.excerpt || post.content),
+    image: post.image ? absoluteUrl(post.image) : undefined,
+    url: absoluteUrl(`/blog/${post.slug}`),
+    inLanguage: "fa",
+    // post.date is a free-form Persian label; only emit it when it's already ISO.
+    ...(/^\d{4}-\d{2}-\d{2}/.test(post.date) && { datePublished: post.date }),
+    author: { "@type": "Organization", name: "Phoenix Verify" },
+    publisher: {
+      "@type": "Organization",
+      name: "Phoenix Verify",
+      logo: { "@type": "ImageObject", url: absoluteUrl("/figma/logo-phoenix.png") },
+    },
+    mainEntityOfPage: absoluteUrl(`/blog/${post.slug}`),
+  };
+
   return (
     <article className="mx-auto max-w-[820px] px-5 pb-20 pt-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }} />
       <nav className="mb-6 flex items-center gap-2 text-sm text-[var(--hl-muted)]">
         <Link href="/" className="hover:text-[var(--hl-ink)]">خانه</Link>
         <span>/</span>

@@ -34,7 +34,7 @@ export default function AdminTopbar({ onMenu }: { onMenu: () => void }) {
 
       <div>
         <h1 className="text-lg font-bold text-white">{title}</h1>
-        <p className="text-xs text-white/40">پنل مدیریت فونیکس ورفای</p>
+        <p className="text-xs text-white/40">پنل مدیریت فونیکس وریفای</p>
       </div>
 
       <div className="mr-auto flex items-center gap-3">

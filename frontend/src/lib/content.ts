@@ -60,7 +60,7 @@ export const defaultSiteContent: SiteContent = {
   ],
   sections: { categoriesTitle: "لیست محصولات", bestSellersTitle: "محصولات پر فروش", blogTitle: "مطالب وبلاگ" },
   footer: {
-    aboutTitle: "فونیکس ورفای",
+    aboutTitle: "فونیکس وریفای",
     aboutText: "مرجع حساب‌های وریفای‌شده‌ی پلتفرم‌های محبوب، با ضمانت اصالت و پشتیبانی واقعی.",
     linksTitle: "لینک های مهم",
     links: homeFooter.map((l) => ({ label: l.label, href: l.href })),
@@ -94,7 +94,7 @@ export const defaultSiteContent: SiteContent = {
       { label: "Telegram", icon: "telegram", href: "#" },
       { label: "instagram", icon: "instagram", href: "#" },
     ],
-    copyright: "تمام حقوق برای فونیکس ورفای محفوظ است",
+    copyright: "تمام حقوق برای فونیکس وریفای محفوظ است",
   },
   blogAutoplaySeconds: 5,
   testimonialsEnabled: false,
@@ -185,7 +185,7 @@ export const getTestimonials = cache(async (): Promise<Comment[]> => {
 });
 
 export const defaultAdvanced: AdvancedSettings = {
-  metaTitle: "فونیکس ورفای | Phoenix Verify",
+  metaTitle: "فونیکس وریفای | Phoenix Verify",
   metaDescription: "بزرگ‌ترین مرجع ارائه حساب‌های وریفای‌شده پلتفرم‌های محبوب.",
   metaKeywords: "",
   maintenanceMode: false,
