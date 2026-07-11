@@ -31,6 +31,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
     { text: "پشتیبانی ۲۴ ساعته", included: true },
     { text: "گارانتی بازگشت وجه", included: true },
   ],
+  faq: [],
   plans: [],
 });
 
@@ -99,6 +100,7 @@ export default function AdminProductsPage() {
       deliveryTemplate: p.deliveryTemplate,
       priceUsd: p.priceUsd ?? 0,
       features: p.features.map((f) => ({ ...f })),
+      faq: (p.faq ?? []).map((f) => ({ ...f })),
       plans: p.plans.map((pl) => ({
         type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive, userCount: pl.userCount ?? 0, rules: pl.rules ?? "",
         collectsInfo: pl.collectsInfo ?? false,
@@ -137,6 +139,12 @@ export default function AdminProductsPage() {
     setForm((f) => ({ ...f, features: f.features.map((ft, idx) => (idx === i ? { ...ft, [key]: value } : ft)) }));
   const addFeat = () => setForm((f) => ({ ...f, features: [...f.features, { text: "", included: true }] }));
   const removeFeat = (i: number) => setForm((f) => ({ ...f, features: f.features.filter((_, idx) => idx !== i) }));
+
+  // FAQ editor helpers
+  const setFaq = (i: number, key: "question" | "answer", value: string) =>
+    setForm((f) => ({ ...f, faq: f.faq.map((q, idx) => (idx === i ? { ...q, [key]: value } : q)) }));
+  const addFaq = () => setForm((f) => ({ ...f, faq: [...f.faq, { question: "", answer: "" }] }));
+  const removeFaq = (i: number) => setForm((f) => ({ ...f, faq: f.faq.filter((_, idx) => idx !== i) }));
 
   // plan editor helpers
   const setPlan = <K extends keyof ProductPlanInput>(i: number, key: K, value: ProductPlanInput[K]) =>
@@ -314,6 +322,30 @@ export default function AdminProductsPage() {
                 </div>
               ))}
               {form.features.length === 0 && <p className="text-xs text-white/40">ویژگی‌ای اضافه نشده است</p>}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-white/8 p-4">
+            <div className="mb-1 flex items-center justify-between">
+              <h4 className="text-sm font-bold text-white">سوالات متداول (FAQ)</h4>
+              <button onClick={addFaq} className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs font-bold text-white/80 transition hover:bg-white/5">
+                <AdminIcon name="plus" className="h-3.5 w-3.5" /> افزودن سوال
+              </button>
+            </div>
+            <p className="mb-3 text-xs text-white/40">هر سوال/پاسخ به‌صورت آکاردئون در صفحه محصول نمایش داده شده و به‌شکل FAQPage schema برای گوگل و موتورهای پاسخ‌گوی هوش مصنوعی ارسال می‌شود.</p>
+            <div className="space-y-3">
+              {form.faq.map((q, i) => (
+                <div key={i} className="rounded-lg border border-white/10 p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <input value={q.question} onChange={(e) => setFaq(i, "question", e.target.value)} className="h-9 flex-1 rounded-lg border border-white/10 bg-[#0d0d15] px-3 text-sm font-bold text-white outline-none focus:border-[#3a64f2]" placeholder="سوال، مثلاً: آیا اکانت قابل تمدید است؟" />
+                    <button onClick={() => removeFaq(i)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 text-white/50 transition hover:border-rose-500/50 hover:text-rose-400">
+                      <AdminIcon name="trash" className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <textarea value={q.answer} onChange={(e) => setFaq(i, "answer", e.target.value)} rows={2} className="w-full resize-none rounded-lg border border-white/10 bg-[#0d0d15] px-3 py-2 text-sm text-white outline-none focus:border-[#3a64f2]" placeholder="پاسخ کامل و مفید به این سوال…" />
+                </div>
+              ))}
+              {form.faq.length === 0 && <p className="text-xs text-white/40">سوالی اضافه نشده است</p>}
             </div>
           </div>
 

@@ -158,6 +158,16 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       url: absoluteUrl(productPath(product)),
     },
   };
+  const faq = (product.faq ?? []).filter((f) => f.question.trim() && f.answer.trim());
+  const faqLd = faq.length > 0 ? {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faq.map((f) => ({
+      "@type": "Question",
+      name: f.question,
+      acceptedAnswer: { "@type": "Answer", text: f.answer },
+    })),
+  } : null;
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -174,6 +184,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   return (<>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }} />
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
+    {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
     <div className="mx-auto max-w-[1840px] px-4 pb-16 pt-6 sm:px-6 lg:px-8 xl:px-16">
       {/* breadcrumb */}
       <nav className="mb-5 flex flex-wrap items-center gap-1.5 text-[12px] sm:gap-2 sm:text-[13px]" style={{ color: "var(--ac-muted)" }}>
@@ -285,6 +296,30 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
       {/* tabs */}
       <ProductTabs product={product} comments={comments} />
+
+      {/* FAQ — server-rendered so crawlers and AI answer engines read it without JS */}
+      {faq.length > 0 && (
+        <section className="mt-8 rounded-[22px] border bg-[var(--ac-panel-bg)] p-5 sm:mt-10 sm:p-8" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+          <div className="mb-5 flex items-start gap-2 sm:mb-6">
+            <span className="mt-1 h-5 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f] sm:h-6" />
+            <div>
+              <h2 className="text-[18px] font-black sm:text-[22px]" style={{ color: "var(--ac-title)" }}>سوالات متداول درباره {product.name}</h2>
+              <p className="mt-1 text-[13px] sm:text-[15px]" style={{ color: "var(--ac-muted)" }}>پاسخ پرتکرارترین پرسش‌های خریداران</p>
+            </div>
+          </div>
+          <div className="divide-y" style={{ borderColor: "var(--ac-divider)" }}>
+            {faq.map((f, i) => (
+              <details key={i} className="group py-1" style={{ borderColor: "var(--ac-divider)" }}>
+                <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-4 text-[14px] font-black sm:text-[15px]" style={{ color: "var(--ac-title)" }}>
+                  {f.question}
+                  <span className="shrink-0 text-[var(--ac-muted)] transition-transform group-open:rotate-45" aria-hidden>+</span>
+                </summary>
+                <p className="pb-4 text-[13px] leading-8 sm:text-[14px]" style={{ color: "var(--ac-text)" }}>{f.answer}</p>
+              </details>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* support + comparison */}
       <div className="mt-8 grid items-start gap-5 sm:mt-10 sm:gap-6 lg:grid-cols-[280px_1fr]">

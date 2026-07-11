@@ -22,6 +22,8 @@ export type CategoryInput = {
 
 export type ProductFeature = { text: string; included: boolean };
 
+export type ProductFaq = { question: string; answer: string };
+
 export type PlanFieldType = "text" | "email" | "password" | "phone" | "textarea";
 
 export type PlanInputField = {
@@ -91,6 +93,7 @@ export type Product = {
   deliveryTemplate: string;
   priceUsd: number;
   features: ProductFeature[];
+  faq: ProductFaq[];
   plans: ProductPlan[];
 };
 
@@ -112,6 +115,7 @@ export type ProductInput = {
   deliveryTemplate: string;
   priceUsd: number;
   features: ProductFeature[];
+  faq: ProductFaq[];
   plans: ProductPlanInput[];
 };
 

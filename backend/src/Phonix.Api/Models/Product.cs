@@ -6,6 +6,15 @@ public class ProductFeature
     public bool Included { get; set; } = true;
 }
 
+// A question/answer pair shown on the product page and emitted as FAQPage JSON-LD so the
+// listing can win an FAQ rich result and be cited by AI answer engines. Managed per product
+// in the admin panel.
+public class ProductFaq
+{
+    public string Question { get; set; } = "";
+    public string Answer { get; set; } = "";
+}
+
 // One input the customer must (or may) provide at checkout for a given plan — e.g. the email to send a
 // Spotify/Duolingo invite to, or account credentials the team logs in with. Defined per plan in the admin
 // panel. Type drives the input control on the storefront and validation; Sensitive marks secrets (passwords)
@@ -97,6 +106,7 @@ public class Product
     // the product templates endpoints and persisted with the product.
     public List<ProductDeliveryTemplate> DeliveryTemplates { get; set; } = new();
     public List<ProductFeature> Features { get; set; } = new();
+    public List<ProductFaq> Faq { get; set; } = new();
     public List<ProductPlan> Plans { get; set; } = new();
 
     public long FinalPrice => DiscountPercent <= 0

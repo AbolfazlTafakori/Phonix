@@ -307,6 +307,7 @@ public partial class StoreData : IDataStore
             existing.RequiredLevel = product.RequiredLevel;
             existing.DeliveryTemplate = product.DeliveryTemplate;
             existing.Features = product.Features;
+            existing.Faq = product.Faq;
             NumberPlans(product.Plans);
             existing.Plans = product.Plans;
             RebuildCatalogView();
@@ -641,7 +642,14 @@ public partial class StoreData : IDataStore
         AddCategory(new Category { Name = "بازی و سرگرمی", Slug = "games", Icon = "/figma/cat-games.png", IsActive = false, SortOrder = 6 });
         AddCategory(new Category { Name = "صرافی ارز دیجیتال", Slug = "exchange", Icon = "/figma/cat-exchange.png", SortOrder = 7 });
 
-        AddProduct(new Product { Name = "اشتراک نتفلیکس", CategoryId = 1, Price = 290_000, Stock = 142, Featured = true, Image = "/figma/prod-netflix.png", Sku = "NFX-PR", Description = "اکانت پریمیوم نتفلیکس با کیفیت 4K و تحویل آنی.", Warning = "از تغییر ایمیل و رمز اکانت خودداری کنید. در صورت تغییر اطلاعات ورود، گارانتی باطل می‌شود.", DeliveryTemplate = "ایمیل اکانت: \nرمز عبور: \nپروفایل اختصاصی شما: \n\nلطفاً از تغییر ایمیل و رمز اکانت خودداری کنید.", Features = new() { Feat("تحویل آنی پس از پرداخت"), Feat("کیفیت 4K Ultra HD"), Feat("پشتیبانی ۲۴ ساعته"), Feat("گارانتی بازگشت وجه") }, Plans = new() { Plan("اشتراکی", 1, 290_000), Plan("اشتراکی", 3, 790_000, 10), Plan("اختصاصی", 1, 690_000), Plan("اختصاصی", 3, 1_850_000, 5) } });
+        AddProduct(new Product { Name = "اشتراک نتفلیکس", CategoryId = 1, Price = 290_000, Stock = 142, Featured = true, Image = "/figma/prod-netflix.png", Sku = "NFX-PR", Description = "اکانت پریمیوم نتفلیکس با کیفیت 4K و تحویل آنی.", Warning = "از تغییر ایمیل و رمز اکانت خودداری کنید. در صورت تغییر اطلاعات ورود، گارانتی باطل می‌شود.", DeliveryTemplate = "ایمیل اکانت: \nرمز عبور: \nپروفایل اختصاصی شما: \n\nلطفاً از تغییر ایمیل و رمز اکانت خودداری کنید.", Features = new() { Feat("تحویل آنی پس از پرداخت"), Feat("کیفیت 4K Ultra HD"), Feat("پشتیبانی ۲۴ ساعته"), Feat("گارانتی بازگشت وجه") }, Faq = new() {
+            Q("آیا اکانت نتفلیکس قابل تمدید است؟", "بله؛ در پایان دوره می‌توانید همان اشتراک را با حفظ پروفایل و تاریخچه تماشا تمدید کنید."),
+            Q("تفاوت اکانت اشتراکی و اختصاصی چیست؟", "در اکانت اشتراکی یک پروفایل اختصاصی از یک اکانت پرمیوم به شما داده می‌شود؛ در اکانت اختصاصی کل اکانت با هر ۵ پروفایل تحت کنترل شماست."),
+            Q("خرید اکانت نتفلیکس قانونی است؟", "بله؛ اشتراک‌ها از طریق روش‌های رسمی شارژ می‌شوند و برخلاف اکانت‌های شارژ‌شده با کارت‌های سرقتی، وسط دوره قطع نمی‌شوند."),
+            Q("آیا نتفلیکس زیرنویس فارسی دارد؟", "نتفلیکس به‌صورت پیش‌فرض زیرنویس فارسی همه عناوین را ندارد، اما با افزونه‌های مرورگر و اپلیکیشن‌های واسط می‌توانید زیرنویس فارسی اضافه کنید."),
+            Q("بعد از خرید چقدر طول می‌کشد اکانت تحویل داده شود؟", "تحویل آنی است؛ بلافاصله پس از پرداخت، اطلاعات اکانت در بخش «سفارشات من» ثبت می‌شود."),
+            Q("اگر اکانت وسط دوره مشکل پیدا کند چه می‌شود؟", "تا پایان دوره اشتراک گارانتی دارید و در صورت هر مشکلی تیم پشتیبانی آن را جبران می‌کند."),
+        }, Plans = new() { Plan("اشتراکی", 1, 290_000), Plan("اشتراکی", 3, 790_000, 10), Plan("اختصاصی", 1, 690_000), Plan("اختصاصی", 3, 1_850_000, 5) } });
         AddProduct(new Product { Name = "اسپاتیفای پریمیوم", CategoryId = 2, Price = 185_000, Stock = 88, Image = "/figma/prod-spotify.png", Sku = "SPT-PR", Description = "موسیقی نامحدود بدون تبلیغات.", Features = new() { Feat("تحویل آنی پس از پرداخت"), Feat("پخش بدون تبلیغات"), Feat("کیفیت صوتی بالا"), Feat("گارانتی بازگشت وجه", false) } });
         AddProduct(new Product { Name = "کانوا پرو", CategoryId = 3, Price = 210_000, DiscountPercent = 10, Stock = 53, Image = "/figma/prod-canva.png", Sku = "CNV-PRO", Description = "دسترسی کامل به ابزارها و قالب‌های حرفه‌ای کانوا.", Features = StdFeatures() });
         AddProduct(new Product { Name = "بایننس وریفای", CategoryId = 7, Price = 850_000, Stock = 0, IsActive = false, RequiredLevel = 2, Image = "/figma/prod-binance.png", Sku = "BNB-VRF", Description = "احراز هویت کامل حساب بایننس.", Features = new() { Feat("تحویل ۲۴ تا ۴۸ ساعته"), Feat("احراز هویت کامل"), Feat("پشتیبانی ۲۴ ساعته") } });
@@ -698,6 +706,8 @@ public partial class StoreData : IDataStore
     }
 
     private static ProductFeature Feat(string text, bool included = true) => new() { Text = text, Included = included };
+
+    private static ProductFaq Q(string question, string answer) => new() { Question = question, Answer = answer };
 
     private static ProductPlan Plan(string type, int months, long price, int discountPercent = 0) =>
         new() { Type = type, Months = months, Price = price, DiscountPercent = discountPercent };

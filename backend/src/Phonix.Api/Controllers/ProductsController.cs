@@ -137,6 +137,10 @@ public class ProductsController : ControllerBase
         target.RequiredLevel = Math.Clamp(input.RequiredLevel ?? 1, 1, 2);
         target.DeliveryTemplate = input.DeliveryTemplate ?? "";
         target.Features = input.Features ?? new();
+        target.Faq = (input.Faq ?? new())
+            .Select(f => new ProductFaq { Question = (f.Question ?? "").Trim(), Answer = (f.Answer ?? "").Trim() })
+            .Where(f => f.Question.Length > 0 && f.Answer.Length > 0)
+            .ToList();
         target.Plans = (input.Plans ?? new()).Select(NormalizePlan).ToList();
         ApplyUsdPrice(target);
         return target;

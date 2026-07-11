@@ -26,12 +26,12 @@ public record CategoryInput(
 public record ProductDto(
     int Id, string Name, int CategoryId, string CategoryName, long Price, int DiscountPercent,
     long FinalPrice, long Stock, bool IsActive, bool Featured, string Image, string Logo, List<string> Gallery, string Sku, string Description,
-    string Warning, int RequiredLevel, double PriceUsd, List<ProductFeature> Features, List<ProductPlan> Plans, string DeliveryTemplate);
+    string Warning, int RequiredLevel, double PriceUsd, List<ProductFeature> Features, List<ProductFaq> Faq, List<ProductPlan> Plans, string DeliveryTemplate);
 
 public record ProductInput(
     string Name, int CategoryId, long Price, int DiscountPercent, long Stock, bool IsActive,
     bool Featured, string Image, string? Logo, List<string>? Gallery, string Sku, string Description, string? Warning, int? RequiredLevel,
-    List<ProductFeature>? Features, List<ProductPlan>? Plans, string? DeliveryTemplate, double? PriceUsd);
+    List<ProductFeature>? Features, List<ProductPlan>? Plans, string? DeliveryTemplate, double? PriceUsd, List<ProductFaq>? Faq);
 
 public record PriceInput(long Price, int DiscountPercent, double? PriceUsd);
 
@@ -59,7 +59,7 @@ public static class Mapping
 
     public static ProductDto ToDto(this Product p, string categoryName) =>
         new(p.Id, p.Name, p.CategoryId, categoryName, p.Price, p.DiscountPercent, p.FinalPrice,
-            p.Stock, p.IsActive, p.Featured, p.Image, p.Logo, p.Gallery, p.Sku, p.Description, p.Warning, p.RequiredLevel, p.PriceUsd, p.Features, p.Plans,
+            p.Stock, p.IsActive, p.Featured, p.Image, p.Logo, p.Gallery, p.Sku, p.Description, p.Warning, p.RequiredLevel, p.PriceUsd, p.Features, p.Faq, p.Plans,
             p.DeliveryTemplate);
 
     public static UserDto ToDto(this AppUser u) =>
