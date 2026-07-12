@@ -23,7 +23,7 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
       if (src) nodes.push(<img loading="lazy" decoding="async" key={key} src={src} alt={m[1]} className="my-2 inline-block max-h-32 rounded-lg align-middle" />);
     } else if (m[3] !== undefined && m[4] !== undefined) {
       const href = safeUrl(m[4]);
-      nodes.push(href ? <a key={key} href={href} target="_blank" rel="noreferrer" className="text-[#6f93ff] underline">{m[3]}</a> : m[3]);
+      nodes.push(href ? <a key={key} href={href} target="_blank" rel="noreferrer" className="font-medium text-[var(--hl-red)] underline">{m[3]}</a> : m[3]);
     } else if (m[5] !== undefined) {
       nodes.push(<strong key={key} className="font-bold text-[var(--hl-ink)]">{m[5]}</strong>);
     } else if (m[6] !== undefined) {

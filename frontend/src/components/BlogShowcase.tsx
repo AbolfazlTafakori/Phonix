@@ -67,7 +67,7 @@ export default function BlogShowcase({
                   <img loading="lazy" decoding="async" src={p.image} alt={p.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d15] via-[#0d0d15]/25 to-transparent" />
                   {p.tag && (
-                    <span className="absolute right-4 top-4 inline-flex rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] text-[#dac8ff] backdrop-blur-sm">
+                    <span className="absolute right-4 top-4 inline-flex rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] text-[#ff8a5c] backdrop-blur-sm">
                       {p.tag}
                     </span>
                   )}
@@ -92,7 +92,7 @@ export default function BlogShowcase({
             >
               <img loading="lazy" decoding="async" src={p.image} alt="" className="h-16 w-16 shrink-0 rounded-[10px] object-cover" />
               <span className="flex min-w-0 flex-col justify-center">
-                {p.tag && <span className="mb-1 text-[10px] text-[#9b8cff]">{p.tag.split("|")[0].trim()}</span>}
+                {p.tag && <span className="mb-1 text-[10px] text-[#ff8a5c]">{p.tag.split("|")[0].trim()}</span>}
                 <span className="line-clamp-2 text-[13px] font-medium leading-6 text-white">{p.title}</span>
               </span>
               {autoplay && !paused && i === nextIndex && (
@@ -100,7 +100,7 @@ export default function BlogShowcase({
                   <span
                     key={`fill-${active}`}
                     className="hero-bar-fill block h-full"
-                    style={{ background: "linear-gradient(to left, #e60053, #ff5c8a)", ["--hero-dur" as string]: `${autoplaySeconds}s` }}
+                    style={{ background: "linear-gradient(to left, #ef233c, #ff5a1f)", ["--hero-dur" as string]: `${autoplaySeconds}s` }}
                   />
                 </span>
               )}

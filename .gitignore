@@ -63,3 +63,6 @@ frontend/home.html
 frontend/detail.html
 frontend/slugpage.html
 seo-content/
+
+# local preview fixtures (never ship)
+frontend/public/_*.html

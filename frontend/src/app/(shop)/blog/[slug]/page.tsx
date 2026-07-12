@@ -73,7 +73,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       </div>
 
       <div className="mt-6 flex items-center gap-3 text-sm text-[var(--hl-ink-2)]">
-        <span className="rounded-full bg-[#6d28d9]/15 px-3 py-1 font-medium text-[#c98bff]">{post.tag}</span>
+        <span className="rounded-full bg-[var(--hl-red)]/10 px-3 py-1 font-bold text-[var(--hl-red)]">{post.tag}</span>
         <span>{post.date}</span>
       </div>
 
@@ -86,7 +86,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       </div>
 
       <div className="mt-12 border-t border-[var(--hl-border)] pt-6">
-        <Link href="/blog" className="text-sm font-bold text-[#e60053] hover:underline">→ بازگشت به بلاگ</Link>
+        <Link href="/blog" className="text-sm font-bold text-[var(--hl-red)] hover:underline">→ بازگشت به بلاگ</Link>
       </div>
     </article>
   );
