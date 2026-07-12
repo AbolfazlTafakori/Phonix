@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBlogPosts } from "@/lib/content";
 import { absoluteUrl, plainExcerpt } from "@/lib/seo";
+import RichText from "@/components/RichText";
 
 export const dynamic = "force-dynamic";
 
@@ -36,8 +37,6 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
   const posts = await getBlogPosts();
   const post = posts.find((p) => p.slug === slug);
   if (!post) notFound();
-
-  const paragraphs = post.content.split("\n").filter((p) => p.trim().length > 0);
 
   const articleLd = {
     "@context": "https://schema.org",
@@ -80,10 +79,10 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
       <h1 className="mt-4 text-3xl font-bold leading-snug text-[var(--hl-ink)] sm:text-4xl">{post.title}</h1>
 
-      <div className="mt-6 space-y-5">
-        {paragraphs.map((p, i) => (
-          <p key={i} className="text-[15px] leading-9 text-[var(--hl-ink-2)]">{p}</p>
-        ))}
+      {/* Markdown body: ## headings, lists, links and inline images all render, so long-form
+          SEO articles stay readable instead of one wall of text. */}
+      <div className="mt-6">
+        <RichText content={post.content} className="text-[15px] leading-9" />
       </div>
 
       <div className="mt-12 border-t border-[var(--hl-border)] pt-6">

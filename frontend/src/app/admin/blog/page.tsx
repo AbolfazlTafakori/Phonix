@@ -8,6 +8,51 @@ import { useSiteContent } from "@/components/admin/useSiteContent";
 import ImageField from "@/components/admin/ImageField";
 import AdminIcon from "@/components/admin/AdminIcon";
 
+// Parse an uploaded article .md file into a BlogPostInput so posts can be bulk-loaded without
+// retyping. Format: first `# ` line is the title; then optional `key: value` header lines
+// (slug/نامک, tag/برچسب, excerpt/خلاصه, image/تصویر, date/تاریخ); everything after the first
+// blank line following the headers is the article body (markdown).
+function parseBlogMd(text: string, fileName: string): Omit<BlogPostInput, "featuredOnHome" | "sortOrder" | "isActive"> {
+  const raw = text.replace(/\r\n/g, "\n").trim();
+  const lines = raw.split("\n");
+  let title = "";
+  const meta: Record<string, string> = {};
+  let bodyStart = 0;
+  let sawMeta = false;
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].trim();
+    if (!title && l.startsWith("# ")) { title = l.slice(2).trim(); bodyStart = i + 1; continue; }
+    const m = l.match(/^(slug|نامک|tag|برچسب|excerpt|خلاصه|image|تصویر|date|تاریخ)\s*:\s*(.+)$/i);
+    if (title && m) {
+      const key = m[1].toLowerCase();
+      const map: Record<string, string> = { "نامک": "slug", "برچسب": "tag", "خلاصه": "excerpt", "تصویر": "image", "تاریخ": "date" };
+      meta[map[key] ?? key] = m[2].trim();
+      bodyStart = i + 1;
+      sawMeta = true;
+      continue;
+    }
+    // Blank lines between the title and the meta block are allowed; the blank line AFTER the
+    // meta block ends the header. Any other non-meta line means the body has begun.
+    if (title && l === "") {
+      bodyStart = i + 1;
+      if (sawMeta) break;
+      continue;
+    }
+    if (title && l !== "") break;
+  }
+  const content = lines.slice(bodyStart).join("\n").trim();
+  const fallbackSlug = fileName.replace(/\.md$/i, "").replace(/^\d+[-_.]?/, "").trim() || `post-${Date.now()}`;
+  return {
+    slug: meta.slug || fallbackSlug,
+    title: title || fallbackSlug,
+    tag: meta.tag || "مقاله",
+    excerpt: meta.excerpt || content.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.slice(0, 160) || "",
+    image: meta.image || "/figma/blog-1.png",
+    date: meta.date || "",
+    content,
+  };
+}
+
 export default function AdminBlogPage() {
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [drafts, setDrafts] = useState<Record<number, BlogPostInput>>({});
@@ -58,6 +103,30 @@ export default function AdminBlogPage() {
     }
   }
 
+  // Create a post directly from an uploaded .md file (no manual typing).
+  const [importing, setImporting] = useState(false);
+  function importMd(file: File) {
+    setImporting(true);
+    setError("");
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const parsed = parseBlogMd(String(reader.result ?? ""), file.name);
+        if (!parsed.content) throw new Error("متن مقاله در فایل پیدا نشد؛ قالب فایل را بررسی کنید.");
+        const created = await api.blog.create({ ...parsed, featuredOnHome: false, sortOrder: posts.length + 1, isActive: true });
+        setPosts((prev) => [created, ...prev]);
+        setDrafts((prev) => ({ ...prev, [created.id]: toInput(created) }));
+        if (typeof window !== "undefined") window.scrollTo({ top: 0, behavior: "smooth" });
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "خطا در بارگذاری فایل");
+      } finally {
+        setImporting(false);
+      }
+    };
+    reader.onerror = () => { setError("خواندن فایل ناموفق بود."); setImporting(false); };
+    reader.readAsText(file, "utf-8");
+  }
+
   async function add() {
     setAdding(true);
     setError("");
@@ -92,14 +161,26 @@ export default function AdminBlogPage() {
         title="بلاگ"
         desc="مطالب بخش وبلاگ در صفحه اصلی"
         action={
-          <button
-            onClick={add}
-            disabled={adding}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
-          >
-            {adding ? <Spinner /> : <AdminIcon name="plus" className="h-4 w-4" />}
-            مطلب جدید
-          </button>
+          <div className="flex items-center gap-2">
+            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-white/15 px-5 py-2.5 text-sm font-bold text-white/85 transition hover:bg-white/5">
+              {importing ? <Spinner /> : <AdminIcon name="plus" className="h-4 w-4" />}
+              مطلب از فایل .md
+              <input
+                type="file"
+                accept=".md,.markdown,text/markdown,text/plain"
+                className="hidden"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) importMd(f); e.target.value = ""; }}
+              />
+            </label>
+            <button
+              onClick={add}
+              disabled={adding}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+            >
+              {adding ? <Spinner /> : <AdminIcon name="plus" className="h-4 w-4" />}
+              مطلب جدید
+            </button>
+          </div>
         }
       />
 
