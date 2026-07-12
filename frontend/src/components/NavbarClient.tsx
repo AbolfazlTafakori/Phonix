@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { SiteContent, Notification, Product } from "@/lib/types";
-import { formatToman } from "@/lib/format";
+import { formatToman, productDisplayPrice } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/useMe";
 import { useCart } from "@/lib/cart";
@@ -235,7 +235,7 @@ export default function NavbarClient({ brand, header }: Props) {
                 >
                   <img src={p.image} alt={p.name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
                   <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">{p.name}</span>
-                  <span className="shrink-0 text-xs font-bold text-emerald-400">{formatToman(p.finalPrice)}</span>
+                  <span className="shrink-0 text-xs font-bold text-emerald-400">{formatToman(productDisplayPrice(p))}</span>
                 </Link>
               </li>
             ))}

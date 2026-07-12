@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { productPath } from "@/lib/seo";
 import { api } from "@/lib/api";
-import { formatToman } from "@/lib/format";
+import { formatToman, productDisplayPrice } from "@/lib/format";
 import type { Product } from "@/lib/types";
 import BestSellersCarousel, { type CarouselCard } from "./BestSellersCarousel";
 
@@ -36,7 +36,7 @@ export default async function HomeBestSellers() {
       key: String(p.id),
       name: p.name,
       categoryName: p.categoryName,
-      priceLabel: formatToman(p.finalPrice),
+      priceLabel: formatToman(productDisplayPrice(p)),
       badge,
       image: p.image,
       href: p.id > 0 ? productPath(p) : "/products",

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { api } from "@/lib/api";
-import { formatNumber, formatToman, toFa } from "@/lib/format";
+import { formatNumber, formatToman, productDisplayPrice, toFa } from "@/lib/format";
 import type { Product, Comment } from "@/lib/types";
 import Stars from "@/components/Stars";
 import BestSellersCarousel, { type CarouselCard } from "@/components/home/BestSellersCarousel";
@@ -414,7 +414,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           key: String(p.id),
           name: p.name,
           categoryName: p.categoryName,
-          priceLabel: formatToman(Math.min(p.finalPrice, ...p.plans.filter((x) => x.isActive).map((x) => x.finalPrice))),
+          priceLabel: formatToman(productDisplayPrice(p)),
           badge: p.featured ? "پرفروش" : "تحویل فوری",
           image: p.image,
           href: productPath(p),

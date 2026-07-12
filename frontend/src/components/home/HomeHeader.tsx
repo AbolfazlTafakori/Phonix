@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import type { SiteContent, Product } from "@/lib/types";
-import { formatToman } from "@/lib/format";
+import { formatToman, productDisplayPrice } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { api } from "@/lib/api";
@@ -96,7 +96,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
                   >
                     <img src={p.image} alt={p.name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
                     <span className="min-w-0 flex-1 truncate text-sm font-bold text-[var(--hl-ink)]">{p.name}</span>
-                    <span className="shrink-0 text-xs font-bold text-[var(--hl-red)]">{formatToman(p.finalPrice)}</span>
+                    <span className="shrink-0 text-xs font-bold text-[var(--hl-red)]">{formatToman(productDisplayPrice(p))}</span>
                   </Link>
                 </li>
               ))}

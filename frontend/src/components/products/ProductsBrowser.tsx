@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ProductCardImage from "@/components/ProductCardImage";
-import { formatNumber, formatToman } from "@/lib/format";
+import { formatNumber, formatToman, productDisplayPrice } from "@/lib/format";
 import type { Product, Category } from "@/lib/types";
 import { productPath } from "@/lib/seo";
 
@@ -95,7 +95,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function ProductCard({ p }: { p: Product }) {
   const rt = rating(p.id);
+  const display = productDisplayPrice(p);
   const discounted = p.discountPercent > 0;
+  const showStrike = discounted && p.price > display;
   const out = p.stock <= 0;
   return (
     <div className="group flex flex-col overflow-hidden rounded-[16px] border border-[var(--hl-card-border)] bg-[var(--hl-card)] transition duration-200 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-20px_rgba(239,35,60,0.28)]">
@@ -127,10 +129,10 @@ function ProductCard({ p }: { p: Product }) {
         </div>
 
         <div className="mt-3 flex flex-col items-center">
-          {discounted && (
+          {showStrike && (
             <span className="text-[11px] text-[var(--hl-muted)] line-through">{formatNumber(p.price)}</span>
           )}
-          <span className="text-[17px] font-black text-[var(--hl-ink)]">{formatToman(p.finalPrice)}</span>
+          <span className="text-[17px] font-black text-[var(--hl-ink)]">{formatToman(display)}</span>
         </div>
 
         <div className="mt-3 flex items-center gap-2">

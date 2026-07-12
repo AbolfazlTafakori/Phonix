@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { formatToman } from "@/lib/format";
+import { formatToman, productDisplayPrice } from "@/lib/format";
 import { PageTitle, Panel } from "@/components/account/Panel";
 import type { Product } from "@/lib/types";
 import { productPath } from "@/lib/seo";
@@ -60,7 +60,7 @@ export default function FavoritesPage() {
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-4">
                   <p className="text-sm font-bold text-white">{product.name}</p>
-                  <p className="mt-1 text-sm font-bold text-emerald-400">{formatToman(product.finalPrice)}</p>
+                  <p className="mt-1 text-sm font-bold text-emerald-400">{formatToman(productDisplayPrice(product))}</p>
                 </div>
               </Link>
               <button
