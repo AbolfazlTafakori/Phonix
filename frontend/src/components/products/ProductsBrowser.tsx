@@ -101,7 +101,7 @@ function ProductCard({ p }: { p: Product }) {
   const out = p.stock <= 0;
   return (
     <div className="group flex flex-col overflow-hidden rounded-[16px] border border-[var(--hl-card-border)] bg-[var(--hl-card)] transition duration-200 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-20px_rgba(239,35,60,0.28)]">
-      <div className="relative bg-[var(--hl-tile)] p-5">
+      <div className="relative bg-[var(--hl-tile)] px-5 pb-4 pt-11">
         <div className="absolute inset-x-3 top-3 flex items-start justify-between">
           {discounted ? (
             <span className="rounded-lg bg-[var(--hl-red)] px-2 py-1 text-[11px] font-black text-white">تخفیف {formatNumber(p.discountPercent)}٪</span>
@@ -110,8 +110,8 @@ function ProductCard({ p }: { p: Product }) {
           )}
           {p.featured && <span className="rounded-lg bg-[#fff1e8] px-2 py-1 text-[11px] font-black text-[#f2551f]">پرفروش</span>}
         </div>
-        <div className="grid h-24 place-items-center">
-          <ProductCardImage src={p.logo || p.image} alt={p.name} className="max-h-24 w-auto object-contain transition duration-300 group-hover:scale-105" />
+        <div className="grid h-36 place-items-center">
+          <ProductCardImage src={p.logo || p.image} alt={p.name} className="max-h-36 w-auto object-contain transition duration-300 group-hover:scale-105" />
         </div>
         {out && (
           <span className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-bold text-white">ناموجود</span>
