@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { formatToman, toFa } from "@/lib/format";
 import { orderStatusLabel } from "@/lib/labels";
 import { PageTitle, Panel } from "@/components/account/Panel";
+import DeliveryContent from "@/components/account/DeliveryContent";
 import { StatusBadge } from "@/components/admin/ui";
 import type { Order } from "@/lib/types";
 
@@ -123,15 +124,15 @@ export default function OrdersPage() {
                   return (
                     <div className="mt-4 space-y-3">
                       {deliveredUnits.map((u) => (
-                        <div key={u.id} className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                        <div key={u.id} className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
                           <div className="mb-2 flex items-center gap-2">
-                            <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-100 text-sm text-emerald-600">✓</span>
-                            <span className="text-sm font-bold text-emerald-700">
+                            <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
+                            <span className="text-sm font-bold text-emerald-600">
                               اطلاعات سرویس شما{multi ? ` — اکانت ${u.unitIndex}` : ""}
                             </span>
                             {u.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {u.deliveredAt}</span>}
                           </div>
-                          <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7 text-emerald-800">{u.deliveryContent}</pre>
+                          <DeliveryContent content={u.deliveryContent} />
                         </div>
                       ))}
                     </div>
@@ -139,13 +140,13 @@ export default function OrdersPage() {
                 }
                 if (o.deliveryContent) {
                   return (
-                    <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <div className="mt-4 rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
                       <div className="mb-2 flex items-center gap-2">
-                        <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-100 text-sm text-emerald-600">✓</span>
-                        <span className="text-sm font-bold text-emerald-700">اطلاعات سرویس شما</span>
+                        <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
+                        <span className="text-sm font-bold text-emerald-600">اطلاعات سرویس شما</span>
                         {o.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {o.deliveredAt}</span>}
                       </div>
-                      <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-7 text-emerald-800">{o.deliveryContent}</pre>
+                      <DeliveryContent content={o.deliveryContent} />
                     </div>
                   );
                 }
