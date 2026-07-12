@@ -1,13 +1,35 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ProductCardImage from "@/components/ProductCardImage";
 import { formatNumber, formatToman } from "@/lib/format";
 import type { Product, Category } from "@/lib/types";
 import { productPath } from "@/lib/seo";
 
-const PAGE_SIZE = 12;
+// Each page shows exactly ROWS_PER_PAGE rows; how many products that is depends on how many
+// columns the responsive grid renders at the current viewport (2 / 3 / 4), so a page holds
+// 6, 9 or 12 products and the rest flow to the next page.
+const ROWS_PER_PAGE = 3;
+
+// Column count for the product grid, matching the Tailwind classes
+// `grid-cols-2 sm:grid-cols-3 xl:grid-cols-4` (sm=640px, xl=1280px).
+function useGridColumns(): number {
+  const [cols, setCols] = useState(4); // desktop-first default so SSR and first client render agree
+  useEffect(() => {
+    const sm = window.matchMedia("(min-width: 640px)");
+    const xl = window.matchMedia("(min-width: 1280px)");
+    const update = () => setCols(xl.matches ? 4 : sm.matches ? 3 : 2);
+    update();
+    sm.addEventListener("change", update);
+    xl.addEventListener("change", update);
+    return () => {
+      sm.removeEventListener("change", update);
+      xl.removeEventListener("change", update);
+    };
+  }, []);
+  return cols;
+}
 const PRICE_MAX = 20_000_000;
 
 // The catalog has no ratings field yet, so derive a stable pseudo-rating from the id
@@ -183,9 +205,14 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
     return list;
   }, [products, selectedCats, maxPrice, inStockOnly, featuredOnly, discountOnly, sort]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const cols = useGridColumns();
+  const pageSize = cols * ROWS_PER_PAGE;
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const pageClamped = Math.min(page, totalPages);
-  const pageItems = filtered.slice((pageClamped - 1) * PAGE_SIZE, pageClamped * PAGE_SIZE);
+  const pageItems = filtered.slice((pageClamped - 1) * pageSize, pageClamped * pageSize);
+  // Promo banners sit after the first two rows; the remaining row(s) render below them,
+  // keeping the layout at exactly three product rows on every breakpoint.
+  const beforeBanners = cols * 2;
 
   const anyFilter = selectedCats.size > 0 || maxPrice < PRICE_MAX || featuredOnly || discountOnly || !inStockOnly || service.size > 0 || delivery.size !== 1 || !delivery.has("تحویل آنی");
   const clearAll = () => {
@@ -304,7 +331,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
           ) : (
             <>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                {pageItems.slice(0, 8).map((p) => (
+                {pageItems.slice(0, beforeBanners).map((p) => (
                   <ProductCard key={p.id} p={p} />
                 ))}
               </div>
@@ -322,9 +349,9 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
               </div>
 
               {/* Remaining products below the banners */}
-              {pageItems.length > 8 && (
+              {pageItems.length > beforeBanners && (
                 <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                  {pageItems.slice(8).map((p) => (
+                  {pageItems.slice(beforeBanners).map((p) => (
                     <ProductCard key={p.id} p={p} />
                   ))}
                 </div>
