@@ -142,13 +142,13 @@ export default function PurchaseCard({ product }: { product: Product }) {
                     ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }
                     : { borderColor: "var(--ac-panel-border)" }}
                 >
-                  {/* right group: text + icon */}
+                  {/* right group (RTL): icon first so it sits on the right, then the text */}
                   <span className="flex items-center gap-3">
+                    <span style={{ color: active ? "#F2551F" : "var(--ac-icon)" }}>{TYPE_ICON(t)}</span>
                     <span className="leading-tight">
                       <span className="block text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{t}</span>
                       <span className="mt-0.5 block text-[11px]" style={{ color: "var(--ac-muted)" }}>{TYPE_DESC[t] ?? "اشتراک دیجیتال"}</span>
                     </span>
-                    <span style={{ color: active ? "#F2551F" : "var(--ac-icon)" }}>{TYPE_ICON(t)}</span>
                   </span>
                   {/* far left: radio indicator */}
                   <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border-2" style={{ borderColor: active ? "#F2551F" : "var(--ac-panel-border)" }}>
