@@ -248,7 +248,7 @@ export default function CheckoutPage() {
             ? "مبلغ از کیف پول شما کسر شد و سفارش به مرحله‌ی آماده‌سازی رفت."
             : "سفارش شما ثبت شد و رسید پرداخت شما در انتظار تأیید پشتیبانی است؛ پس از تأیید، سفارش به مرحله‌ی آماده‌سازی می‌رود."}
         </p>
-        <Link href="/account/orders" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
+        <Link href="/account/orders" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#ff7a2e] to-[#f0392c] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
           مشاهده سفارش‌های من
         </Link>
       </div>
@@ -260,7 +260,7 @@ export default function CheckoutPage() {
       <div className="mx-auto max-w-[640px] px-5 py-20 text-center">
         <h1 className="text-2xl font-bold text-[var(--hl-ink)]">ابتدا وارد شوید</h1>
         <p className="mt-2 text-sm text-[var(--hl-ink-2)]">برای ثبت سفارش باید وارد حساب کاربری خود شوید.</p>
-        <Link href="/login" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
+        <Link href="/login" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#ff7a2e] to-[#f0392c] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
           ورود / ثبت‌نام
         </Link>
       </div>
@@ -271,7 +271,7 @@ export default function CheckoutPage() {
     return (
       <div className="mx-auto max-w-[640px] px-5 py-20 text-center">
         <h1 className="text-2xl font-bold text-[var(--hl-ink)]">سبد خرید خالی است</h1>
-        <Link href="/products" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
+        <Link href="/products" className="mt-6 inline-block rounded-xl bg-gradient-to-l from-[#ff7a2e] to-[#f0392c] px-8 py-3 text-sm font-bold text-white transition hover:brightness-110">
           مشاهده محصولات
         </Link>
       </div>
@@ -360,9 +360,9 @@ export default function CheckoutPage() {
               <button
                 type="button"
                 onClick={() => setUseWallet((v) => !v)}
-                className={`mb-3 flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-right transition ${useWallet ? "border-[#e60053]/50 bg-[#e60053]/10" : "border-[var(--hl-border)] hover:bg-[var(--hl-border)]/40"}`}
+                className={`mb-3 flex w-full items-center gap-3 rounded-xl border px-4 py-3 text-right transition ${useWallet ? "border-[#ef233c]/50 bg-[#ef233c]/10" : "border-[var(--hl-border)] hover:bg-[var(--hl-border)]/40"}`}
               >
-                <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${useWallet ? "bg-[#e60053]" : "bg-[var(--hl-border)]"}`}>
+                <span className={`relative h-6 w-11 shrink-0 rounded-full transition ${useWallet ? "bg-[#ef233c]" : "bg-[var(--hl-border)]"}`}>
                   <span className={`absolute top-0.5 h-5 w-5 rounded-full hl-card transition-all ${useWallet ? "right-0.5" : "right-[22px]"}`} />
                 </span>
                 <span className="flex-1">
@@ -381,8 +381,8 @@ export default function CheckoutPage() {
                     <p className="text-sm text-[var(--hl-muted)]">روش پرداختی تعریف نشده است.</p>
                   ) : (
                     methods.map((m) => (
-                      <label key={m.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${methodId === m.id ? "border-[#e60053]/50 bg-[#e60053]/10" : "border-[var(--hl-border)] hover:bg-[var(--hl-border)]/40"}`}>
-                        <input type="radio" name="method" checked={methodId === m.id} onChange={() => setMethodId(m.id)} className="accent-[#e60053]" />
+                      <label key={m.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${methodId === m.id ? "border-[#ef233c]/50 bg-[#ef233c]/10" : "border-[var(--hl-border)] hover:bg-[var(--hl-border)]/40"}`}>
+                        <input type="radio" name="method" checked={methodId === m.id} onChange={() => setMethodId(m.id)} className="accent-[#ef233c]" />
                         <div>
                           <p className="text-sm font-bold text-[var(--hl-ink)]">{m.title}</p>
                           {m.instructions && <p className="text-xs text-[var(--hl-muted)]">{m.instructions}</p>}
@@ -433,7 +433,7 @@ export default function CheckoutPage() {
                   onChange={(e) => setCodeInput(e.target.value)}
                   dir="ltr"
                   placeholder="مثلاً WELCOME10"
-                  className="h-11 flex-1 rounded-xl border border-[var(--hl-border)] hl-card px-3 text-left text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#3e3af2] placeholder:text-[var(--hl-muted)]"
+                  className="h-11 flex-1 rounded-xl border border-[var(--hl-border)] hl-card px-3 text-left text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#f0392c] placeholder:text-[var(--hl-muted)]"
                 />
                 <button
                   onClick={applyCode}
@@ -500,7 +500,7 @@ export default function CheckoutPage() {
                 type="checkbox"
                 checked={rulesAccepted}
                 onChange={(e) => setRulesAccepted(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-[#e60053]"
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#ef233c]"
               />
               <span className="leading-6">تمام قوانین مربوط به محصولات سبد خریدم را خوانده‌ام و می‌پذیرم.</span>
             </label>
@@ -509,7 +509,7 @@ export default function CheckoutPage() {
           <button
             onClick={placeOrder}
             disabled={placing || items.length === 0 || !emailVerified || overLevelItems.length > 0 || infoIncomplete || rulesIncomplete || (needsMethod && (methodId === null || !isCardToCardComplete(pay)))}
-            className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+            className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-gradient-to-l from-[#ff7a2e] to-[#f0392c] text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
           >
             {placing ? "در حال ثبت..." : "پرداخت و ثبت سفارش"}
           </button>

@@ -14,7 +14,7 @@ export default function CartPage() {
       {!ready ? null : items.length === 0 ? (
         <div className="hl-card rounded-2xl p-12 text-center">
           <p className="text-[var(--hl-ink-2)]">سبد خرید شما خالی است.</p>
-          <Link href="/products" className="hl-cta mt-4 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 py-2.5 text-sm font-bold text-white">
+          <Link href="/products" className="hl-cta mt-4 inline-block rounded-xl bg-gradient-to-l from-[#ff7a2e] to-[#f0392c] px-6 py-2.5 text-sm font-bold text-white">
             مشاهده محصولات
           </Link>
         </div>
@@ -52,7 +52,7 @@ export default function CartPage() {
               <span className="text-lg font-bold text-emerald-500">{formatToman(total)}</span>
             </div>
             <p className="mt-2 text-[11px] leading-5 text-[var(--hl-ink-2)]">مالیات بر ارزش افزوده و کارمزد درگاه در مرحله پرداخت محاسبه می‌شود.</p>
-            <Link href="/checkout" className="hl-cta mt-5 flex h-12 items-center justify-center rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] text-sm font-bold text-white">
+            <Link href="/checkout" className="hl-cta mt-5 flex h-12 items-center justify-center rounded-xl bg-gradient-to-l from-[#ff7a2e] to-[#f0392c] text-sm font-bold text-white">
               ادامه و پرداخت
             </Link>
           </div>
