@@ -19,19 +19,19 @@ Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
 
 ## Overview
 
-Phoenix Store is a production-grade storefront and back-office platform built around a single guiding principle: **maximum throughput with minimum trust assumptions.** It pairs a modern Next.js 16 / React 19 frontend with a hardened ASP.NET Core 8 API, backed by a lock-free single-file persistence engine designed to survive extreme concurrency without a traditional database.
+Phoenix Store is a production-grade storefront and back-office platform built around a single guiding principle: **maximum throughput with minimum trust assumptions.** It pairs a modern Next.js 16 / React 19 frontend with a hardened ASP.NET Core 8 API, backed by an embedded SQLite engine (WAL, serialized writes) reached through a single `IDataStore` abstraction.
 
-The result is a system that boots from a single binary plus one `store.json`, deploys to a bare Ubuntu VPS in minutes with one interactive command, scales to high request volumes on commodity hardware, and treats every privileged operation as hostile until cryptographically proven otherwise.
+The result is a system that boots from a single binary plus one SQLite file, deploys to a bare Ubuntu VPS in minutes with one interactive command, scales to high request volumes on commodity hardware, and treats every privileged operation as hostile until cryptographically proven otherwise.
 
 ---
 
 ## ✨ Core Highlights
 
-### ⚡ Lock-Free High-Throughput Persistence
-- **Single-file JSON store** (`store.json`) — no external database, no connection pool, backup-bot friendly.
-- **Atomic writes** via write-to-temp + atomic rename, eliminating torn-write / partial-state corruption.
-- **Copy-on-write reads** — readers operate on an immutable in-memory snapshot with zero locking, so catalog endpoints stay contention-free under sustained load.
-- Designed and validated against multi-threaded stress testing targeting **200,000 RPM**.
+### ⚡ Embedded High-Throughput Persistence
+- **Single-file SQLite** in WAL mode — no external database server, no connection pool, backup-bot friendly.
+- **ACID writes** through `IMMEDIATE` transactions, eliminating torn-write / partial-state corruption.
+- **`IDataStore` abstraction** — persistence is swappable; a legacy JSON snapshot (`store.json`) is imported once to seed an empty database.
+- Designed and validated against multi-threaded concurrency stress testing.
 
 ### 🛡️ Zero-Trust Security Architecture
 - **Triple-verify database restore** — a restore requires *all three*: the backup file, the `PHONIX_BACKUP_KEY` secret, **and** a valid TOTP 2FA code. No single compromised factor is sufficient.
@@ -57,7 +57,7 @@ The result is a system that boots from a single binary plus one `store.json`, de
 |--------------|----------------------------------------------|
 | Frontend     | Next.js 16, React 19, Tailwind CSS v4        |
 | Backend      | ASP.NET Core 8 (C# 12)                       |
-| Persistence  | Single-file JSON — atomic writes, COW reads  |
+| Persistence  | Embedded SQLite (WAL) via `IDataStore`       |
 | Logging      | Serilog (structured audit + app logs)        |
 | Ops          | `install.sh` installer · `p-ui` CLI          |
 
@@ -69,7 +69,7 @@ The result is a system that boots from a single binary plus one `store.json`, de
 Phonix/
 ├── backend/
 │   └── src/Phonix.Api/        # ASP.NET Core 8 API, controllers, security middleware
-├── web/                       # Next.js 16 storefront & admin
+├── frontend/                  # Next.js 16 storefront & admin
 ├── install.sh                # Interactive Linux installer
 └── README.md
 ```
@@ -91,7 +91,7 @@ dotnet run
 
 ### Frontend
 ```bash
-cd web
+cd frontend
 npm install
 npm run dev
 ```
