@@ -8,7 +8,7 @@ export default async function MaintenancePage() {
 
   return (
     <main className="relative grid min-h-screen place-items-center overflow-hidden px-6 text-center" style={{ background: "var(--chat-surface)" }}>
-      <div className="pointer-events-none absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-[#e60053]/20 blur-[130px]" />
+      <div className="pointer-events-none absolute -top-32 left-1/4 h-96 w-96 rounded-full bg-[#ef233c]/20 blur-[130px]" />
       <div className="pointer-events-none absolute -bottom-32 right-1/4 h-96 w-96 rounded-full bg-[#6d28d9]/20 blur-[130px]" />
 
       <div className="relative z-10 w-full max-w-xl">
@@ -22,7 +22,7 @@ export default async function MaintenancePage() {
         </div>
 
         <div className="mx-auto mb-8 grid h-24 w-24 place-items-center rounded-3xl" style={{ border: "1px solid var(--chat-border)", background: "var(--chat-surface-2)" }}>
-          <svg className="h-12 w-12 animate-spin text-[#e60053]" style={{ animationDuration: "4s" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="h-12 w-12 animate-spin text-[#ef233c]" style={{ animationDuration: "4s" }} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="3" />
             <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 7 19.2l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0-1.2-2.9H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.8 7l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 2.9 1.2l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" />
           </svg>

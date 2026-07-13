@@ -42,7 +42,7 @@ export default function ReviewForm({ productId }: { productId: number }) {
         <p className="text-sm leading-7 text-[var(--hl-ink-2)]">برای ثبت نظر و امتیاز ابتدا باید وارد حساب کاربری خود شوید.</p>
         <Link
           href="/login"
-          className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-6 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
+          className="mt-4 inline-block rounded-xl bg-gradient-to-l from-[#ff7a2e] to-[#f0392c] px-6 py-2.5 text-sm font-bold text-white transition hover:brightness-110"
         >
           ورود / ثبت‌نام
         </Link>
@@ -89,7 +89,7 @@ export default function ReviewForm({ productId }: { productId: number }) {
         onChange={(e) => setBody(e.target.value)}
         rows={4}
         placeholder="نظر خود را درباره این محصول بنویسید..."
-        className="w-full rounded-xl border border-[var(--hl-border)] hl-card px-4 py-3 text-sm text-[var(--hl-ink)] outline-none focus:border-[#e60053]"
+        className="w-full rounded-xl border border-[var(--hl-border)] hl-card px-4 py-3 text-sm text-[var(--hl-ink)] outline-none focus:border-[#f0392c]"
       />
 
       {error && <p className="mt-2 text-sm text-rose-400">{error}</p>}
@@ -97,7 +97,7 @@ export default function ReviewForm({ productId }: { productId: number }) {
       <button
         onClick={submit}
         disabled={sending}
-        className="mt-4 h-11 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+        className="mt-4 h-11 rounded-xl bg-gradient-to-l from-[#ff7a2e] to-[#f0392c] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
       >
         {sending ? "در حال ارسال..." : "ارسال نظر"}
       </button>

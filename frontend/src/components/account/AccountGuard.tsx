@@ -15,7 +15,7 @@ export default function AccountGuard({ children }: { children: React.ReactNode }
   if (!ready || !user) {
     return (
       <div className="grid min-h-[50vh] place-items-center">
-        <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-[#e60053]" />
+        <span className="inline-block h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-[#3a64f2]" />
       </div>
     );
   }

@@ -66,14 +66,14 @@ export default function PlanInfoForm({
         {plan.inputFields.map((f) => (
           <div key={f.label}>
             <label className="mb-1.5 block text-sm text-[var(--hl-ink-2)]">
-              {f.label} {f.required && <span className="text-[#e60053]">*</span>}
+              {f.label} {f.required && <span className="text-[#ef233c]">*</span>}
             </label>
             {f.type === "textarea" ? (
               <textarea
                 value={value.values[f.label] ?? ""}
                 onChange={(e) => setField(f.label, e.target.value)}
                 rows={3}
-                className="w-full resize-none rounded-xl border border-[var(--hl-border)] hl-card px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#e60053]/50"
+                className="w-full resize-none rounded-xl border border-[var(--hl-border)] hl-card px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#f0392c]/50"
               />
             ) : (
               <input
@@ -81,7 +81,7 @@ export default function PlanInfoForm({
                 dir={f.type === "email" || f.type === "phone" || f.type === "password" ? "ltr" : "rtl"}
                 value={value.values[f.label] ?? ""}
                 onChange={(e) => setField(f.label, e.target.value)}
-                className="w-full rounded-xl border border-[var(--hl-border)] hl-card px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#e60053]/50"
+                className="w-full rounded-xl border border-[var(--hl-border)] hl-card px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#f0392c]/50"
               />
             )}
           </div>
@@ -95,7 +95,7 @@ export default function PlanInfoForm({
               onChange={(e) => onChange({ ...value, note: e.target.value })}
               rows={2}
               placeholder="اگر نکته‌ای دارید بنویسید…"
-              className="w-full resize-none rounded-xl border border-[var(--hl-border)] hl-card px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#e60053]/50 placeholder:text-[var(--hl-muted)]"
+              className="w-full resize-none rounded-xl border border-[var(--hl-border)] hl-card px-3.5 py-2.5 text-sm text-[var(--hl-ink)] outline-none transition focus:border-[#f0392c]/50 placeholder:text-[var(--hl-muted)]"
             />
           </div>
         )}
