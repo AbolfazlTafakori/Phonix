@@ -79,25 +79,26 @@ export default async function CategoriesPage() {
             <span className="font-medium text-[var(--hl-ink)]">دسته‌بندی‌ها</span>
           </nav>
 
-          <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:gap-6 xl:gap-12">
-            {/* mobile hero image: the shield reads well centered & smaller on phones */}
-            <div className="shrink-0 lg:w-[44%] xl:w-[48%]">
-              <img fetchPriority="high" decoding="async" src="/figma/catpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-full lg:max-w-[620px] lg:-translate-x-20 xl:max-w-[680px] xl:-translate-x-32" />
+          <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 xl:flex-row-reverse xl:items-center xl:gap-10">
+            {/* Below xl the shield reads best centered & sized; only at xl+ is there room for the
+                three-column row, where the image is capped so the middle text column never crushes. */}
+            <div className="shrink-0 xl:w-[38%] xl:max-w-[520px]">
+              <img fetchPriority="high" decoding="async" src="/figma/catpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 xl:w-full xl:max-w-[520px] xl:-translate-x-8" />
             </div>
 
-            <div className="flex-1 text-center lg:text-right">
+            <div className="flex-1 text-center xl:text-right">
               <p className="text-[26px] font-black text-[var(--hl-red)] sm:text-[34px] xl:text-[40px]">دسته‌بندی</p>
               <h1 className="mt-1 text-[22px] font-extrabold leading-[1.5] text-[var(--hl-ink)] sm:text-[30px] xl:text-[36px]">
                 خدمات و محصولات فونیکس وریفای
               </h1>
-              <p className="mx-auto mt-3 max-w-md text-[14px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[16px] sm:leading-8 lg:mx-0">
+              <p className="mx-auto mt-3 max-w-md text-[14px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[16px] sm:leading-8 xl:mx-0">
                 همه خدمات دیجیتال موردنیازت را در دسته‌بندی‌های متنوع
                 <br className="hidden sm:inline" />
                 به صورت امن، سریع و با بهترین قیمت پیدا کن.
               </p>
             </div>
 
-            <div className="w-full max-w-sm shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[var(--hl-tint)] p-5 pb-5 shadow-sm sm:p-6 lg:w-[280px] lg:max-w-none xl:w-[310px]">
+            <div className="w-full max-w-sm shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[var(--hl-tint)] p-5 pb-5 shadow-sm sm:p-6 xl:w-[300px] xl:max-w-none">
               <h3 className="text-center text-[20px] font-black leading-[1.6] text-[var(--hl-ink)]">دسترسی آسان به<br /><span className="text-[24px]">خدمات دیجیتال</span></h3>
               <div className="mt-6 flex items-end gap-1">
                 <ul className="flex-1 space-y-6">
