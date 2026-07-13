@@ -37,7 +37,9 @@ html {
 
 body {
   font-family: var(--font-vazir), system-ui, sans-serif;
-  overflow-x: hidden;
+  /* `clip` (not `hidden`) prevents horizontal scroll WITHOUT turning <body> into a scroll container.
+     `overflow-x: hidden` forces overflow-y to auto, which breaks every `position: sticky` on the page. */
+  overflow-x: clip;
 }
 
 /* Gradient text used for blog titles and some headings */

@@ -7,7 +7,10 @@ import HomeHeader from "./HomeHeader";
 export default async function SiteHeader() {
   const content = await getSiteContent();
   return (
-    <div className="home-light">
+    // `contents` makes this wrapper generate no box, so the sticky <header> inside HomeHeader is bounded by
+    // the page-tall layout column (not this short banner+header group) and actually pins while scrolling.
+    // The .home-light custom properties still cascade to the children via inheritance.
+    <div className="home-light contents">
       <TopBar />
       <HomeHeader brand={content.brand} searchPlaceholder="جستجو در بین هزاران محصول..." />
     </div>
