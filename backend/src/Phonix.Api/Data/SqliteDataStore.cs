@@ -1273,7 +1273,7 @@ LIMIT 1;",
     public int CountProducts(int categoryId)
     {
         using var conn = OpenConnection();
-        return conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Products WHERE CategoryId = @categoryId", new { categoryId });
+        return conn.ExecuteScalar<int>("SELECT COUNT(1) FROM Products WHERE CategoryId = @categoryId AND IsActive = 1", new { categoryId });
     }
     public Category AddCategory(Category category) { InsertJson("Categories", category, (c, id) => c.Id = id); return category; }
     public bool UpdateCategory(Category category)

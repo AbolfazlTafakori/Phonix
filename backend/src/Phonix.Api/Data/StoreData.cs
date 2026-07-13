@@ -215,7 +215,7 @@ public partial class StoreData : IDataStore
 
     public Category? GetCategory(int id) => _categoriesView.FirstOrDefault(c => c.Id == id);
 
-    public int CountProducts(int categoryId) => _productsView.Count(p => p.CategoryId == categoryId);
+    public int CountProducts(int categoryId) => _productsView.Count(p => p.CategoryId == categoryId && p.IsActive);
 
     public Category AddCategory(Category category)
     {

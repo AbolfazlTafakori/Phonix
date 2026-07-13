@@ -174,6 +174,10 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
     return m;
   }, [products]);
 
+  // Real counts for the status filters, derived from the catalog rather than hardcoded.
+  const discountCount = useMemo(() => products.filter((p) => p.discountPercent > 0).length, [products]);
+  const featuredCount = useMemo(() => products.filter((p) => p.featured).length, [products]);
+
   const toggleCat = (id: number) => {
     setPage(1);
     setSelectedCats((prev) => {
@@ -248,16 +252,16 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
 
       <Section title="نوع سرویس">
         <div className="flex flex-col">
-          {serviceTypes.map((s, i) => (
-            <CheckRow key={s} label={s} count={[72, 34, 22, 28][i]} checked={service.has(s)} onClick={() => toggleSet(setService, s)} />
+          {serviceTypes.map((s) => (
+            <CheckRow key={s} label={s} checked={service.has(s)} onClick={() => toggleSet(setService, s)} />
           ))}
         </div>
       </Section>
 
       <Section title="زمان تحویل">
         <div className="flex flex-col">
-          {deliveryTimes.map((s, i) => (
-            <CheckRow key={s} label={s} count={[72, 56, 34, 6][i]} checked={delivery.has(s)} onClick={() => toggleSet(setDelivery, s)} />
+          {deliveryTimes.map((s) => (
+            <CheckRow key={s} label={s} checked={delivery.has(s)} onClick={() => toggleSet(setDelivery, s)} />
           ))}
         </div>
       </Section>
@@ -265,8 +269,8 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
       <Section title="موجودی / وضعیت">
         <div className="flex flex-col">
           <CheckRow label="فقط موجود" checked={inStockOnly} onClick={() => { setInStockOnly((v) => !v); setPage(1); }} />
-          <CheckRow label="پیشنهاد ویژه" count={34} checked={discountOnly} onClick={() => { setDiscountOnly((v) => !v); setPage(1); }} />
-          <CheckRow label="پرفروش‌ترین‌ها" count={28} checked={featuredOnly} onClick={() => { setFeaturedOnly((v) => !v); setPage(1); }} />
+          <CheckRow label="پیشنهاد ویژه" count={discountCount} checked={discountOnly} onClick={() => { setDiscountOnly((v) => !v); setPage(1); }} />
+          <CheckRow label="پرفروش‌ترین‌ها" count={featuredCount} checked={featuredOnly} onClick={() => { setFeaturedOnly((v) => !v); setPage(1); }} />
         </div>
       </Section>
 
