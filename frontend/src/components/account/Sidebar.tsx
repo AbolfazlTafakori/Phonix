@@ -11,19 +11,20 @@ import { formatToman, formatNumber } from "@/lib/format";
 import MenuIcon from "./MenuIcon";
 
 function KycBadge({ level }: { level: number }) {
+  // Translucent tints keep these level badges readable on both the light and dark theme.
   if (level >= 2) return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E4D3FF] bg-[#F2E9FF] px-3 py-1.5 text-xs font-bold text-[#8A52FF]">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#8A52FF]/30 bg-[#8A52FF]/12 px-3 py-1.5 text-xs font-bold text-[#8A52FF]">
       <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5"><path d="M8 1l1.9 3.8 4.1.6-3 2.9.7 4.1L8 10.4l-3.7 2 .7-4.1-3-2.9 4.1-.6z"/></svg>
       سطح ۲ · تأیید شده
     </span>
   );
   if (level === 1) return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-600">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/12 px-3 py-1.5 text-xs font-bold text-amber-600">
       سطح ۱ · در حال بررسی
     </span>
   );
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-500">
+    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/12 px-3 py-1.5 text-xs font-bold text-rose-500">
       سطح ۰ · احراز نشده
     </span>
   );

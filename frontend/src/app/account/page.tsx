@@ -12,21 +12,22 @@ import type { Order, Ticket } from "@/lib/types";
 
 function orderStatusBadge(s: Order["status"]): { text: string; bg: string; color: string } {
   const m: Record<Order["status"], { text: string; bg: string; color: string }> = {
-    Completed:       { text: "تحویل شده",      bg: "#EAF9F1", color: "#22B573" },
-    Preparing:       { text: "در حال پردازش",  bg: "#EDF4FF", color: "#4C8DFF" },
-    PendingApproval: { text: "در انتظار تأیید", bg: "#FFF6E8", color: "#F4A43A" },
-    Cancelled:       { text: "لغو شده",         bg: "#FFF0F0", color: "#E05050" },
+    // Translucent tints so status pills read correctly on both the light and dark theme.
+    Completed:       { text: "تحویل شده",      bg: "rgba(34,181,115,0.14)", color: "#22B573" },
+    Preparing:       { text: "در حال پردازش",  bg: "rgba(76,141,255,0.14)", color: "#4C8DFF" },
+    PendingApproval: { text: "در انتظار تأیید", bg: "rgba(244,164,58,0.16)", color: "#F4A43A" },
+    Cancelled:       { text: "لغو شده",         bg: "rgba(224,80,80,0.14)",  color: "#E05050" },
   };
-  return m[s] ?? { text: s, bg: "#F5F5F5", color: "#777" };
+  return m[s] ?? { text: s, bg: "rgba(140,140,140,0.15)", color: "var(--ac-muted)" };
 }
 
 function ticketStatusBadge(s: Ticket["status"]): { text: string; bg: string; color: string } {
   const m: Record<Ticket["status"], { text: string; bg: string; color: string }> = {
-    Open:     { text: "در حال بررسی",     bg: "#FFF6E8", color: "#F4A43A" },
-    Answered: { text: "پاسخ داده شده",    bg: "#EAF9F1", color: "#22B573" },
-    Closed:   { text: "بسته شده",          bg: "#F5F5F5", color: "#888"    },
+    Open:     { text: "در حال بررسی",     bg: "rgba(244,164,58,0.16)", color: "#F4A43A" },
+    Answered: { text: "پاسخ داده شده",    bg: "rgba(34,181,115,0.14)", color: "#22B573" },
+    Closed:   { text: "بسته شده",          bg: "rgba(140,140,140,0.15)", color: "var(--ac-muted)" },
   };
-  return m[s] ?? { text: s, bg: "#F5F5F5", color: "#777" };
+  return m[s] ?? { text: s, bg: "rgba(140,140,140,0.15)", color: "var(--ac-muted)" };
 }
 
 const PRODUCT_LOGOS: Record<string, string> = {
@@ -608,18 +609,18 @@ export default function AccountDashboard() {
         className="flex flex-col items-center gap-5 overflow-hidden rounded-[18px] p-5 text-center transition-all duration-200
                    md:grid md:h-[112px] md:grid-cols-[220px_1fr_260px] md:p-[18px_24px] md:text-right"
         style={{
-          background: "#FFFFFF",
-          border: "1.5px solid #F2B89E",
+          background: "var(--ac-panel-bg)",
+          border: "1.5px solid var(--ac-panel-border)",
           borderRadius: "18px",
-          boxShadow: "0 12px 32px rgba(166, 102, 45, 0.08)",
+          boxShadow: "var(--ac-panel-shadow)",
         }}
       >
         {/* Right: text */}
         <div>
-          <h3 className="text-[20px] font-black md:text-[22px]" style={{ color: "#1F1A17" }}>
+          <h3 className="text-[20px] font-black md:text-[22px]" style={{ color: "var(--ac-title)" }}>
             نیاز به کمک دارید؟
           </h3>
-          <p className="mt-0.5 text-[13px] md:text-[14px]" style={{ color: "#6C5F54" }}>
+          <p className="mt-0.5 text-[13px] md:text-[14px]" style={{ color: "var(--ac-muted)" }}>
             تیم پشتیبانی ما ۲۴/۷ آماده پاسخگویی به شماست.
           </p>
         </div>
@@ -635,7 +636,7 @@ export default function AccountDashboard() {
             {/* inner circle */}
             <div
               className="relative flex h-[70px] w-[70px] items-center justify-center rounded-full"
-              style={{ background: "#FFF1E8" }}
+              style={{ background: "var(--ac-stat-icon-orange-bg)" }}
             >
               <svg viewBox="0 0 24 24" fill="none" stroke="#FF6A2B" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className="h-8 w-8">
                 <path d="M3 18v-6a9 9 0 0118 0v6" />
@@ -651,17 +652,17 @@ export default function AccountDashboard() {
           <Link
             href="/account/tickets"
             className="group flex h-12 min-w-[180px] items-center justify-center gap-2 rounded-xl border text-[15px] font-bold transition-all duration-200"
-            style={{ background: "#FFFFFF", border: "1.5px solid #F2B89E", color: "#F2551F" }}
+            style={{ background: "var(--ac-btn-secondary-bg)", border: "1.5px solid var(--ac-panel-border)", color: "#F2551F" }}
             onMouseEnter={(e) => {
               const el = e.currentTarget as HTMLElement;
-              el.style.background = "#FFF8F3";
+              el.style.background = "var(--ac-menu-hover)";
               el.style.borderColor = "#FF9A73";
               el.style.color = "#FF3D2E";
             }}
             onMouseLeave={(e) => {
               const el = e.currentTarget as HTMLElement;
-              el.style.background = "#FFFFFF";
-              el.style.borderColor = "#F2B89E";
+              el.style.background = "var(--ac-btn-secondary-bg)";
+              el.style.borderColor = "var(--ac-panel-border)";
               el.style.color = "#F2551F";
             }}
           >
