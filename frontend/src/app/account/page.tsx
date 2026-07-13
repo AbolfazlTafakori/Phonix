@@ -156,9 +156,103 @@ function Ico({ paths, stroke = "currentColor", className = "" }: { paths: string
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
+// Account details card: shows username / email / phone and lets the user edit them inline (uses the
+// existing PUT /account/me). Brought back from the previous theme, placed above the completion card.
+type ProfileFields = { name: string; username: string; email: string; phone: string; emailVerified?: boolean };
+function AccountInfoCard({ me, onSaved }: { me: ProfileFields | null; onSaved: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState("");
+  const [form, setForm]       = useState({ name: "", username: "", email: "", phone: "" });
+
+  useEffect(() => {
+    if (me && !editing) setForm({ name: me.name, username: me.username, email: me.email, phone: me.phone });
+  }, [me, editing]);
+
+  async function save() {
+    setSaving(true); setErr("");
+    try {
+      await api.account.updateMe(form);
+      await onSaved();
+      setEditing(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "ذخیرهٔ اطلاعات ناموفق بود.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const inputCls = "h-10 w-full rounded-lg border px-3 text-[13px] outline-none";
+  const inputStyle = { borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-title)" } as React.CSSProperties;
+
+  const rows: { label: string; key: keyof typeof form; value: string; ltr?: boolean; badge?: React.ReactNode }[] = [
+    { label: "نام و نام خانوادگی", key: "name", value: me?.name || "—" },
+    { label: "نام کاربری", key: "username", value: me?.username ? `@${me.username}` : "—", ltr: true },
+    {
+      label: "ایمیل", key: "email", value: me?.email || "—", ltr: true,
+      badge: me?.email ? (
+        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${me.emailVerified ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"}`}>
+          {me.emailVerified ? "تأییدشده" : "تأیید نشده"}
+        </span>
+      ) : null,
+    },
+    { label: "شماره تماس", key: "phone", value: me?.phone || "—", ltr: true },
+  ];
+
+  return (
+    <Card>
+      <div className="p-6">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Ico paths={I.user} stroke="#FF6A2B" className="h-5 w-5 shrink-0" />
+            <h3 className="text-[18px] font-black md:text-[20px]" style={{ color: "var(--ac-title)" }}>مشخصات حساب</h3>
+          </div>
+          {!editing && (
+            <button onClick={() => setEditing(true)} className="flex h-9 items-center gap-1.5 rounded-lg px-3 text-[13px] font-bold text-white transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
+              <Ico paths={I.edit} className="h-4 w-4" /> ویرایش
+            </button>
+          )}
+        </div>
+
+        {editing ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(["name", "username", "email", "phone"] as const).map((k) => (
+              <label key={k} className="block">
+                <span className="mb-1 block text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>
+                  {k === "name" ? "نام و نام خانوادگی" : k === "username" ? "نام کاربری" : k === "email" ? "ایمیل" : "شماره تماس"}
+                </span>
+                <input value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} dir={k === "name" ? "rtl" : "ltr"} className={inputCls} style={inputStyle} />
+              </label>
+            ))}
+            {err && <p className="text-[12px] font-bold text-rose-500 sm:col-span-2">{err}</p>}
+            <div className="flex gap-2 sm:col-span-2">
+              <button onClick={save} disabled={saving} className="flex h-10 items-center gap-2 rounded-lg px-6 text-[13px] font-bold text-white transition hover:brightness-105 disabled:opacity-60" style={{ background: "var(--ac-btn)" }}>
+                {saving ? "در حال ذخیره…" : "ذخیره تغییرات"}
+              </button>
+              <button onClick={() => { setEditing(false); setErr(""); }} className="h-10 rounded-lg border px-6 text-[13px] font-bold" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)" }}>انصراف</button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-x-6 gap-y-3.5 sm:grid-cols-2">
+            {rows.map((r) => (
+              <div key={r.label} className="flex items-center justify-between gap-3 border-b pb-2.5" style={{ borderColor: "var(--ac-divider)" }}>
+                <span className="text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>{r.label}</span>
+                <span className="flex items-center gap-2 truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>
+                  {r.badge}
+                  <span dir={r.ltr ? "ltr" : "rtl"} className="truncate">{r.value}</span>
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 export default function AccountDashboard() {
   const { user } = useAuth();
-  const { me } = useMe();
+  const { me, refresh } = useMe();
   const [orders, setOrders]     = useState<Order[]>([]);
   const [tickets, setTickets]   = useState<Ticket[]>([]);
   const [favCount, setFavCount] = useState(0);
@@ -177,6 +271,14 @@ export default function AccountDashboard() {
   const totalOrders = me?.orders  ?? orders.length;
   const kycLevel    = me?.verificationLevel ?? 0;
   const openTickets = tickets.filter((t) => t.status === "Open").length;
+
+  // Real profile-completion signals (was hardcoded 70%). The security card is dismissed entirely once the
+  // user has BOTH verified their email AND completed identity verification — the two security milestones.
+  const emailVerified    = me?.emailVerified ?? false;
+  const identityVerified = kycLevel >= 2;
+  const completionChecks = [Boolean(me?.avatar), Boolean(me?.phone?.trim()), emailVerified, identityVerified];
+  const completionPct    = Math.round((completionChecks.filter(Boolean).length / completionChecks.length) * 100);
+  const profileComplete  = emailVerified && identityVerified;
 
   function copyCode() {
     if (username) navigator.clipboard?.writeText(username).catch(() => {});
@@ -251,7 +353,11 @@ export default function AccountDashboard() {
         />
       </div>
 
-      {/* ── Security / profile completion ── */}
+      {/* ── Account details (username / email / phone) ── */}
+      <AccountInfoCard me={me} onSaved={refresh} />
+
+      {/* ── Security / profile completion — hidden once email + identity are both verified ── */}
+      {!profileComplete && (
       <Card>
         <div className="flex flex-col-reverse items-center gap-6 p-6 md:grid md:grid-cols-[1fr_160px] md:gap-7">
           <div className="w-full">
@@ -267,10 +373,10 @@ export default function AccountDashboard() {
 
             <div className="mb-2 flex items-center justify-between text-[13px] font-bold">
               <span style={{ color: "var(--ac-text)" }}>پیشرفت تکمیل پروفایل</span>
-              <span style={{ color: "#F2551F" }}>۷۰٪ تکمیل شده</span>
+              <span style={{ color: "#F2551F" }}>{toFa(completionPct)}٪ تکمیل شده</span>
             </div>
             <div className="mb-5 h-[8px] overflow-hidden rounded-full" style={{ background: "var(--ac-divider)" }}>
-              <div className="h-full w-[70%] rounded-full" style={{ background: "linear-gradient(90deg, #FF8A2B 0%, #FF3D2E 100%)" }} />
+              <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${completionPct}%`, background: "linear-gradient(90deg, #FF8A2B 0%, #FF3D2E 100%)" }} />
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
@@ -306,6 +412,7 @@ export default function AccountDashboard() {
           </div>
         </div>
       </Card>
+      )}
 
       {/* ── Recent orders ── */}
       <Card className="overflow-hidden">
