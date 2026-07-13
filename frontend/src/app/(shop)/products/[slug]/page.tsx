@@ -220,13 +220,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
       {/* main grid — mobile: gallery → info → purchase stacked; desktop: purchase | info | gallery */}
       <div className="grid items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(280px,320px)_1fr_minmax(320px,420px)]">
-        {/* gallery — first on mobile, last on desktop */}
-        <div className="order-1 lg:order-3">
+        {/* gallery — first on mobile; left column, top row on desktop */}
+        <div className="order-1 lg:col-start-3 lg:row-start-1">
           <ProductGallery image={product.image} gallery={product.gallery ?? []} name={product.name} featured={product.featured} out={out} />
         </div>
 
-        {/* info */}
-        <div className="order-2 lg:order-2">
+        {/* info — middle column, top row on desktop */}
+        <div className="order-2 lg:col-start-2 lg:row-start-1">
           <div className="hidden lg:block">
             <div className="flex items-center gap-3">
               {product.logo && (
@@ -279,13 +279,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
 
-        {/* purchase card */}
-        <div className="order-3 lg:sticky lg:top-[100px] lg:order-1">
+        {/* purchase card — right column on desktop, spanning both content rows so the trust row can sit
+            in the gap under the shorter gallery/info instead of below this tall card */}
+        <div className="order-3 lg:sticky lg:top-[100px] lg:col-start-1 lg:row-start-1 lg:row-span-2">
           <PurchaseCard product={product} />
         </div>
 
-        {/* trust row */}
-        <div className="order-4 col-span-full grid grid-cols-2 gap-px overflow-hidden rounded-[22px] border bg-[var(--ac-panel-bg)] sm:grid-cols-3 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+        {/* trust row — full width on mobile; on desktop it fills the second row under gallery+info */}
+        <div className="order-4 grid grid-cols-2 gap-px overflow-hidden rounded-[22px] border bg-[var(--ac-panel-bg)] sm:grid-cols-3 lg:col-start-2 lg:col-end-4 lg:row-start-2 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
           <TrustItem icon={<Icon d={I.tag} />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
           <TrustItem icon={<Icon d={I.shield} />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
           <TrustItem icon={<Icon d={I.lock} />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
