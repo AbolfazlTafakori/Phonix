@@ -53,10 +53,16 @@ public class ProductsController : ControllerBase
     [HttpPut("{id:int}")]
     public ActionResult<ProductDto> Update(int id, ProductInput input)
     {
-        var oldImage = _store.GetProduct(id)?.Image; // capture before the swap so a replaced photo can be freed
+        // Capture every image the product referenced BEFORE the swap, so any that a replacement leaves
+        // unused can be freed. OrphanCleanup only deletes an id that is no longer referenced anywhere, so a
+        // picture still in use (here or on another product) is never removed.
+        var existing = _store.GetProduct(id);
+        var oldImages = existing is null
+            ? Array.Empty<string?>()
+            : new[] { existing.Image, existing.Logo, existing.ListImage }.Concat(existing.Gallery).ToArray();
         var product = Map(new Product { Id = id }, input);
         if (!_store.UpdateProduct(product)) return NotFound();
-        Services.OrphanCleanup.Queue(_files, _store, oldImage);
+        Services.OrphanCleanup.Queue(_files, _store, oldImages);
         return _store.GetProduct(id)!.ToDto(CategoryName(product.CategoryId));
     }
 
@@ -76,9 +82,12 @@ public class ProductsController : ControllerBase
     [HttpDelete("{id:int}")]
     public IActionResult Delete(int id)
     {
-        var oldImage = _store.GetProduct(id)?.Image;
+        var existing = _store.GetProduct(id);
+        var oldImages = existing is null
+            ? Array.Empty<string?>()
+            : new[] { existing.Image, existing.Logo, existing.ListImage }.Concat(existing.Gallery).ToArray();
         if (!_store.DeleteProduct(id)) return NotFound();
-        Services.OrphanCleanup.Queue(_files, _store, oldImage);
+        Services.OrphanCleanup.Queue(_files, _store, oldImages);
         return NoContent();
     }
 
