@@ -35,21 +35,25 @@ export default function Sidebar() {
   const { user, logout } = useAuth();
   const { me, refresh } = useMe();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
 
   // Upload a new profile picture: store it publicly, save the URL on the account, then refresh so the new
-  // avatar shows immediately (the backend also frees the previous file). Backend/API already supported this;
-  // this is the missing UI to actually set it.
+  // avatar shows immediately (the backend also frees the previous file). Errors surface to the user instead
+  // of being swallowed, so a failed upload is never silent.
   async function onAvatarPick(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+    setAvatarError("");
+    if (!file.type.startsWith("image/")) { setAvatarError("فقط فایل تصویری مجاز است."); return; }
+    if (file.size > 8 * 1024 * 1024) { setAvatarError("حجم تصویر باید کمتر از ۸ مگابایت باشد."); return; }
     setUploadingAvatar(true);
     try {
-      const url = await api.media.upload(file);
-      await api.account.updateMe({ avatar: url });
-      await refresh();
-    } catch {
-      /* keep the current avatar on failure */
+      const url = await api.media.upload(file);          // → /api/upload/{id}
+      await api.account.updateMe({ avatar: url });        // persist on the account
+      await refresh();                                    // re-fetch so the new picture shows at once
+    } catch (err) {
+      setAvatarError(err instanceof Error ? err.message : "بارگذاری تصویر ناموفق بود.");
     } finally {
       setUploadingAvatar(false);
     }
@@ -119,6 +123,7 @@ export default function Sidebar() {
 
             <input type="file" accept="image/*" className="hidden" onChange={onAvatarPick} disabled={uploadingAvatar} />
           </label>
+          {avatarError && <p className="mb-1 text-center text-[11px] font-bold text-rose-500">{avatarError}</p>}
 
           <p className="text-[18px] font-black" style={{ color: "var(--ac-title)" }}>{name}</p>
           {username && (
