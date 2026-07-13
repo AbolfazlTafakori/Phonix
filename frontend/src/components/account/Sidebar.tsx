@@ -46,10 +46,12 @@ export default function Sidebar() {
   }
 
   return (
-    <div className="flex flex-col gap-[18px]">
+    // The whole sidebar (profile + wallet) sticks as one unit on desktop. self-start stops the grid from
+    // stretching it to full height (which would leave sticky no room to move).
+    <div className="flex flex-col gap-[18px] lg:sticky lg:top-24 lg:self-start">
       {/* Profile + navigation card */}
       <aside
-        className="h-fit p-[22px_18px] lg:sticky lg:top-24"
+        className="h-fit p-[22px_18px]"
         style={{
           background: "var(--ac-sidebar-bg)",
           border: "1px solid var(--ac-sidebar-border)",
@@ -155,7 +157,7 @@ export default function Sidebar() {
 
       {/* Wallet card */}
       <div
-        className="rounded-[22px] p-[22px_18px] lg:sticky lg:top-[calc(24rem+18px)]"
+        className="rounded-[22px] p-[22px_18px]"
         style={{
           background: "var(--ac-panel-bg)",
           border: "1px solid var(--ac-panel-border)",
