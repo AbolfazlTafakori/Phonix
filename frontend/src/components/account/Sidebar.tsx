@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { accountMenu } from "@/data/account";
 import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/useMe";
+import { api } from "@/lib/api";
 import { formatToman, formatNumber } from "@/lib/format";
 import MenuIcon from "./MenuIcon";
 
@@ -31,7 +33,27 @@ export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { me } = useMe();
+  const { me, refresh } = useMe();
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+
+  // Upload a new profile picture: store it publicly, save the URL on the account, then refresh so the new
+  // avatar shows immediately (the backend also frees the previous file). Backend/API already supported this;
+  // this is the missing UI to actually set it.
+  async function onAvatarPick(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploadingAvatar(true);
+    try {
+      const url = await api.media.upload(file);
+      await api.account.updateMe({ avatar: url });
+      await refresh();
+    } catch {
+      /* keep the current avatar on failure */
+    } finally {
+      setUploadingAvatar(false);
+    }
+  }
 
   const name = me?.name || user?.name || "کاربر";
   const username = me?.username || user?.username || "";
@@ -59,26 +81,44 @@ export default function Sidebar() {
           boxShadow: "0 14px 38px rgba(166,102,45,0.08)",
         }}
       >
-        {/* Avatar */}
+        {/* Avatar — click to upload/change the profile picture */}
         <div className="mb-4 flex flex-col items-center">
-          <div
-            className="mb-3 grid h-[92px] w-[92px] shrink-0 place-items-center overflow-hidden rounded-full"
-            style={{
-              border: "2px solid #FF6A2B",
-              background: "#FFF1E8",
-              boxShadow: "0 10px 26px rgba(255,106,43,0.18)",
-            }}
-          >
-            {avatar ? (
-              <img loading="lazy" decoding="async" src={avatar} alt={name} className="h-full w-full object-cover" />
-            ) : (
-              <svg viewBox="0 0 92 92" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-full w-full">
-                <circle cx="46" cy="46" r="46" fill="#FFF1E8" />
-                <ellipse cx="46" cy="38" rx="16" ry="16" fill="#FFD0B0" />
-                <ellipse cx="46" cy="80" rx="26" ry="18" fill="#FFD0B0" />
-              </svg>
-            )}
-          </div>
+          <label className="group relative mb-3 block h-[92px] w-[92px] shrink-0 cursor-pointer" title="تغییر عکس پروفایل">
+            <span
+              className="grid h-full w-full place-items-center overflow-hidden rounded-full"
+              style={{
+                border: "2px solid #FF6A2B",
+                background: "#FFF1E8",
+                boxShadow: "0 10px 26px rgba(255,106,43,0.18)",
+              }}
+            >
+              {avatar ? (
+                <img loading="lazy" decoding="async" src={avatar} alt={name} className="h-full w-full object-cover" />
+              ) : (
+                <svg viewBox="0 0 92 92" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-full w-full">
+                  <circle cx="46" cy="46" r="46" fill="#FFF1E8" />
+                  <ellipse cx="46" cy="38" rx="16" ry="16" fill="#FFD0B0" />
+                  <ellipse cx="46" cy="80" rx="26" ry="18" fill="#FFD0B0" />
+                </svg>
+              )}
+            </span>
+
+            {/* hover / uploading overlay */}
+            <span className={`pointer-events-none absolute inset-0 grid place-items-center rounded-full bg-black/45 text-white transition-opacity ${uploadingAvatar ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+              {uploadingAvatar ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              ) : (
+                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+              )}
+            </span>
+
+            {/* camera badge */}
+            <span className="absolute bottom-0 left-0 grid h-7 w-7 place-items-center rounded-full border-2 border-white text-white" style={{ background: "#FF6A2B" }}>
+              <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>
+            </span>
+
+            <input type="file" accept="image/*" className="hidden" onChange={onAvatarPick} disabled={uploadingAvatar} />
+          </label>
 
           <p className="text-[18px] font-black" style={{ color: "var(--ac-title)" }}>{name}</p>
           {username && (
