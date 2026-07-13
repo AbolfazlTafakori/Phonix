@@ -85,6 +85,7 @@ export type Product = {
   featured: boolean;
   image: string;
   logo: string;
+  listImage: string;
   gallery: string[];
   sku: string;
   description: string;
@@ -107,6 +108,7 @@ export type ProductInput = {
   featured: boolean;
   image: string;
   logo: string;
+  listImage: string;
   gallery: string[];
   sku: string;
   description: string;

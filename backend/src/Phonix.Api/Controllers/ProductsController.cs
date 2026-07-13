@@ -130,6 +130,7 @@ public class ProductsController : ControllerBase
         target.Featured = input.Featured;
         target.Image = input.Image ?? "";
         target.Logo = input.Logo ?? "";
+        target.ListImage = input.ListImage ?? "";
         target.Gallery = input.Gallery ?? new();
         target.Sku = input.Sku ?? "";
         target.Description = input.Description ?? "";

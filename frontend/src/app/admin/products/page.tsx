@@ -19,6 +19,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   featured: false,
   image: "",
   logo: "",
+  listImage: "",
   gallery: [],
   sku: "",
   description: "",
@@ -134,6 +135,7 @@ export default function AdminProductsPage() {
       featured: p.featured,
       image: p.image,
       logo: p.logo,
+      listImage: p.listImage ?? "",
       gallery: p.gallery ?? [],
       sku: p.sku,
       description: p.description,
@@ -290,7 +292,9 @@ export default function AdminProductsPage() {
           <div className="flex flex-wrap gap-5">
             <ImageField label="تصویر محصول" aspect="wide" value={form.image} onChange={(v) => set("image", v)} className="w-48" />
             <ImageField label="لوگو سرویس" aspect="square" value={form.logo} onChange={(v) => set("logo", v)} className="w-24" />
+            <ImageField label="تصویر کارت لیست (افقی ۲:۱)" aspect="wide" value={form.listImage} onChange={(v) => set("listImage", v)} className="w-48" />
           </div>
+          <p className="-mt-2 text-xs text-white/45">«تصویر کارت لیست» مخصوص نمایش در فهرست محصولات است و می‌تواند با تصویر صفحهٔ محصول متفاوت باشد؛ بهترین ابعاد ۸۰۰×۴۰۰ (افقی ۲:۱). خالی بماند، از لوگو یا تصویر محصول استفاده می‌شود.</p>
 
           <Field label="گالری تصاویر">
             <div className="flex flex-wrap gap-3">

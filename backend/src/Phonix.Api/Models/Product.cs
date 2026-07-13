@@ -90,6 +90,9 @@ public class Product
     public bool Featured { get; set; }
     public string Image { get; set; } = "";
     public string Logo { get; set; } = "";
+    // Dedicated landscape image for the product-list card, so the listing can differ from the detail-page
+    // image/logo. Optional; the storefront falls back to Logo/Image when it's empty.
+    public string ListImage { get; set; } = "";
     public List<string> Gallery { get; set; } = new();
     public string Sku { get; set; } = "";
     public string Description { get; set; } = "";

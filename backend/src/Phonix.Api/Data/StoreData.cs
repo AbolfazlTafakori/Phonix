@@ -301,6 +301,7 @@ public partial class StoreData : IDataStore
             existing.IsActive = product.IsActive;
             existing.Featured = product.Featured;
             existing.Image = product.Image;
+            existing.ListImage = product.ListImage;
             existing.Sku = product.Sku;
             existing.Description = product.Description;
             existing.Warning = product.Warning;

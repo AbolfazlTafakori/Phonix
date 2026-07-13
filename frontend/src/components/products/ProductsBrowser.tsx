@@ -111,7 +111,7 @@ function ProductCard({ p }: { p: Product }) {
           {p.featured && <span className="rounded-lg bg-[#fff1e8] px-2 py-1 text-[11px] font-black text-[#f2551f]">پرفروش</span>}
         </div>
         <div className="grid h-36 place-items-center">
-          <ProductCardImage src={p.logo || p.image} alt={p.name} className="max-h-36 w-auto max-w-full object-contain transition duration-300 group-hover:scale-105" />
+          <ProductCardImage src={p.listImage || p.logo || p.image} alt={p.name} className="max-h-36 w-auto max-w-full object-contain transition duration-300 group-hover:scale-105" />
         </div>
         {out && (
           <span className="absolute bottom-3 left-3 rounded-md bg-black/60 px-2 py-1 text-[10px] font-bold text-white">ناموجود</span>
