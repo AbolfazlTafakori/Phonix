@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Img from "@/components/ui/Img";
 
 // Split auth card: the form on the right, a promotional image on the left. A fixed desktop height keeps
 // the frame and the image the same size across states/pages; only the form content changes. The image is
@@ -13,7 +14,7 @@ export default function AuthShell({ image, children }: { image: string; children
       {/* promo panel (left in RTL) — visual only */}
       <div className="relative hidden border-r border-[var(--chat-border)] bg-[#fdf1ec] lg:block">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={image} alt="فونیکس وریفای — دنیای خدمات دیجیتال" className="absolute inset-0 h-full w-full object-cover" />
+        <Img priority src={image} alt="فونیکس وریفای — دنیای خدمات دیجیتال" className="absolute inset-0 h-full w-full object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
       </div>
     </div>
   );

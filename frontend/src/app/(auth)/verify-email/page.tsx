@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import AuthShell from "@/components/auth/AuthShell";
+import Img from "@/components/ui/Img";
 
 const VERIFY_IMAGE = "/figma/auth-reset.png";
 
@@ -34,7 +35,7 @@ export default function VerifyEmailPage() {
   return (
     <AuthShell image={VERIFY_IMAGE}>
       <div className="mb-6 flex items-center gap-2">
-        <img loading="lazy" decoding="async" src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-10 w-auto" />
+        <Img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-10 w-auto" sizes="240px" />
         <span className="text-[16px] font-extrabold leading-[1.05] text-[var(--chat-ink)]">Phoenix<br />Verify</span>
       </div>
 

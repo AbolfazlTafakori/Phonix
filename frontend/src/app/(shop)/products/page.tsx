@@ -5,6 +5,7 @@ import { formatNumber } from "@/lib/format";
 import ProductCardImage from "@/components/ProductCardImage";
 import ProductsBrowser from "@/components/products/ProductsBrowser";
 import type { Product, Category } from "@/lib/types";
+import Img from "@/components/ui/Img";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -55,7 +56,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
 
             <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:justify-center lg:gap-10 xl:gap-16">
               <div className="shrink-0">
-                <img fetchPriority="high" decoding="async" src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-[430px] lg:max-w-none xl:w-[490px]" />
+                <Img priority src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-[430px] lg:max-w-none xl:w-[490px]" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
               </div>
 
               <div className="w-full text-center lg:w-auto lg:text-right">
@@ -70,7 +71,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
                 <div className="mt-7 flex flex-nowrap items-center justify-center gap-x-4 sm:gap-x-6 lg:justify-start">
                   {heroStats.map((s) => (
                     <div key={s.label} className="flex shrink-0 items-center gap-2">
-                      <img loading="lazy" decoding="async" src={s.icon} alt="" aria-hidden className="h-9 w-9 shrink-0 object-contain sm:h-12 sm:w-12" />
+                      <Img src={s.icon} alt="" className="h-9 w-9 shrink-0 object-contain sm:h-12 sm:w-12" sizes="96px" />
                       <div className="text-right">
                         <div className="whitespace-nowrap text-[17px] font-black leading-none text-[var(--hl-ink)] sm:text-[25px]">{s.value}</div>
                         <div className="mt-1 whitespace-nowrap text-[12px] font-bold text-[var(--hl-muted)] sm:text-[15px]">{s.label}</div>

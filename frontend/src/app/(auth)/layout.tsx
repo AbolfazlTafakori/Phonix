@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import Img from "@/components/ui/Img";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
@@ -10,7 +11,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <div aria-hidden className="auth-blob auth-blob-3" />
 
       <Link href="/" className="absolute right-6 top-6 z-10 flex items-center gap-2.5 sm:right-10 sm:top-8">
-        <img loading="lazy" decoding="async" src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-12 w-auto sm:h-14" />
+        <Img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-12 w-auto sm:h-14" sizes="240px" />
         <span className="text-[15px] font-extrabold leading-[1.05] text-[var(--hl-ink)] sm:text-lg">
           Phoenix
           <br />

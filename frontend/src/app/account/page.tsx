@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/useMe";
 import { formatToman, formatNumber, toFa } from "@/lib/format";
 import type { Order, Ticket } from "@/lib/types";
+import Img from "@/components/ui/Img";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -50,7 +51,7 @@ function productLogo(name: string): string | null {
 
 function ProductAvatar({ name }: { name: string }) {
   const src = productLogo(name);
-  if (src) return <img loading="lazy" decoding="async" src={src} alt={name} className="h-[26px] w-[26px] rounded-[6px] object-contain" />;
+  if (src) return <Img src={src} alt={name} className="h-[26px] w-[26px] rounded-[6px] object-contain" sizes="64px" />;
   return (
     <div className="grid h-[26px] w-[26px] shrink-0 place-items-center rounded-[6px] text-[10px] font-black"
       style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#FF6A2B" }}>
@@ -108,7 +109,7 @@ function StatCard({
     >
       {/* logo (right) + label (left, next to it) */}
       <div className="flex items-center gap-3">
-        <img loading="lazy" decoding="async" src={iconSrc} alt="" className="h-[48px] w-[48px] shrink-0 object-contain" />
+        <Img src={iconSrc} alt="" className="h-[48px] w-[48px] shrink-0 object-contain" sizes="96px" />
         <span className="text-[14px] font-bold leading-snug" style={{ color: "var(--ac-text)" }}>{label}</span>
       </div>
 
@@ -320,9 +321,10 @@ export default function AccountDashboard() {
             </p>
           </div>
           <div className="flex justify-center">
-            <img loading="lazy" decoding="async"
+            <Img
               src="/figma/account-welcome.png"
               alt="Phoenix Verify"
+              sizes="240px"
               className="h-[145px] w-[215px] object-contain md:h-[165px] md:w-[240px]"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
             />
@@ -547,7 +549,7 @@ export default function AccountDashboard() {
                 <div key={i} className="relative rounded-[12px] border p-2.5" style={{ background: "var(--ac-panel-bg)", border: "1px solid var(--ac-panel-border)", minHeight: "72px" }}>
                   <div className="flex items-start gap-2">
                     {p.logo ? (
-                      <img loading="lazy" decoding="async" src={p.logo} alt={p.name} className="h-[30px] w-[30px] rounded-[8px] object-contain" />
+                      <Img src={p.logo} alt={p.name} className="h-[30px] w-[30px] rounded-[8px] object-contain" sizes="64px" />
                     ) : (
                       <div className="grid h-[30px] w-[30px] shrink-0 place-items-center rounded-[8px] text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#FF6A2B" }}>{p.name.charAt(0)}</div>
                     )}

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import JalaliDatePicker from "./JalaliDatePicker";
 import type { PaymentMethod, BankCard } from "@/lib/types";
+import Img from "@/components/ui/Img";
 
 const inputCls =
   "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-[color:var(--ac-input-bg)] px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
@@ -128,7 +129,7 @@ export function CardToCardForm({
           </button>
           {value.receiptUrl && (
             <a href={api.transactions.receiptSrc(value.receiptUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2">
-              <img loading="lazy" decoding="async" src={api.transactions.receiptSrc(value.receiptUrl)} alt="فیش بانکی" className="h-12 w-12 rounded-lg border border-[color:var(--ac-panel-border)] object-cover" />
+              <Img src={api.transactions.receiptSrc(value.receiptUrl)} alt="فیش بانکی" className="h-12 w-12 rounded-lg border border-[color:var(--ac-panel-border)] object-cover" sizes="96px" />
               <span className="text-xs font-bold text-emerald-600">✓ بارگذاری شد</span>
             </a>
           )}

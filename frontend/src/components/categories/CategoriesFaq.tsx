@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import Img from "@/components/ui/Img";
 
 type Item = { q: string; a: string };
 
@@ -46,7 +47,7 @@ export default function CategoriesFaq() {
         <div className="hl-card flex flex-col items-center justify-center rounded-[22px] p-6 text-center">
           <h3 className="text-[19px] font-black text-[var(--hl-ink)]">هنوز سوالی داری؟ 👋</h3>
           <p className="mt-2 text-[14px] leading-7 text-[var(--hl-muted)]">تیم پشتیبانی ما آماده پاسخگویی به سوالات شماست.</p>
-          <img loading="lazy" decoding="async" src="/figma/catpage-faq-support.png" alt="" className="my-5 h-36 w-36 object-contain" />
+          <Img src="/figma/catpage-faq-support.png" alt="" className="my-5 h-36 w-36 object-contain" sizes="288px" />
           <Link
             href="/account/tickets"
             className="flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[16px] font-bold text-white"

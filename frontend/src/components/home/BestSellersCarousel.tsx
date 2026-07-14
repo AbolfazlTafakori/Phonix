@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import Img from "@/components/ui/Img";
 
 const DURATION = 520;
 // Ease-out curve: quick start, gentle settle — reads much smoother than plain "ease".
@@ -42,7 +43,7 @@ function Card({ p }: { p: CarouselCard }) {
         >
           {p.badge}
         </span>
-        <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-105" />
+        <Img src={p.image} alt={p.name} className="h-full w-full object-contain transition duration-300 group-hover:scale-105" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
       </Link>
 
       <div className="flex flex-1 flex-col p-4">

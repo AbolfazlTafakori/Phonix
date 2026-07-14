@@ -1,5 +1,6 @@
 import { getHomeCategories, getSiteContent } from "@/lib/content";
 import SectionHeading from "./SectionHeading";
+import Img from "@/components/ui/Img";
 
 export default async function Categories() {
   const [categories, content] = await Promise.all([getHomeCategories(), getSiteContent()]);
@@ -17,11 +18,9 @@ export default async function Categories() {
           >
             <div className="flex h-40 items-center justify-center">
               <span className={`inline-flex ${cat.iconClass}`}>
-                <img loading="lazy" decoding="async"
-                  src={cat.icon}
+                <Img src={cat.icon}
                   alt={cat.title}
-                  className="max-h-40 w-auto object-contain transition duration-300 group-hover:scale-105"
-                />
+                  className="max-h-40 w-auto object-contain transition duration-300 group-hover:scale-105" sizes="240px" />
               </span>
             </div>
             <h3 className="mt-5 flex min-h-[4.5rem] items-center justify-center text-2xl font-bold leading-9 text-white sm:text-3xl">

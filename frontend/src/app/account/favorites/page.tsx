@@ -8,6 +8,7 @@ import { formatToman, productDisplayPrice } from "@/lib/format";
 import { PageTitle, Panel } from "@/components/account/Panel";
 import type { Product } from "@/lib/types";
 import { productPath } from "@/lib/seo";
+import Img from "@/components/ui/Img";
 
 export default function FavoritesPage() {
   const { user } = useAuth();
@@ -56,7 +57,7 @@ export default function FavoritesPage() {
           {items.map((product) => (
             <div key={product.id} className="group relative overflow-hidden rounded-2xl border border-[color:var(--ac-panel-border)] bg-[color:var(--ac-panel-bg)]">
               <Link href={productPath(product)} className="relative block aspect-[3/4]">
-                <img loading="lazy" decoding="async" src={product.image} alt={product.name} className="h-full w-full object-cover" />
+                <Img src={product.image} alt={product.name} className="h-full w-full object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-4">
                   <p className="text-sm font-bold text-white">{product.name}</p>

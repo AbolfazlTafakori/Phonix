@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getBlogPosts } from "@/lib/content";
 import { absoluteUrl, plainExcerpt } from "@/lib/seo";
 import RichText from "@/components/RichText";
+import Img from "@/components/ui/Img";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       </nav>
 
       <div className="overflow-hidden rounded-3xl border border-[var(--hl-border)]">
-        <img loading="lazy" decoding="async" src={post.image} alt={post.title} className="h-64 w-full object-cover sm:h-80" />
+        <Img src={post.image} alt={post.title} className="h-64 w-full object-cover sm:h-80" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
       </div>
 
       <div className="mt-6 flex items-center gap-3 text-sm text-[var(--hl-ink-2)]">

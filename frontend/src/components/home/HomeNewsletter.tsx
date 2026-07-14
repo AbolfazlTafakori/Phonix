@@ -1,3 +1,4 @@
+import Img from "@/components/ui/Img";
 const Plane = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor">
     <path d="M21.5 2.5L2 10.3l6.4 2.3 2.3 6.4 3-4.4 4.6 3.4L21.5 2.5zM8.9 12.1l7.7-5-6 6.1z" />
@@ -14,7 +15,7 @@ export default function HomeNewsletter() {
         {/* right: logo */}
         <div className="hidden shrink-0 items-center gap-2.5 border-l border-white/25 pl-6 text-white xl:flex">
           <span className="text-[16px] font-extrabold leading-[1.1]">Phoenix<br />Verify</span>
-          <img loading="lazy" decoding="async" src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-12 w-auto" />
+          <Img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-12 w-auto" sizes="240px" />
         </div>
 
         {/* right-middle: copy */}

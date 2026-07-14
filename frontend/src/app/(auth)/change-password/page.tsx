@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import AuthShell from "@/components/auth/AuthShell";
+import Img from "@/components/ui/Img";
 
 const CHANGE_IMAGE = "/figma/auth-reset.png";
 
@@ -54,7 +55,7 @@ export default function ChangePasswordPage() {
     <AuthShell image={CHANGE_IMAGE}>
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img loading="lazy" decoding="async" src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-10 w-auto" />
+          <Img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-10 w-auto" sizes="240px" />
           <span className="text-[16px] font-extrabold leading-[1.05] text-[var(--chat-ink)]">Phoenix<br />Verify</span>
         </div>
         <span className="flex items-center gap-1.5 rounded-full border border-[var(--chat-border)] px-3 py-1.5 text-[11px] font-bold text-[var(--chat-ink-2)]">

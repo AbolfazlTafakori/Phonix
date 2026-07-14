@@ -10,6 +10,7 @@ import { PageTitle, Panel } from "@/components/account/Panel";
 import DeliveryContent from "@/components/account/DeliveryContent";
 import { StatusBadge } from "@/components/admin/ui";
 import type { Order } from "@/lib/types";
+import Img from "@/components/ui/Img";
 
 const cancellable = (status: Order["status"]) => status === "PendingApproval" || status === "Preparing";
 
@@ -102,7 +103,7 @@ export default function OrdersPage() {
               <div className="mt-3 space-y-2">
                 {o.items.map((it) => (
                   <div key={`${it.productId}:${it.plan ?? ""}`} className="flex items-center gap-3">
-                    <img loading="lazy" decoding="async" src={it.image} alt={it.name} className="h-10 w-10 rounded-lg object-cover" />
+                    <Img src={it.image} alt={it.name} className="h-10 w-10 rounded-lg object-cover" sizes="80px" />
                     <span className="flex-1 text-sm" style={{ color: "var(--ac-text)" }}>
                       {it.name} × {it.quantity}
                       {it.plan && <span style={{ color: "var(--ac-muted)" }}> · {it.plan}</span>}

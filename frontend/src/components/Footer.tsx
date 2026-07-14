@@ -1,5 +1,6 @@
 import { getSiteContent } from "@/lib/content";
 import { TwitterIcon, TelegramIcon, InstagramIcon } from "./Icons";
+import Img from "@/components/ui/Img";
 
 const socialIcons: Record<string, (props: { className?: string }) => React.ReactElement> = {
   twitter: TwitterIcon,
@@ -54,7 +55,7 @@ export default async function Footer() {
             {/* brand — uses the real logo + brand font */}
             <div>
               <div className="flex items-center gap-0">
-                <img loading="lazy" decoding="async" src={brand.logo} alt={brand.siteName} className="h-[clamp(3rem,7vw,4.5rem)] w-auto" />
+                <Img src={brand.logo} alt={brand.siteName} className="h-[clamp(3rem,7vw,4.5rem)] w-auto" sizes="240px" />
                 <span className="-ml-[clamp(0.25rem,1.2vw,0.7rem)] font-bigshot text-[clamp(0.95rem,2vw,1.3rem)] leading-tight text-white">
                   {brand.logoLine1}
                   <br />

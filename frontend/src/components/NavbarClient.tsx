@@ -13,6 +13,7 @@ import { SearchIcon, CartIcon, UserIcon, BellIcon } from "./Icons";
 import MenuIcon from "./account/MenuIcon";
 import NavLink from "./NavLink";
 import { productPath } from "@/lib/seo";
+import Img from "@/components/ui/Img";
 
 type Props = { brand: SiteContent["brand"]; header: SiteContent["header"] };
 type Menu = "search" | "bell" | "account" | null;
@@ -233,7 +234,7 @@ export default function NavbarClient({ brand, header }: Props) {
                   onClick={closeSearch}
                   className="flex items-center gap-3 px-4 py-2.5 transition hover:bg-white/5"
                 >
-                  <img src={p.image} alt={p.name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+                  <Img src={p.image} alt={p.name} className="h-10 w-10 shrink-0 rounded-lg object-cover" sizes="80px" />
                   <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">{p.name}</span>
                   <span className="shrink-0 text-xs font-bold text-emerald-400">{formatToman(productDisplayPrice(p))}</span>
                 </Link>
@@ -274,7 +275,7 @@ export default function NavbarClient({ brand, header }: Props) {
             {/* brand + nav — pinned to the right next to the logo */}
             <div className="flex min-w-0 shrink-0 items-center gap-3 sm:gap-5 lg:gap-7">
               <Link href="/" onClick={() => setMobileOpen(false)} className="flex shrink-0 items-center gap-2">
-                <img src={brand.logo} alt={brand.siteName} className="h-9 w-auto sm:h-11" />
+                <Img priority src={brand.logo} alt={brand.siteName} className="h-9 w-auto sm:h-11" sizes="240px" />
                 <span className="hidden font-bigshot text-[15px] leading-[1.05] text-white sm:block">
                   {brand.logoLine1}
                   <br />
@@ -362,7 +363,7 @@ export default function NavbarClient({ brand, header }: Props) {
             <div className="relative">
               <button onClick={() => toggle("account")} aria-label="حساب کاربری" className={`${iconBtn} overflow-hidden`}>
                 {me?.avatar ? (
-                  <img src={me.avatar} alt={me.name || me.username} className="h-full w-full object-cover" />
+                  <Img src={me.avatar} alt={me.name || me.username} className="h-full w-full object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
                 ) : (
                   <UserIcon className="h-5 w-5" />
                 )}
@@ -371,7 +372,7 @@ export default function NavbarClient({ brand, header }: Props) {
                 <div className="absolute left-0 top-full z-50 mt-2 w-[min(17rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-white/10 bg-[#15151f] shadow-2xl">
                   <div className="flex items-center gap-3 border-b border-white/8 px-5 py-4">
                     {me?.avatar ? (
-                      <img src={me.avatar} alt={me.name || me.username} className="h-11 w-11 shrink-0 rounded-full object-cover" />
+                      <Img src={me.avatar} alt={me.name || me.username} className="h-11 w-11 shrink-0 rounded-full object-cover" sizes="88px" />
                     ) : (
                       <div className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#6d28d9] to-[#e60053] text-base font-bold text-white">
                         {(me?.name || user.name || user.username || "؟").charAt(0)}
@@ -448,7 +449,7 @@ export default function NavbarClient({ brand, header }: Props) {
         >
           <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
             <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2">
-              <img src={brand.logo} alt={brand.siteName} className="h-9 w-auto" />
+              <Img src={brand.logo} alt={brand.siteName} className="h-9 w-auto" sizes="240px" />
               <span className="font-bigshot text-[15px] leading-[1.05] text-white">
                 {brand.logoLine1}
                 <br />

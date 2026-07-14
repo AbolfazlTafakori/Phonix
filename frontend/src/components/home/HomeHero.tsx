@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Img from "@/components/ui/Img";
 
 const trust = [
   { title: "تحویل آنی", sub: "در کمترین زمان", icon: "/figma/trust-delivery.png" },
@@ -26,12 +27,10 @@ export default function HomeHero() {
         <div className="hero-anim-art relative order-1 flex items-center justify-center">
           <div className="relative aspect-[4/3] w-full max-w-[360px] sm:max-w-[520px] lg:max-w-[640px]">
             <div aria-hidden className="hero-aura absolute inset-[6%] rounded-full bg-[#ff5a1f]/15 blur-3xl" />
-            <img
-              fetchPriority="high"
+            <Img priority
               src="/figma/hero-phoenix.png"
               alt="فونیکس وریفای"
-              className="hero-float absolute inset-0 h-full w-full object-contain drop-shadow-[0_24px_50px_rgba(239,35,60,0.22)]"
-            />
+              className="hero-float absolute inset-0 h-full w-full object-contain drop-shadow-[0_24px_50px_rgba(239,35,60,0.22)]" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
           </div>
         </div>
 
@@ -66,7 +65,7 @@ export default function HomeHero() {
           <div className="mx-auto mt-8 flex max-w-[620px] flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:mt-10 sm:gap-x-12 lg:mx-0">
             {trust.map((t) => (
               <div key={t.title} className="flex items-center gap-3.5">
-                <img src={t.icon} alt="" aria-hidden className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14" />
+                <Img src={t.icon} alt="" className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14" sizes="112px" />
                 <div>
                   <div className="text-[17px] font-bold text-[var(--hl-ink)]">{t.title}</div>
                   <div className="text-[14px] text-[var(--hl-muted)]">{t.sub}</div>

@@ -6,6 +6,7 @@ import ProductCardImage from "@/components/ProductCardImage";
 import { formatNumber, formatToman, productDisplayPrice } from "@/lib/format";
 import type { Product, Category } from "@/lib/types";
 import { productPath } from "@/lib/seo";
+import Img from "@/components/ui/Img";
 
 // Each page shows exactly ROWS_PER_PAGE rows; how many products that is depends on how many
 // columns the responsive grid renders at the current viewport (2 / 3 / 4), so a page holds
@@ -349,7 +350,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                   { img: "/figma/catpage-banner-number.png", alt: "شماره مجازی برای همه سرویس‌ها" },
                 ].map((b) => (
                   <Link key={b.img} href="/products" className="group block overflow-hidden rounded-[16px]">
-                    <img loading="lazy" decoding="async" src={b.img} alt={b.alt} className="aspect-[3/1] w-full scale-[1.02] object-cover transition duration-300 group-hover:scale-[1.05]" />
+                    <Img src={b.img} alt={b.alt} className="aspect-[3/1] w-full scale-[1.02] object-cover transition duration-300 group-hover:scale-[1.05]" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
                   </Link>
                 ))}
               </div>

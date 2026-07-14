@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import Img from "@/components/ui/Img";
 
 // Manages one image-CAPTCHA challenge: fetches it, tracks the user's answer, and can refresh to a new image
 // (call this after a failed submit so a consumed/expired challenge is replaced).
@@ -47,7 +48,7 @@ export function CaptchaField({ captcha }: { captcha: CaptchaState }) {
             <span className="text-xs text-black/40">…</span>
           ) : (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={captcha.image} alt="کد امنیتی" className="h-full w-full object-cover" />
+            <Img src={captcha.image} alt="کد امنیتی" className="h-full w-full object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
           )}
         </div>
         <button
