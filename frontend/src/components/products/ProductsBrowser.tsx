@@ -130,10 +130,16 @@ function ProductCard({ p }: { p: Product }) {
         </div>
 
         <div className="mt-3 flex flex-col items-center">
-          {showStrike && (
-            <span className="text-[11px] text-[var(--hl-muted)] line-through">{formatNumber(p.price)}</span>
+          {out ? (
+            <span className="text-[15px] font-black text-rose-500">ناموجود</span>
+          ) : (
+            <>
+              {showStrike && (
+                <span className="text-[11px] text-[var(--hl-muted)] line-through">{formatNumber(p.price)}</span>
+              )}
+              <span className="text-[17px] font-black text-[var(--hl-ink)]">{formatToman(display)}</span>
+            </>
           )}
-          <span className="text-[17px] font-black text-[var(--hl-ink)]">{formatToman(display)}</span>
         </div>
 
         <div className="mt-3 flex items-center gap-2">
@@ -143,14 +149,23 @@ function ProductCard({ p }: { p: Product }) {
           >
             مشاهده
           </Link>
-          <Link
-            href={productPath(p)}
-            aria-label="افزودن به سبد"
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition hover:brightness-105"
-            style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
-          >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6" /></svg>
-          </Link>
+          {out ? (
+            <span
+              aria-label="ناموجود"
+              className="grid h-9 w-9 shrink-0 cursor-not-allowed place-items-center rounded-xl bg-[var(--hl-tile)] text-[var(--hl-muted)]"
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6" /></svg>
+            </span>
+          ) : (
+            <Link
+              href={productPath(p)}
+              aria-label="افزودن به سبد"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition hover:brightness-105"
+              style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
+            >
+              <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6" /></svg>
+            </Link>
+          )}
         </div>
       </div>
     </div>
@@ -160,7 +175,9 @@ function ProductCard({ p }: { p: Product }) {
 export default function ProductsBrowser({ products, categories, initialCatId }: { products: Product[]; categories: Category[]; initialCatId?: number }) {
   const [selectedCats, setSelectedCats] = useState<Set<number>>(() => (initialCatId ? new Set([initialCatId]) : new Set()));
   const [maxPrice, setMaxPrice] = useState(PRICE_MAX);
-  const [inStockOnly, setInStockOnly] = useState(true);
+  // Off by default so out-of-stock products stay listed (name, description, and an "unavailable" price):
+  // better for shoppers browsing the range and for SEO, since every product page stays reachable.
+  const [inStockOnly, setInStockOnly] = useState(false);
   const [featuredOnly, setFeaturedOnly] = useState(false);
   const [discountOnly, setDiscountOnly] = useState(false);
   const [delivery, setDelivery] = useState<Set<string>>(new Set(["تحویل آنی"]));
@@ -221,11 +238,11 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
   // keeping the layout at exactly three product rows on every breakpoint.
   const beforeBanners = cols * 2;
 
-  const anyFilter = selectedCats.size > 0 || maxPrice < PRICE_MAX || featuredOnly || discountOnly || !inStockOnly || service.size > 0 || delivery.size !== 1 || !delivery.has("تحویل آنی");
+  const anyFilter = selectedCats.size > 0 || maxPrice < PRICE_MAX || featuredOnly || discountOnly || inStockOnly || service.size > 0 || delivery.size !== 1 || !delivery.has("تحویل آنی");
   const clearAll = () => {
     setSelectedCats(new Set());
     setMaxPrice(PRICE_MAX);
-    setInStockOnly(true);
+    setInStockOnly(false);
     setFeaturedOnly(false);
     setDiscountOnly(false);
     setDelivery(new Set(["تحویل آنی"]));
