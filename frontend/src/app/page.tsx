@@ -14,6 +14,10 @@ import HomeFaq from "@/components/home/HomeFaq";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import HomeFooter from "@/components/home/HomeFooter";
 
+// Home content (hero, showcase, blog picks) is admin-editable, so render per request instead of
+// baking the build-time snapshot into a static page.
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   const [content, blogPosts] = await Promise.all([getSiteContent(), getBlogPosts()]);
   return (
