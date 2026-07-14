@@ -2,12 +2,6 @@ import type { NextConfig } from "next";
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5228";
 
-// Where the Next server itself reaches the API. NEXT_PUBLIC_API_URL is the browser's view of it (a public
-// domain), which a container cannot always route back to; API_INTERNAL_URL lets the server take the direct
-// path instead (e.g. http://backend:5228 on the compose network). Only the /api/* rewrite uses this — and
-// that rewrite is what the image optimizer follows when it fetches an uploaded image to re-encode.
-const internalApiUrl = process.env.API_INTERNAL_URL ?? apiUrl;
-
 // Permissive enough for Next.js hydration + analytics, strict on framing/sniffing.
 const csp = [
   "default-src 'self'",
@@ -56,7 +50,7 @@ const nextConfig: NextConfig = {
   // is inert there; it only bridges split-port local dev where the frontend and API run on different ports.
   // Client JS already calls the API on its absolute origin, so those requests don't pass through this rewrite.
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${internalApiUrl}/api/:path*` }];
+    return [{ source: "/api/:path*", destination: `${apiUrl}/api/:path*` }];
   },
   // The products section moved from /films to /products. Keep the old paths working so existing links,
   // bookmarks, and any hrefs still stored as /films (e.g. home categories) don't 404.

@@ -5,10 +5,8 @@
 // CSS (w-full + aspect-*, object-cover) and has no intrinsic width/height to hand over, which is exactly
 // the case next/image cannot express without a wrapper and a layout rewrite.
 //
-// Every same-origin image is optimized, including the ones the backend stores (/api/upload/{id}): the
-// optimizer follows the /api/* rewrite to reach them. The stored file is still only ever read — the backend
-// already re-encodes each upload to WebP, and this resizes that master down to what the layout displays.
-// Absolute URLs are passed through untouched.
+// Only same-origin static assets are optimized. Anything the backend serves (/api/upload/{id}) or any
+// absolute URL is passed through untouched, so user uploads keep their current delivery path.
 
 const WIDTHS = [64, 128, 256, 384, 640, 828, 1080, 1200, 1920];
 
@@ -17,7 +15,7 @@ function optimized(src: string, width: number, quality: number) {
 }
 
 function isOptimizable(src: string) {
-  return src.startsWith("/") && !src.startsWith("/_next/");
+  return src.startsWith("/") && !src.startsWith("/api/") && !src.startsWith("/_next/");
 }
 
 type Props = {

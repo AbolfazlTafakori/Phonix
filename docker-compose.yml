@@ -50,10 +50,6 @@ services:
     image: phonix-frontend
     container_name: phonix-frontend
     restart: unless-stopped
-    environment:
-      # Server-side route to the API, used by the image optimizer when it fetches an uploaded image to
-      # re-encode. The public URL may not be routable from inside the container; this one always is.
-      API_INTERNAL_URL: http://backend:5228
     depends_on:
       backend:
         condition: service_healthy
