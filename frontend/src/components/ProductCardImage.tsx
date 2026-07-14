@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import Img from "@/components/ui/Img";
 
 // Product image with a graceful fallback: if the src is empty or fails to load, show a clean branded
 // placeholder instead of the broken-image icon, so a missing banner never looks broken on the storefront.
@@ -20,13 +19,5 @@ export default function ProductCardImage({ src, alt, className }: { src: string;
     );
   }
 
-  return (
-    <Img
-      src={src}
-      alt={alt}
-      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-      className={className}
-      onError={() => setFailed(true)}
-    />
-  );
+  return <img loading="lazy" decoding="async" src={src} alt={alt} className={className} onError={() => setFailed(true)} />;
 }

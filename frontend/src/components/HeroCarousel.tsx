@@ -5,7 +5,6 @@ import type { HeroSlide, TrustItem } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
 import { heroTrustIconNode } from "./heroTrustIcons";
 import { ArrowLeft, ArrowRight } from "./Icons";
-import Img from "@/components/ui/Img";
 
 const AUTOPLAY_MS = 6500;
 const SWIPE_THRESHOLD = 45;
@@ -128,14 +127,19 @@ export default function HeroCarousel({ slides }: { slides: HeroSlide[] }) {
                         </span>
                       )}
                       {s.image && (
-                        <Img priority src={s.image}
+                        <img
+                          src={s.image}
                           alt={s.title}
-                          className="hero-float relative w-[74%] max-w-[380px] drop-shadow-[0_30px_60px_rgba(0,0,0,0.6)] md:w-[82%]" sizes="380px" />
+                          className="hero-float relative w-[74%] max-w-[380px] drop-shadow-[0_30px_60px_rgba(0,0,0,0.6)] md:w-[82%]"
+                        />
                       )}
                       {s.logo && (
-                        <Img src={s.logo}
+                        <img
+                          src={s.logo}
                           alt=""
-                          className="absolute bottom-2 left-4 z-20 w-16 drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)] sm:w-20" sizes="160px" />
+                          aria-hidden
+                          className="absolute bottom-2 left-4 z-20 w-16 drop-shadow-[0_10px_24px_rgba(0,0,0,0.6)] sm:w-20"
+                        />
                       )}
                     </div>
                   </div>

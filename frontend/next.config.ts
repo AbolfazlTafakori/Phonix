@@ -26,24 +26,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   // Emit a self-contained server bundle (.next/standalone) so the Docker runtime image stays small.
   output: "standalone",
-  // The source PNGs in /public are full-resolution and are displayed far smaller than they are stored.
-  // The optimizer re-encodes them to AVIF/WebP at the requested width and caches the result; the files
-  // on disk are only ever read. Widths here must cover every value <Img> puts in its srcSet.
-  images: {
-    formats: ["image/avif", "image/webp"],
-    deviceSizes: [640, 828, 1080, 1200, 1920],
-    imageSizes: [64, 128, 256, 384],
-    minimumCacheTTL: 60 * 60 * 24 * 30,
-  },
   async headers() {
-    return [
-      { source: "/:path*", headers: securityHeaders },
-      // Content-addressed by filename and never mutated in place, so they can sit in the browser cache.
-      {
-        source: "/figma/:path*",
-        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
-      },
-    ];
+    return [{ source: "/:path*", headers: securityHeaders }];
   },
   // Same-origin /api/* (e.g. the relative image URLs the API returns, like /api/upload/{id}) is forwarded to
   // the backend. In production the reverse proxy routes /api straight to the API before Next sees it, so this

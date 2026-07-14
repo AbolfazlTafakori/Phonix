@@ -9,7 +9,6 @@ import { formatToman, toFa } from "@/lib/format";
 import type { PaymentMethod, BankCard, DiscountResult, Product, ProductPlan } from "@/lib/types";
 import { CardToCardForm, emptyCardToCard, isCardToCardComplete, type CardToCardValue } from "@/components/account/CardToCardForm";
 import PlanInfoForm, { emptyPlanInfoValue, isPlanInfoComplete, type PlanInfoValue } from "@/components/checkout/PlanInfoForm";
-import Img from "@/components/ui/Img";
 
 export default function CheckoutPage() {
   const { user, ready } = useAuth();
@@ -290,7 +289,7 @@ export default function CheckoutPage() {
             <div className="space-y-3">
               {items.map((i) => (
                 <div key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center gap-3">
-                  <Img src={i.image} alt={i.name} className="h-11 w-11 rounded-lg object-cover" sizes="88px" />
+                  <img loading="lazy" decoding="async" src={i.image} alt={i.name} className="h-11 w-11 rounded-lg object-cover" />
                   <span className="flex-1 text-sm text-[var(--hl-ink-2)]">
                     {i.name} × {i.quantity}
                     {i.plan && <span className="text-[var(--hl-muted)]"> · {i.plan}</span>}
@@ -339,7 +338,7 @@ export default function CheckoutPage() {
                   {overLevelItems.map((i) => (
                     <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
                       <div className="flex min-w-0 items-center gap-3">
-                        <Img src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" sizes="72px" />
+                        <img loading="lazy" decoding="async" src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
                         <span className="truncate text-sm text-[var(--hl-ink-2)]">{i.name}</span>
                       </div>
                       <button
@@ -530,7 +529,7 @@ export default function CheckoutPage() {
               {overLevelItems.map((i) => (
                 <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
                   <div className="flex min-w-0 items-center gap-3">
-                    <Img src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" sizes="72px" />
+                    <img loading="lazy" decoding="async" src={i.image} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
                     <span className="truncate text-sm text-[var(--hl-ink-2)]">{i.name}</span>
                   </div>
                   <button

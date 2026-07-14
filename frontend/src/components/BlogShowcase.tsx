@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { BlogPost } from "@/lib/types";
-import Img from "@/components/ui/Img";
 
 // Home-page blog section: one large featured post that cross-fades between the selected posts, with the
 // others listed beside it. Clicking a side card promotes it; auto-switch runs every `autoplaySeconds`
@@ -65,7 +64,7 @@ export default function BlogShowcase({
                 }`}
               >
                 <div className="relative h-[180px] overflow-hidden sm:h-[210px]">
-                  <Img src={p.image} alt={p.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+                  <img loading="lazy" decoding="async" src={p.image} alt={p.title} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
                   <div className="absolute inset-0 bg-gradient-to-t from-[#0d0d15] via-[#0d0d15]/25 to-transparent" />
                   {p.tag && (
                     <span className="absolute right-4 top-4 inline-flex rounded-full border border-white/15 bg-black/40 px-3 py-1 text-[11px] text-[#ff8a5c] backdrop-blur-sm">
@@ -91,7 +90,7 @@ export default function BlogShowcase({
               onClick={() => setActive(i)}
               className="group relative flex gap-3 overflow-hidden rounded-[13px] border border-white/8 bg-[#0b0b12] p-2.5 text-right transition hover:-translate-y-0.5 hover:border-white/20"
             >
-              <Img src={p.image} alt="" className="h-16 w-16 shrink-0 rounded-[10px] object-cover" sizes="128px" />
+              <img loading="lazy" decoding="async" src={p.image} alt="" className="h-16 w-16 shrink-0 rounded-[10px] object-cover" />
               <span className="flex min-w-0 flex-col justify-center">
                 {p.tag && <span className="mb-1 text-[10px] text-[#ff8a5c]">{p.tag.split("|")[0].trim()}</span>}
                 <span className="line-clamp-2 text-[13px] font-medium leading-6 text-white">{p.title}</span>

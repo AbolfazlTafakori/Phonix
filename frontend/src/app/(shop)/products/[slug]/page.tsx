@@ -11,7 +11,6 @@ import OpenChatButton from "@/components/product/OpenChatButton";
 import ProductGallery from "@/components/product/ProductGallery";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import { absoluteUrl, latinBrand, plainExcerpt, productPath, productSlug, productTitle } from "@/lib/seo";
-import Img from "@/components/ui/Img";
 
 export const dynamic = "force-dynamic";
 
@@ -206,7 +205,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       <div className="mb-4 lg:hidden">
         <div className="flex items-center gap-3">
           {product.logo && (
-            <Img src={product.logo} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain sm:h-12 sm:w-12" sizes="96px" />
+            <img loading="lazy" decoding="async" src={product.logo} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain sm:h-12 sm:w-12" />
           )}
           <h1 className="text-[20px] font-black leading-snug sm:text-[24px]" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
         </div>
@@ -231,7 +230,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <div className="hidden lg:block">
             <div className="flex items-center gap-3">
               {product.logo && (
-                <Img src={product.logo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-contain" sizes="112px" />
+                <img loading="lazy" decoding="async" src={product.logo} alt="" className="h-14 w-14 shrink-0 rounded-xl object-contain" />
               )}
               {/* the page's single <h1> lives in the mobile block above; this desktop copy stays a <p> */}
               <p className="text-[26px] font-black leading-snug xl:text-[30px]" style={{ color: "var(--ac-title)" }}>{product.name}</p>

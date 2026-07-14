@@ -1,5 +1,4 @@
 import { getAdvancedSettings, getSiteContent } from "@/lib/content";
-import Img from "@/components/ui/Img";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "در حال به‌روزرسانی" };
@@ -14,7 +13,7 @@ export default async function MaintenancePage() {
 
       <div className="relative z-10 w-full max-w-xl">
         <div className="mb-8 flex items-center justify-center gap-2.5">
-          <Img src={content.brand.logo} alt={content.brand.siteName} className="h-12 w-auto" sizes="240px" />
+          <img src={content.brand.logo} alt={content.brand.siteName} className="h-12 w-auto" />
           <span className="font-bigshot text-lg leading-[1.05]" style={{ color: "var(--chat-ink)" }}>
             {content.brand.logoLine1}
             <br />

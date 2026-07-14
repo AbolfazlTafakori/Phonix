@@ -1,5 +1,4 @@
 import Link from "next/link";
-import Img from "@/components/ui/Img";
 
 // Full pre-designed banner images (text baked in). Ordered right-to-left to
 // match the reference: discount (right) · virtual number (middle) · gamers (left).
@@ -18,9 +17,11 @@ export default function HomePromoBanners() {
           href={b.href}
           className="group block overflow-hidden rounded-[22px] transition duration-200 hover:-translate-y-1 hover:shadow-[0_20px_44px_-18px_rgba(20,20,20,0.28)]"
         >
-          <Img src={b.img}
+          <img loading="lazy" decoding="async"
+            src={b.img}
             alt={b.alt}
-            className="aspect-[16/9] w-full object-cover transition duration-300 group-hover:scale-[1.03]" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+            className="aspect-[16/9] w-full object-cover transition duration-300 group-hover:scale-[1.03]"
+          />
         </Link>
       ))}
     </section>

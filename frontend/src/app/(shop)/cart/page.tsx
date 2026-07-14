@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useCart, setQuantity, removeFromCart } from "@/lib/cart";
 import { formatToman } from "@/lib/format";
-import Img from "@/components/ui/Img";
 
 export default function CartPage() {
   const { items, total, count, ready } = useCart();
@@ -24,7 +23,7 @@ export default function CartPage() {
           <div className="space-y-3">
             {items.map((i) => (
               <div key={`${i.productId}:${i.planId ?? ""}`} className="hl-card flex flex-wrap items-center gap-3 rounded-2xl p-4 sm:gap-4">
-                <Img src={i.image} alt={i.name} className="h-14 w-14 shrink-0 rounded-lg object-cover sm:h-16 sm:w-16" sizes="128px" />
+                <img loading="lazy" decoding="async" src={i.image} alt={i.name} className="h-14 w-14 shrink-0 rounded-lg object-cover sm:h-16 sm:w-16" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-bold text-[var(--hl-ink)]">{i.name}</p>
                   {i.plan && <p className="text-xs text-[var(--hl-muted)]">{i.plan}</p>}

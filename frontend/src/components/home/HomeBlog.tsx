@@ -1,6 +1,5 @@
 import Link from "next/link";
 import type { BlogPost } from "@/lib/types";
-import Img from "@/components/ui/Img";
 
 export default function HomeBlog({ posts, title }: { posts: BlogPost[]; title: string }) {
   // Show the admin-selected posts; if none are flagged, fall back to the most recent so the section is
@@ -43,7 +42,7 @@ export default function HomeBlog({ posts, title }: { posts: BlogPost[]; title: s
                 {p.date && <span>{p.date}</span>}
               </div>
             </div>
-            <Img src={p.image} alt={p.title} className="h-24 w-32 shrink-0 rounded-xl object-cover" sizes="256px" />
+            <img loading="lazy" decoding="async" src={p.image} alt={p.title} className="h-24 w-32 shrink-0 rounded-xl object-cover" />
           </Link>
         ))}
       </div>

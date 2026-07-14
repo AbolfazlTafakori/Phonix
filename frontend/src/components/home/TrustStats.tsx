@@ -1,4 +1,3 @@
-import Img from "@/components/ui/Img";
 const stats = [
   { value: "+10,000", label: "سفارش موفق", icon: "/figma/stat-orders.png" },
   { value: "+5,000", label: "مشتری راضی", icon: "/figma/stat-customers.png" },
@@ -17,10 +16,13 @@ export default function TrustStats() {
             key={s.label}
             className={`flex items-center justify-center gap-2 sm:gap-3 ${i > 0 ? "lg:border-r lg:border-[var(--hl-border)]" : ""}`}
           >
-            <Img src={s.icon}
+            <img loading="lazy" decoding="async"
+              src={s.icon}
               alt=""
+              aria-hidden
               className="shrink-0 object-contain"
-              style={{ width: "clamp(30px, 3.4vw, 56px)", height: "clamp(30px, 3.4vw, 56px)" }} sizes="112px" />
+              style={{ width: "clamp(30px, 3.4vw, 56px)", height: "clamp(30px, 3.4vw, 56px)" }}
+            />
             <div className="min-w-0 text-right">
               <div
                 className="whitespace-nowrap font-black leading-none text-[var(--hl-ink)]"

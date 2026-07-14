@@ -32,10 +32,6 @@ COPY --from=build /app/public ./public
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# The image optimizer writes its re-encoded (AVIF/WebP) variants here. Without a writable cache it would
-# re-encode on every request instead of once per image.
-RUN mkdir -p .next/cache/images && chown -R nextjs:nodejs .next
-
 USER nextjs
 EXPOSE 3000
 CMD ["node", "server.js"]

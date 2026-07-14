@@ -1,5 +1,4 @@
 import React from "react";
-import Img from "@/components/ui/Img";
 
 // Minimal, safe Markdown-subset renderer for article-style product descriptions. No dependency and no
 // dangerouslySetInnerHTML — everything is turned into React elements, so stored content can't inject HTML.
@@ -21,7 +20,7 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
     const key = `${keyPrefix}-${i++}`;
     if (m[1] !== undefined && m[2] !== undefined) {
       const src = safeUrl(m[2]);
-      if (src) nodes.push(<Img key={key} src={src} alt={m[1]} className="my-2 inline-block max-h-32 rounded-lg align-middle" sizes="256px" />);
+      if (src) nodes.push(<img loading="lazy" decoding="async" key={key} src={src} alt={m[1]} className="my-2 inline-block max-h-32 rounded-lg align-middle" />);
     } else if (m[3] !== undefined && m[4] !== undefined) {
       const href = safeUrl(m[4]);
       nodes.push(href ? <a key={key} href={href} target="_blank" rel="noreferrer" className="font-medium text-[var(--hl-red)] underline">{m[3]}</a> : m[3]);
@@ -47,7 +46,7 @@ export default function RichText({ content, className = "" }: { content: string;
         const imgOnly = block.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
         if (imgOnly) {
           const src = safeUrl(imgOnly[2]);
-          return src ? <Img key={bi} src={src} alt={imgOnly[1]} className="mx-auto max-w-full rounded-xl border border-[var(--hl-border)]" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" /> : null;
+          return src ? <img loading="lazy" decoding="async" key={bi} src={src} alt={imgOnly[1]} className="mx-auto max-w-full rounded-xl border border-[var(--hl-border)]" /> : null;
         }
         if (block.startsWith("### ")) return <h4 key={bi} className="text-base font-bold text-[var(--hl-ink)]">{renderInline(block.slice(4), `h${bi}`)}</h4>;
         if (block.startsWith("## ")) return <h3 key={bi} className="text-lg font-bold text-[var(--hl-ink)]">{renderInline(block.slice(3), `h${bi}`)}</h3>;

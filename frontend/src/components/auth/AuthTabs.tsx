@@ -7,7 +7,6 @@ import { api } from "@/lib/api";
 import { setCurrentUser } from "@/lib/auth";
 import { useCaptcha } from "./Captcha";
 import AuthShell from "./AuthShell";
-import Img from "@/components/ui/Img";
 
 const LOGIN_IMAGE = "/figma/auth-login.png";
 const REGISTER_IMAGE = "/figma/auth-register.png";
@@ -357,7 +356,7 @@ function CaptchaRow({ captcha }: { captcha: ReturnType<typeof useCaptcha> }) {
         <div className="grid h-14 min-w-0 flex-1 place-items-center overflow-hidden rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface-2)]">
           {captcha.loading || !captcha.image ? <span className="text-xs text-[var(--chat-muted)]">…</span> : (
             // eslint-disable-next-line @next/next/no-img-element
-            <Img src={captcha.image} alt="کد امنیتی" className="h-14 w-auto max-w-full" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+            <img src={captcha.image} alt="کد امنیتی" className="h-14 w-auto max-w-full" />
           )}
         </div>
         <button type="button" onClick={captcha.refresh} title="تصویر جدید" tabIndex={-1} className="grid h-14 w-11 shrink-0 place-items-center rounded-xl border border-[var(--chat-border)] text-[var(--chat-ink-2)] transition hover:text-[var(--chat-ink)]">↻</button>

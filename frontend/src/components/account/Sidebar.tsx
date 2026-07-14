@@ -9,7 +9,6 @@ import { useMe } from "@/lib/useMe";
 import { api } from "@/lib/api";
 import { formatToman, formatNumber } from "@/lib/format";
 import MenuIcon from "./MenuIcon";
-import Img from "@/components/ui/Img";
 
 function KycBadge({ level }: { level: number }) {
   // Translucent tints keep these level badges readable on both the light and dark theme.
@@ -99,7 +98,7 @@ export default function Sidebar() {
               }}
             >
               {avatar ? (
-                <Img src={avatar} alt={name} className="h-full w-full object-cover" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw" />
+                <img loading="lazy" decoding="async" src={avatar} alt={name} className="h-full w-full object-cover" />
               ) : (
                 <svg viewBox="0 0 92 92" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-full w-full">
                   <circle cx="46" cy="46" r="46" fill="#FFF1E8" />
