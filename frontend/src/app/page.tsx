@@ -1,4 +1,4 @@
-import { getSiteContent } from "@/lib/content";
+import { getBlogPosts, getSiteContent } from "@/lib/content";
 import TopBar from "@/components/home/TopBar";
 import HomeHeader from "@/components/home/HomeHeader";
 import HomeHero from "@/components/home/HomeHero";
@@ -15,7 +15,7 @@ import HomeNewsletter from "@/components/home/HomeNewsletter";
 import HomeFooter from "@/components/home/HomeFooter";
 
 export default async function Home() {
-  const content = await getSiteContent();
+  const [content, blogPosts] = await Promise.all([getSiteContent(), getBlogPosts()]);
   return (
     <div className="home-light min-h-screen">
       <TopBar />
@@ -29,7 +29,7 @@ export default async function Home() {
         <HomeWhyChoose />
         <HomeHowToBuy />
         <HomeReviews />
-        <HomeBlog />
+        <HomeBlog posts={blogPosts} title={content.sections.blogTitle} />
         <HomeFaq />
         <HomeNewsletter />
       </main>
