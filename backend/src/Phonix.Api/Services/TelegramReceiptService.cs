@@ -229,6 +229,7 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         sb.AppendLine($"👨‍💼اسم کاربر: {Esc(Dash(user?.Name ?? tx.UserName))}");
         sb.AppendLine($"⚡️ نام کاربری: {Esc(Dash(user?.Username))}");
         sb.AppendLine($"📞 شماره تماس: {Esc(Dash(user?.Phone))}");
+        sb.AppendLine($"📨 ایمیل: {Esc(Dash(user?.Email))}");
         sb.AppendLine();
         sb.AppendLine($"<b>💳 موجودی کاربر: {Money(user?.Wallet ?? 0)} تومان</b></blockquote>");
         sb.AppendLine();
@@ -263,7 +264,11 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         sb.AppendLine(); // blank line between the source-card group and the destination-card group
         if (!string.IsNullOrWhiteSpace(tx.DestinationCard)) sb.AppendLine($"شماره کارت مقصد: {FormatCard(tx.DestinationCard)}");
         if (!string.IsNullOrWhiteSpace(tx.DestinationHolder)) sb.AppendLine($"👤 نگهدارنده کارت مقصد: {Esc(tx.DestinationHolder!)}");
-        if (!string.IsNullOrWhiteSpace(tx.TrackingNumber)) sb.AppendLine($"🔗 شماره پیگیری: {Esc(tx.TrackingNumber!)}");
+        if (!string.IsNullOrWhiteSpace(tx.TrackingNumber))
+        {
+            sb.AppendLine(); // blank line before the tracking number
+            sb.AppendLine($"🔗 شماره پیگیری: {Esc(tx.TrackingNumber!)}");
+        }
         sb.AppendLine("</blockquote>");
 
         sb.Append(JalaliDate.NowStamp());
