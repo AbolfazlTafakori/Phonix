@@ -199,9 +199,11 @@ public partial class StoreData
             // the gateway tax/fee only applies to the amount paid through that method. Each method may set
             // its own FeePercent; when it doesn't, the global GatewayFeePercent from pricing settings applies.
             long fee = 0;
+            PaymentMethod? destMethod = null;
             if (paymentMethodId is int methodId && remainder > 0)
             {
                 var pm = _paymentMethods.FirstOrDefault(x => x.Id == methodId);
+                destMethod = pm;
                 if (pm is not null)
                 {
                     var feePercent = pm.FeePercent > 0 ? pm.FeePercent : _settings.GatewayFeePercent;
@@ -264,7 +266,8 @@ public partial class StoreData
                     Status = TxStatus.Pending,
                     Method = paymentMethod,
                     ReceiptUrl = string.IsNullOrWhiteSpace(payment!.ReceiptUrl) ? null : payment.ReceiptUrl.Trim(),
-                    SourceCard = sourceCard.CardNumber,
+                    SourceCard = sourceCard.CardNumber, SourceHolder = sourceCard.HolderName,
+                    DestinationCard = destMethod?.Value, DestinationHolder = destMethod?.Holder,
                     TrackingNumber = payment.TrackingNumber!.Trim(),
                     PaymentDate = payment.PaymentDate!.Trim(),
                     Description = string.IsNullOrWhiteSpace(payment.Description) ? null : payment.Description.Trim(),

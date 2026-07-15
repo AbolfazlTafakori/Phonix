@@ -19,12 +19,16 @@ public class AccountController : ControllerBase
     private readonly IDataStore _store;
     private readonly ISessionProtector _sessions;
     private readonly Services.IFileStorageService _files;
-    public AccountController(IDataStore store, ISessionProtector sessions, Services.IFileStorageService files)
+    private readonly Services.IEmailSender _email;
+    public AccountController(IDataStore store, ISessionProtector sessions, Services.IFileStorageService files, Services.IEmailSender email)
     {
         _store = store;
         _sessions = sessions;
         _files = files;
+        _email = email;
     }
+
+    private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
 
     [HttpGet("me")]
     public ActionResult<UserDto> Me()
@@ -82,7 +86,7 @@ public class AccountController : ControllerBase
     }
 
     [HttpPut("password")]
-    public IActionResult ChangePassword(ChangePasswordInput input)
+    public async Task<IActionResult> ChangePassword(ChangePasswordInput input)
     {
         if (this.CurrentUserId() is not int id) return Unauthorized();
         var user = _store.GetUser(id);
@@ -99,6 +103,24 @@ public class AccountController : ControllerBase
         _store.RotateSecurityStamp(id);
         if (_store.GetUser(id) is { } refreshed)
             AuthCookies.Issue(Response, _sessions.Protect(refreshed, this.IsAdminScope()), Request.IsHttps);
+
+        // Security tripwire: confirm the change to the account owner so an unauthorized change is noticed.
+        if (!string.IsNullOrWhiteSpace(user.Email))
+        {
+            var (text, html) = Services.EmailTemplates.PasswordChanged($"{FrontendUrl}/forgot-password", PersianNow());
+            await _email.SendAsync(user.Email, "گذرواژه‌ی حساب فونیکس شما تغییر کرد", text, html);
+        }
         return NoContent();
+    }
+
+    // Persian (Jalali) date + 24h time in Persian digits, e.g. "۱۴۰۴/۰۵/۱۲ — ساعت ۱۴:۳۰".
+    private static string PersianNow()
+    {
+        DateTime now;
+        try { now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Tehran")).DateTime; }
+        catch { now = DateTime.Now; }
+        var pc = new System.Globalization.PersianCalendar();
+        var s = $"{pc.GetYear(now):0000}/{pc.GetMonth(now):00}/{pc.GetDayOfMonth(now):00} — ساعت {now:HH:mm}";
+        return new string(s.Select(ch => char.IsDigit(ch) ? (char)('۰' + (ch - '0')) : ch).ToArray());
     }
 }

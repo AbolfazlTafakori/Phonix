@@ -35,6 +35,14 @@ public static class JalaliDate
         catch (ArgumentException) { return null; }
     }
 
+    // The current Tehran moment as "yyyy/MM/dd HH:mm:ss" in the Jalali calendar (e.g. "1405/04/21 19:15:22").
+    // Iran is a fixed UTC+03:30 (no DST since 2022), so a constant offset is exact without a tz database.
+    public static string NowStamp()
+    {
+        var t = DateTime.UtcNow.AddMinutes(210);
+        return $"{Cal.GetYear(t):0000}/{Cal.GetMonth(t):00}/{Cal.GetDayOfMonth(t):00} {t:HH:mm:ss}";
+    }
+
     // True when the string is a valid Jalali date no later than today (Tehran). Empty/invalid input is not
     // "valid" — callers should reject those separately with their own message.
     public static bool IsValidAndNotFuture(string? value)

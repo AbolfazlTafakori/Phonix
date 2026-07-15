@@ -206,7 +206,7 @@ public class AuthController : ControllerBase
 
     [AllowAnonymous]
     [HttpPost("reset-password")]
-    public IActionResult ResetPassword(ResetPasswordInput input)
+    public async Task<IActionResult> ResetPassword(ResetPasswordInput input)
     {
         if (PasswordPolicy.Validate(input.NewPassword) is string error)
             return BadRequest(error);
@@ -217,7 +217,25 @@ public class AuthController : ControllerBase
         // invalidate every existing session for this account — a reset must lock out anyone holding an old token.
         _store.RotateSecurityStamp(userId);
         _logger.LogInformation("Password reset completed for user #{UserId} from {ClientIp}", userId, ClientIp);
+
+        // Confirm the change to the owner so an attacker-driven reset is noticed and can be undone.
+        if (_store.GetUser(userId) is { Email: { Length: > 0 } email })
+        {
+            var (text, html) = EmailTemplates.PasswordChanged($"{FrontendUrl}/forgot-password", PersianNow());
+            await _email.SendAsync(email, "گذرواژه‌ی حساب فونیکس شما تغییر کرد", text, html);
+        }
         return Ok(new { ok = true });
+    }
+
+    // Persian (Jalali) date + 24h time in Persian digits for security-notice timestamps.
+    private static string PersianNow()
+    {
+        DateTime now;
+        try { now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Tehran")).DateTime; }
+        catch { now = DateTime.Now; }
+        var pc = new System.Globalization.PersianCalendar();
+        var s = $"{pc.GetYear(now):0000}/{pc.GetMonth(now):00}/{pc.GetDayOfMonth(now):00} — ساعت {now:HH:mm}";
+        return new string(s.Select(ch => char.IsDigit(ch) ? (char)('۰' + (ch - '0')) : ch).ToArray());
     }
 
     [HttpPost("login")]

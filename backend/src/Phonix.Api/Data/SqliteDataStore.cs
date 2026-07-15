@@ -751,11 +751,14 @@ SELECT last_insert_rowid();",
             }
 
             // gateway fee applies only to the amount paid through the method (its own FeePercent, else global).
+            // destMethod is also the destination the buyer paid TO — captured onto the receipt transaction below.
             long fee = 0;
+            PaymentMethod? destMethod = null;
             if (paymentMethodId is int methodId && remainder > 0)
             {
                 var pmJson = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM PaymentMethods WHERE Id = @methodId", new { methodId }, tx);
                 var pm = pmJson is null ? null : Deserialize<PaymentMethod>(pmJson);
+                destMethod = pm;
                 if (pm is not null)
                 {
                     var feePercent = pm.FeePercent > 0 ? pm.FeePercent : settings.GatewayFeePercent;
@@ -812,7 +815,9 @@ SELECT last_insert_rowid();",
                     UserId = buyer.Id, UserName = name, Type = TxTypes.OrderPayment,
                     Amount = -(order.Total - order.WalletPaid), Status = TxStatus.Pending, Method = paymentMethod,
                     ReceiptUrl = string.IsNullOrWhiteSpace(payment!.ReceiptUrl) ? null : payment.ReceiptUrl.Trim(),
-                    SourceCard = sourceCard.CardNumber, TrackingNumber = payment.TrackingNumber!.Trim(),
+                    SourceCard = sourceCard.CardNumber, SourceHolder = sourceCard.HolderName,
+                    DestinationCard = destMethod?.Value, DestinationHolder = destMethod?.Holder,
+                    TrackingNumber = payment.TrackingNumber!.Trim(),
                     PaymentDate = payment.PaymentDate!.Trim(),
                     Description = string.IsNullOrWhiteSpace(payment.Description) ? null : payment.Description.Trim(),
                     OrderCode = order.Code, Date = Today(),

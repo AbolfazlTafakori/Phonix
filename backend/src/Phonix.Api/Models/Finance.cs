@@ -55,6 +55,11 @@ public class Transaction
     // offline card-to-card deposit details: the registered card the buyer paid from, the bank tracking
     // number, the payment date, and an optional buyer note.
     public string? SourceCard { get; set; }
+    // Holder name on the source card, and the destination card (number + holder) the buyer paid TO. Captured
+    // at creation so the Telegram receipt message is self-contained even if a card/method is later edited.
+    public string? SourceHolder { get; set; }
+    public string? DestinationCard { get; set; }
+    public string? DestinationHolder { get; set; }
     public string? TrackingNumber { get; set; }
     public string? PaymentDate { get; set; }
     public string? Description { get; set; }

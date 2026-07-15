@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -204,19 +205,72 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         return (null, null);
     }
 
+    // Rich receipt caption. An order purchase (OrderPayment) also carries the service block resolved from the
+    // linked order; a wallet top-up omits it. Both are card-to-card (a source + destination card).
     private string BuildCaption(Transaction tx)
     {
+        var isOrder = tx.Type == TxTypes.OrderPayment;
+        var user = tx.UserId > 0 ? _store.GetUser(tx.UserId) : null;
         var sb = new StringBuilder();
-        sb.AppendLine("🧾 رسید واریز جدید");
-        sb.AppendLine($"کاربر: {tx.UserName} (#{tx.UserId})");
-        sb.AppendLine($"مبلغ: {tx.Amount:N0} تومان");
-        if (!string.IsNullOrWhiteSpace(tx.Method)) sb.AppendLine($"روش: {tx.Method}");
-        if (!string.IsNullOrWhiteSpace(tx.SourceCard)) sb.AppendLine($"کارت مبدأ: {tx.SourceCard}");
-        if (!string.IsNullOrWhiteSpace(tx.TrackingNumber)) sb.AppendLine($"شماره پیگیری: {tx.TrackingNumber}");
-        if (!string.IsNullOrWhiteSpace(tx.PaymentDate)) sb.AppendLine($"تاریخ پرداخت: {tx.PaymentDate}");
-        if (!string.IsNullOrWhiteSpace(tx.Description)) sb.AppendLine($"توضیح: {tx.Description}");
-        sb.Append($"کد: {tx.Code}");
+
+        sb.AppendLine(isOrder ? "❗️|💳 خرید جدید ( کارت به کارت )" : "❗️|💳 واریز جدید ( کارت به کارت )");
+        sb.AppendLine();
+
+        sb.AppendLine("مشخصات کاربر");
+        sb.AppendLine($"▫️آیدی کاربر: {tx.UserId}");
+        sb.AppendLine($"👨‍💼اسم کاربر: {Dash(user?.Name ?? tx.UserName)}");
+        sb.AppendLine($"⚡️ نام کاربری: {Dash(user?.Username)}");
+        sb.AppendLine($"✉️ ایمیل کاربر: {Dash(user?.Email)}");
+        sb.AppendLine();
+        sb.AppendLine($"💳 موجودی کاربر: {Money(user?.Wallet ?? 0)} تومان");
+        sb.AppendLine();
+
+        if (isOrder && !string.IsNullOrWhiteSpace(tx.OrderCode)
+            && _store.GetUserOrders(tx.UserId).FirstOrDefault(o => o.Code == tx.OrderCode) is { Items.Count: > 0 } order)
+        {
+            var item = order.Items[0];
+            var category = _store.GetProduct(item.ProductId) is { } p ? _store.GetCategory(p.CategoryId)?.Name : null;
+            var (planType, planDuration) = SplitPlan(item);
+            sb.AppendLine("مشخصات سرویس");
+            sb.AppendLine($"🚦دسته‌بندی: {Dash(category)}");
+            sb.AppendLine($"✏️ نام سرویس: {Dash(item.Name)}");
+            sb.AppendLine($"🔋نوع سرویس: {Dash(planType)}");
+            sb.AppendLine($"⏰ مدت سرویس: {Dash(planDuration)}");
+            sb.AppendLine();
+        }
+
+        sb.AppendLine($"💰مبلغ پرداختی: {Money(Math.Abs(tx.Amount))} تومان");
+        sb.AppendLine();
+
+        sb.AppendLine("اطلاعات واریزی");
+        if (!string.IsNullOrWhiteSpace(tx.SourceCard)) sb.AppendLine($"شماره کارت مبدأ: {tx.SourceCard}");
+        if (!string.IsNullOrWhiteSpace(tx.SourceHolder)) sb.AppendLine($"👤 نگهدارنده کارت مبدأ: {tx.SourceHolder}");
+        if (!string.IsNullOrWhiteSpace(tx.DestinationCard)) sb.AppendLine($"شماره کارت مقصد: {tx.DestinationCard}");
+        if (!string.IsNullOrWhiteSpace(tx.DestinationHolder)) sb.AppendLine($"👤 نگهدارنده کارت مقصد: {tx.DestinationHolder}");
+        if (!string.IsNullOrWhiteSpace(tx.TrackingNumber)) sb.AppendLine($"🔗 شماره پیگیری: {tx.TrackingNumber}");
+        sb.AppendLine();
+
+        sb.Append(JalaliDate.NowStamp());
         return sb.ToString();
+    }
+
+    private static string Dash(string? v) => string.IsNullOrWhiteSpace(v) ? "-" : v.Trim();
+
+    // 3-3 grouped from the right with commas, e.g. 490000 → "490,000".
+    private static string Money(long toman) => toman.ToString("N0", CultureInfo.InvariantCulture);
+
+    // OrderItem.Plan is built as "{Type} · {Months} ماهه"; fall back to PlanMonths for the duration.
+    private static (string? type, string? duration) SplitPlan(OrderItem item)
+    {
+        string? type = null;
+        var duration = item.PlanMonths is int m ? $"{m} ماهه" : null;
+        if (!string.IsNullOrWhiteSpace(item.Plan))
+        {
+            var parts = item.Plan.Split('·');
+            type = parts[0].Trim();
+            if (parts.Length > 1) duration = parts[1].Trim();
+        }
+        return (type, duration);
     }
 
     private StoredFile? OpenReceipt(string? receiptUrl)

@@ -27,10 +27,12 @@ public class OrdersController : ControllerBase
 {
     private readonly IDataStore _store;
     private readonly IEmailSender _email;
-    public OrdersController(IDataStore store, IEmailSender email)
+    private readonly ITelegramReceiptService _receiptBot;
+    public OrdersController(IDataStore store, IEmailSender email, ITelegramReceiptService receiptBot)
     {
         _store = store;
         _email = email;
+        _receiptBot = receiptBot;
     }
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
@@ -119,7 +121,15 @@ public class OrdersController : ControllerBase
             customerCheckout: true,
             lineInfo: lineInfo);
         if (result.Error is not null) return BadRequest(result.Error);
-        return RevealInputs(result.Order!);
+
+        var order = result.Order!;
+        // Card-to-card remainder → push its receipt to the admin Telegram chat for one-tap approve/reject
+        // (no-op unless the receipt bot is enabled). Fire-and-forget: checkout never waits on Telegram.
+        var payTx = _store.GetUserTransactions(order.UserId)
+            .FirstOrDefault(t => t.OrderCode == order.Code && t.Type == TxTypes.OrderPayment && t.Status == TxStatus.Pending);
+        if (payTx is not null) _ = _receiptBot.NotifyDepositAsync(payTx, CancellationToken.None);
+
+        return RevealInputs(order);
     }
 
     private const int MaxInputLength = 1000;
