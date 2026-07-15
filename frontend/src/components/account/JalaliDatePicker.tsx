@@ -109,7 +109,11 @@ function autoFormat(raw: string): string {
 }
 
 const inputCls =
-  "h-12 w-full rounded-xl border border-white/10 bg-[#0d0d15] px-4 text-sm text-white outline-none transition focus:border-[#3e3af2] placeholder:text-white/35";
+  "h-12 w-full rounded-xl border border-[color:var(--ac-input-border)] bg-[color:var(--ac-input-bg)] px-4 text-sm text-[color:var(--ac-title)] outline-none transition focus:border-[color:var(--ac-input-focus)] placeholder:text-[color:var(--ac-muted)]";
+
+// The picked day / month / year uses the site's warm accent gradient (matching the account CTAs) rather
+// than a standalone blue, so the calendar reads as part of the theme in both light and dark mode.
+const selectedCls = "bg-gradient-to-l from-[#ef233c] to-[#ff7a2e] font-bold text-white";
 
 export default function JalaliDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -203,7 +207,7 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
           type="button"
           onClick={openCalendar}
           aria-label="انتخاب از تقویم"
-          className="absolute left-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-white/55 transition hover:bg-white/10 hover:text-white"
+          className="absolute left-2 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-lg text-[color:var(--ac-icon)] transition hover:bg-[color:var(--ac-menu-hover)] hover:text-[color:var(--ac-title)]"
         >
           <svg viewBox="0 0 24 24" fill="none" className="h-5 w-5" stroke="currentColor" strokeWidth="1.8">
             <rect x="3" y="4.5" width="18" height="16" rx="2.5" />
@@ -215,18 +219,18 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
       {typedError && <p className="mt-1.5 text-xs text-rose-400">{typedError}</p>}
 
       {open && (
-        <div className="absolute inset-x-0 z-30 mt-2 w-full max-w-[320px] rounded-2xl border border-white/10 bg-[#15151f] p-3 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.7)] sm:w-[290px]">
+        <div className="absolute inset-x-0 z-30 mt-2 w-full max-w-[320px] rounded-2xl border border-[color:var(--ac-panel-border)] bg-[color:var(--ac-panel-bg)] p-3 shadow-[var(--ac-panel-shadow)] sm:w-[290px]">
           {mode === "day" && (
             <>
               <div className="mb-2 flex items-center justify-between">
-                <button type="button" onClick={() => move(-1)} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white">‹</button>
-                <span className="flex items-center gap-1.5 text-sm font-bold text-white">
-                  <button type="button" onClick={() => setMode("month")} className="rounded-md px-2 py-0.5 transition hover:bg-white/10">{MONTHS[view.jm - 1]}</button>
-                  <button type="button" onClick={() => { setYearEnd(today.jy); setMode("year"); }} className="rounded-md px-2 py-0.5 transition hover:bg-white/10">{toFa(view.jy)}</button>
+                <button type="button" onClick={() => move(-1)} className="grid h-8 w-8 place-items-center rounded-lg text-[color:var(--ac-text)] transition hover:bg-[color:var(--ac-menu-hover)] hover:text-[color:var(--ac-title)]">‹</button>
+                <span className="flex items-center gap-1.5 text-sm font-bold text-[color:var(--ac-title)]">
+                  <button type="button" onClick={() => setMode("month")} className="rounded-md px-2 py-0.5 transition hover:bg-[color:var(--ac-menu-hover)]">{MONTHS[view.jm - 1]}</button>
+                  <button type="button" onClick={() => { setYearEnd(today.jy); setMode("year"); }} className="rounded-md px-2 py-0.5 transition hover:bg-[color:var(--ac-menu-hover)]">{toFa(view.jy)}</button>
                 </span>
-                <button type="button" onClick={() => move(1)} disabled={atCurrentMonth} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent">›</button>
+                <button type="button" onClick={() => move(1)} disabled={atCurrentMonth} className="grid h-8 w-8 place-items-center rounded-lg text-[color:var(--ac-text)] transition hover:bg-[color:var(--ac-menu-hover)] hover:text-[color:var(--ac-title)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent">›</button>
               </div>
-              <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-white/40">
+              <div className="mb-1 grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-[color:var(--ac-muted)]">
                 {WEEK.map((w) => <span key={w}>{w}</span>)}
               </div>
               <div className="grid grid-cols-7 gap-1">
@@ -242,10 +246,10 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
                       disabled={disabled}
                       onClick={() => pick(jd)}
                       className={`grid h-8 place-items-center rounded-lg text-sm transition ${
-                        disabled ? "cursor-not-allowed text-white/20"
-                          : isSel ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] font-bold text-white"
-                          : isToday ? "border border-[#3a64f2]/60 text-white"
-                          : "text-white/75 hover:bg-white/10"
+                        disabled ? "cursor-not-allowed text-[color:var(--ac-muted)] opacity-40"
+                          : isSel ? selectedCls
+                          : isToday ? "border border-[color:var(--ac-menu-active-border)] text-[color:var(--ac-title)]"
+                          : "text-[color:var(--ac-text)] hover:bg-[color:var(--ac-menu-hover)]"
                       }`}
                     >
                       {toFa(jd)}
@@ -259,7 +263,7 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
           {mode === "month" && (
             <>
               <div className="mb-3 flex items-center justify-center">
-                <button type="button" onClick={() => { setYearEnd(today.jy); setMode("year"); }} className="rounded-md px-3 py-1 text-sm font-bold text-white transition hover:bg-white/10">{toFa(view.jy)}</button>
+                <button type="button" onClick={() => { setYearEnd(today.jy); setMode("year"); }} className="rounded-md px-3 py-1 text-sm font-bold text-[color:var(--ac-title)] transition hover:bg-[color:var(--ac-menu-hover)]">{toFa(view.jy)}</button>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {MONTHS.map((name, i) => {
@@ -273,9 +277,9 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
                       disabled={disabled}
                       onClick={() => pickMonth(jm)}
                       className={`grid h-10 place-items-center rounded-lg text-xs font-medium transition ${
-                        disabled ? "cursor-not-allowed text-white/20"
-                          : isCur ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] font-bold text-white"
-                          : "text-white/75 hover:bg-white/10"
+                        disabled ? "cursor-not-allowed text-[color:var(--ac-muted)] opacity-40"
+                          : isCur ? selectedCls
+                          : "text-[color:var(--ac-text)] hover:bg-[color:var(--ac-menu-hover)]"
                       }`}
                     >
                       {name}
@@ -289,9 +293,9 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
           {mode === "year" && (
             <>
               <div className="mb-3 flex items-center justify-between">
-                <button type="button" onClick={() => setYearEnd((y) => y - 12)} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white">‹</button>
-                <span className="text-sm font-bold text-white">{toFa(years[0])} – {toFa(years[years.length - 1])}</span>
-                <button type="button" onClick={() => setYearEnd((y) => Math.min(today.jy, y + 12))} disabled={yearEnd >= today.jy} className="grid h-8 w-8 place-items-center rounded-lg text-white/60 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent">›</button>
+                <button type="button" onClick={() => setYearEnd((y) => y - 12)} className="grid h-8 w-8 place-items-center rounded-lg text-[color:var(--ac-text)] transition hover:bg-[color:var(--ac-menu-hover)] hover:text-[color:var(--ac-title)]">‹</button>
+                <span className="text-sm font-bold text-[color:var(--ac-title)]">{toFa(years[0])} – {toFa(years[years.length - 1])}</span>
+                <button type="button" onClick={() => setYearEnd((y) => Math.min(today.jy, y + 12))} disabled={yearEnd >= today.jy} className="grid h-8 w-8 place-items-center rounded-lg text-[color:var(--ac-text)] transition hover:bg-[color:var(--ac-menu-hover)] hover:text-[color:var(--ac-title)] disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent">›</button>
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {years.map((jy) => {
@@ -304,9 +308,9 @@ export default function JalaliDatePicker({ value, onChange }: { value: string; o
                       disabled={disabled}
                       onClick={() => pickYear(jy)}
                       className={`grid h-10 place-items-center rounded-lg text-sm font-medium transition ${
-                        disabled ? "cursor-not-allowed text-white/20"
-                          : isCur ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] font-bold text-white"
-                          : "text-white/75 hover:bg-white/10"
+                        disabled ? "cursor-not-allowed text-[color:var(--ac-muted)] opacity-40"
+                          : isCur ? selectedCls
+                          : "text-[color:var(--ac-text)] hover:bg-[color:var(--ac-menu-hover)]"
                       }`}
                     >
                       {toFa(jy)}
