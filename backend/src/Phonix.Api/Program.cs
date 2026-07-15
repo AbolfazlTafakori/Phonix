@@ -167,6 +167,9 @@ try
             sqlite.Save();
         }
         sqlite.EnsureOwnerFromEnvironment();
+        var recoded = sqlite.MigrateLegacyUserCodes();
+        if (recoded > 0)
+            Log.Information("Rewrote {Count} legacy U-#### user codes to random numeric account ids.", recoded);
     }
 
     // Behind a reverse proxy (nginx/Caddy terminating TLS), trust its X-Forwarded-* so the real client IP

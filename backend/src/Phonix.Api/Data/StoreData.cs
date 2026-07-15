@@ -500,12 +500,15 @@ public partial class StoreData : IDataStore
                     u.Phone == identifier);
     }
 
+    // Caller must hold _gate. Uniqueness is checked against every existing code, legacy U-… ones included.
+    private string NextUserCode() => UserCodes.Next(code => _users.Any(u => u.Code == code));
+
     public AppUser RegisterUser(AppUser user)
     {
         lock (_gate)
         {
             user.Id = ++_userSeq;
-            user.Code = $"U-{1000 + user.Id}";
+            user.Code = NextUserCode();
             user.Role = UserRole.Customer;
             user.SecurityStamp = NewStamp();
             user.EmailVerified = false; // must confirm their email before they can order
@@ -535,7 +538,7 @@ public partial class StoreData : IDataStore
                 owner = new AppUser
                 {
                     Id = ++_userSeq,
-                    Code = $"U-{1000 + _userSeq}",
+                    Code = NextUserCode(),
                     Name = username,
                     Username = username,
                     Password = PasswordHasher.Hash(password),

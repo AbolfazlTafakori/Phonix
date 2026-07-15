@@ -211,8 +211,10 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         return (null, null);
     }
 
-    // Rich receipt caption. An order purchase (OrderPayment) also carries the service block resolved from the
-    // linked order; a wallet top-up omits it. Both are card-to-card (a source + destination card).
+    // Rich receipt caption as Telegram HTML: each section is a <blockquote> (the red-bar quote style) with
+    // its money line bold, matching the admin's reference layout. An order purchase (OrderPayment) also
+    // carries the service block resolved from the linked order; a wallet top-up omits it. Every dynamic
+    // value is HTML-escaped — names, notes and card holders are customer input.
     private string BuildCaption(Transaction tx)
     {
         var isOrder = tx.Type == TxTypes.OrderPayment;
@@ -222,45 +224,58 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         sb.AppendLine(isOrder ? "❗️|💳 خرید جدید ( کارت به کارت )" : "❗️|💳 واریز جدید ( کارت به کارت )");
         sb.AppendLine();
 
-        sb.AppendLine("مشخصات کاربر");
-        sb.AppendLine($"▫️آیدی کاربر: {tx.UserId}");
-        sb.AppendLine($"👨‍💼اسم کاربر: {Dash(user?.Name ?? tx.UserName)}");
-        sb.AppendLine($"⚡️ نام کاربری: {Dash(user?.Username)}");
-        sb.AppendLine($"✉️ ایمیل کاربر: {Dash(user?.Email)}");
+        sb.AppendLine("<blockquote>مشخصات کاربر");
+        sb.AppendLine($"▫️آیدی کاربر: {Esc(user?.Code is { Length: > 0 } code ? code : tx.UserId.ToString())}");
+        sb.AppendLine($"👨‍💼اسم کاربر: {Esc(Dash(user?.Name ?? tx.UserName))}");
+        sb.AppendLine($"⚡️ نام کاربری: {Esc(Dash(user?.Username))}");
+        sb.AppendLine($"📞 شماره تماس: {Esc(Dash(user?.Phone))}");
         sb.AppendLine();
-        sb.AppendLine($"💳 موجودی کاربر: {Money(user?.Wallet ?? 0)} تومان");
+        sb.AppendLine($"<b>💳 موجودی کاربر: {Money(user?.Wallet ?? 0)} تومان</b></blockquote>");
         sb.AppendLine();
 
+        var serviceLines = new StringBuilder();
         if (isOrder && !string.IsNullOrWhiteSpace(tx.OrderCode)
             && _store.GetUserOrders(tx.UserId).FirstOrDefault(o => o.Code == tx.OrderCode) is { Items.Count: > 0 } order)
         {
             var item = order.Items[0];
             var category = _store.GetProduct(item.ProductId) is { } p ? _store.GetCategory(p.CategoryId)?.Name : null;
             var (planType, planDuration) = SplitPlan(item);
-            sb.AppendLine("مشخصات سرویس");
-            sb.AppendLine($"🚦دسته‌بندی: {Dash(category)}");
-            sb.AppendLine($"✏️ نام سرویس: {Dash(item.Name)}");
-            sb.AppendLine($"🔋نوع سرویس: {Dash(planType)}");
-            sb.AppendLine($"⏰ مدت سرویس: {Dash(planDuration)}");
-            sb.AppendLine();
+            serviceLines.AppendLine("مشخصات سرویس");
+            serviceLines.AppendLine($"🚦دسته‌بندی: {Esc(Dash(category))}");
+            serviceLines.AppendLine($"✏️ نام سرویس: {Esc(Dash(item.Name))}");
+            serviceLines.AppendLine($"🔋نوع سرویس: {Esc(Dash(planType))}");
+            serviceLines.AppendLine($"⏰ مدت سرویس: {Esc(Dash(planDuration))}");
+            serviceLines.AppendLine();
         }
-
-        sb.AppendLine($"💰مبلغ پرداختی: {Money(Math.Abs(tx.Amount))} تومان");
+        // The amount closes the service block when there is one (the reference layout), and stands in its own
+        // quote block for a plain wallet top-up.
+        sb.AppendLine($"<blockquote>{serviceLines}<b>💰مبلغ پرداختی: {Money(Math.Abs(tx.Amount))} تومان</b></blockquote>");
         sb.AppendLine();
 
-        sb.AppendLine("اطلاعات واریزی");
-        if (!string.IsNullOrWhiteSpace(tx.SourceCard)) sb.AppendLine($"شماره کارت مبدأ: {tx.SourceCard}");
-        if (!string.IsNullOrWhiteSpace(tx.SourceHolder)) sb.AppendLine($"👤 نگهدارنده کارت مبدأ: {tx.SourceHolder}");
-        if (!string.IsNullOrWhiteSpace(tx.DestinationCard)) sb.AppendLine($"شماره کارت مقصد: {tx.DestinationCard}");
-        if (!string.IsNullOrWhiteSpace(tx.DestinationHolder)) sb.AppendLine($"👤 نگهدارنده کارت مقصد: {tx.DestinationHolder}");
-        if (!string.IsNullOrWhiteSpace(tx.TrackingNumber)) sb.AppendLine($"🔗 شماره پیگیری: {tx.TrackingNumber}");
-        sb.AppendLine();
+        sb.AppendLine("<blockquote>اطلاعات واریزی");
+        if (!string.IsNullOrWhiteSpace(tx.SourceCard)) sb.AppendLine($"شماره کارت مبدأ: {FormatCard(tx.SourceCard)}");
+        if (!string.IsNullOrWhiteSpace(tx.SourceHolder)) sb.AppendLine($"👤 نگهدارنده کارت مبدأ: {Esc(tx.SourceHolder!)}");
+        if (!string.IsNullOrWhiteSpace(tx.DestinationCard)) sb.AppendLine($"شماره کارت مقصد: {FormatCard(tx.DestinationCard)}");
+        if (!string.IsNullOrWhiteSpace(tx.DestinationHolder)) sb.AppendLine($"👤 نگهدارنده کارت مقصد: {Esc(tx.DestinationHolder!)}");
+        if (!string.IsNullOrWhiteSpace(tx.TrackingNumber)) sb.AppendLine($"🔗 شماره پیگیری: {Esc(tx.TrackingNumber!)}");
+        sb.AppendLine("</blockquote>");
 
         sb.Append(JalaliDate.NowStamp());
         return sb.ToString();
     }
 
     private static string Dash(string? v) => string.IsNullOrWhiteSpace(v) ? "-" : v.Trim();
+
+    private static string Esc(string v) => System.Net.WebUtility.HtmlEncode(v);
+
+    // 16-digit cards read as "6037-9912-3456-7890"; anything else (crypto address, IBAN) passes through.
+    private static string FormatCard(string? card)
+    {
+        var raw = (card ?? "").Trim();
+        var digits = new string(raw.Where(char.IsAsciiDigit).ToArray());
+        if (digits.Length != 16) return Esc(raw);
+        return $"{digits[..4]}-{digits[4..8]}-{digits[8..12]}-{digits[12..]}";
+    }
 
     // 3-3 grouped from the right with commas, e.g. 490000 → "490,000".
     private static string Money(long toman) => toman.ToString("N0", CultureInfo.InvariantCulture);
@@ -301,6 +316,7 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         {
             { new StringContent(chatId), "chat_id" },
             { new StringContent(caption), "caption" },
+            { new StringContent("HTML"), "parse_mode" },
             { new StringContent(markup), "reply_markup" },
         };
         var photo = new ByteArrayContent(ms.ToArray());
@@ -319,6 +335,7 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         {
             ["chat_id"] = chatId,
             ["text"] = text,
+            ["parse_mode"] = "HTML",
             ["reply_markup"] = markup,
             ["disable_web_page_preview"] = "true",
         }, ct);
@@ -335,13 +352,14 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
     private async Task EditDecidedAsync(string token, long chatId, int messageId, Transaction tx, CancellationToken ct)
     {
         var outcome = tx.Status == TxStatus.Approved ? "✅ تأیید شد" : "❌ رد شد";
-        var caption = $"{BuildCaption(tx)}\n\nوضعیت: {outcome} (از طریق تلگرام)";
+        var caption = $"{BuildCaption(tx)}\n\n<b>وضعیت: {outcome} (از طریق تلگرام)</b>";
         // The message carries a photo, so the caption is what we edit; empty inline_keyboard removes the buttons.
         await PostFormAsync(token, "editMessageCaption", new Dictionary<string, string>
         {
             ["chat_id"] = chatId.ToString(),
             ["message_id"] = messageId.ToString(),
             ["caption"] = caption,
+            ["parse_mode"] = "HTML",
             ["reply_markup"] = "{\"inline_keyboard\":[]}",
         }, ct);
     }

@@ -126,12 +126,37 @@ SELECT last_insert_rowid();",
                 }, tx);
 
             user.Id = (int)id;
-            user.Code = $"U-{1000 + user.Id}";
+            user.Code = NextUserCode(conn, tx);
             conn.Execute("UPDATE Users SET DataJson = @DataJson WHERE Id = @Id",
                 new { DataJson = Serialize(user), user.Id }, tx);
             return user;
         });
     }
+
+    // Runs inside the caller's write transaction, so the uniqueness probe and the insert that uses the code
+    // are covered by the same IMMEDIATE lock — two concurrent registrations can't pick the same code.
+    private static string NextUserCode(SqliteConnection conn, SqliteTransaction tx) =>
+        UserCodes.Next(code => conn.ExecuteScalar<long>(
+            "SELECT COUNT(1) FROM Users WHERE json_extract(DataJson, '$.Code') = @code", new { code }, tx) > 0);
+
+    // One-time normalization: rewrites legacy sequential "U-1007"-style codes to the random numeric format,
+    // so the Telegram receipt and the panel show the same kind of id for every account, old or new.
+    // Idempotent — already-numeric codes are untouched, so restarts are no-ops.
+    public int MigrateLegacyUserCodes() =>
+        WriteTx((conn, tx) =>
+        {
+            var rows = conn.Query<(long Id, string DataJson)>("SELECT Id, DataJson FROM Users", transaction: tx).ToList();
+            var migrated = 0;
+            foreach (var row in rows)
+            {
+                var user = Deserialize<AppUser>(row.DataJson)!;
+                if (!string.IsNullOrWhiteSpace(user.Code) && user.Code.All(char.IsAsciiDigit)) continue;
+                user.Code = NextUserCode(conn, tx);
+                conn.Execute("UPDATE Users SET DataJson = @d WHERE Id = @id", new { d = Serialize(user), id = row.Id }, tx);
+                migrated++;
+            }
+            return migrated;
+        });
 
     // Read-modify-write under IMMEDIATE so two concurrent edits to the same user can't clobber each other.
     public bool UpdateUser(int id, Action<AppUser> mutate) =>
@@ -205,7 +230,7 @@ SELECT last_insert_rowid();",
 INSERT INTO Users (Username, Email, Phone, Role, Blocked, ReferredBy, VerificationLevel, DataJson)
 VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@DataJson); SELECT last_insert_rowid();",
                     new { owner.Username, owner.Email, owner.Phone, Role = (int)owner.Role, Blocked = 0, owner.ReferredBy, owner.VerificationLevel, DataJson = Serialize(owner) }, tx);
-                owner.Id = id; owner.Code = $"U-{1000 + id}";
+                owner.Id = id; owner.Code = NextUserCode(conn, tx);
                 conn.Execute("UPDATE Users SET DataJson=@d WHERE Id=@id", new { d = Serialize(owner), id }, tx);
             }
             else
