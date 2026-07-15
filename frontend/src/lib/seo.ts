@@ -8,6 +8,18 @@ export function absoluteUrl(path: string): string {
   return `${SITE_URL}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
+// Serializes a value for injection into a <script type="application/ld+json"> via
+// dangerouslySetInnerHTML. JSON.stringify does NOT escape "<", ">" or "/", so admin-authored
+// fields (product names, descriptions, FAQ text, blog content) containing "</script>" would
+// otherwise break out of the tag and inject arbitrary HTML. Escaping these to their \uXXXX
+// forms keeps the JSON-LD valid (crawlers parse the escapes identically) while closing the hole.
+export function jsonLdScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, "\\u003c")
+    .replace(/>/g, "\\u003e")
+    .replace(/&/g, "\\u0026");
+}
+
 // URL slug from a (mostly Persian) product name: keep Persian/Latin letters and
 // digits, collapse everything else into single dashes.
 export function slugify(name: string): string {

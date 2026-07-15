@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBlogPosts } from "@/lib/content";
-import { absoluteUrl, plainExcerpt } from "@/lib/seo";
+import { absoluteUrl, jsonLdScript, plainExcerpt } from "@/lib/seo";
 import RichText from "@/components/RichText";
 
 export const dynamic = "force-dynamic";
@@ -59,7 +59,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
   return (
     <article className="mx-auto max-w-[820px] px-5 pb-20 pt-8">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(articleLd) }} />
       <nav className="mb-6 flex items-center gap-2 text-sm text-[var(--hl-muted)]">
         <Link href="/" className="hover:text-[var(--hl-ink)]">خانه</Link>
         <span>/</span>

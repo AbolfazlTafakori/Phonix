@@ -10,7 +10,7 @@ import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
 import OpenChatButton from "@/components/product/OpenChatButton";
 import ProductGallery from "@/components/product/ProductGallery";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
-import { absoluteUrl, latinBrand, plainExcerpt, productPath, productSlug, productTitle } from "@/lib/seo";
+import { absoluteUrl, jsonLdScript, latinBrand, plainExcerpt, productPath, productSlug, productTitle } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -182,9 +182,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   };
 
   return (<>
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productLd) }} />
-    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbLd) }} />
-    {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqLd) }} />}
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(productLd) }} />
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbLd) }} />
+    {faqLd && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(faqLd) }} />}
     <div className="mx-auto max-w-[1840px] px-4 pb-16 pt-6 sm:px-6 lg:px-8 xl:px-16">
       {/* breadcrumb */}
       <nav className="mb-5 flex flex-wrap items-center gap-1.5 text-[12px] sm:gap-2 sm:text-[13px]" style={{ color: "var(--ac-muted)" }}>
