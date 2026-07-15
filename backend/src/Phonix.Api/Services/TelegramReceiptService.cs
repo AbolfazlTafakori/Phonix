@@ -224,7 +224,7 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         sb.AppendLine(isOrder ? "❗️|💳 خرید جدید ( کارت به کارت )" : "❗️|💳 واریز جدید ( کارت به کارت )");
         sb.AppendLine();
 
-        sb.AppendLine("<blockquote expandable>مشخصات کاربر");
+        sb.AppendLine("<blockquote>مشخصات کاربر");
         sb.AppendLine($"▫️آیدی کاربر: {Esc(user?.Code is { Length: > 0 } code ? code : tx.UserId.ToString())}");
         sb.AppendLine($"👨‍💼اسم کاربر: {Esc(Dash(user?.Name ?? tx.UserName))}");
         sb.AppendLine($"⚡️ نام کاربری: {Esc(Dash(user?.Username))}");
@@ -255,10 +255,10 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         }
         // The amount closes the service block when there is one (the reference layout), and stands in its own
         // quote block for a plain wallet top-up.
-        sb.AppendLine($"<blockquote expandable>{serviceLines}<b>💰مبلغ پرداختی: {Money(Math.Abs(tx.Amount))} تومان</b></blockquote>");
+        sb.AppendLine($"<blockquote>{serviceLines}<b>💰مبلغ پرداختی: {Money(Math.Abs(tx.Amount))} تومان</b></blockquote>");
         sb.AppendLine();
 
-        sb.AppendLine("<blockquote expandable>اطلاعات واریزی");
+        sb.AppendLine("<blockquote>اطلاعات واریزی");
         if (!string.IsNullOrWhiteSpace(tx.SourceCard)) sb.AppendLine($"شماره کارت مبدأ: {FormatCard(tx.SourceCard)}");
         if (!string.IsNullOrWhiteSpace(tx.SourceHolder)) sb.AppendLine($"👤 نگهدارنده کارت مبدأ: {Esc(tx.SourceHolder!)}");
         sb.AppendLine(); // blank line between the source-card group and the destination-card group
