@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { api } from "@/lib/api";
 import type { Order } from "@/lib/types";
-import { formatToman, toFa } from "@/lib/format";
+import { formatNumber, formatToman, toFa } from "@/lib/format";
 import { orderStatusLabel } from "@/lib/labels";
 
 export default function InvoicePage() {
@@ -33,19 +33,26 @@ export default function InvoicePage() {
       </div>
     );
 
+  const itemCount = order.items.reduce((n, it) => n + it.quantity, 0);
+
   return (
     <div dir="rtl" className="invoice-root mx-auto max-w-[800px] p-6" style={{ color: "var(--chat-ink)" }}>
       <style>{`
         .invoice-root { background: var(--chat-surface); }
+        .invoice-num { font-variant-numeric: tabular-nums; }
         @media print {
+          @page { size: A4; margin: 14mm; }
           .no-print { display: none !important; }
-          body { background: #fff !important; }
-          .invoice-root { background: #fff !important; color: #1a1a1a !important; }
-          .invoice-root * { color: inherit !important; border-color: #e0e0e0 !important; }
+          html, body { background: #fff !important; }
+          .invoice-root { background: #fff !important; color: #1a1a1a !important; max-width: none !important; padding: 0 !important; }
+          .invoice-root * { color: inherit !important; border-color: #d9d9d9 !important; }
+          .invoice-root thead { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+          .invoice-root tr { break-inside: avoid; }
+          .invoice-totals { break-inside: avoid; }
         }
       `}</style>
 
-      <div className="mb-6 flex items-center justify-between pb-4" style={{ borderBottom: "2px solid var(--chat-border)" }}>
+      <div className="mb-6 flex items-start justify-between pb-4" style={{ borderBottom: "2px solid var(--chat-border)" }}>
         <div>
           <h1 className="text-2xl font-bold" style={{ color: "var(--chat-ink)" }}>Phoenix Verify</h1>
           <p className="text-sm" style={{ color: "var(--chat-muted)" }}>فاکتور فروش</p>
@@ -59,54 +66,51 @@ export default function InvoicePage() {
         </button>
       </div>
 
-      <div className="mb-6 grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <p style={{ color: "var(--chat-muted)" }}>شماره سفارش</p>
-          <p className="font-mono font-bold">{order.code}</p>
-        </div>
-        <div>
-          <p style={{ color: "var(--chat-muted)" }}>تاریخ</p>
-          <p className="font-bold">{order.date}</p>
-        </div>
-        <div>
-          <p style={{ color: "var(--chat-muted)" }}>مشتری</p>
-          <p className="font-bold">{order.userName}</p>
-        </div>
-        <div>
-          <p style={{ color: "var(--chat-muted)" }}>وضعیت</p>
-          <p className="font-bold">{orderStatusLabel[order.status]}</p>
-        </div>
+      <div className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
+        <Field label="شماره سفارش" value={<span className="invoice-num font-mono font-bold">{order.code}</span>} />
+        <Field label="تاریخ" value={<span className="font-bold">{order.date}</span>} />
+        <Field label="وضعیت" value={<span className="font-bold">{orderStatusLabel[order.status]}</span>} />
+        <Field label="مشتری" value={<span className="font-bold">{order.userName}</span>} />
+        {order.paymentMethod && (
+          <Field label="روش پرداخت" value={<span className="font-bold">{order.paymentMethod}</span>} />
+        )}
+        <Field label="تعداد اقلام" value={<span className="font-bold">{toFa(itemCount)}</span>} />
       </div>
 
       <div className="overflow-x-auto">
         <table className="mb-6 w-full text-right text-sm">
           <thead>
             <tr style={{ borderBottom: "1px solid var(--chat-border)", color: "var(--chat-muted)" }}>
-              <th className="py-2 font-medium">ردیف</th>
+              <th className="py-2 pl-2 text-center font-medium">ردیف</th>
               <th className="py-2 font-medium">محصول</th>
-              <th className="py-2 font-medium">تعداد</th>
-              <th className="py-2 font-medium">قیمت واحد</th>
-              <th className="py-2 font-medium">جمع</th>
+              <th className="py-2 text-center font-medium">تعداد</th>
+              <th className="py-2 text-left font-medium">قیمت واحد</th>
+              <th className="py-2 text-left font-medium">جمع (تومان)</th>
             </tr>
           </thead>
           <tbody>
             {order.items.map((it, i) => (
               <tr key={i} style={{ borderBottom: "1px solid var(--chat-border)" }}>
-                <td className="py-2.5">{toFa(i + 1)}</td>
-                <td className="py-2.5">
-                  {it.name}
+                <td className="py-2.5 text-center align-top">{toFa(i + 1)}</td>
+                <td className="py-2.5 align-top">
+                  <span className="font-medium">{it.name}</span>
                   {it.plan && <span style={{ color: "var(--chat-muted)" }}> · {it.plan}</span>}
+                  {it.customerNote && (
+                    <span className="block text-xs" style={{ color: "var(--chat-muted)" }}>
+                      {it.customerNote}
+                    </span>
+                  )}
                 </td>
-                <td className="py-2.5">{toFa(it.quantity)}</td>
-                <td className="py-2.5">{formatToman(it.unitPrice)}</td>
-                <td className="py-2.5">{formatToman(it.lineTotal)}</td>
+                <td className="invoice-num py-2.5 text-center align-top">{toFa(it.quantity)}</td>
+                <td className="invoice-num py-2.5 text-left align-top">{formatNumber(it.unitPrice)}</td>
+                <td className="invoice-num py-2.5 text-left align-top font-medium">{formatNumber(it.lineTotal)}</td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
 
-      <div className="ml-auto max-w-[300px] space-y-2 text-sm">
+      <div className="invoice-totals ml-auto max-w-[320px] space-y-2 text-sm">
         <Row label="جمع اقلام" value={formatToman(order.subtotal)} />
         {order.discountAmount > 0 && (
           <Row label={`تخفیف${order.discountCode ? ` (${order.discountCode})` : ""}`} value={`− ${formatToman(order.discountAmount)}`} />
@@ -118,13 +122,29 @@ export default function InvoicePage() {
         {order.walletPaid > 0 && <Row label="پرداخت از کیف پول" value={`− ${formatToman(order.walletPaid)}`} />}
         <div className="flex items-center justify-between pt-2 text-base font-bold" style={{ borderTop: "2px solid var(--chat-border)" }}>
           <span>مبلغ کل</span>
-          <span>{formatToman(order.total)}</span>
+          <span className="invoice-num">{formatToman(order.total)}</span>
         </div>
       </div>
 
+      {order.note && (
+        <div className="mt-8 rounded-xl p-4 text-sm" style={{ background: "var(--chat-surface-2, rgba(127,127,127,.06))" }}>
+          <p className="mb-1 font-medium" style={{ color: "var(--chat-muted)" }}>توضیحات</p>
+          <p style={{ color: "var(--chat-ink-2)" }}>{order.note}</p>
+        </div>
+      )}
+
       <p className="mt-10 text-center text-xs" style={{ color: "var(--chat-muted)" }}>
-        این فاکتور به‌صورت الکترونیکی صادر شده است · Phoenix Verify
+        این فاکتور به‌صورت الکترونیکی صادر شده و بدون مهر و امضا معتبر است · Phoenix Verify
       </p>
+    </div>
+  );
+}
+
+function Field({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div>
+      <p style={{ color: "var(--chat-muted)" }}>{label}</p>
+      <p>{value}</p>
     </div>
   );
 }
@@ -133,7 +153,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between" style={{ color: "var(--chat-ink-2)" }}>
       <span>{label}</span>
-      <span>{value}</span>
+      <span className="invoice-num">{value}</span>
     </div>
   );
 }
