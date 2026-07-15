@@ -264,6 +264,11 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         sb.AppendLine(); // blank line between the source-card group and the destination-card group
         if (!string.IsNullOrWhiteSpace(tx.DestinationCard)) sb.AppendLine($"شماره کارت مقصد: {FormatCard(tx.DestinationCard)}");
         if (!string.IsNullOrWhiteSpace(tx.DestinationHolder)) sb.AppendLine($"👤 نگهدارنده کارت مقصد: {Esc(tx.DestinationHolder!)}");
+        if (isOrder && !string.IsNullOrWhiteSpace(tx.OrderCode))
+        {
+            sb.AppendLine(); // blank line before the order code
+            sb.AppendLine($"🧾 شماره سفارش: {Esc(tx.OrderCode!)}");
+        }
         if (!string.IsNullOrWhiteSpace(tx.TrackingNumber))
         {
             sb.AppendLine(); // blank line before the tracking number
