@@ -70,11 +70,14 @@ public class TransactionsController : ControllerBase
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
     private readonly ITelegramReceiptService _receiptBot;
-    public TransactionsController(IDataStore store, IFileStorageService files, ITelegramReceiptService receiptBot)
+    private readonly IUserMailer _mailer;
+    public TransactionsController(IDataStore store, IFileStorageService files, ITelegramReceiptService receiptBot,
+        IUserMailer mailer)
     {
         _store = store;
         _files = files;
         _receiptBot = receiptBot;
+        _mailer = mailer;
     }
 
     // Uploads a bank-transfer receipt to protected storage (outside the web root) and returns its opaque
@@ -200,12 +203,22 @@ public class TransactionsController : ControllerBase
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("transactions")]
     [HttpPost("{id:int}/approve")]
-    public ActionResult<Transaction> Approve(int id, TxActionInput? input) =>
-        _store.SetTransactionStatus(id, TxStatus.Approved, "site", input?.Note) ? _store.GetTransaction(id)! : NotFound();
+    public ActionResult<Transaction> Approve(int id, TxActionInput? input) => Decide(id, TxStatus.Approved, input?.Note);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("transactions")]
     [HttpPost("{id:int}/reject")]
-    public ActionResult<Transaction> Reject(int id, TxActionInput? input) =>
-        _store.SetTransactionStatus(id, TxStatus.Rejected, "site", input?.Note) ? _store.GetTransaction(id)! : NotFound();
+    public ActionResult<Transaction> Reject(int id, TxActionInput? input) => Decide(id, TxStatus.Rejected, input?.Note);
+
+    // Applies a staff decision and tells the customer. The mail only goes out on a real Pending → decided
+    // transition, so re-approving an already-approved transaction (a double-click, a retried request) can't
+    // send a second "your wallet was topped up".
+    private ActionResult<Transaction> Decide(int id, TxStatus status, string? note)
+    {
+        var wasPending = _store.GetTransaction(id)?.Status == TxStatus.Pending;
+        if (!_store.SetTransactionStatus(id, status, "site", note)) return NotFound();
+        var updated = _store.GetTransaction(id)!;
+        if (wasPending) _ = _mailer.TransactionDecidedAsync(updated);
+        return updated;
+    }
 }

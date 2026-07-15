@@ -87,6 +87,23 @@ public static class EmailTemplates
         <td dir=""rtl"" align=""right"" style=""background:#fdeceb;border:1px solid #f5c6c3;border-radius:12px;padding:16px 20px;color:{Body};font-size:15px;line-height:2;direction:rtl;text-align:right;"">{html}</td>
         </tr></table>";
 
+    // A label/value detail block (order code, amount, date …). Rows with a blank value are dropped, so a
+    // caller can pass an optional field without branching.
+    private static string Rows(params (string label, string? value)[] rows)
+    {
+        var cells = string.Concat(rows.Where(r => !string.IsNullOrWhiteSpace(r.value)).Select(r =>
+            $@"<tr>
+              <td dir=""rtl"" align=""right"" style=""padding:7px 0;color:{Muted};font-size:15px;white-space:nowrap;"">{WebUtility.HtmlEncode(r.label)}</td>
+              <td dir=""rtl"" align=""left"" style=""padding:7px 0;color:{Ink};font-size:15px;font-weight:700;"">{WebUtility.HtmlEncode(r.value)}</td>
+            </tr>"));
+        if (cells.Length == 0) return "";
+        return $@"<table role=""presentation"" dir=""rtl"" width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""margin:22px 0 0;background:{Footer};border:1px solid {Border};border-radius:12px;padding:8px 20px;direction:rtl;"">{cells}</table>";
+    }
+
+    // Money as the storefront writes it: grouped thousands + the unit, e.g. "۴۹۰,۰۰۰ تومان".
+    private static string Toman(long amount) =>
+        JalaliDate.ToPersianDigits(Math.Abs(amount).ToString("N0", System.Globalization.CultureInfo.InvariantCulture)) + " تومان";
+
     public static (string text, string html) VerifyEmail(string link)
     {
         var text = $"به {Brand} خوش آمدید!\n\nتنها یک قدم تا فعال‌سازی حساب شما باقی مانده است. برای تأیید ایمیل و شروع خرید، این نشانی را باز کنید (تا ۱ ساعت معتبر است):\n{link}\n\nاگر شما در {Brand} ثبت‌نام نکرده‌اید، این ایمیل را نادیده بگیرید.";
@@ -137,6 +154,160 @@ public static class EmailTemplates
             "سفارش شما آماده‌ی استفاده است.",
             $"<p style=\"margin:0;\">{WebUtility.HtmlEncode(message).Replace("\n", "<br>")}</p>"
             + Button("مشاهده‌ی سفارش‌ها", accountUrl));
+        return (text, html);
+    }
+
+    // Sent once, right after the address is confirmed — the verification mail itself is a chore, this is the
+    // actual greeting and the first push toward a first purchase.
+    public static (string text, string html) Welcome(string name, string shopUrl)
+    {
+        var text = $"{name} عزیز، به {Brand} خوش آمدید!\n\nایمیل شما با موفقیت تأیید شد و حساب‌تان فعال است. برای شروع خرید به فروشگاه سر بزنید:\n{shopUrl}";
+        var html = Shell($"{name} عزیز، خوش آمدید 🎉",
+            "ایمیل شما تأیید شد و حساب‌تان فعال است.",
+            "<p style=\"margin:0;\">ایمیل شما با موفقیت تأیید شد و حساب <b>فونیکس وریفای</b> شما فعال است. از این پس می‌توانید سفارش ثبت کنید، کیف پول‌تان را شارژ کنید و از پشتیبانی ۲۴ ساعته استفاده کنید.</p>"
+            + Button("شروع خرید", shopUrl)
+            + Note("برای خرید، ابتدا کارت بانکی خود را در حساب کاربری ثبت و تأیید کنید. هر سؤالی داشتید، پشتیبانی ما در تمام ساعات شبانه‌روز پاسخگوی شماست."));
+        return (text, html);
+    }
+
+    // Sent on every successful sign-in. Same shape as PasswordChanged: the owner ignores it, a victim gets an
+    // early signal plus a one-tap path to lock the attacker out.
+    public static (string text, string html) LoginNotice(string whenFa, string ip, string device, string passwordUrl)
+    {
+        var text = $"ورود به حساب {Brand} شما\n\nزمان: {whenFa}\nنشانی IP: {ip}\nدستگاه: {device}\n\nاگر این ورود کار خودتان بوده، نیازی به هیچ اقدامی نیست.\n\nاگر شما نبوده‌اید، همین حالا گذرواژه‌ی خود را تغییر دهید:\n{passwordUrl}";
+        var html = Shell("ورود به حساب شما 🔑",
+            $"ورودی به حساب شما در {whenFa} ثبت شد.",
+            "<p style=\"margin:0;\">ورودی به حساب <b>فونیکس وریفای</b> شما ثبت شد. اگر این ورود کار خودتان بوده، این ایمیل را نادیده بگیرید.</p>"
+            + Rows(("زمان ورود", whenFa), ("نشانی IP", ip), ("دستگاه", device))
+            + WarnNote($"<b style=\"color:{Accent};\">این ورود کار شما نبوده؟</b><br>همین حالا گذرواژه‌ی خود را تغییر دهید تا همه‌ی دستگاه‌های دیگر از حساب شما خارج شوند، و با پشتیبانی تماس بگیرید.")
+            + Button("تغییر گذرواژه", passwordUrl));
+        return (text, html);
+    }
+
+    // The checkout receipt. An order paid entirely from the wallet goes straight to preparing; one with a
+    // card-to-card remainder waits on receipt review first. The status line must match the order's real
+    // state, so the caller passes which it is — promising delivery on an unapproved receipt would be a lie.
+    public static (string text, string html) OrderPlaced(string orderCode, long total, string dateFa, string ordersUrl, bool awaitingPayment)
+    {
+        var statusFa = awaitingPayment ? "در انتظار تأیید پرداخت" : "در حال آماده‌سازی";
+        var lead = awaitingPayment
+            ? "سفارش شما با موفقیت ثبت شد. رسید پرداخت شما هم‌اکنون در حال بررسی است؛ به‌محض تأیید، سفارش وارد مرحله‌ی آماده‌سازی می‌شود و نتیجه را به شما اطلاع می‌دهیم."
+            : "سفارش شما با موفقیت ثبت شد و مبلغ آن از کیف پول شما پرداخت شد. سفارش هم‌اکنون در حال آماده‌سازی است و به‌محض آماده شدن، اطلاعات سرویس را برای شما ارسال می‌کنیم.";
+        var text = $"سفارش {orderCode} ثبت شد.\n\nکد سفارش: {orderCode}\nمبلغ: {Toman(total)}\nتاریخ: {dateFa}\nوضعیت: {statusFa}\n\n{lead}\n\nپیگیری سفارش:\n{ordersUrl}";
+        var html = Shell($"سفارش {orderCode} ثبت شد 🧾",
+            awaitingPayment ? "سفارش شما ثبت شد و رسید پرداخت در حال بررسی است." : "سفارش شما ثبت شد و در حال آماده‌سازی است.",
+            $"<p style=\"margin:0;\">{lead}</p>"
+            + Rows(("کد سفارش", orderCode), ("مبلغ", Toman(total)), ("تاریخ ثبت", dateFa), ("وضعیت", statusFa))
+            + Button("پیگیری سفارش", ordersUrl)
+            + (awaitingPayment
+                ? Note("بررسی رسید معمولاً کوتاه است، اما در ساعات شلوغ ممکن است کمی طول بکشد. نیازی به ثبت دوباره‌ی سفارش نیست.")
+                : ""));
+        return (text, html);
+    }
+
+    public static (string text, string html) WalletToppedUp(long amount, long balance, string walletUrl)
+    {
+        var text = $"کیف پول شما شارژ شد.\n\nمبلغ شارژ: {Toman(amount)}\nموجودی جدید: {Toman(balance)}\n\nمشاهده‌ی کیف پول:\n{walletUrl}";
+        var html = Shell("کیف پول شما شارژ شد 💳",
+            $"رسید شما تأیید و {Toman(amount)} به کیف پول‌تان اضافه شد.",
+            "<p style=\"margin:0;\">رسید واریز شما تأیید شد و مبلغ آن به کیف پول شما اضافه شد. از این موجودی می‌توانید برای خرید هر سرویسی استفاده کنید.</p>"
+            + Rows(("مبلغ شارژ", Toman(amount)), ("موجودی جدید", Toman(balance)))
+            + Button("مشاهده‌ی کیف پول", walletUrl));
+        return (text, html);
+    }
+
+    public static (string text, string html) OrderPaymentApproved(string orderCode, long amount, string ordersUrl)
+    {
+        var text = $"پرداخت سفارش {orderCode} تأیید شد.\n\nکد سفارش: {orderCode}\nمبلغ: {Toman(amount)}\nوضعیت: در حال آماده‌سازی\n\nپیگیری سفارش:\n{ordersUrl}";
+        var html = Shell("پرداخت شما تأیید شد ✅",
+            $"پرداخت سفارش {orderCode} تأیید و سفارش در حال آماده‌سازی است.",
+            "<p style=\"margin:0;\">رسید پرداخت سفارش شما تأیید شد و سفارش وارد مرحله‌ی آماده‌سازی شد. به‌محض آماده شدن، اطلاعات سرویس را برای شما ارسال می‌کنیم.</p>"
+            + Rows(("کد سفارش", orderCode), ("مبلغ پرداختی", Toman(amount)), ("وضعیت", "در حال آماده‌سازی"))
+            + Button("پیگیری سفارش", ordersUrl));
+        return (text, html);
+    }
+
+    // A rejected receipt. The rejection note is the whole point of the mail — without it the customer only
+    // sees money that never arrived and has no idea what to fix, so it leads and never gets truncated.
+    public static (string text, string html) PaymentRejected(string kindFa, long amount, string? reason, string supportUrl)
+    {
+        var reasonFa = string.IsNullOrWhiteSpace(reason) ? "دلیلی ثبت نشده است." : reason!.Trim();
+        var text = $"{kindFa} شما تأیید نشد.\n\nمبلغ: {Toman(amount)}\nدلیل: {reasonFa}\n\nاگر فکر می‌کنید اشتباهی رخ داده یا سؤالی دارید، با پشتیبانی در تماس باشید:\n{supportUrl}";
+        var html = Shell($"{kindFa} شما تأیید نشد",
+            $"رسید {Toman(amount)} شما تأیید نشد.",
+            $"<p style=\"margin:0;\">متأسفانه رسید {WebUtility.HtmlEncode(kindFa)} شما پس از بررسی <b>تأیید نشد</b> و مبلغ آن به حساب شما اضافه نشد.</p>"
+            + Rows(("مبلغ", Toman(amount)))
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{WebUtility.HtmlEncode(reasonFa)}")
+            + Note("اگر مبلغ از حساب شما کسر شده، نگران نباشید — وجهی که به مقصد نرسیده باشد نزد بانک شما باقی می‌ماند. در غیر این صورت با ارائه‌ی شماره پیگیری با پشتیبانی تماس بگیرید تا موضوع را بررسی کنیم.")
+            + Button("تماس با پشتیبانی", supportUrl));
+        return (text, html);
+    }
+
+    public static (string text, string html) TicketReplied(string code, string subject, string ticketsUrl)
+    {
+        var text = $"پشتیبانی به تیکت شما پاسخ داد.\n\nتیکت: {subject} ({code})\n\nمشاهده‌ی پاسخ:\n{ticketsUrl}";
+        var html = Shell("پاسخ پشتیبانی 💬",
+            $"به تیکت «{subject}» شما پاسخ داده شد.",
+            "<p style=\"margin:0;\">پشتیبانی فونیکس وریفای به تیکت شما پاسخ داد. برای خواندن پاسخ و ادامه‌ی گفتگو، به بخش تیکت‌ها در حساب کاربری خود مراجعه کنید.</p>"
+            + Rows(("موضوع", subject), ("کد تیکت", code))
+            + Button("مشاهده‌ی پاسخ", ticketsUrl));
+        return (text, html);
+    }
+
+    public static (string text, string html) TicketOpenedByStaff(string code, string subject, string ticketsUrl)
+    {
+        var text = $"پشتیبانی برای شما تیکت باز کرد.\n\nتیکت: {subject} ({code})\n\nمشاهده‌ی تیکت:\n{ticketsUrl}";
+        var html = Shell("پشتیبانی برای شما پیام گذاشت 💬",
+            $"تیکت «{subject}» از سوی پشتیبانی برای شما باز شد.",
+            "<p style=\"margin:0;\">پشتیبانی فونیکس وریفای درباره‌ی حساب یا سفارش شما تیکتی باز کرد. لطفاً آن را بخوانید و در صورت نیاز پاسخ دهید.</p>"
+            + Rows(("موضوع", subject), ("کد تیکت", code))
+            + Button("مشاهده‌ی تیکت", ticketsUrl));
+        return (text, html);
+    }
+
+    public static (string text, string html) CardApproved(string cardMasked, string cardsUrl)
+    {
+        var text = $"کارت بانکی شما تأیید شد.\n\nکارت: {cardMasked}\n\nاز این پس می‌توانید با این کارت واریز کنید:\n{cardsUrl}";
+        var html = Shell("کارت بانکی شما تأیید شد ✅",
+            $"کارت {cardMasked} تأیید شد.",
+            "<p style=\"margin:0;\">کارت بانکی شما تأیید شد. از این پس می‌توانید واریزهای کارت‌به‌کارت خود را از این کارت انجام دهید.</p>"
+            + Rows(("شماره کارت", cardMasked))
+            + Button("مشاهده‌ی کارت‌ها", cardsUrl));
+        return (text, html);
+    }
+
+    public static (string text, string html) CardRejected(string cardMasked, string? reason, string cardsUrl)
+    {
+        var reasonFa = string.IsNullOrWhiteSpace(reason) ? "دلیلی ثبت نشده است." : reason!.Trim();
+        var text = $"کارت بانکی شما تأیید نشد.\n\nکارت: {cardMasked}\nدلیل: {reasonFa}\n\nپس از رفع مورد بالا می‌توانید دوباره کارت خود را ثبت کنید:\n{cardsUrl}";
+        var html = Shell("کارت بانکی شما تأیید نشد",
+            $"کارت {cardMasked} تأیید نشد.",
+            "<p style=\"margin:0;\">کارت بانکی ثبت‌شده‌ی شما پس از بررسی تأیید نشد. پس از رفع مورد زیر می‌توانید دوباره آن را ثبت کنید.</p>"
+            + Rows(("شماره کارت", cardMasked))
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{WebUtility.HtmlEncode(reasonFa)}")
+            + Button("ثبت دوباره‌ی کارت", cardsUrl));
+        return (text, html);
+    }
+
+    public static (string text, string html) KycApproved(string accountUrl)
+    {
+        var text = $"احراز هویت شما تأیید شد.\n\nحساب شما اکنون کاملاً فعال است و می‌توانید از همه‌ی خدمات {Brand} استفاده کنید:\n{accountUrl}";
+        var html = Shell("احراز هویت شما تأیید شد ✅",
+            "حساب شما اکنون کاملاً فعال است.",
+            "<p style=\"margin:0;\">مدارک احراز هویت شما بررسی و <b>تأیید</b> شد. حساب شما اکنون کاملاً فعال است و محدودیتی برای استفاده از خدمات فونیکس وریفای ندارید.</p>"
+            + Button("مشاهده‌ی حساب کاربری", accountUrl));
+        return (text, html);
+    }
+
+    public static (string text, string html) KycRejected(string? reason, string kycUrl)
+    {
+        var reasonFa = string.IsNullOrWhiteSpace(reason) ? "دلیلی ثبت نشده است." : reason!.Trim();
+        var text = $"احراز هویت شما تأیید نشد.\n\nدلیل: {reasonFa}\n\nپس از رفع مورد بالا می‌توانید مدارک خود را دوباره ارسال کنید:\n{kycUrl}";
+        var html = Shell("احراز هویت شما تأیید نشد",
+            "مدارک احراز هویت شما نیاز به اصلاح دارد.",
+            "<p style=\"margin:0;\">مدارک احراز هویت شما پس از بررسی تأیید نشد. نگران نباشید — پس از رفع مورد زیر می‌توانید مدارک خود را دوباره ارسال کنید.</p>"
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{WebUtility.HtmlEncode(reasonFa)}")
+            + Button("ارسال دوباره‌ی مدارک", kycUrl));
         return (text, html);
     }
 

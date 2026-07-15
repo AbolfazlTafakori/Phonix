@@ -17,10 +17,12 @@ public class CardsController : ControllerBase
 {
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
-    public CardsController(IDataStore store, IFileStorageService files)
+    private readonly IUserMailer _mailer;
+    public CardsController(IDataStore store, IFileStorageService files, IUserMailer mailer)
     {
         _store = store;
         _files = files;
+        _mailer = mailer;
     }
 
     // Uploads a bank-card photo to protected storage and returns its opaque id; the client submits that id
@@ -84,12 +86,20 @@ public class CardsController : ControllerBase
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("cards")]
     [HttpPost("{id:int}/approve")]
-    public ActionResult<BankCard> Approve(int id) =>
-        _store.SetCardStatus(id, BankCardStatus.Approved, null) is { } c ? c : NotFound();
+    public ActionResult<BankCard> Approve(int id) => Decide(id, BankCardStatus.Approved, null);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("cards")]
     [HttpPost("{id:int}/reject")]
-    public ActionResult<BankCard> Reject(int id, CardActionInput? input) =>
-        _store.SetCardStatus(id, BankCardStatus.Rejected, input?.Note) is { } c ? c : NotFound();
+    public ActionResult<BankCard> Reject(int id, CardActionInput? input) => Decide(id, BankCardStatus.Rejected, input?.Note);
+
+    // Applies the decision and tells the owner. Only a real Pending → decided transition mails, so re-running
+    // a decision on an already-decided card stays silent.
+    private ActionResult<BankCard> Decide(int id, BankCardStatus status, string? note)
+    {
+        var wasPending = _store.GetCard(id)?.Status == BankCardStatus.Pending;
+        if (_store.SetCardStatus(id, status, note) is not { } card) return NotFound();
+        if (wasPending) _ = _mailer.CardDecidedAsync(card);
+        return card;
+    }
 }

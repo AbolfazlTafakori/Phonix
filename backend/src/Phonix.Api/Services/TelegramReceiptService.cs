@@ -34,14 +34,16 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
 
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
+    private readonly IUserMailer _mailer;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<TelegramReceiptService> _logger;
 
-    public TelegramReceiptService(IDataStore store, IFileStorageService files,
+    public TelegramReceiptService(IDataStore store, IFileStorageService files, IUserMailer mailer,
         IHttpClientFactory httpFactory, ILogger<TelegramReceiptService> logger)
     {
         _store = store;
         _files = files;
+        _mailer = mailer;
         _httpFactory = httpFactory;
         _logger = logger;
     }
@@ -179,8 +181,10 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         }
 
         var approve = action == "ok";
-        var note = approve ? null : "رد از طریق تلگرام";
-        var ok = _store.SetTransactionStatus(txId.Value, approve ? TxStatus.Approved : TxStatus.Rejected, "telegram", note);
+        // No note either way: the decision channel is already recorded in ApprovedVia, and Note is the
+        // rejection REASON — it reaches the customer in their rejection email, so an internal marker like
+        // "رد از طریق تلگرام" must never land in it. A one-tap reject simply carries no reason.
+        var ok = _store.SetTransactionStatus(txId.Value, approve ? TxStatus.Approved : TxStatus.Rejected, "telegram", null);
         if (!ok)
         {
             await AnswerCallbackAsync(token, callbackId, "اعمال تغییر ناموفق بود.", ct);
@@ -191,6 +195,8 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
             txId.Value, approve ? "Approved" : "Rejected", configuredChat);
 
         var updated = _store.GetTransaction(txId.Value) ?? tx;
+        // Same customer email an in-panel decision sends (the Pending guard above keeps it to one).
+        _ = _mailer.TransactionDecidedAsync(updated);
         await AnswerCallbackAsync(token, callbackId, approve ? "✅ تأیید شد." : "❌ رد شد.", ct);
         if (chatId is not null && messageId is not null)
             await EditDecidedAsync(token, chatId.Value, messageId.Value, updated, ct);

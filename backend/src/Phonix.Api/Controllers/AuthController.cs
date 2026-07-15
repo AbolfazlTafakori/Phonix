@@ -37,13 +37,15 @@ public class AuthController : ControllerBase
     private readonly ICaptchaService _captcha;
     private readonly IMemoryCache _cache;
     private readonly IHttpClientFactory _httpFactory;
+    private readonly IUserMailer _mailer;
     private readonly ILogger<AuthController> _logger;
     public AuthController(IDataStore store, IEmailSender email, ISessionProtector sessions,
         ITwoFactorChallenge twoFactor, ITelegramAlertSender alerts, ICaptchaService captcha,
-        IMemoryCache cache, IHttpClientFactory httpFactory, ILogger<AuthController> logger)
+        IMemoryCache cache, IHttpClientFactory httpFactory, IUserMailer mailer, ILogger<AuthController> logger)
     {
         _store = store;
         _email = email;
+        _mailer = mailer;
         _sessions = sessions;
         _twoFactor = twoFactor;
         _alerts = alerts;
@@ -73,6 +75,9 @@ public class AuthController : ControllerBase
 
     private string ClientIp => HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
+    // Human-readable device hint for the login email, e.g. "کروم روی ویندوز".
+    private string DeviceLabel => UserAgentLabel.From(Request.Headers.UserAgent.ToString());
+
     private static bool IsStaff(AppUser user) => user.Role is UserRole.Admin or UserRole.Support;
 
     private static string RoleFa(UserRole role) => role == UserRole.Admin ? "مدیر" : "پشتیبان";
@@ -97,6 +102,10 @@ public class AuthController : ControllerBase
         AuthCookies.Issue(Response, token, Request.IsHttps, persistent: persistent ?? !adminScope);
         _logger.LogInformation("Login: {Username} (#{UserId}) adminScope={AdminScope} from {ClientIp}",
             user.Username, user.Id, adminScope, ClientIp);
+        // Tell the owner about every sign-in — this is the tripwire that surfaces a stolen password. Every
+        // real login funnels through here (main site, panel, Google, post-2FA); registration issues its own
+        // cookie and is deliberately not mailed. Fire-and-forget: signing in never waits on SMTP.
+        _ = _mailer.LoginNoticeAsync(user, ClientIp, DeviceLabel);
         if (adminScope && IsStaff(user))
             _ = _alerts.SendAlertAsync(
                 $"🔐 ورود {RoleFa(user.Role)} به پنل\nکاربر: {user.Username}\nIP: {ClientIp}\nزمان: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
@@ -189,7 +198,11 @@ public class AuthController : ControllerBase
     {
         if (_store.ConsumeToken(input.Token, "verify") is not int userId)
             return BadRequest("لینک تأیید نامعتبر یا منقضی شده است.");
+        // Greet only on the first confirmation: someone who requests a fresh link and verifies again
+        // shouldn't be welcomed twice.
+        var firstTime = _store.GetUser(userId) is { EmailVerified: false };
         _store.UpdateUser(userId, u => u.EmailVerified = true);
+        if (firstTime && _store.GetUser(userId) is { } user) _ = _mailer.WelcomeAsync(user);
         return Ok(new { ok = true });
     }
 
@@ -221,21 +234,10 @@ public class AuthController : ControllerBase
         // Confirm the change to the owner so an attacker-driven reset is noticed and can be undone.
         if (_store.GetUser(userId) is { Email: { Length: > 0 } email })
         {
-            var (text, html) = EmailTemplates.PasswordChanged($"{FrontendUrl}/forgot-password", PersianNow());
+            var (text, html) = EmailTemplates.PasswordChanged($"{FrontendUrl}/forgot-password", JalaliDate.NowFa());
             await _email.SendAsync(email, "گذرواژه‌ی حساب فونیکس شما تغییر کرد", text, html);
         }
         return Ok(new { ok = true });
-    }
-
-    // Persian (Jalali) date + 24h time in Persian digits for security-notice timestamps.
-    private static string PersianNow()
-    {
-        DateTime now;
-        try { now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Tehran")).DateTime; }
-        catch { now = DateTime.Now; }
-        var pc = new System.Globalization.PersianCalendar();
-        var s = $"{pc.GetYear(now):0000}/{pc.GetMonth(now):00}/{pc.GetDayOfMonth(now):00} — ساعت {now:HH:mm}";
-        return new string(s.Select(ch => char.IsDigit(ch) ? (char)('۰' + (ch - '0')) : ch).ToArray());
     }
 
     [HttpPost("login")]

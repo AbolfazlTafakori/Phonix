@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
+using Phonix.Api.Services;
 
 namespace Phonix.Api.Controllers;
 
@@ -16,7 +17,12 @@ public record TicketReplyInput(string Body, bool IsAdmin, string? Attachment);
 public class TicketsController : ControllerBase
 {
     private readonly IDataStore _store;
-    public TicketsController(IDataStore store) => _store = store;
+    private readonly IUserMailer _mailer;
+    public TicketsController(IDataStore store, IUserMailer mailer)
+    {
+        _store = store;
+        _mailer = mailer;
+    }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("tickets")]
@@ -64,8 +70,12 @@ public class TicketsController : ControllerBase
         if (string.IsNullOrWhiteSpace(input.Subject) || string.IsNullOrWhiteSpace(input.Body))
             return BadRequest("موضوع و متن پیام الزامی است.");
         var name = string.IsNullOrWhiteSpace(target.Name) ? target.Username : target.Name;
-        return _store.CreateTicketForUser(target.Id, name, input.Subject, input.Department, input.Body,
+        var ticket = _store.CreateTicketForUser(target.Id, name, input.Subject, input.Department, input.Body,
             "پشتیبانی فونیکس", input.Priority ?? TicketPriority.Medium, input.Attachment ?? "");
+        // The in-app notification only lands if they come back to the site; support opened this thread, so
+        // reach them where they are.
+        _ = _mailer.TicketOpenedByStaffAsync(ticket);
+        return ticket;
     }
 
     [HttpPost("{id:int}/reply")]
@@ -80,7 +90,10 @@ public class TicketsController : ControllerBase
         var isAdmin = input.IsAdmin && this.IsStaff();
         var author = isAdmin ? "پشتیبانی فونیکس" : ticket.UserName;
         var t = _store.ReplyTicket(id, author, input.Body, isAdmin, input.Attachment);
-        return t is null ? NotFound() : t;
+        if (t is null) return NotFound();
+        // Only a support reply is worth an email — the customer's own reply doesn't need mailing back to them.
+        if (isAdmin) _ = _mailer.TicketRepliedAsync(t);
+        return t;
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]

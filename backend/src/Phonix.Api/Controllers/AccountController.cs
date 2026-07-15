@@ -107,20 +107,9 @@ public class AccountController : ControllerBase
         // Security tripwire: confirm the change to the account owner so an unauthorized change is noticed.
         if (!string.IsNullOrWhiteSpace(user.Email))
         {
-            var (text, html) = Services.EmailTemplates.PasswordChanged($"{FrontendUrl}/forgot-password", PersianNow());
+            var (text, html) = Services.EmailTemplates.PasswordChanged($"{FrontendUrl}/forgot-password", Services.JalaliDate.NowFa());
             await _email.SendAsync(user.Email, "گذرواژه‌ی حساب فونیکس شما تغییر کرد", text, html);
         }
         return NoContent();
-    }
-
-    // Persian (Jalali) date + 24h time in Persian digits, e.g. "۱۴۰۴/۰۵/۱۲ — ساعت ۱۴:۳۰".
-    private static string PersianNow()
-    {
-        DateTime now;
-        try { now = TimeZoneInfo.ConvertTime(DateTimeOffset.UtcNow, TimeZoneInfo.FindSystemTimeZoneById("Asia/Tehran")).DateTime; }
-        catch { now = DateTime.Now; }
-        var pc = new System.Globalization.PersianCalendar();
-        var s = $"{pc.GetYear(now):0000}/{pc.GetMonth(now):00}/{pc.GetDayOfMonth(now):00} — ساعت {now:HH:mm}";
-        return new string(s.Select(ch => char.IsDigit(ch) ? (char)('۰' + (ch - '0')) : ch).ToArray());
     }
 }

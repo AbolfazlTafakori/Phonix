@@ -64,6 +64,7 @@ try
     builder.Services.AddSingleton<AuditStore>();
     builder.Services.AddHostedService<AuditPersistenceWorker>();
     builder.Services.AddSingleton<IEmailSender, EmailSender>();
+    builder.Services.AddSingleton<IUserMailer, UserMailer>();
     builder.Services.AddHttpClient();
     // Live USDT→Toman rate for USD-priced products: one instance serves both the background refresher and
     // the controllers that read/refresh the rate.

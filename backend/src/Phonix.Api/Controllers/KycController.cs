@@ -17,10 +17,12 @@ public class KycController : ControllerBase
 {
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
-    public KycController(IDataStore store, IFileStorageService files)
+    private readonly IUserMailer _mailer;
+    public KycController(IDataStore store, IFileStorageService files, IUserMailer mailer)
     {
         _store = store;
         _files = files;
+        _mailer = mailer;
     }
 
     // Uploads a KYC image to protected storage (outside the web root) and returns its opaque id; the client
@@ -86,12 +88,20 @@ public class KycController : ControllerBase
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("kyc")]
     [HttpPost("{id:int}/approve")]
-    public ActionResult<KycRequest> Approve(int id) =>
-        _store.SetKycStatus(id, KycStatus.Approved, null) is { } k ? k : NotFound();
+    public ActionResult<KycRequest> Approve(int id) => Decide(id, KycStatus.Approved, null);
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("kyc")]
     [HttpPost("{id:int}/reject")]
-    public ActionResult<KycRequest> Reject(int id, KycActionInput? input) =>
-        _store.SetKycStatus(id, KycStatus.Rejected, input?.Note) is { } k ? k : NotFound();
+    public ActionResult<KycRequest> Reject(int id, KycActionInput? input) => Decide(id, KycStatus.Rejected, input?.Note);
+
+    // Applies the decision and tells the owner. Only a real Pending → decided transition mails, so a repeated
+    // decision on an already-decided request stays silent.
+    private ActionResult<KycRequest> Decide(int id, KycStatus status, string? note)
+    {
+        var wasPending = _store.GetAllKyc(KycStatus.Pending).Any(k => k.Id == id);
+        if (_store.SetKycStatus(id, status, note) is not { } kyc) return NotFound();
+        if (wasPending) _ = _mailer.KycDecidedAsync(kyc);
+        return kyc;
+    }
 }

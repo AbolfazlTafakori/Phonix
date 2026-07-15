@@ -28,11 +28,13 @@ public class OrdersController : ControllerBase
     private readonly IDataStore _store;
     private readonly IEmailSender _email;
     private readonly ITelegramReceiptService _receiptBot;
-    public OrdersController(IDataStore store, IEmailSender email, ITelegramReceiptService receiptBot)
+    private readonly IUserMailer _mailer;
+    public OrdersController(IDataStore store, IEmailSender email, ITelegramReceiptService receiptBot, IUserMailer mailer)
     {
         _store = store;
         _email = email;
         _receiptBot = receiptBot;
+        _mailer = mailer;
     }
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
@@ -128,6 +130,10 @@ public class OrdersController : ControllerBase
         var payTx = _store.GetUserTransactions(order.UserId)
             .FirstOrDefault(t => t.OrderCode == order.Code && t.Type == TxTypes.OrderPayment && t.Status == TxStatus.Pending);
         if (payTx is not null) _ = _receiptBot.NotifyDepositAsync(payTx, CancellationToken.None);
+
+        // The customer's own copy of the order. Fire-and-forget for the same reason: checkout must not fail
+        // because SMTP is slow or down.
+        _ = _mailer.OrderPlacedAsync(order);
 
         return RevealInputs(order);
     }

@@ -43,6 +43,17 @@ public static class JalaliDate
         return $"{Cal.GetYear(t):0000}/{Cal.GetMonth(t):00}/{Cal.GetDayOfMonth(t):00} {t:HH:mm:ss}";
     }
 
+    // The current Tehran moment for display to a customer: Persian digits, e.g. "۱۴۰۴/۰۵/۱۲ — ساعت ۱۴:۳۰".
+    public static string NowFa()
+    {
+        var t = DateTime.UtcNow.AddMinutes(210);
+        var s = $"{Cal.GetYear(t):0000}/{Cal.GetMonth(t):00}/{Cal.GetDayOfMonth(t):00} — ساعت {t:HH:mm}";
+        return ToPersianDigits(s);
+    }
+
+    public static string ToPersianDigits(string value) =>
+        new(value.Select(ch => char.IsAsciiDigit(ch) ? (char)('۰' + (ch - '0')) : ch).ToArray());
+
     // True when the string is a valid Jalali date no later than today (Tehran). Empty/invalid input is not
     // "valid" — callers should reject those separately with their own message.
     public static bool IsValidAndNotFuture(string? value)
