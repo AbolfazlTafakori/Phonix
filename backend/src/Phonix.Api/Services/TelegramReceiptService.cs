@@ -31,6 +31,8 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
 {
     private const string ApprovePrefix = "rcpt:ok:";
     private const string RejectPrefix = "rcpt:no:";
+    // The static post-decision button; not an actionable prefix, so a tap is a harmless no-op.
+    private const string DecidedPrefix = "rcpt:done:";
 
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
@@ -364,19 +366,26 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         await PostFormAsync(token, "answerCallbackQuery", fields, ct);
     }
 
-    // Rewrites the reviewed message to show the outcome and drops the inline buttons so it can't be tapped again.
+    // Rewrites the reviewed message to show the outcome and collapses the two review buttons into a single
+    // static status button (e.g. «✅ تأیید شد»), so it reads as done and can't be re-decided.
     private async Task EditDecidedAsync(string token, long chatId, int messageId, Transaction tx, CancellationToken ct)
     {
         var outcome = tx.Status == TxStatus.Approved ? "✅ تأیید شد" : "❌ رد شد";
         var caption = $"{BuildCaption(tx)}\n\n<b>وضعیت: {outcome} (از طریق تلگرام)</b>";
-        // The message carries a photo, so the caption is what we edit; empty inline_keyboard removes the buttons.
+        // A one-tap "no-op" callback: DecidedPrefix isn't an approve/reject prefix, so HandleCallbackAsync's
+        // ParseCallback returns null and the tap is silently acknowledged — the decision can't be replayed.
+        var markup = JsonSerializer.Serialize(new
+        {
+            inline_keyboard = new[] { new object[] { new { text = outcome, callback_data = DecidedPrefix + tx.Id } } },
+        });
+        // The message carries a photo, so the caption is what we edit; the single button replaces the two.
         await PostFormAsync(token, "editMessageCaption", new Dictionary<string, string>
         {
             ["chat_id"] = chatId.ToString(),
             ["message_id"] = messageId.ToString(),
             ["caption"] = caption,
             ["parse_mode"] = "HTML",
-            ["reply_markup"] = "{\"inline_keyboard\":[]}",
+            ["reply_markup"] = markup,
         }, ct);
     }
 
