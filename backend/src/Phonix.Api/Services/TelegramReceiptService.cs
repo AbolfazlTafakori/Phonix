@@ -237,14 +237,19 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         if (isOrder && !string.IsNullOrWhiteSpace(tx.OrderCode)
             && _store.GetUserOrders(tx.UserId).FirstOrDefault(o => o.Code == tx.OrderCode) is { Items.Count: > 0 } order)
         {
-            var item = order.Items[0];
-            var category = _store.GetProduct(item.ProductId) is { } p ? _store.GetCategory(p.CategoryId)?.Name : null;
-            var (planType, planDuration) = SplitPlan(item);
             serviceLines.AppendLine("مشخصات سرویس");
-            serviceLines.AppendLine($"🚦دسته‌بندی: {Esc(Dash(category))}");
-            serviceLines.AppendLine($"✏️ نام سرویس: {Esc(Dash(item.Name))}");
-            serviceLines.AppendLine($"🔋نوع سرویس: {Esc(Dash(planType))}");
-            serviceLines.AppendLine($"⏰ مدت سرویس: {Esc(Dash(planDuration))}");
+            // Every purchased service is listed as its own block, separated by a blank line, so a multi-item
+            // order (e.g. two Netflix accounts) shows each line item rather than only the first.
+            foreach (var item in order.Items)
+            {
+                var category = _store.GetProduct(item.ProductId) is { } p ? _store.GetCategory(p.CategoryId)?.Name : null;
+                var (planType, planDuration) = SplitPlan(item);
+                serviceLines.AppendLine();
+                serviceLines.AppendLine($"🚦دسته‌بندی: {Esc(Dash(category))}");
+                serviceLines.AppendLine($"✏️ نام سرویس: {Esc(Dash(item.Name))}");
+                serviceLines.AppendLine($"🔋نوع سرویس: {Esc(Dash(planType))}");
+                serviceLines.AppendLine($"⏰ مدت سرویس: {Esc(Dash(planDuration))}");
+            }
             serviceLines.AppendLine();
         }
         // The amount closes the service block when there is one (the reference layout), and stands in its own
@@ -255,6 +260,7 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         sb.AppendLine("<blockquote>اطلاعات واریزی");
         if (!string.IsNullOrWhiteSpace(tx.SourceCard)) sb.AppendLine($"شماره کارت مبدأ: {FormatCard(tx.SourceCard)}");
         if (!string.IsNullOrWhiteSpace(tx.SourceHolder)) sb.AppendLine($"👤 نگهدارنده کارت مبدأ: {Esc(tx.SourceHolder!)}");
+        sb.AppendLine(); // blank line between the source-card group and the destination-card group
         if (!string.IsNullOrWhiteSpace(tx.DestinationCard)) sb.AppendLine($"شماره کارت مقصد: {FormatCard(tx.DestinationCard)}");
         if (!string.IsNullOrWhiteSpace(tx.DestinationHolder)) sb.AppendLine($"👤 نگهدارنده کارت مقصد: {Esc(tx.DestinationHolder!)}");
         if (!string.IsNullOrWhiteSpace(tx.TrackingNumber)) sb.AppendLine($"🔗 شماره پیگیری: {Esc(tx.TrackingNumber!)}");
