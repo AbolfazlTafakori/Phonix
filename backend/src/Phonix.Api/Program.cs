@@ -72,6 +72,10 @@ try
     builder.Services.AddSingleton<ITelegramBackupSender, TelegramBackupSender>();
     builder.Services.AddHostedService<TelegramBackupWorker>();
     builder.Services.AddSingleton<ITelegramAlertSender, TelegramAlertSender>();
+    // Deposit-receipt review over Telegram: pushes new receipts to the admin chat with approve/reject
+    // buttons and long-polls for the admin's decision, applying it through the same store path the panel uses.
+    builder.Services.AddSingleton<ITelegramReceiptService, TelegramReceiptService>();
+    builder.Services.AddHostedService<TelegramReceiptWorker>();
     // Honeypot IP bans live in memory (ephemeral, like sessions) so they never bloat store.json.
     builder.Services.AddMemoryCache();
     builder.Services.AddSingleton<IpBanService>();

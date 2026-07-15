@@ -496,8 +496,11 @@ export type PaymentSettings = {
 export type TelegramSettings = {
   backupEnabled: boolean;
   alertsEnabled: boolean;
+  receiptBotEnabled: boolean;
   botToken: string;
   chatId: string;
+  receiptBotToken: string;
+  receiptChatId: string;
   intervalHours: number;
   lastBackupAtUtc: string | null;
   lastBackupError: string;

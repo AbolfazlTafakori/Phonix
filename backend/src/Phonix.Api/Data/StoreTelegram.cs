@@ -18,8 +18,11 @@ public partial class StoreData
         {
             _telegramSettings.BackupEnabled = settings.BackupEnabled;
             _telegramSettings.AlertsEnabled = settings.AlertsEnabled;
+            _telegramSettings.ReceiptBotEnabled = settings.ReceiptBotEnabled;
             _telegramSettings.BotToken = (settings.BotToken ?? "").Trim();
             _telegramSettings.ChatId = (settings.ChatId ?? "").Trim();
+            _telegramSettings.ReceiptBotToken = (settings.ReceiptBotToken ?? "").Trim();
+            _telegramSettings.ReceiptChatId = (settings.ReceiptChatId ?? "").Trim();
             _telegramSettings.IntervalHours = settings.IntervalHours < 1 ? 1 : settings.IntervalHours;
             // the previous error referred to the old config, so it no longer applies (the last
             // successful backup time is kept as historical info).

@@ -1151,8 +1151,11 @@ LIMIT 1;",
         var t = ReadSingletonNoTx<TelegramSettings>(conn, TelegramKey);
         t.BackupEnabled = settings.BackupEnabled;
         t.AlertsEnabled = settings.AlertsEnabled;
+        t.ReceiptBotEnabled = settings.ReceiptBotEnabled;
         t.BotToken = (settings.BotToken ?? "").Trim();
         t.ChatId = (settings.ChatId ?? "").Trim();
+        t.ReceiptBotToken = (settings.ReceiptBotToken ?? "").Trim();
+        t.ReceiptChatId = (settings.ReceiptChatId ?? "").Trim();
         t.IntervalHours = settings.IntervalHours < 1 ? 1 : settings.IntervalHours;
         t.LastBackupError = "";
         WriteSingleton(conn, null, TelegramKey, t);

@@ -69,10 +69,12 @@ public class TransactionsController : ControllerBase
 {
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
-    public TransactionsController(IDataStore store, IFileStorageService files)
+    private readonly ITelegramReceiptService _receiptBot;
+    public TransactionsController(IDataStore store, IFileStorageService files, ITelegramReceiptService receiptBot)
     {
         _store = store;
         _files = files;
+        _receiptBot = receiptBot;
     }
 
     // Uploads a bank-transfer receipt to protected storage (outside the web root) and returns its opaque
@@ -166,7 +168,11 @@ public class TransactionsController : ControllerBase
             PaymentDate = payDate,
             Description = string.IsNullOrWhiteSpace(input.Description) ? null : input.Description.Trim(),
         };
-        return _store.AddTransaction(tx);
+        var saved = _store.AddTransaction(tx);
+        // Push the new receipt to the admin Telegram chat for one-tap approve/reject (no-op unless the
+        // receipt bot is enabled). Fire-and-forget: filing the deposit never waits on or fails with Telegram.
+        _ = _receiptBot.NotifyDepositAsync(saved, CancellationToken.None);
+        return saved;
     }
 
     // Files a withdrawal request. The amount must meet the configured minimum and be covered by the
