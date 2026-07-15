@@ -1,0 +1,15 @@
+# Gitleaks config for Phonix. Extends the built-in ruleset and records vetted false positives so
+# `gitleaks detect` stays green and real leaks stand out. Run: gitleaks detect --redact -v
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Vetted non-secrets"
+# The Figma FILE_KEY is the public id from the Figma file URL (not the FIGMA_TOKEN, which is read from
+# the environment at runtime). It is not sensitive and is safe to keep in source.
+regexes = [
+  '''xE830tWxx3pq0TOTm3J7A2''',
+]
+paths = [
+  '''figma-export/figma\.py''',
+]

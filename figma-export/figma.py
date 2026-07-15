@@ -27,13 +27,22 @@ TOKEN = os.environ.get("FIGMA_TOKEN", "").strip()
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+def _require_https(url):
+    # urllib will happily open file:// and other local schemes; pin every request to https so a
+    # crafted/redirected value can never turn a fetch into an arbitrary-file read.
+    if not url.lower().startswith("https://"):
+        raise RuntimeError(f"refusing non-https URL: {url}")
+    return url
+
+
 def api_get(path, params=None):
     url = f"{API}{path}"
     if params:
         url += "?" + urllib.parse.urlencode(params)
-    req = urllib.request.Request(url, headers={"X-Figma-Token": TOKEN})
+    req = urllib.request.Request(_require_https(url), headers={"X-Figma-Token": TOKEN})
     try:
-        with urllib.request.urlopen(req, timeout=180) as r:
+        # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is https-pinned via _require_https and built from the constant Figma API base.
+        with urllib.request.urlopen(req, timeout=180) as r:  # noqa
             return json.loads(r.read().decode("utf-8"))
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")
@@ -241,8 +250,9 @@ def _slug(name, nid):
 
 
 def _download(url, dest):
-    req = urllib.request.Request(url, headers={"User-Agent": "phonix-figma/1.0"})
-    with urllib.request.urlopen(req, timeout=300) as r:
+    req = urllib.request.Request(_require_https(url), headers={"User-Agent": "phonix-figma/1.0"})
+    # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected -- URL is https-pinned via _require_https; it comes from Figma's own image CDN response.
+    with urllib.request.urlopen(req, timeout=300) as r:  # noqa
         data = r.read()
     with open(dest, "wb") as f:
         f.write(data)

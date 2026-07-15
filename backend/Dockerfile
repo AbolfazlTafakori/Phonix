@@ -21,10 +21,16 @@ RUN apt-get update \
 COPY --from=build /app/publish .
 
 # State (store.json) + rolling logs live here; mount a volume to persist across restarts/rebuilds.
-RUN mkdir -p /app/App_Data
+# Owned by the built-in non-root "app" user (UID 1654, ships in the .NET 8 aspnet image) so the app can
+# write store.json, logs, and the Data Protection key ring while the container runs unprivileged. A named
+# volume mounted here inherits this ownership, so persistence keeps working.
+RUN mkdir -p /app/App_Data && chown -R app:app /app
 ENV ASPNETCORE_URLS=http://+:5228 \
     ASPNETCORE_ENVIRONMENT=Production \
     DOTNET_RUNNING_IN_CONTAINER=true
+
+# Drop root: run the API as the non-root "app" user to avoid a container-escape blast radius.
+USER app
 
 EXPOSE 5228
 ENTRYPOINT ["dotnet", "Phonix.Api.dll"]
