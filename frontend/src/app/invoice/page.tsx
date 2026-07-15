@@ -49,6 +49,7 @@ export default function InvoicePage() {
           .invoice-root thead { background: #f5f5f5 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
           .invoice-root tr { break-inside: avoid; }
           .invoice-totals { break-inside: avoid; }
+          .invoice-seal { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       `}</style>
 
@@ -110,20 +111,29 @@ export default function InvoicePage() {
         </table>
       </div>
 
-      <div className="invoice-totals ml-auto max-w-[320px] space-y-2 text-sm">
-        <Row label="جمع اقلام" value={formatToman(order.subtotal)} />
-        {order.discountAmount > 0 && (
-          <Row label={`تخفیف${order.discountCode ? ` (${order.discountCode})` : ""}`} value={`− ${formatToman(order.discountAmount)}`} />
-        )}
-        {(order.vatAmount ?? 0) > 0 && (
-          <Row label="مالیات بر ارزش افزوده" value={`+ ${formatToman(order.vatAmount ?? 0)}`} />
-        )}
-        {order.feeAmount > 0 && <Row label="کارمزد درگاه" value={`+ ${formatToman(order.feeAmount)}`} />}
-        {order.walletPaid > 0 && <Row label="پرداخت از کیف پول" value={`− ${formatToman(order.walletPaid)}`} />}
-        <div className="flex items-center justify-between pt-2 text-base font-bold" style={{ borderTop: "2px solid var(--chat-border)" }}>
-          <span>مبلغ کل</span>
-          <span className="invoice-num">{formatToman(order.total)}</span>
+      <div className="mt-2 flex items-end justify-between gap-6">
+        <div className="invoice-totals w-full max-w-[320px] space-y-2 text-sm">
+          <Row label="جمع اقلام" value={formatToman(order.subtotal)} />
+          {order.discountAmount > 0 && (
+            <Row label={`تخفیف${order.discountCode ? ` (${order.discountCode})` : ""}`} value={`− ${formatToman(order.discountAmount)}`} />
+          )}
+          {(order.vatAmount ?? 0) > 0 && (
+            <Row label="مالیات بر ارزش افزوده" value={`+ ${formatToman(order.vatAmount ?? 0)}`} />
+          )}
+          {order.feeAmount > 0 && <Row label="کارمزد درگاه" value={`+ ${formatToman(order.feeAmount)}`} />}
+          {order.walletPaid > 0 && <Row label="پرداخت از کیف پول" value={`− ${formatToman(order.walletPaid)}`} />}
+          <div className="flex items-center justify-between pt-2 text-base font-bold" style={{ borderTop: "2px solid var(--chat-border)" }}>
+            <span>مبلغ کل</span>
+            <span className="invoice-num">{formatToman(order.total)}</span>
+          </div>
         </div>
+        {/* Company seal sits in the empty bottom-left corner (RTL: last child = physical left) on every invoice. */}
+        <img
+          src="/figma/invoice-seal.png"
+          alt="مهر Phoenix Verify"
+          className="invoice-seal h-28 w-28 shrink-0 select-none object-contain sm:h-32 sm:w-32"
+          draggable={false}
+        />
       </div>
 
       {order.note && (
@@ -134,7 +144,7 @@ export default function InvoicePage() {
       )}
 
       <p className="mt-10 text-center text-xs" style={{ color: "var(--chat-muted)" }}>
-        این فاکتور به‌صورت الکترونیکی صادر شده و بدون مهر و امضا معتبر است · Phoenix Verify
+        این فاکتور به‌صورت الکترونیکی صادر شده است · Phoenix Verify
       </p>
     </div>
   );
