@@ -19,72 +19,48 @@ function SunIcon({ className }: { className?: string }) {
   );
 }
 
-// Auto (system) mode is the default: the OS/browser preference decides and keeps deciding. Tapping cycles
-// system → light → dark → system, so an explicit override is always reversible back to following the OS.
-type Mode = "system" | "light" | "dark";
-
-const NEXT: Record<Mode, Mode> = { system: "light", light: "dark", dark: "system" };
-const LABEL: Record<Mode, string> = {
-  system: "تم خودکار (هماهنگ با سیستم) — برای تم روشن کلیک کنید",
-  light: "تم روشن — برای تم تیره کلیک کنید",
-  dark: "تم تیره — برای تم خودکار کلیک کنید",
-};
-
-function readMode(): Mode {
-  try {
-    const m = localStorage.getItem("phonix-theme");
-    return m === "light" || m === "dark" ? m : "system";
-  } catch {
-    return "system";
-  }
-}
-
-// The boot script in layout.tsx owns the apply logic (and the OS-change listener); reuse it so the rule for
-// "what does this mode mean" lives in exactly one place.
+// The theme defaults to the OS/browser preference (the boot script in layout.tsx applies it and keeps
+// following it while nothing is stored). This button is a plain two-state switch: one tap flips to the other
+// theme and stores it as an explicit choice, which from then on wins over the OS.
 function applyTheme() {
   const w = window as Window & { __phonixApplyTheme?: () => void };
   w.__phonixApplyTheme?.();
 }
 
 export default function ThemeToggle() {
-  // Both start at their SSR-safe defaults and are read on mount, so the server and client markup agree.
-  const [mode, setMode] = useState<Mode>("system");
-  const [systemDark, setSystemDark] = useState(false);
+  // Starts false (SSR-safe) and is read from the applied class on mount, so server and client markup agree.
+  const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    setMode(readMode());
+    const sync = () => setDark(document.documentElement.classList.contains("home-dark"));
+    sync();
+    // Until the user picks a side, the OS drives the theme — the boot script re-applies the class on an OS
+    // flip, so re-read it here to keep the icon honest.
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    setSystemDark(mq.matches);
-    // While on auto, an OS flip changes the icon too, not just the colors.
-    const sync = () => setSystemDark(mq.matches);
     mq.addEventListener("change", sync);
     return () => mq.removeEventListener("change", sync);
   }, []);
 
-  function cycle() {
-    const next = NEXT[mode];
+  function toggle() {
+    const next = !dark;
     try {
-      localStorage.setItem("phonix-theme", next);
+      localStorage.setItem("phonix-theme", next ? "dark" : "light");
     } catch {
       /* storage unavailable — theme still applies for this session */
     }
-    setMode(next);
+    setDark(next);
     applyTheme();
   }
-
-  const showingDark = mode === "dark" || (mode === "system" && systemDark);
 
   return (
     <button
       type="button"
-      onClick={cycle}
-      aria-label={LABEL[mode]}
-      title={LABEL[mode]}
-      className="relative grid h-11 w-11 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"
+      onClick={toggle}
+      aria-label={dark ? "روشن کردن تم روشن" : "روشن کردن تم تیره"}
+      title={dark ? "روشن کردن تم روشن" : "روشن کردن تم تیره"}
+      className="grid h-11 w-11 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"
     >
-      {showingDark ? <MoonIcon className="h-5 w-5" /> : <SunIcon className="h-5 w-5" />}
-      {/* a dot marks auto mode, so «following the system» is visible at a glance */}
-      {mode === "system" && <span className="absolute bottom-1.5 h-1 w-1 rounded-full bg-[var(--hl-red)]" />}
+      {dark ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
     </button>
   );
 }
