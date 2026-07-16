@@ -290,12 +290,6 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
         <p className="mt-1.5 text-[12px] text-[var(--chat-ink-2)]">{tab === "register" ? "در کمتر از یک دقیقه عضو شوید و از خدمات ما بهره‌مند شوید." : "خوش آمدید! اطلاعات خود را وارد کنید."}</p>
       </div>
 
-      {referralCode && tab === "register" && (
-        <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-[12px] text-emerald-700">
-          با دعوت <span className="font-bold" dir="ltr">{referralCode}</span> در حال ثبت‌نام هستید.
-        </div>
-      )}
-
       {tab === "login" ? (
         <form onSubmit={submitLogin} className="flex flex-col gap-3">
           <Field icon={<UserI />} value={identifier} onChange={setIdentifier} placeholder="نام کاربری، ایمیل یا موبایل" />
