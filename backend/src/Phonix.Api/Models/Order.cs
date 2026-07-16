@@ -85,6 +85,9 @@ public class Order
     public string? ReceiptUrl { get; set; }
     public string Date { get; set; } = "";
     public string? Note { get; set; }
+    // Unique 16-digit invoice number, minted once the order reaches Completed (i.e. it has actually been
+    // delivered). Null before that: an order that was never delivered has no invoice.
+    public string? InvoiceNumber { get; set; }
     public string? DeliveryContent { get; set; }
     // Human-readable Jalali delivery date (display). The real timestamp below is what drives expiry math.
     public string? DeliveredAt { get; set; }

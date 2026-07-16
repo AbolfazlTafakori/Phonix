@@ -249,6 +249,15 @@ export type WalletInput = { amount: number; reason?: string };
 export type AdminNavItem = { key: string; title: string; icon: string; route: string; comingSoon: boolean; badge: number };
 export type AdminNavGroup = { key: string; title: string; items: AdminNavItem[] };
 
+// Mirrors the backend PagedResult<T> (Dtos.cs) — totalPages is computed server-side.
+export type PagedResult<T> = {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+};
+
 export type PricingSettings = {
   referralCommissionPercent: number;
   vatPercent: number;
@@ -594,6 +603,8 @@ export type Order = {
   receiptUrl: string | null;
   date: string;
   note: string | null;
+  // 16-digit invoice number, present only once the order is completed (delivered).
+  invoiceNumber: string | null;
   deliveryContent: string | null;
   deliveredAt: string | null;
   deliveredAtUtc: string | null;

@@ -50,6 +50,31 @@ public class OrdersController : ControllerBase
     public PagedResult<Order> GetPage([FromQuery] OrderStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
         PagedResult<Order>.From(_store.GetOrders(status).Select(RevealInputs).ToList(), page, pageSize);
 
+    // Every issued invoice is a completed order — the 16-digit number is minted exactly at that transition, so
+    // an order that was never delivered simply has no invoice and never shows up here. `q` matches the invoice
+    // number, the order code or the buyer's name. Customer inputs stay masked: an invoice never needs them.
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("invoices")]
+    [HttpGet("invoices")]
+    public PagedResult<Order> Invoices([FromQuery] string? q, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        var invoices = _store.GetOrders(OrderStatus.Completed)
+            .Where(o => !string.IsNullOrWhiteSpace(o.InvoiceNumber));
+
+        var term = (q ?? "").Trim();
+        if (term.Length > 0)
+        {
+            // Staff type the number however their keyboard is set, so "۱۲۳" has to match "123".
+            var digits = InputValidation.DigitsOnly(term);
+            invoices = invoices.Where(o =>
+                (digits.Length > 0 && (o.InvoiceNumber ?? "").Contains(digits, StringComparison.Ordinal))
+                || o.Code.Contains(term, StringComparison.OrdinalIgnoreCase)
+                || o.UserName.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return PagedResult<Order>.From(invoices.ToList(), page, pageSize);
+    }
+
     [HttpGet("user/{userId:int}")]
     public ActionResult<IEnumerable<Order>> ForUser(int userId)
     {

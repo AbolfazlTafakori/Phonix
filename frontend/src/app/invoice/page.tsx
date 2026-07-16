@@ -26,6 +26,15 @@ export default function InvoicePage() {
     return (
       <div className="mx-auto max-w-[800px] p-10 text-center text-rose-500">{error}</div>
     );
+  // An invoice exists only for a delivered order — that is also when the invoice number is issued.
+  if (order && order.status !== "Completed")
+    return (
+      <div className="mx-auto max-w-[800px] p-10 text-center" style={{ color: "var(--chat-ink-2)" }}>
+        <p className="text-lg font-bold" style={{ color: "var(--chat-ink)" }}>فاکتور هنوز صادر نشده است</p>
+        <p className="mt-2 text-sm">فاکتور پس از تکمیل و تحویل سفارش صادر می‌شود.</p>
+        <p className="mt-1 text-sm">وضعیت فعلی سفارش: {orderStatusLabel[order.status]}</p>
+      </div>
+    );
   if (!order)
     return (
       <div className="mx-auto max-w-[800px] p-10 text-center" style={{ color: "var(--chat-muted)" }}>
@@ -68,6 +77,9 @@ export default function InvoicePage() {
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
+        {order.invoiceNumber && (
+          <Field label="شماره فاکتور" value={<span className="invoice-num font-mono font-bold">{order.invoiceNumber}</span>} />
+        )}
         <Field label="شماره سفارش" value={<span className="invoice-num font-mono font-bold">{order.code}</span>} />
         <Field label="تاریخ" value={<span className="font-bold">{order.date}</span>} />
         <Field label="وضعیت" value={<span className="font-bold">{orderStatusLabel[order.status]}</span>} />

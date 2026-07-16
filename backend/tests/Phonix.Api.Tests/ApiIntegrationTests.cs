@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Phonix.Api.Models;
 using Xunit;
 
 namespace Phonix.Api.Tests;
@@ -158,6 +159,48 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
 
     private record AuthResult(UserRef? User);
     private record UserRef(int Id);
+
+    [Fact]
+    public async Task Invoices_endpoint_lists_only_completed_orders_and_finds_them_by_number()
+    {
+        var admin = await LoginTokenAsync("reza", "1234");
+
+        var all = await GetInvoicesAsync(admin, "");
+        // Every invoice listed is a completed order carrying a 16-digit number.
+        Assert.NotEmpty(all.Items);
+        Assert.All(all.Items, i =>
+        {
+            Assert.Equal(nameof(OrderStatus.Completed), i.Status);
+            Assert.Equal(16, i.InvoiceNumber!.Length);
+            Assert.All(i.InvoiceNumber, c => Assert.True(char.IsAsciiDigit(c)));
+        });
+
+        // Orders that were never delivered have no invoice, so they are absent from the section entirely.
+        var pending = await _client.SendAsync(Authed(HttpMethod.Get, "/api/orders?status=PendingApproval", admin));
+        var pendingCodes = (await pending.Content.ReadFromJsonAsync<List<InvoiceRef>>())!.Select(o => o.Code).ToHashSet();
+        Assert.DoesNotContain(all.Items, i => pendingCodes.Contains(i.Code));
+
+        // Searching the exact number finds that one invoice.
+        var target = all.Items[0];
+        var found = await GetInvoicesAsync(admin, target.InvoiceNumber!);
+        Assert.Contains(found.Items, i => i.InvoiceNumber == target.InvoiceNumber);
+
+        // A number that was never issued matches nothing.
+        var miss = await GetInvoicesAsync(admin, "0000000000000001");
+        Assert.Equal(0, miss.Total);
+    }
+
+    private async Task<PagedInvoices> GetInvoicesAsync(string token, string q)
+    {
+        var res = await _client.SendAsync(Authed(HttpMethod.Get, $"/api/orders/invoices?q={Uri.EscapeDataString(q)}", token));
+        var body = await res.Content.ReadAsStringAsync();
+        Assert.True(res.StatusCode == HttpStatusCode.OK, $"{(int)res.StatusCode} {res.StatusCode}: {body}");
+        return (await res.Content.ReadFromJsonAsync<PagedInvoices>())!;
+    }
+
+    // Status arrives as its name ("Completed"), not an ordinal — the API serializes enums as strings.
+    private record InvoiceRef(int Id, string Code, string? InvoiceNumber, string Status);
+    private record PagedInvoices(List<InvoiceRef> Items, int Total);
 
     [Fact]
     public async Task Limited_staff_is_gated_to_granted_sections_and_updates_live()

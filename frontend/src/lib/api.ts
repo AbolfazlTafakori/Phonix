@@ -63,6 +63,7 @@ import type {
   DiscountCodeInput,
   DiscountResult,
   UsdRateInfo,
+  PagedResult,
 } from "./types";
 import { getCsrfToken } from "./token";
 
@@ -332,6 +333,9 @@ export const api = {
   },
   orders: {
     list: (params?: { status?: OrderStatus }) => request<Order[]>(`/orders${qs(params)}`),
+    // Issued invoices (completed orders only). `q` matches invoice number, order code or buyer name.
+    invoices: (params?: { q?: string; page?: number; pageSize?: number }) =>
+      request<PagedResult<Order>>(`/orders/invoices${qs(params)}`),
     forUser: (userId: number) => request<Order[]>(`/orders/user/${userId}`),
     get: (id: number) => request<Order>(`/orders/${id}`),
     place: (body: { items: { productId: number; quantity: number; planId?: number | null; units?: { inputs?: { label: string; value: string }[]; note?: string | null }[]; inputs?: { label: string; value: string }[]; note?: string | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null; cardId?: number | null; receiptUrl?: string | null; trackingNumber?: string | null; paymentDate?: string | null; description?: string | null }) =>

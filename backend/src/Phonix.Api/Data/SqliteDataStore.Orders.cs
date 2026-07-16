@@ -317,6 +317,33 @@ SELECT last_insert_rowid();",
 
     // ── Order status transitions (atomic refunds + referral earnings) ───────────────────────────────────
 
+    // Stamps the order's invoice number the first time it completes. Random rather than sequential so the
+    // number doesn't leak the shop's order count, and re-checked against every existing invoice so it is
+    // unique. Runs inside the caller's write transaction, so the number and the Completed status land together.
+    private static void EnsureInvoiceNumber(SqliteConnection conn, SqliteTransaction tx, Order o)
+    {
+        if (!string.IsNullOrWhiteSpace(o.InvoiceNumber)) return; // already issued — never re-issue
+        for (var attempt = 0; attempt < 16; attempt++)
+        {
+            var candidate = NewInvoiceNumber();
+            var taken = conn.QueryFirstOrDefault<long?>(
+                "SELECT 1 FROM Orders WHERE json_extract(DataJson,'$.InvoiceNumber') = @candidate LIMIT 1",
+                new { candidate }, tx);
+            if (taken is null) { o.InvoiceNumber = candidate; return; }
+        }
+        // 16 collisions in a 10^16 space cannot happen by chance; failing loudly beats delivering an order
+        // with no invoice number, which the panel's invoice section relies on.
+        throw new InvalidOperationException("Could not allocate a unique invoice number.");
+    }
+
+    private static string NewInvoiceNumber()
+    {
+        Span<byte> bytes = stackalloc byte[8];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        var value = BitConverter.ToUInt64(bytes) % 10_000_000_000_000_000UL;
+        return value.ToString("D16", CultureInfo.InvariantCulture);
+    }
+
     private static void UpsertOrder(SqliteConnection conn, SqliteTransaction tx, Order o) =>
         conn.Execute(@"
 INSERT INTO Orders (Id, UserId, Status, Code, Date, DataJson)
@@ -417,7 +444,7 @@ ON CONFLICT(Id) DO UPDATE SET
             var from = o.Status;
             var wasCompleted = o.Status == OrderStatus.Completed;
             o.Status = status;
-            if (status == OrderStatus.Completed) o.DeliveredAtUtc ??= DateTime.UtcNow;
+            if (status == OrderStatus.Completed) { o.DeliveredAtUtc ??= DateTime.UtcNow; EnsureInvoiceNumber(conn, tx, o); }
 
             // approving the order verifies its linked card-to-card payment too.
             if (status == OrderStatus.Preparing)
@@ -461,6 +488,7 @@ LIMIT 1;",
             o.DeliveredAtUtc ??= DateTime.UtcNow;
             var wasCompleted = o.Status == OrderStatus.Completed;
             o.Status = OrderStatus.Completed;
+            EnsureInvoiceNumber(conn, tx, o);
             if (!wasCompleted) CreditReferralTx(conn, tx, o, settings);
             if (from != OrderStatus.Completed) AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تحویل سفارش");
             UpsertOrder(conn, tx, o);
@@ -564,6 +592,7 @@ LIMIT 1;",
                 o.DeliveryContent = string.Join("\n\n", o.Units.OrderBy(u => u.UnitIndex)
                     .Select(u => o.Units.Count > 1 ? $"اکانت {u.UnitIndex}:\n{u.DeliveryContent}" : u.DeliveryContent));
                 o.DeliveredAt = Today(); o.DeliveredAtUtc ??= DateTime.UtcNow; o.Status = OrderStatus.Completed;
+                EnsureInvoiceNumber(conn, tx, o);
                 CreditReferralTx(conn, tx, o, ReadSingleton<PricingSettings>(conn, tx, PricingKey));
                 AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تحویل همه‌ی اکانت‌ها");
                 UpsertOrder(conn, tx, o);

@@ -298,7 +298,7 @@ public partial class StoreData
             var wasCompleted = o.Status == OrderStatus.Completed;
             o.Status = status;
             // stamp the real delivery moment the first time the order is completed (drives expiry math).
-            if (status == OrderStatus.Completed) o.DeliveredAtUtc ??= DateTime.UtcNow;
+            if (status == OrderStatus.Completed) { o.DeliveredAtUtc ??= DateTime.UtcNow; EnsureInvoiceNumber(o); }
             // keep the linked card-to-card payment in sync: approving the order marks its payment verified too.
             if (status == OrderStatus.Preparing)
             {
@@ -371,6 +371,7 @@ public partial class StoreData
                 o.DeliveredAt = Today();
                 o.DeliveredAtUtc ??= DateTime.UtcNow;
                 o.Status = OrderStatus.Completed;
+                EnsureInvoiceNumber(o);
                 CreditReferral(o);
                 AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تحویل همه‌ی اکانت‌ها");
                 RefreshUserOrderStats(o.UserId);
@@ -395,6 +396,7 @@ public partial class StoreData
             o.DeliveredAtUtc ??= DateTime.UtcNow; // real timestamp for subscription expiry
             var wasCompleted = o.Status == OrderStatus.Completed;
             o.Status = OrderStatus.Completed;
+            EnsureInvoiceNumber(o);
             if (!wasCompleted) CreditReferral(o);
             if (from != OrderStatus.Completed) AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تحویل سفارش");
             RefreshUserOrderStats(o.UserId);
@@ -452,6 +454,27 @@ public partial class StoreData
             RefreshUserOrderStats(o.UserId);
             return new OrderActionResult(o, null);
         }
+    }
+
+    // Stamps the order's 16-digit invoice number the first time it completes, unique across every order.
+    // Random rather than sequential so it doesn't leak the shop's order count. Caller holds _gate.
+    private void EnsureInvoiceNumber(Order o)
+    {
+        if (!string.IsNullOrWhiteSpace(o.InvoiceNumber)) return; // already issued — never re-issue
+        for (var attempt = 0; attempt < 16; attempt++)
+        {
+            var candidate = NewInvoiceNumber();
+            if (!_orders.Any(x => x.InvoiceNumber == candidate)) { o.InvoiceNumber = candidate; return; }
+        }
+        throw new InvalidOperationException("Could not allocate a unique invoice number.");
+    }
+
+    private static string NewInvoiceNumber()
+    {
+        Span<byte> bytes = stackalloc byte[8];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        var value = BitConverter.ToUInt64(bytes) % 10_000_000_000_000_000UL;
+        return value.ToString("D16", System.Globalization.CultureInfo.InvariantCulture);
     }
 
     // Appends one audit entry for an order status transition. Caller holds _gate. The id is unique within

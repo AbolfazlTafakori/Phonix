@@ -76,6 +76,7 @@ public static class AdminMenu
         }),
         new("finance", "مالی، بازاریابی و تحلیل", UserRole.Support, new AdminMenuItem[]
         {
+            new("invoices",   "مدیریت فاکتورها",      "news",     "/admin/invoices"),
             new("discounts",  "کدهای تخفیف",         "tag",      "/admin/discounts"),
             new("affiliates", "همکاری در فروش",       "star",     "/admin/affiliates", ComingSoon: true),
             new("payments",   "روش‌های پرداخت",       "card",     "/admin/payments"),

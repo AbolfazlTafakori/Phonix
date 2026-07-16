@@ -291,6 +291,44 @@ public class OrderTests
         Assert.Equal(KycStatus.Rejected, store.GetKycForUser(6)!.Status);      // level-2 evidence revoked
     }
 
+    [Fact]
+    public void Invoice_number_is_issued_only_once_the_order_is_completed()
+    {
+        var store = TestStore.Create();
+        var order = store.PlaceOrder(store.GetUser(1)!, new[] { (1, 1, (int?)null) }, "کارت به کارت", fromWallet: false).Order!;
+
+        // Not delivered yet → no invoice exists for it.
+        Assert.Null(order.InvoiceNumber);
+        store.SetOrderStatus(order.Id, OrderStatus.Preparing);
+        Assert.Null(store.GetOrder(order.Id)!.InvoiceNumber);
+
+        store.SetOrderStatus(order.Id, OrderStatus.Completed);
+
+        var issued = store.GetOrder(order.Id)!.InvoiceNumber;
+        Assert.NotNull(issued);
+        Assert.Equal(16, issued!.Length);
+        Assert.All(issued, c => Assert.True(char.IsAsciiDigit(c)));
+    }
+
+    [Fact]
+    public void Invoice_number_is_stable_and_unique_across_orders()
+    {
+        var store = TestStore.Create();
+        var first = store.PlaceOrder(store.GetUser(1)!, new[] { (1, 1, (int?)null) }, "کارت", fromWallet: false).Order!;
+        var second = store.PlaceOrder(store.GetUser(5)!, new[] { (1, 1, (int?)null) }, "کارت", fromWallet: false).Order!;
+
+        store.SetOrderStatus(first.Id, OrderStatus.Completed);
+        var firstNumber = store.GetOrder(first.Id)!.InvoiceNumber;
+
+        // Completing again must never mint a second number for the same invoice.
+        store.SetOrderStatus(first.Id, OrderStatus.Preparing);
+        store.SetOrderStatus(first.Id, OrderStatus.Completed);
+        Assert.Equal(firstNumber, store.GetOrder(first.Id)!.InvoiceNumber);
+
+        store.SetOrderStatus(second.Id, OrderStatus.Completed);
+        Assert.NotEqual(firstNumber, store.GetOrder(second.Id)!.InvoiceNumber);
+    }
+
     private static long Vat(StoreData store, long goods) =>
         (long)Math.Round(goods * (double)store.GetSettings().VatPercent / 100.0, MidpointRounding.AwayFromZero);
 
