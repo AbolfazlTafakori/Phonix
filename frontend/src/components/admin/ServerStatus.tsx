@@ -9,6 +9,14 @@ import AdminIcon from "./AdminIcon";
 
 const POLL_MS = 5000;
 
+// Only show the units that carry information: a freshly restarted server reads "۴ دقیقه" instead of the
+// misleading "۰ روز و ۰ ساعت", and once it has been up for days the minutes stop mattering.
+function uptimeLabel(days: number, hours: number, minutes: number): string {
+  if (days > 0) return `${toFa(days)} روز و ${toFa(hours)} ساعت`;
+  if (hours > 0) return `${toFa(hours)} ساعت و ${toFa(minutes)} دقیقه`;
+  return `${toFa(minutes)} دقیقه`;
+}
+
 function Gauge({ used, accent, icon }: { used: number; accent: string; icon: string }) {
   const r = 30;
   const c = 2 * Math.PI * r;
@@ -96,7 +104,7 @@ export default function ServerStatus() {
   ];
 
   const info = [
-    { k: "آپتایم", v: `${toFa(data.uptimeDays)} روز و ${toFa(data.uptimeHours)} ساعت` },
+    { k: "آپتایم", v: uptimeLabel(data.uptimeDays, data.uptimeHours, data.uptimeMinutes) },
     { k: "حافظه مصرفی", v: `${toFa(data.ramUsedMb)} مگابایت` },
     { k: "بار پردازنده", v: `٪${toFa(Math.round(data.cpuPercent))}` },
     { k: "وضعیت", v: online ? "آنلاین" : data.status },

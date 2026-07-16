@@ -12,6 +12,7 @@ public record ServerStatusDto(
     long RamTotalMb,
     int UptimeDays,
     int UptimeHours,
+    int UptimeMinutes,
     string Status);
 
 // Live metrics for the dashboard's "وضعیت سرور" widget. Memory and uptime are read straight from the
@@ -35,14 +36,18 @@ public class ServerStatusController : ControllerBase
         var ramTotalMb = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (1024 * 1024);
         if (ramTotalMb <= 0) ramTotalMb = ramUsedMb;
 
+        // How long this API process has been up. Minutes are reported too: without them the widget reads
+        // "۰ روز و ۰ ساعت" for a whole hour after every restart, which looks broken rather than fresh.
         var uptime = DateTime.Now - process.StartTime;
+        if (uptime < TimeSpan.Zero) uptime = TimeSpan.Zero;
 
         return new ServerStatusDto(
             CpuPercent: Math.Round(_metrics.CpuPercent, 1),
             RamUsedMb: ramUsedMb,
             RamTotalMb: ramTotalMb,
-            UptimeDays: Math.Max(0, uptime.Days),
-            UptimeHours: Math.Max(0, uptime.Hours),
+            UptimeDays: uptime.Days,
+            UptimeHours: uptime.Hours,
+            UptimeMinutes: uptime.Minutes,
             Status: "Online");
     }
 }

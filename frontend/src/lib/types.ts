@@ -429,6 +429,7 @@ export type ServerStatus = {
   ramTotalMb: number;
   uptimeDays: number;
   uptimeHours: number;
+  uptimeMinutes: number;
   status: string;
 };
 
