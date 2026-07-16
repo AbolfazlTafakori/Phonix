@@ -38,6 +38,9 @@ public sealed partial class SqliteDataStore
         t.ChatId = (settings.ChatId ?? "").Trim();
         t.ReceiptBotToken = (settings.ReceiptBotToken ?? "").Trim();
         t.ReceiptChatId = (settings.ReceiptChatId ?? "").Trim();
+        t.OrderBotEnabled = settings.OrderBotEnabled;
+        t.OrderBotToken = (settings.OrderBotToken ?? "").Trim();
+        t.OrderChatId = (settings.OrderChatId ?? "").Trim();
         t.IntervalHours = settings.IntervalHours < 1 ? 1 : settings.IntervalHours;
         t.LastBackupError = "";
         WriteSingleton(conn, null, TelegramKey, t);

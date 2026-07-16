@@ -375,10 +375,27 @@ public class BackupController : ControllerBase
     public TelegramSettings GetTelegram() => _store.GetTelegramSettings();
 
     [HttpPut("telegram")]
-    public TelegramSettings UpdateTelegram(TelegramSettings settings)
+    public ActionResult<TelegramSettings> UpdateTelegram(TelegramSettings settings)
     {
+        // The receipt and order bots each long-poll getUpdates. Telegram only allows ONE getUpdates consumer
+        // per token, so sharing a token makes the two pollers fight and silently kills one of them (409
+        // Conflict) — the bot simply stops responding to taps. Refuse the save instead of shipping that.
+        if (DuplicateToken(settings.BotToken, settings.ReceiptBotToken, settings.OrderBotToken) is string clash)
+            return BadRequest(clash);
         _store.UpdateTelegramSettings(settings);
         return _store.GetTelegramSettings();
+    }
+
+    // Returns an error when two enabled bots would share one token, otherwise null.
+    private static string? DuplicateToken(string? backup, string? receipt, string? order)
+    {
+        var b = (backup ?? "").Trim();
+        var r = (receipt ?? "").Trim();
+        var o = (order ?? "").Trim();
+        if (r.Length > 0 && r == o) return "توکن ربات سفارشات باید با ربات رسید متفاوت باشد؛ یک بات جدید در BotFather بسازید.";
+        if (b.Length > 0 && b == r) return "توکن ربات رسید باید با ربات پشتیبان‌گیری متفاوت باشد؛ یک بات جدید در BotFather بسازید.";
+        if (b.Length > 0 && b == o) return "توکن ربات سفارشات باید با ربات پشتیبان‌گیری متفاوت باشد؛ یک بات جدید در BotFather بسازید.";
+        return null;
     }
 
     // send a backup to Telegram immediately, using the saved settings.
