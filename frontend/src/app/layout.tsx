@@ -165,8 +165,11 @@ export default async function RootLayout({
             }),
           }}
         />
+        {/* Theme boot: 'phonix-theme' is 'system' (default) | 'light' | 'dark'. In system mode the OS/browser
+            preference wins and keeps winning — the matchMedia listener re-applies it if the OS flips while the
+            page is open. Runs before paint so there is no flash of the wrong theme. */}
         <Script id="phonix-theme-init" strategy="beforeInteractive">
-          {`(function(){try{var t=localStorage.getItem('phonix-theme');if(!t)t=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';if(t==='dark')document.documentElement.classList.add('home-dark');}catch(e){}})();`}
+          {`(function(){try{var mq=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');function mode(){try{return localStorage.getItem('phonix-theme')||'system';}catch(e){return 'system';}}function apply(){var m=mode();var dark=m==='dark'||(m==='system'&&!!(mq&&mq.matches));document.documentElement.classList.toggle('home-dark',dark);}apply();window.__phonixApplyTheme=apply;if(mq){var h=function(){if(mode()==='system')apply();};mq.addEventListener?mq.addEventListener('change',h):mq.addListener(h);}}catch(e){}})();`}
         </Script>
         {children}
 
