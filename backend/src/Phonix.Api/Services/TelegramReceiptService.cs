@@ -105,8 +105,10 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         if (ActiveConfig() is not { } cfg) return offset;
         var (token, _) = cfg;
 
+        // Both the button taps (callback_query) and the admin's typed rejection reason (message) are needed;
+        // the reason arrives as a reply to the bot's own prompt, so it reaches us even under group privacy mode.
         var url = $"https://api.telegram.org/bot{token}/getUpdates"
-                + $"?offset={offset}&timeout=25&allowed_updates=%5B%22callback_query%22%5D";
+                + $"?offset={offset}&timeout=25&allowed_updates=%5B%22callback_query%22%2C%22message%22%5D";
 
         using var http = _httpFactory.CreateClient();
         http.Timeout = TimeSpan.FromSeconds(35); // longer than the 25s long-poll so the poll itself never times out
@@ -130,6 +132,8 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
 
             if (update.TryGetProperty("callback_query", out var cq))
                 await HandleCallbackAsync(token, cq, ct);
+            else if (update.TryGetProperty("message", out var m))
+                await HandleReasonReplyAsync(token, m, ct);
         }
         return next;
     }
@@ -182,26 +186,87 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
             return;
         }
 
-        var approve = action == "ok";
-        // No note either way: the decision channel is already recorded in ApprovedVia, and Note is the
-        // rejection REASON — it reaches the customer in their rejection email, so an internal marker like
-        // "رد از طریق تلگرام" must never land in it. A one-tap reject simply carries no reason.
-        var ok = _store.SetTransactionStatus(txId.Value, approve ? TxStatus.Approved : TxStatus.Rejected, "telegram", null);
+        // Reject is a TWO-STEP flow: a tap only asks for the reason. The actual rejection happens in
+        // HandleReasonReplyAsync once the admin replies with the reason text, so a rejection always carries
+        // one — it becomes tx.Note and reaches the customer in their rejection email.
+        if (action == "no")
+        {
+            if (chatId is not null && messageId is not null)
+                await SendReasonPromptAsync(token, chatId.Value, messageId.Value, txId.Value, ct);
+            await AnswerCallbackAsync(token, callbackId, "✍️ دلیل رد را در «پاسخ» به پیام ارسال کنید.", ct);
+            return;
+        }
+
+        // Approve is one tap. No note: the decision channel is recorded in ApprovedVia, and Note is reserved
+        // for the rejection reason, so an internal marker must never land in it.
+        var ok = _store.SetTransactionStatus(txId.Value, TxStatus.Approved, "telegram", null);
         if (!ok)
         {
             await AnswerCallbackAsync(token, callbackId, "اعمال تغییر ناموفق بود.", ct);
             return;
         }
 
-        _logger.LogInformation("Telegram receipt decision: tx #{TxId} → {Status} by chat {Chat}",
-            txId.Value, approve ? "Approved" : "Rejected", configuredChat);
+        _logger.LogInformation("Telegram receipt decision: tx #{TxId} → Approved by chat {Chat}", txId.Value, configuredChat);
 
         var updated = _store.GetTransaction(txId.Value) ?? tx;
         // Same customer email an in-panel decision sends (the Pending guard above keeps it to one).
         _ = _mailer.TransactionDecidedAsync(updated);
-        await AnswerCallbackAsync(token, callbackId, approve ? "✅ تأیید شد." : "❌ رد شد.", ct);
+        await AnswerCallbackAsync(token, callbackId, "✅ تأیید شد.", ct);
         if (chatId is not null && messageId is not null)
             await EditDecidedAsync(token, chatId.Value, messageId.Value, updated, ct);
+    }
+
+    // Handles the admin's typed rejection reason: it arrives as a reply to the bot's reason prompt, whose text
+    // carries a «#REJ:<txId>:<receiptMessageId>» marker. We reject the transaction with the reply as its note,
+    // email the customer the reason, and rewrite the original receipt to the resolved state (reason included).
+    private async Task HandleReasonReplyAsync(string token, JsonElement msg, CancellationToken ct)
+    {
+        if (!msg.TryGetProperty("reply_to_message", out var replied)) return;
+        var promptText = replied.TryGetProperty("text", out var pt) ? pt.GetString() ?? "" : "";
+        if (ParseReasonMarker(promptText) is not { } marker) return; // not a reply to our reason prompt
+        var (txId, receiptMsgId) = marker;
+
+        var reason = (msg.TryGetProperty("text", out var mt) ? mt.GetString() ?? "" : "").Trim();
+
+        // Same authorization gate as the buttons: only the configured receipt chat may decide.
+        var fromId = msg.TryGetProperty("from", out var from) && from.TryGetProperty("id", out var fid) ? fid.GetRawText() : "";
+        long? chatId = msg.TryGetProperty("chat", out var chat) && chat.TryGetProperty("id", out var chId) && chId.TryGetInt64(out var c) ? c : null;
+        var configuredChat = (_store.GetTelegramSettings().ReceiptChatId ?? "").Trim();
+        if (fromId != configuredChat && (chatId?.ToString() ?? "") != configuredChat)
+        {
+            _logger.LogWarning("Ignored Telegram rejection reason from unauthorized source (from={From}, chat={Chat})", fromId, chatId);
+            return;
+        }
+
+        if (chatId is null) return;
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            await SendMessageAsync(token, chatId.Value.ToString(), "دلیل رد نمی‌تواند خالی باشد. لطفاً دوباره در «پاسخ» به پیام دلیل را بنویسید.", "", ct);
+            return;
+        }
+
+        var tx = _store.GetTransaction(txId);
+        if (tx is null) return;
+        if (tx.Status != TxStatus.Pending)
+        {
+            await SendMessageAsync(token, chatId.Value.ToString(), $"این تراکنش قبلاً {StatusFa(tx.Status)} شده است.", "", ct);
+            return;
+        }
+
+        if (!_store.SetTransactionStatus(txId, TxStatus.Rejected, "telegram", reason))
+        {
+            await SendMessageAsync(token, chatId.Value.ToString(), "اعمال رد ناموفق بود.", "", ct);
+            return;
+        }
+
+        _logger.LogInformation("Telegram receipt rejection: tx #{TxId} → Rejected by chat {Chat}", txId, configuredChat);
+
+        var updated = _store.GetTransaction(txId) ?? tx;
+        _ = _mailer.TransactionDecidedAsync(updated); // rejection email carries tx.Note (the reason)
+        // Rewrite the original receipt to the resolved state (the reason is shown there and in this reply thread).
+        if (receiptMsgId > 0)
+            await EditDecidedAsync(token, chatId.Value, receiptMsgId, updated, ct);
+        await SendMessageAsync(token, chatId.Value.ToString(), "❌ تراکنش رد شد و دلیل برای کاربر ایمیل شد.", "", ct);
     }
 
     private static (string? action, int? txId) ParseCallback(string data)
@@ -211,6 +276,31 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         if (data.StartsWith(RejectPrefix, StringComparison.Ordinal) && int.TryParse(data[RejectPrefix.Length..], out var r))
             return ("no", r);
         return (null, null);
+    }
+
+    // The reason prompt embeds «#REJ:<txId>:<receiptMessageId>» so the admin's reply can be tied back to the
+    // exact transaction and its original receipt message, without persisting any correlation state.
+    private static string ReasonMarker(int txId, int receiptMsgId) => $"#REJ:{txId}:{receiptMsgId}";
+
+    private static (int txId, int receiptMsgId)? ParseReasonMarker(string text)
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(text, @"#REJ:(\d+):(\d+)");
+        return m.Success ? (int.Parse(m.Groups[1].Value), int.Parse(m.Groups[2].Value)) : null;
+    }
+
+    // Asks the admin to reply with the rejection reason. Sent as a reply to the receipt with ForceReply so the
+    // client pre-opens the reply box; because it's a reply to the bot, the answer reaches us even under group
+    // privacy mode.
+    private async Task SendReasonPromptAsync(string token, long chatId, int receiptMsgId, int txId, CancellationToken ct)
+    {
+        var forceReply = JsonSerializer.Serialize(new { force_reply = true, input_field_placeholder = "دلیل رد تراکنش..." });
+        await PostFormAsync(token, "sendMessage", new Dictionary<string, string>
+        {
+            ["chat_id"] = chatId.ToString(),
+            ["text"] = $"✍️ لطفاً دلیل رد این تراکنش را در «پاسخ» به همین پیام بنویسید.\n{ReasonMarker(txId, receiptMsgId)}",
+            ["reply_to_message_id"] = receiptMsgId.ToString(),
+            ["reply_markup"] = forceReply,
+        }, ct);
     }
 
     // Rich receipt caption as Telegram HTML: each section is a <blockquote> (the red-bar quote style) with
@@ -348,15 +438,18 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
             _logger.LogWarning("Telegram sendPhoto failed: {Status}", (int)resp.StatusCode);
     }
 
-    private async Task SendMessageAsync(string token, string chatId, string text, string markup, CancellationToken ct) =>
-        await PostFormAsync(token, "sendMessage", new Dictionary<string, string>
+    private async Task SendMessageAsync(string token, string chatId, string text, string markup, CancellationToken ct)
+    {
+        var fields = new Dictionary<string, string>
         {
             ["chat_id"] = chatId,
             ["text"] = text,
             ["parse_mode"] = "HTML",
-            ["reply_markup"] = markup,
             ["disable_web_page_preview"] = "true",
-        }, ct);
+        };
+        if (!string.IsNullOrEmpty(markup)) fields["reply_markup"] = markup; // Telegram rejects an empty reply_markup
+        await PostFormAsync(token, "sendMessage", fields, ct);
+    }
 
     private async Task AnswerCallbackAsync(string token, string callbackId, string text, CancellationToken ct)
     {
@@ -371,7 +464,10 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
     private async Task EditDecidedAsync(string token, long chatId, int messageId, Transaction tx, CancellationToken ct)
     {
         var outcome = tx.Status == TxStatus.Approved ? "✅ تأیید شد" : "❌ رد شد";
-        var caption = $"{BuildCaption(tx)}\n\n<b>وضعیت: {outcome} (از طریق تلگرام)</b>";
+        // A rejection shows its reason (tx.Note) right in the receipt so the channel keeps a record of why.
+        var reasonLine = tx.Status == TxStatus.Rejected && !string.IsNullOrWhiteSpace(tx.Note)
+            ? $"\n<b>📝 دلیل رد:</b> {Esc(tx.Note!)}" : "";
+        var caption = $"{BuildCaption(tx)}\n\n<b>وضعیت: {outcome} (از طریق تلگرام)</b>{reasonLine}";
         // A one-tap "no-op" callback: DecidedPrefix isn't an approve/reject prefix, so HandleCallbackAsync's
         // ParseCallback returns null and the tap is silently acknowledged — the decision can't be replayed.
         var markup = JsonSerializer.Serialize(new
