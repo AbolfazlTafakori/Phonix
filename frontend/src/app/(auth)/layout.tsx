@@ -3,7 +3,9 @@ import type { ReactNode } from "react";
 
 export default function AuthLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="home-light auth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-16">
+    // Vertical padding is height-aware: the airy 4rem frame only kicks in on screens tall enough to afford
+    // it, so a laptop viewport isn't pushed into a scrollbar by padding alone.
+    <div className="home-light auth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-6 [@media(min-height:900px)]:py-16">
       {/* drifting brand blobs so the surface feels alive instead of a flat white sheet */}
       <div aria-hidden className="auth-blob auth-blob-1" />
       <div aria-hidden className="auth-blob auth-blob-2" />

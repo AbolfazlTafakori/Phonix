@@ -5,7 +5,10 @@ import type { ReactNode } from "react";
 // passed in so each page (login / register / reset) can show its own artwork.
 export default function AuthShell({ image, children }: { image: string; children: ReactNode }) {
   return (
-    <div className="mx-auto grid w-full max-w-[440px] overflow-hidden rounded-[26px] border-2 border-[#ff5a1f]/45 bg-[var(--chat-surface)] shadow-[0_30px_80px_-35px_rgba(239,35,60,0.35)] lg:h-[760px] lg:max-w-[980px] lg:grid-cols-2">
+    // The desktop card is a fixed 760px, but on a short viewport that plus the page padding forced the whole
+    // page to scroll. Capping it to the viewport keeps the page static and lets the form column (which is
+    // already overflow-y-auto) do the scrolling instead.
+    <div className="mx-auto grid w-full max-w-[440px] overflow-hidden rounded-[26px] border-2 border-[#ff5a1f]/45 bg-[var(--chat-surface)] shadow-[0_30px_80px_-35px_rgba(239,35,60,0.35)] lg:h-[760px] lg:max-h-[calc(100dvh-3rem)] lg:max-w-[980px] lg:grid-cols-2">
       {/* form panel (right in RTL) */}
       <div className="flex items-center overflow-y-auto px-6 py-8 sm:px-10">
         <div className="mx-auto w-full max-w-[380px]">{children}</div>
