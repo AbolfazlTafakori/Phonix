@@ -258,6 +258,10 @@ export default function AccountDashboard() {
   const [tickets, setTickets]   = useState<Ticket[]>([]);
   const [favCount, setFavCount] = useState(0);
   const [copied, setCopied]     = useState(false);
+  // Read on the client only: window.location.origin has no server-side equivalent here.
+  const [origin, setOrigin]     = useState("");
+
+  useEffect(() => setOrigin(window.location.origin), []);
 
   useEffect(() => {
     if (!user) return;
@@ -281,8 +285,13 @@ export default function AccountDashboard() {
   const completionPct    = Math.round((completionChecks.filter(Boolean).length / completionChecks.length) * 100);
   const profileComplete  = emailVerified && identityVerified;
 
-  function copyCode() {
-    if (username) navigator.clipboard?.writeText(username).catch(() => {});
+  // The same link /account/invite hands out — the copy button puts this on the clipboard, not the bare code,
+  // so what a friend receives is something they can click straight through to signup.
+  const inviteLink = username && origin ? `${origin}/signup?ref=${username}` : "";
+
+  function copyInviteLink() {
+    if (!inviteLink) return;
+    navigator.clipboard?.writeText(inviteLink).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
@@ -583,11 +592,17 @@ export default function AccountDashboard() {
             <p className="text-[20px] font-black uppercase tracking-wider" dir="ltr" style={{ color: "#F2551F" }}>
               {username.toUpperCase() || "PHONIX2024"}
             </p>
+            {/* The link the copy button actually copies, shown so it is clear what lands on the clipboard. */}
+            {inviteLink && (
+              <p dir="ltr" title={inviteLink} className="mt-1.5 truncate px-8 text-[11px]" style={{ color: "var(--ac-muted)" }}>
+                {inviteLink}
+              </p>
+            )}
             <button
-              onClick={copyCode}
+              onClick={copyInviteLink}
               className="absolute left-3 top-1/2 grid h-8 w-8 -translate-y-1/2 place-items-center rounded-[8px] text-white transition hover:brightness-110"
               style={{ background: "#FF6A2B" }}
-              title="کپی کد"
+              title="کپی لینک دعوت"
             >
               {copied
                 ? <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><polyline points="20 6 9 17 4 12" /></svg>
