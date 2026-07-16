@@ -107,6 +107,7 @@ SELECT last_insert_rowid();",
             if (ej is null) return false;
             var e = Deserialize<Transaction>(ej)!;
             var becomingApproved = e.Status != TxStatus.Approved && status == TxStatus.Approved;
+            var becomingRejected = e.Status != TxStatus.Rejected && status == TxStatus.Rejected;
 
             if (e.Type == TxTypes.WalletTopUp && e.Amount > 0 && e.UserId > 0)
             {
@@ -146,6 +147,25 @@ SELECT last_insert_rowid();",
                 }
             }
 
+            // A rejected order payment cancels the still-pending order, so the site status mirrors the receipt
+            // decision. The reason (note) rides along into the history entry.
+            if (e.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(e.OrderCode) && e.Status != TxStatus.Rejected && status == TxStatus.Rejected)
+            {
+                var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Code=@code", new { code = e.OrderCode }, tx);
+                if (oj is not null)
+                {
+                    var ord = Deserialize<Order>(oj)!;
+                    if (ord.Status == OrderStatus.PendingApproval)
+                    {
+                        ord.Status = OrderStatus.Cancelled;
+                        AppendOrderHistory(ord, OrderStatus.PendingApproval, OrderStatus.Cancelled, "سیستم (رد پرداخت)",
+                            note is { Length: > 0 } ? note : "رد پرداخت سفارش");
+                        UpsertOrder(conn, tx, ord);
+                        RefreshUserStats(conn, tx, ord.UserId);
+                    }
+                }
+            }
+
             e.Status = status; e.ApprovedVia = via; if (note is not null) e.Note = note;
             conn.Execute("UPDATE Transactions SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)e.Status, d = Serialize(e), id }, tx);
 
@@ -156,6 +176,10 @@ SELECT last_insert_rowid();",
                 else if (e.Type == TxTypes.OrderPayment)
                     AddNotificationTx(conn, tx, e.UserId, "پرداخت تأیید شد", "پرداخت سفارش شما تأیید و سفارش در حال آماده‌سازی است.", "/account/orders");
             }
+
+            if (becomingRejected && e.UserId > 0 && e.Type == TxTypes.OrderPayment)
+                AddNotificationTx(conn, tx, e.UserId, "پرداخت رد شد",
+                    note is { Length: > 0 } ? $"پرداخت سفارش شما رد شد: {note}" : "پرداخت سفارش شما رد شد.", "/account/orders");
             return true;
         });
 }

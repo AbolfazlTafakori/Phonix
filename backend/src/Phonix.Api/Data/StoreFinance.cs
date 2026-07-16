@@ -121,6 +121,7 @@ public partial class StoreData
             var e = _transactions.FirstOrDefault(t => t.Id == id);
             if (e is null) return false;
             var becomingApproved = e.Status != TxStatus.Approved && status == TxStatus.Approved;
+            var becomingRejected = e.Status != TxStatus.Rejected && status == TxStatus.Rejected;
 
             // A wallet top-up credits the owner's balance exactly while it is approved. Applying the
             // delta only on the approved↔not-approved transition means the first approval credits once,
@@ -166,6 +167,19 @@ public partial class StoreData
                 }
             }
 
+            // Rejecting an order's payment cancels the still-pending order so the site status matches the receipt.
+            if (e.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(e.OrderCode) && e.Status != TxStatus.Rejected && status == TxStatus.Rejected)
+            {
+                var ord = _orders.FirstOrDefault(o => o.Code == e.OrderCode);
+                if (ord is not null && ord.Status == OrderStatus.PendingApproval)
+                {
+                    ord.Status = OrderStatus.Cancelled;
+                    AppendOrderHistory(ord, OrderStatus.PendingApproval, OrderStatus.Cancelled, "سیستم (رد پرداخت)",
+                        note is { Length: > 0 } ? note : "رد پرداخت سفارش");
+                    RefreshUserOrderStats(ord.UserId);
+                }
+            }
+
             e.Status = status;
             e.ApprovedVia = via;
             if (note is not null) e.Note = note;
@@ -178,6 +192,10 @@ public partial class StoreData
                 else if (e.Type == TxTypes.OrderPayment)
                     AddNotification(e.UserId, "پرداخت تأیید شد", "پرداخت سفارش شما تأیید و سفارش در حال آماده‌سازی است.", "/account/orders");
             }
+
+            if (becomingRejected && e.UserId > 0 && e.Type == TxTypes.OrderPayment)
+                AddNotification(e.UserId, "پرداخت رد شد",
+                    note is { Length: > 0 } ? $"پرداخت سفارش شما رد شد: {note}" : "پرداخت سفارش شما رد شد.", "/account/orders");
             return true;
         }
     }

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { addToCart } from "@/lib/cart";
+import { addToCart, setQuantity, useCart } from "@/lib/cart";
 import { formatToman, toFa } from "@/lib/format";
 import type { Product, ProductPlan } from "@/lib/types";
 
@@ -52,9 +52,16 @@ export default function PurchaseCard({ product }: { product: Product }) {
   const [planId, setPlanId] = useState<number | null>(typedPlans[0]?.id ?? null);
   const selected: ProductPlan | undefined = typedPlans.find((p) => p.id === planId) ?? typedPlans[0];
 
-  const [qty, setQty] = useState(1);
+  // The cart already keys lines by product + plan, so each duration is its own line with its own quantity.
+  // The quantity stepper is revealed only once the *selected* plan is in the cart (i.e. the user pressed
+  // «افزودن به سبد خرید» for it); before that only the add button shows.
+  const { items: cartItems } = useCart();
+  const inCartQty = selected
+    ? cartItems.find((i) => i.productId === product.id && (i.planId ?? null) === (selected.id ?? null))?.quantity ?? 0
+    : 0;
+  const displayQty = inCartQty > 0 ? inCartQty : 1;
+
   const [confirming, setConfirming] = useState(false);
-  const [added, setAdded] = useState(false);
   const [fav, setFav] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
   const [shared, setShared] = useState(false);
@@ -75,10 +82,10 @@ export default function PurchaseCard({ product }: { product: Product }) {
   }
 
   function commit(goCheckout: boolean) {
-    addToCart(cartItem(), qty);
+    addToCart(cartItem(), 1);
     setConfirming(false);
     if (goCheckout) router.push("/checkout");
-    else setAdded(true);
+    // Otherwise the plan is now in the cart, so the quantity stepper takes over automatically.
   }
 
   const [pendingQuick, setPendingQuick] = useState(false);
@@ -118,7 +125,7 @@ export default function PurchaseCard({ product }: { product: Product }) {
         <div>
           <p className="text-[12px]" style={{ color: "var(--ac-muted)" }}>قیمت نهایی</p>
           <p className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-[30px] font-black leading-none" style={{ color: "#F2551F" }}>{formatToman(unitPrice * qty).replace(" تومان", "")}</span>
+            <span className="text-[30px] font-black leading-none" style={{ color: "#F2551F" }}>{formatToman(unitPrice * displayQty).replace(" تومان", "")}</span>
             <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>تومان</span>
           </p>
         </div>
@@ -192,25 +199,25 @@ export default function PurchaseCard({ product }: { product: Product }) {
         </div>
       )}
 
-      {/* quantity */}
-      <div className="mt-4 flex items-center justify-between rounded-xl border px-4 py-2.5" style={{ borderColor: "var(--ac-panel-border)" }}>
-        <span className="text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>تعداد</span>
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={() => setQty((q) => Math.max(1, q - 1))} aria-label="کاهش" className="grid h-8 w-8 place-items-center rounded-lg border text-[16px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)" }}>−</button>
-          <span className="w-6 text-center text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(qty)}</span>
-          <button type="button" onClick={() => setQty((q) => Math.min(99, q + 1))} aria-label="افزایش" className="grid h-8 w-8 place-items-center rounded-lg border text-[16px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)" }}>+</button>
-        </div>
-      </div>
-
-      {/* CTAs */}
+      {/* CTAs — quantity is revealed only after the selected plan is added to the cart */}
       {out ? (
         <button type="button" disabled className="mt-4 h-14 w-full cursor-not-allowed rounded-xl border text-[15px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>
           ناموجود
         </button>
-      ) : added ? (
+      ) : inCartQty > 0 ? (
         <div className="mt-4 space-y-2.5">
-          <div className="grid h-14 w-full place-items-center rounded-xl bg-emerald-500/15 text-[14px] font-black text-emerald-500">✓ به سبد اضافه شد</div>
-          <button type="button" onClick={() => router.push("/cart")} className="h-12 w-full rounded-xl text-[14px] font-black text-white transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
+          <div className="flex items-center justify-between rounded-xl border px-4 py-2.5" style={{ borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }}>
+            <span className="text-[13px] font-bold" style={{ color: "#F2551F" }}>تعداد {planLabel ? `(${planLabel})` : ""}</span>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => setQuantity(product.id, inCartQty - 1, selected?.id ?? null)} aria-label="کاهش" className="grid h-8 w-8 place-items-center rounded-lg border text-[16px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)", background: "var(--ac-panel-bg)" }}>−</button>
+              <span className="w-6 text-center text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(inCartQty)}</span>
+              <button type="button" onClick={() => setQuantity(product.id, Math.min(99, inCartQty + 1), selected?.id ?? null)} aria-label="افزایش" className="grid h-8 w-8 place-items-center rounded-lg border text-[16px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)", background: "var(--ac-panel-bg)" }}>+</button>
+            </div>
+          </div>
+          <button type="button" onClick={() => router.push("/checkout")} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-xl text-[15px] font-black text-white shadow-[0_14px_38px_rgba(242,85,31,0.35)] transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
+            ادامه به پرداخت
+          </button>
+          <button type="button" onClick={() => router.push("/cart")} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border bg-[var(--ac-panel-bg)] text-[14px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-btn-secondary-border)", color: "var(--ac-btn-secondary-text)" }}>
             مشاهده سبد خرید
           </button>
         </div>
