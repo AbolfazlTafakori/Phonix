@@ -511,6 +511,10 @@ export type TelegramSettings = {
   chatId: string;
   receiptBotToken: string;
   receiptChatId: string;
+  // A third independent bot + chat: the orders group, where each purchased account is posted for fulfillment.
+  orderBotEnabled: boolean;
+  orderBotToken: string;
+  orderChatId: string;
   intervalHours: number;
   lastBackupAtUtc: string | null;
   lastBackupError: string;

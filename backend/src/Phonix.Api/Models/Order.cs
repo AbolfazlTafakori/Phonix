@@ -95,6 +95,11 @@ public class Order
     public DateTime? DeliveredAtUtc { get; set; }
     // Set once when a renewal reminder has been sent, so the background worker never reminds twice.
     public DateTime? RenewalReminderSentUtc { get; set; }
+    // Set once when the order bot has announced this order to the orders group. An order can reach
+    // «آماده‌سازی» from several paths (panel approve, receipt approve in the panel, receipt approve in
+    // Telegram) and each account is its own message, so this stamp is what stops a re-approval from
+    // spamming the group with a second full set.
+    public DateTime? OrderBotNotifiedAtUtc { get; set; }
     // Append-only audit trail of status changes (who/from/to/why/when).
     public List<OrderStatusHistory> History { get; set; } = new();
 }

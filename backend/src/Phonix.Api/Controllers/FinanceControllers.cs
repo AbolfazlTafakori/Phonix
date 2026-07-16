@@ -70,13 +70,15 @@ public class TransactionsController : ControllerBase
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
     private readonly ITelegramReceiptService _receiptBot;
+    private readonly ITelegramOrderService _orderBot;
     private readonly IUserMailer _mailer;
     public TransactionsController(IDataStore store, IFileStorageService files, ITelegramReceiptService receiptBot,
-        IUserMailer mailer)
+        ITelegramOrderService orderBot, IUserMailer mailer)
     {
         _store = store;
         _files = files;
         _receiptBot = receiptBot;
+        _orderBot = orderBot;
         _mailer = mailer;
     }
 
@@ -219,6 +221,9 @@ public class TransactionsController : ControllerBase
         if (!_store.SetTransactionStatus(id, status, "site", note)) return NotFound();
         var updated = _store.GetTransaction(id)!;
         if (wasPending) _ = _mailer.TransactionDecidedAsync(updated);
+        // Approving an order's payment advances that order to «آماده‌سازی», which is when its accounts go to
+        // the orders group. The claim inside keeps a re-approval from posting them twice.
+        if (wasPending) _ = _orderBot.AnnounceApprovedOrderAsync(updated);
         return updated;
     }
 }

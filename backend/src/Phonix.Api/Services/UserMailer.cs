@@ -12,6 +12,11 @@ public interface IUserMailer
     Task WelcomeAsync(AppUser user);
     Task LoginNoticeAsync(AppUser user, string ip, string device);
     Task OrderPlacedAsync(Order order);
+    // One mail per delivered account, so a five-account order tells the customer about each purchase as it
+    // lands rather than in one lump.
+    Task OrderUnitDeliveredAsync(Order order, int unitId);
+    // The wrap-up once every account in the order is delivered: the exact list + the issued invoice number.
+    Task OrderCompletedAsync(Order order);
     // Approved or rejected, wallet top-up or order payment — the transaction's own state picks the mail.
     Task TransactionDecidedAsync(Transaction tx);
     Task TicketRepliedAsync(Ticket ticket);
@@ -79,6 +84,22 @@ public sealed class UserMailer : IUserMailer
         SendAsync(AddressOf(order.UserId), $"سفارش {order.Code} ثبت شد",
             EmailTemplates.OrderPlaced(order.Code, order.Total, JalaliDate.NowFa(), Url("/account/orders"),
                 awaitingPayment: order.Status == OrderStatus.PendingApproval));
+
+    public Task OrderUnitDeliveredAsync(Order order, int unitId)
+    {
+        var unit = order.Units.FirstOrDefault(u => u.Id == unitId);
+        if (unit is null) return Task.CompletedTask;
+        return SendAsync(AddressOf(order.UserId), $"{unit.Name} آماده شد — سفارش {order.Code}",
+            EmailTemplates.OrderUnitDelivered(order.Code, unit.Name, unit.Plan, unit.UnitIndex, order.Units.Count,
+                unit.DeliveryContent, Url("/account/orders")));
+    }
+
+    public Task OrderCompletedAsync(Order order)
+    {
+        var lines = order.Items.Select(i => (i.Name, i.Plan, i.Quantity)).ToList();
+        return SendAsync(AddressOf(order.UserId), $"سفارش {order.Code} تکمیل شد",
+            EmailTemplates.OrderCompleted(order.Code, order.InvoiceNumber, lines, Url("/account/orders")));
+    }
 
     public Task TransactionDecidedAsync(Transaction tx)
     {

@@ -329,6 +329,19 @@ public class OrderTests
         Assert.NotEqual(firstNumber, store.GetOrder(second.Id)!.InvoiceNumber);
     }
 
+    [Fact]
+    public void Order_bot_announcement_is_claimed_exactly_once()
+    {
+        var store = TestStore.Create();
+        var order = store.PlaceOrder(store.GetUser(1)!, new[] { (1, 3, (int?)null) }, "کارت", fromWallet: false).Order!;
+
+        // Several paths can approve one order (panel, receipt bot, order approve) and each account is its own
+        // message — so exactly one caller may ever win the right to post them.
+        Assert.True(store.TryClaimOrderBotNotification(order.Id));
+        Assert.False(store.TryClaimOrderBotNotification(order.Id));
+        Assert.False(store.TryClaimOrderBotNotification(order.Id));
+    }
+
     private static long Vat(StoreData store, long goods) =>
         (long)Math.Round(goods * (double)store.GetSettings().VatPercent / 100.0, MidpointRounding.AwayFromZero);
 

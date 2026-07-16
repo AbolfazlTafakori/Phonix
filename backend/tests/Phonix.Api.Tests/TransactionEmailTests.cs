@@ -27,7 +27,7 @@ public class TransactionEmailTests
         var store = TestStore.Create();
         var sender = new CapturingSender();
         var mailer = new UserMailer(store, sender, NullLogger<UserMailer>.Instance);
-        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), mailer);
+        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(), mailer);
 
         var tx = store.AddTransaction(new Transaction
         {
@@ -54,7 +54,7 @@ public class TransactionEmailTests
         var store = TestStore.Create();
         var sender = new CapturingSender();
         var mailer = new UserMailer(store, sender, NullLogger<UserMailer>.Instance);
-        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), mailer);
+        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(), mailer);
 
         var tx = store.AddTransaction(new Transaction
         {
@@ -69,9 +69,50 @@ public class TransactionEmailTests
         Assert.Contains(JalaliDate.ToPersianDigits(store.GetUser(1)!.Wallet.ToString("N0")), mail.body);
     }
 
+    [Fact]
+    public async Task Each_delivered_account_mails_separately_and_completion_mails_the_full_list()
+    {
+        var store = TestStore.Create();
+        var sender = new CapturingSender();
+        var mailer = new UserMailer(store, sender, NullLogger<UserMailer>.Instance);
+
+        // Two accounts of one product → two independent units to deliver.
+        var order = store.PlaceOrder(store.GetUser(1)!, new[] { (1, 2, (int?)null) }, "کارت", fromWallet: false).Order!;
+        Assert.Equal(2, order.Units.Count);
+
+        // First account delivered: its own mail, naming which account it is. The order is not complete yet.
+        var (afterFirst, firstCompleted) = store.DeliverUnit(order.Id, order.Units[0].Id, "اکانت اول");
+        Assert.False(firstCompleted);
+        await mailer.OrderUnitDeliveredAsync(afterFirst!, order.Units[0].Id);
+        var first = Assert.Single(sender.Sent);
+        Assert.Contains("اکانت اول", first.body);
+        Assert.Contains("۱ از ۲", JalaliDate.ToPersianDigits(first.body));
+
+        // Second account completes the order → its own mail, plus one summary listing the whole order.
+        var (afterSecond, nowCompleted) = store.DeliverUnit(order.Id, order.Units[1].Id, "اکانت دوم");
+        Assert.True(nowCompleted);
+        await mailer.OrderUnitDeliveredAsync(afterSecond!, order.Units[1].Id);
+        await mailer.OrderCompletedAsync(afterSecond!);
+
+        Assert.Equal(3, sender.Sent.Count);
+        Assert.Contains("اکانت دوم", sender.Sent[1].body);
+
+        var summary = sender.Sent[2];
+        Assert.Contains("تکمیل شد", summary.subject);
+        Assert.Contains(afterSecond!.Items[0].Name, summary.body);       // the exact list
+        Assert.Contains(afterSecond.InvoiceNumber!, summary.body);       // and the invoice issued on completion
+    }
+
     private sealed class NoopReceiptBot : ITelegramReceiptService
     {
         public Task NotifyDepositAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
+        public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
+    }
+
+    private sealed class NoopOrderBot : ITelegramOrderService
+    {
+        public Task NotifyOrderAsync(Order order, CancellationToken ct = default) => Task.CompletedTask;
+        public Task AnnounceApprovedOrderAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
     }
 }

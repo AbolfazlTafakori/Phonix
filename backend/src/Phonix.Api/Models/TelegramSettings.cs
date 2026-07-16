@@ -14,6 +14,15 @@ public class TelegramSettings
     // two never share a chat or interfere (only the receipt bot long-polls for button taps).
     public string ReceiptBotToken { get; set; } = "";
     public string ReceiptChatId { get; set; } = "";
+
+    // when on (and the order bot token + chat id below are set), each purchased account of an approved order
+    // is pushed to the orders group as its own message with inline approve/reject buttons.
+    public bool OrderBotEnabled { get; set; }
+    // A THIRD independent bot + chat: the orders group is a different room from the receipts one, and only
+    // this bot long-polls it, so the two never read each other's button taps.
+    public string OrderBotToken { get; set; } = "";
+    public string OrderChatId { get; set; } = "";
+
     public int IntervalHours { get; set; } = 24;
 
     // runtime status, written by the backup worker / test send (not edited directly in the form)

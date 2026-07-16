@@ -208,6 +208,9 @@ public interface IDataStore
     Order? SaveUnitDraft(int orderId, int unitId, string content, string? changedBy = null);
     (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null);
     OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null);
+    // Claims the right to announce an order to the Telegram orders group. Returns true exactly once per
+    // order — every later caller gets false — so no approval path can post the accounts twice.
+    bool TryClaimOrderBotNotification(int orderId);
     IReadOnlyList<RenewalReminder> CollectDueRenewalReminders(int hoursBefore);
     IReadOnlyList<ReferralEarning> GetReferralEarnings(int referrerId);
     int CountReferredUsers(int referrerId);

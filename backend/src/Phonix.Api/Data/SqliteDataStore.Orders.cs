@@ -604,6 +604,20 @@ LIMIT 1;",
             return (o, justCompleted);
         });
 
+    // Atomic claim: the stamp is written inside the write transaction, so two concurrent approvals of the same
+    // order can never both win and post the accounts twice.
+    public bool TryClaimOrderBotNotification(int orderId) =>
+        WriteTx((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id = @id", new { id = orderId }, tx);
+            if (oj is null) return false;
+            var o = Deserialize<Order>(oj)!;
+            if (o.OrderBotNotifiedAtUtc is not null) return false;
+            o.OrderBotNotifiedAtUtc = DateTime.UtcNow;
+            UpsertOrder(conn, tx, o);
+            return true;
+        });
+
     public IReadOnlyList<RenewalReminder> CollectDueRenewalReminders(int hoursBefore)
     {
         var due = new List<RenewalReminder>();

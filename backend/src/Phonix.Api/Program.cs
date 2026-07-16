@@ -77,6 +77,9 @@ try
     // buttons and long-polls for the admin's decision, applying it through the same store path the panel uses.
     builder.Services.AddSingleton<ITelegramReceiptService, TelegramReceiptService>();
     builder.Services.AddHostedService<TelegramReceiptWorker>();
+    // The orders bot is a separate bot in a separate group, so it polls on its own worker.
+    builder.Services.AddSingleton<ITelegramOrderService, TelegramOrderService>();
+    builder.Services.AddHostedService<TelegramOrderWorker>();
     // Honeypot IP bans live in memory (ephemeral, like sessions) so they never bloat store.json.
     builder.Services.AddMemoryCache();
     builder.Services.AddSingleton<IpBanService>();

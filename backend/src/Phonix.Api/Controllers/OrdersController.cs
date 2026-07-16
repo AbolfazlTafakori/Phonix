@@ -28,13 +28,26 @@ public class OrdersController : ControllerBase
     private readonly IDataStore _store;
     private readonly IEmailSender _email;
     private readonly ITelegramReceiptService _receiptBot;
+    private readonly ITelegramOrderService _orderBot;
     private readonly IUserMailer _mailer;
-    public OrdersController(IDataStore store, IEmailSender email, ITelegramReceiptService receiptBot, IUserMailer mailer)
+    public OrdersController(IDataStore store, IEmailSender email, ITelegramReceiptService receiptBot,
+        ITelegramOrderService orderBot, IUserMailer mailer)
     {
         _store = store;
         _email = email;
         _receiptBot = receiptBot;
+        _orderBot = orderBot;
         _mailer = mailer;
+    }
+
+    // Announces an order's accounts to the orders group. The claim makes this safe to call from every approval
+    // path: only the first one through actually posts.
+    private void AnnounceToOrderBot(Order order)
+    {
+        if (order.Status != OrderStatus.Preparing) return;
+        if (!_store.TryClaimOrderBotNotification(order.Id)) return;
+        // Pass the stored order as-is: the bot decrypts the sensitive inputs itself when it builds the message.
+        _ = _orderBot.NotifyOrderAsync(order);
     }
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
@@ -220,8 +233,13 @@ public class OrdersController : ControllerBase
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("orders", "orders-receipts")]
     [HttpPost("{id:int}/approve")]
-    public ActionResult<Order> Approve(int id) =>
-        _store.SetOrderStatus(id, OrderStatus.Preparing, User.Identity?.Name, "تأیید رسید") is { } o ? RevealInputs(o) : NotFound();
+    public ActionResult<Order> Approve(int id)
+    {
+        if (_store.SetOrderStatus(id, OrderStatus.Preparing, User.Identity?.Name, "تأیید رسید") is not { } o)
+            return NotFound();
+        AnnounceToOrderBot(o);
+        return RevealInputs(o);
+    }
 
     // Rejects the deposit receipt: cancels the order (restoring stock) with the staff-supplied reason.
     [Authorize(Roles = AuthExtensions.StaffRoles)]

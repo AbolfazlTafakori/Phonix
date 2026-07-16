@@ -187,6 +187,47 @@ public static class EmailTemplates
     // The checkout receipt. An order paid entirely from the wallet goes straight to preparing; one with a
     // card-to-card remainder waits on receipt review first. The status line must match the order's real
     // state, so the caller passes which it is — promising delivery on an unapproved receipt would be a lie.
+    // One delivered account. A multi-account order sends one of these per account as it lands, so the customer
+    // is told about each purchase separately rather than waiting for the whole basket.
+    public static (string text, string html) OrderUnitDelivered(
+        string orderCode, string serviceName, string? plan, int unitIndex, int unitCount, string content, string accountUrl)
+    {
+        var which = unitCount > 1 ? $" (اکانت {unitIndex} از {unitCount})" : "";
+        var title = $"{serviceName}{(string.IsNullOrWhiteSpace(plan) ? "" : $" — {plan}")}";
+        var text = $"سرویس شما آماده شد.\n\n{title}{which}\nکد سفارش: {orderCode}\n\n{content}\n\n{accountUrl}";
+        var html = Shell($"{serviceName} آماده شد ✅",
+            $"یکی از سرویس‌های سفارش {orderCode} تحویل داده شد.",
+            Rows(("سرویس", title), ("کد سفارش", orderCode))
+            + (unitCount > 1 ? Note($"این ایمیل مربوط به <b>اکانت {unitIndex} از {unitCount}</b> این سفارش است؛ بقیه‌ی اکانت‌ها جداگانه ارسال می‌شوند.") : "")
+            + $"<p dir=\"rtl\" style=\"margin:18px 0 0;white-space:pre-wrap;text-align:right;\">{WebUtility.HtmlEncode(content).Replace("\n", "<br>")}</p>"
+            + Button("مشاهده‌ی سفارش‌ها", accountUrl));
+        return (text, html);
+    }
+
+    // The wrap-up once every account in the order has been delivered: the exact list, and that it is complete.
+    public static (string text, string html) OrderCompleted(
+        string orderCode, string? invoiceNumber, IReadOnlyList<(string name, string? plan, int quantity)> lines, string accountUrl)
+    {
+        var listText = string.Join("\n", lines.Select(l =>
+            $"• {l.name}{(string.IsNullOrWhiteSpace(l.plan) ? "" : $" — {l.plan}")} × {l.quantity}"));
+        var text = $"سفارش {orderCode} تکمیل شد.\n\n{listText}\n"
+                 + (string.IsNullOrWhiteSpace(invoiceNumber) ? "" : $"\nشماره فاکتور: {invoiceNumber}\n")
+                 + $"\n{accountUrl}";
+
+        var rows = string.Join("", lines.Select(l =>
+            $"<tr><td dir=\"rtl\" align=\"right\" style=\"padding:8px 0;color:{Body};font-size:15px;border-bottom:1px solid #f0e2d6;\">"
+            + $"{WebUtility.HtmlEncode(l.name)}{(string.IsNullOrWhiteSpace(l.plan) ? "" : $" <span style=\"color:{Muted};\">— {WebUtility.HtmlEncode(l.plan!)}</span>")}</td>"
+            + $"<td align=\"left\" style=\"padding:8px 0;color:{Muted};font-size:14px;border-bottom:1px solid #f0e2d6;\">×{l.quantity}</td></tr>"));
+
+        var html = Shell($"سفارش {orderCode} تکمیل شد 🎉",
+            "همه‌ی سرویس‌های این سفارش تحویل داده شدند.",
+            "<p style=\"margin:0;\">تمام اقلام سفارش شما تحویل داده شد. فهرست کامل سفارش:</p>"
+            + $"<table role=\"presentation\" dir=\"rtl\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"margin:16px 0 0;direction:rtl;\">{rows}</table>"
+            + (string.IsNullOrWhiteSpace(invoiceNumber) ? "" : Rows(("شماره فاکتور", invoiceNumber!)))
+            + Button("مشاهده‌ی سفارش‌ها", accountUrl));
+        return (text, html);
+    }
+
     public static (string text, string html) OrderPlaced(string orderCode, long total, string dateFa, string ordersUrl, bool awaitingPayment)
     {
         var statusFa = awaitingPayment ? "در انتظار تأیید پرداخت" : "در حال آماده‌سازی";

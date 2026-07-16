@@ -456,6 +456,20 @@ public partial class StoreData
         }
     }
 
+    // Claims the right to announce this order to the orders group. Under _gate, so two concurrent approvals
+    // can never both win and post the accounts twice.
+    public bool TryClaimOrderBotNotification(int orderId)
+    {
+        lock (_gate)
+        {
+            var o = _orders.FirstOrDefault(x => x.Id == orderId);
+            if (o is null || o.OrderBotNotifiedAtUtc is not null) return false;
+            o.OrderBotNotifiedAtUtc = DateTime.UtcNow;
+            PersistNow();
+            return true;
+        }
+    }
+
     // Stamps the order's 16-digit invoice number the first time it completes, unique across every order.
     // Random rather than sequential so it doesn't leak the shop's order count. Caller holds _gate.
     private void EnsureInvoiceNumber(Order o)
