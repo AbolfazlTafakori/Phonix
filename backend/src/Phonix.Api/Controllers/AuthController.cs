@@ -11,7 +11,7 @@ using Phonix.Api.Services;
 
 namespace Phonix.Api.Controllers;
 
-public record RegisterInput(string Name, string Username, string Email, string Phone, string Password, string? ReferralCode, string? CaptchaId, string? CaptchaText);
+public record RegisterInput(string Name, string Username, string Email, string Password, string? ReferralCode, string? CaptchaId, string? CaptchaText);
 public record LoginInput(string Identifier, string Password, string? CaptchaId, string? CaptchaText, bool? Admin, bool? Remember);
 // The Google Identity Services credential (an ID token / JWT) posted from the browser sign-in button.
 public record GoogleLoginInput(string Credential);
@@ -127,19 +127,23 @@ public class AuthController : ControllerBase
     {
         if (CaptchaRequired && !_captcha.Validate(input.CaptchaId, input.CaptchaText))
             return BadRequest("کد امنیتی تصویر نادرست است. دوباره تلاش کنید.");
+        // Every field on the signup form is required. Phone is not collected for now: email is the single
+        // contact channel and it is what verification runs on.
+        if (string.IsNullOrWhiteSpace(input.Name))
+            return BadRequest("نام و نام خانوادگی الزامی است.");
         if (string.IsNullOrWhiteSpace(input.Username) || string.IsNullOrWhiteSpace(input.Password))
             return BadRequest("نام کاربری و گذرواژه الزامی است.");
-        var hasEmail = !string.IsNullOrWhiteSpace(input.Email);
-        var hasPhone = !string.IsNullOrWhiteSpace(input.Phone);
-        // The form offers a single "email or mobile" field; at least one contact is required so we can reach
-        // the customer (email also gates verification).
-        if (!hasEmail && !hasPhone)
-            return BadRequest("ایمیل یا شماره موبایل الزامی است.");
+        if (UsernamePolicy.Validate(input.Username) is string usernameError)
+            return BadRequest(usernameError);
+        if (string.IsNullOrWhiteSpace(input.Email))
+            return BadRequest("ایمیل الزامی است.");
+        if (!InputValidation.IsEmail(input.Email.Trim()))
+            return BadRequest("ایمیل واردشده معتبر نیست.");
         if (PasswordPolicy.Validate(input.Password) is string passwordError)
             return BadRequest(passwordError);
         if (_store.UsernameExists(input.Username.Trim()))
             return Conflict("این نام کاربری قبلاً استفاده شده است.");
-        if (hasEmail && _store.EmailExists(input.Email.Trim()))
+        if (_store.EmailExists(input.Email.Trim()))
             return Conflict("این ایمیل قبلاً ثبت شده است.");
 
         // an optional referral code is a referrer's username; link them so commission can be paid.
@@ -149,14 +153,14 @@ public class AuthController : ControllerBase
 
         var user = _store.RegisterUser(new AppUser
         {
-            Name = string.IsNullOrWhiteSpace(input.Name) ? input.Username.Trim() : input.Name.Trim(),
+            Name = input.Name.Trim(),
             Username = input.Username.Trim(),
             Password = PasswordHasher.Hash(input.Password),
-            Email = hasEmail ? input.Email.Trim() : "",
-            Phone = hasPhone ? input.Phone.Trim() : "",
+            Email = input.Email.Trim(),
+            Phone = "", // not collected at signup; the customer can add one later from their profile
             ReferredBy = referredBy,
         });
-        if (hasEmail) await SendVerification(user);
+        await SendVerification(user); // email is mandatory now, so verification always goes out
         _logger.LogInformation("New account registered: {Username} (#{UserId}) from {ClientIp}",
             user.Username, user.Id, ClientIp);
         // Registration is a main-site action → a plain customer session, never admin-scoped.
@@ -287,11 +291,15 @@ public class AuthController : ControllerBase
 
     private static string? GoogleClientId => Environment.GetEnvironmentVariable("PHONIX_GOOGLE_CLIENT_ID");
 
+    // Google sign-in creates the account for the customer, so the name it derives must still satisfy
+    // UsernamePolicy: ASCII letters/digits only (IsLetterOrDigit would pass through non-English letters)
+    // and never shorter than the minimum.
     private string GenerateUsernameFromEmail(string email)
     {
         var local = email.Split('@', 2)[0];
-        var baseName = new string(local.Where(char.IsLetterOrDigit).ToArray());
+        var baseName = new string(local.Where(c => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9').ToArray());
         if (string.IsNullOrEmpty(baseName)) baseName = "user";
+        if (baseName.Length < UsernamePolicy.MinLength) baseName = baseName.PadRight(UsernamePolicy.MinLength, '0');
         var candidate = baseName;
         var suffix = 0;
         while (_store.UsernameExists(candidate)) candidate = baseName + ++suffix;

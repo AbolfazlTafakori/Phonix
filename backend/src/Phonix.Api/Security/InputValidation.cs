@@ -18,6 +18,19 @@ public static class InputValidation
         return sb.ToString();
     }
 
+    // Shape check only (something@something.tld, no spaces) — deliverability is proven by the verification
+    // mail, not by a regex, so this deliberately stays permissive rather than chasing the RFC.
+    public static bool IsEmail(string? raw)
+    {
+        var value = (raw ?? "").Trim();
+        if (value.Length is 0 or > 254 || value.Any(char.IsWhiteSpace)) return false;
+        var at = value.IndexOf('@');
+        if (at <= 0 || at != value.LastIndexOf('@') || at == value.Length - 1) return false;
+        var domain = value[(at + 1)..];
+        var dot = domain.LastIndexOf('.');
+        return dot > 0 && dot < domain.Length - 1;
+    }
+
     public static bool IsValidCardNumber(string? raw)
     {
         var digits = DigitsOnly(raw);

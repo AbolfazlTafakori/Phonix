@@ -547,7 +547,7 @@ export const api = {
     get: () => request<{ id: string; image: string }>("/captcha"),
   },
   auth: {
-    register: (body: { name: string; username: string; email: string; phone: string; password: string; referralCode?: string; captchaId?: string; captchaText?: string }) =>
+    register: (body: { name: string; username: string; email: string; password: string; referralCode?: string; captchaId?: string; captchaText?: string }) =>
       request<AuthResult>("/auth/register", { method: "POST", body: json(body) }),
     // `admin: true` marks an admin-PANEL login (requires 2FA, yields an admin-scoped session). The main-site
     // login omits it, so an admin signing into the public site is never asked for a second factor.

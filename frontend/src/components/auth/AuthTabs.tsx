@@ -92,7 +92,8 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
   // register
   const [name, setName] = useState("");
   const [username, setUsername] = useState(randomUsername);
-  const [contact, setContact] = useState("");
+  // Phone is not collected at signup: email is the only contact channel and it is what verification runs on.
+  const [email, setEmail] = useState("");
   const [regPassword, setRegPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showRegPw, setShowRegPw] = useState(false);
@@ -149,10 +150,15 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
     }
   }
 
+  // Mirrors the server's UsernamePolicy / register checks so the user sees the error before a round-trip;
+  // the server stays the authority. Every field on this form is required.
   function validateRegister(): string {
+    if (!name.trim()) return "نام و نام خانوادگی را وارد کنید.";
     if (!username.trim()) return "نام کاربری را وارد کنید.";
-    if (!contact.trim()) return "ایمیل یا شماره موبایل را وارد کنید.";
-    if (contact.includes("@") && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact.trim())) return "ایمیل واردشده معتبر نیست.";
+    if (username.trim().length < 5) return "نام کاربری باید حداقل ۵ کاراکتر باشد.";
+    if (!/^[a-zA-Z0-9]+$/.test(username.trim())) return "نام کاربری فقط می‌تواند شامل حروف انگلیسی و اعداد باشد.";
+    if (!email.trim()) return "ایمیل را وارد کنید.";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return "ایمیل واردشده معتبر نیست.";
     if (regPassword.length < 8) return "گذرواژه باید حداقل ۸ کاراکتر باشد.";
     if (!/[a-zA-Z]/.test(regPassword) || !/\d/.test(regPassword)) return "گذرواژه باید ترکیبی از حروف و اعداد باشد.";
     if (regPassword !== confirm) return "گذرواژه و تکرار آن یکسان نیستند.";
@@ -167,13 +173,11 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
     if (v) { setError(v); return; }
     setBusy(true);
     setError("");
-    const isEmail = contact.includes("@");
     try {
       const { user } = await api.auth.register({
         name: name.trim(),
         username: username.trim(),
-        email: isEmail ? contact.trim() : "",
-        phone: isEmail ? "" : contact.trim(),
+        email: email.trim(),
         password: regPassword,
         referralCode: referralCode || undefined,
         captchaId: captcha.id,
@@ -312,10 +316,12 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
       ) : (
         <form onSubmit={submitRegister} className="flex flex-col gap-3">
           <Field icon={<UserI />} value={name} onChange={setName} placeholder="نام و نام خانوادگی" />
-          <Field icon={<AtI />} value={username} onChange={setUsername} placeholder="نام کاربری" dir="ltr" right={
+          {/* Disallowed characters (Persian letters, spaces, #, (), …) are dropped as they are typed rather
+              than rejected on submit, so the field can only ever hold a policy-valid value. */}
+          <Field icon={<AtI />} value={username} onChange={(v) => setUsername(v.replace(/[^a-zA-Z0-9]/g, ""))} placeholder="نام کاربری (حروف انگلیسی و عدد، حداقل ۵ کاراکتر)" dir="ltr" right={
             <button type="button" onClick={() => setUsername(randomUsername())} tabIndex={-1} className="shrink-0 text-[11px] font-bold text-[#ef233c] hover:underline">جدید</button>
           } />
-          <Field icon={<MailI />} value={contact} onChange={setContact} placeholder="ایمیل یا شماره موبایل" dir="ltr" />
+          <Field icon={<MailI />} type="email" value={email} onChange={setEmail} placeholder="ایمیل" dir="ltr" />
           <Field icon={<LockI />} type={showRegPw ? "text" : "password"} value={regPassword} onChange={setRegPassword} placeholder="رمز عبور" right={eye(showRegPw, () => setShowRegPw((s) => !s))} />
           <Field icon={<LockI />} type={showRegPw ? "text" : "password"} value={confirm} onChange={setConfirm} placeholder="تکرار رمز عبور" />
           <CaptchaRow captcha={captcha} />
