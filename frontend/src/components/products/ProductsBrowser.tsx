@@ -100,7 +100,12 @@ function ProductCard({ p }: { p: Product }) {
   const showStrike = discounted && p.price > display;
   const out = p.stock <= 0;
   return (
-    <div className="group flex flex-col overflow-hidden rounded-[16px] border border-[var(--hl-card-border)] bg-[var(--hl-card)] transition duration-200 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-20px_rgba(239,35,60,0.28)]">
+    // The whole card is one link: tapping/clicking anywhere opens the product page (the inner "مشاهده" and
+    // cart buttons are visual affordances of the same navigation, so they stay spans — no nested anchors).
+    <Link
+      href={productPath(p)}
+      className="group flex cursor-pointer flex-col overflow-hidden rounded-[16px] border border-[var(--hl-card-border)] bg-[var(--hl-card)] transition duration-200 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-20px_rgba(239,35,60,0.28)]"
+    >
       <div className="relative bg-[var(--hl-tile)] px-5 pb-4 pt-11">
         <div className="absolute inset-x-3 top-3 flex items-start justify-between">
           {discounted ? (
@@ -142,12 +147,9 @@ function ProductCard({ p }: { p: Product }) {
         </div>
 
         <div className="mt-3 flex items-center gap-2">
-          <Link
-            href={productPath(p)}
-            className="flex-1 rounded-xl border border-[var(--hl-red)] py-2 text-center text-[13px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff4f1]"
-          >
+          <span className="flex-1 rounded-xl border border-[var(--hl-red)] py-2 text-center text-[13px] font-bold text-[var(--hl-red)] transition group-hover:bg-[#fff4f1]">
             مشاهده
-          </Link>
+          </span>
           {out ? (
             <span
               aria-label="ناموجود"
@@ -156,18 +158,17 @@ function ProductCard({ p }: { p: Product }) {
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6" /></svg>
             </span>
           ) : (
-            <Link
-              href={productPath(p)}
-              aria-label="افزودن به سبد"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition hover:brightness-105"
+            <span
+              aria-hidden
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white transition group-hover:brightness-105"
               style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
             >
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="20" cy="21" r="1" /><path d="M1 1h4l2.7 13.4a2 2 0 002 1.6h9.7a2 2 0 002-1.6L23 6H6" /></svg>
-            </Link>
+            </span>
           )}
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
