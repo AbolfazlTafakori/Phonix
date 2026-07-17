@@ -10,7 +10,7 @@ Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-71%20passing-3fb950)](#)
+[![Tests](https://img.shields.io/badge/tests-89%20passing-3fb950)](#)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](#-license)
 
 </div>
@@ -33,16 +33,36 @@ The result is a system that boots from a single binary plus one SQLite file, dep
 - **`IDataStore` abstraction** — persistence is swappable; a legacy JSON snapshot (`store.json`) is imported once to seed an empty database.
 - Designed and validated against multi-threaded concurrency stress testing.
 
+### 📦 Virtual Stock Pool & Automated Fulfillment
+- **Per-product inventory of ready-to-deliver items** — account credentials, gift codes, licenses — loaded in bulk ahead of time.
+- **Encrypted at rest**: pool contents get the same field-level encryption as sensitive customer inputs, and are revealed one item at a time behind an audited endpoint.
+- **Auto-delivery on payment**: the moment an order's payment is confirmed, opted-in products fulfill each unit straight from the pool; anything the pool can't cover degrades gracefully to manual fulfillment.
+- **Atomic reservation** inside the same `IMMEDIATE` transactions as wallet debits — two concurrent orders can never claim the same item.
+- Full traceability: every delivered item records which order unit consumed it.
+
+### 🚚 Unit-Level Order Fulfillment
+- Orders split into **per-account deliverable units**, so multiple staff can work the same order in parallel.
+- Drafts, per-unit delivery with optional templated email, and automatic order completion when the last unit ships.
+- **16-digit invoice numbers** minted exactly at completion — an undelivered order never has an invoice.
+- Customers browse deliveries per product from their dashboard: each order shows its product logos, and each logo opens only that service's delivered accounts.
+
 ### 🛡️ Zero-Trust Security Architecture
 - **Triple-verify database restore** — a restore requires *all three*: the backup file, the `PHONIX_BACKUP_KEY` secret, **and** a valid TOTP 2FA code. No single compromised factor is sufficient.
 - **PBKDF2** password hashing with per-credential salts.
 - **Anti-brute-force tarpit** — progressively delays attackers to make credential stuffing economically infeasible.
 - **Honeypot middleware** — traps and fingerprints automated probes before they reach business logic.
+- **Field-level encryption** for sensitive checkout inputs and stock-pool payloads — plaintext never reaches disk or backups.
 
 ### 🔐 Advanced KYC & Authentication
 - **Stateless, encrypted cookies** — no server-side session store to leak or exhaust.
 - **Security stamps** — instantly invalidate all active sessions on credential or permission changes.
-- **Progressive 3-tier verification** — a strict, escalating KYC ladder gating sensitive actions by trust level.
+- **Progressive 3-tier verification** — a strict, escalating KYC ladder gating sensitive actions by trust level; payment destinations stay hidden until the cart's required level is met.
+- **Section-scoped staff permissions** — limited staff accounts see and reach only the admin sections an owner explicitly grants.
+
+### 🤖 Telegram Automation
+- **Receipt bot** — every card-to-card receipt lands in the admin chat with one-tap approve/reject.
+- **Order bot** — confirmed orders are announced to the fulfillment team exactly once, with claim-based dedup across approval paths.
+- **Backup bot** — encrypted database backups shipped to a private chat on schedule, with failure alerting.
 
 ### 🚀 DevOps & Observability
 - **Interactive Linux installer** (`install.sh`) — guided, one-command provisioning.
@@ -68,7 +88,8 @@ The result is a system that boots from a single binary plus one SQLite file, dep
 ```
 Phonix/
 ├── backend/
-│   └── src/Phonix.Api/        # ASP.NET Core 8 API, controllers, security middleware
+│   ├── src/Phonix.Api/        # ASP.NET Core 8 API, controllers, security middleware
+│   └── tests/                 # Integration, concurrency and security test suites
 ├── frontend/                  # Next.js 16 storefront & admin
 ├── install.sh                # Interactive Linux installer
 └── README.md
