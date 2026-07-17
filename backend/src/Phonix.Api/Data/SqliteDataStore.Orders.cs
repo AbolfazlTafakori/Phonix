@@ -99,8 +99,11 @@ public sealed partial class SqliteDataStore
                     PlanMonths = plan?.Months, UnitPrice = plan?.FinalPrice ?? p.FinalPrice, Quantity = qty,
                 });
 
+                // A slot-fulfilled product's quantity is USERS ON ONE SHARED ACCOUNT (consecutive slots), so
+                // the whole line is a single deliverable no matter the quantity.
+                var unitCount = p.SlotFulfillment ? 1 : qty;
                 var lineUnits = lineInfo is not null && idx < lineInfo.Count ? lineInfo[idx]?.Units : null;
-                for (var u = 0; u < qty; u++)
+                for (var u = 0; u < unitCount; u++)
                 {
                     var ui = lineUnits is not null && u < lineUnits.Count ? lineUnits[u] : null;
                     units.Add(new OrderUnit
@@ -630,7 +633,11 @@ LIMIT 1;",
     {
         var item = order.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
         if (item is null) return 0;
-        var price = item.UnitPrice;
+        // A line normally fans out into Quantity units (one unit = one UnitPrice), but a slot-fulfilled line
+        // is a SINGLE unit covering the whole quantity — its refund is the line's share, not one seat's.
+        var unitsOfLine = Math.Max(1, order.Units.Count(u =>
+            u.ProductId == unit.ProductId && (u.Plan ?? "") == (unit.Plan ?? "")));
+        var price = (long)Math.Round(item.UnitPrice * (double)item.Quantity / unitsOfLine, MidpointRounding.AwayFromZero);
         if (order.DiscountAmount <= 0 || order.Subtotal <= 0) return price;
         var share = (long)Math.Round(order.DiscountAmount * (double)price / order.Subtotal, MidpointRounding.AwayFromZero);
         return Math.Max(0, price - share);
@@ -657,14 +664,25 @@ LIMIT 1;",
             unit.HandledBy = changedBy;
             unit.RefundedAmount = refund;
 
-            // The account was never handed over, so its stock goes back on the shelf.
+            // The account was never handed over, so its stock goes back on the shelf. A slot-fulfilled line is
+            // one unit for the whole quantity, so it returns every seat it had claimed.
             var pj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @pid", new { pid = unit.ProductId }, tx);
             if (pj is not null)
             {
                 var p = Deserialize<Product>(pj)!;
-                p.Stock += 1;
+                var line = o.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
+                var unitsOfLine = Math.Max(1, o.Units.Count(u =>
+                    u.ProductId == unit.ProductId && (u.Plan ?? "") == (unit.Plan ?? "")));
+                p.Stock += Math.Max(1, (line?.Quantity ?? 1) / unitsOfLine);
                 UpsertProduct(conn, tx, p);
             }
+            // Any slots still held for this unit go back into rotation (no-op for item-pool products).
+            UpdateReservedSlots(conn, tx, orderId, unitId, slot =>
+            {
+                slot.Status = StockItemStatus.Available;
+                slot.OrderId = null;
+                slot.UnitId = null;
+            });
 
             if (refund > 0)
             {

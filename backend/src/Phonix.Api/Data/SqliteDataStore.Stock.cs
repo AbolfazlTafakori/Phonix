@@ -85,6 +85,126 @@ SELECT last_insert_rowid();",
             return item;
         });
 
+    // ── Multi-seat stock accounts (slots embedded in DataJson, like Order.Units) ───────────────────
+    // Every mutation runs inside WriteTx (IMMEDIATE), so two concurrent orders can never reserve the same
+    // consecutive run — the same guarantee the one-shot item pool gets.
+
+    private static void UpsertStockAccount(SqliteConnection conn, SqliteTransaction? tx, StockAccount a) =>
+        conn.Execute("UPDATE StockAccounts SET ProductId=@ProductId, DataJson=@DataJson WHERE Id=@Id",
+            new { a.Id, a.ProductId, DataJson = Serialize(a) }, tx);
+
+    public IReadOnlyList<StockAccount> GetStockAccounts(int? productId = null)
+    {
+        using var conn = OpenConnection();
+        var sql = "SELECT DataJson FROM StockAccounts" + (productId is null ? "" : " WHERE ProductId = @productId") + " ORDER BY Id";
+        return conn.Query<string>(sql, new { productId }).Select(j => Deserialize<StockAccount>(j)!).ToList();
+    }
+
+    public StockAccount? GetStockAccount(int id) => OneJson<StockAccount>("StockAccounts", id);
+
+    public StockAccount AddStockAccount(StockAccount account) =>
+        WriteTx((conn, tx) =>
+        {
+            account.Slots = StockAccount.GenerateSlots(account.Capacity);
+            var id = (int)conn.ExecuteScalar<long>(@"
+INSERT INTO StockAccounts (ProductId, DataJson) VALUES (@ProductId, @DataJson);
+SELECT last_insert_rowid();",
+                new { account.ProductId, DataJson = Serialize(account) }, tx);
+            account.Id = id;
+            UpsertStockAccount(conn, tx, account);
+            return account;
+        });
+
+    public bool DeleteStockAccount(int id) =>
+        WriteTx((conn, tx) =>
+        {
+            var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM StockAccounts WHERE Id = @id", new { id }, tx);
+            if (json is null) return false;
+            if (Deserialize<StockAccount>(json)!.Slots.Any(s => s.Status == StockItemStatus.Delivered)) return false;
+            return conn.Execute("DELETE FROM StockAccounts WHERE Id = @id", new { id }, tx) > 0;
+        });
+
+    public bool SetStockAccountDisabled(int id, bool disabled) =>
+        WriteTx((conn, tx) =>
+        {
+            var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM StockAccounts WHERE Id = @id", new { id }, tx);
+            if (json is null) return false;
+            var acc = Deserialize<StockAccount>(json)!;
+            acc.Disabled = disabled;
+            UpsertStockAccount(conn, tx, acc);
+            return true;
+        });
+
+    public bool SetStockSlotStatus(int accountId, int slotId, StockItemStatus status) =>
+        WriteTx((conn, tx) =>
+        {
+            var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM StockAccounts WHERE Id = @accountId", new { accountId }, tx);
+            if (json is null) return false;
+            var acc = Deserialize<StockAccount>(json)!;
+            var slot = acc.Slots.FirstOrDefault(s => s.Id == slotId);
+            if (slot is null || !StoreData.SlotTransitionAllowed(slot.Status, status)) return false;
+            slot.Status = status;
+            if (status == StockItemStatus.Available) { slot.OrderId = null; slot.UnitId = null; }
+            UpsertStockAccount(conn, tx, acc);
+            return true;
+        });
+
+    public (StockAccount Account, List<StockSlot> Slots)? ReserveStockSlots(int productId, int count, int orderId, int unitId)
+    {
+        if (count <= 0) return null;
+        return WriteTx<(StockAccount, List<StockSlot>)?>((conn, tx) =>
+        {
+            var rows = conn.Query<string>(
+                "SELECT DataJson FROM StockAccounts WHERE ProductId = @productId ORDER BY Id", new { productId }, tx);
+            foreach (var acc in rows.Select(j => Deserialize<StockAccount>(j)!).Where(a => !a.Disabled))
+            {
+                var run = StoreData.FindConsecutiveAvailable(acc, count);
+                if (run is null) continue; // this account can't seat the whole request — try the next one
+                foreach (var slot in run)
+                {
+                    slot.Status = StockItemStatus.Reserved;
+                    slot.OrderId = orderId;
+                    slot.UnitId = unitId;
+                }
+                UpsertStockAccount(conn, tx, acc);
+                return (acc, run);
+            }
+            return null;
+        });
+    }
+
+    public bool MarkStockSlotsDelivered(int orderId, int unitId) =>
+        WriteTx((conn, tx) => UpdateReservedSlots(conn, tx, orderId, unitId, slot =>
+        {
+            slot.Status = StockItemStatus.Delivered;
+            slot.DeliveredAtUtc = DateTime.UtcNow;
+        }));
+
+    public bool ReleaseStockSlots(int orderId, int unitId) =>
+        WriteTx((conn, tx) => UpdateReservedSlots(conn, tx, orderId, unitId, slot =>
+        {
+            slot.Status = StockItemStatus.Available;
+            slot.OrderId = null;
+            slot.UnitId = null;
+        }));
+
+    private static bool UpdateReservedSlots(SqliteConnection conn, SqliteTransaction? tx, int orderId, int unitId,
+        Action<StockSlot> apply)
+    {
+        var changed = false;
+        foreach (var json in conn.Query<string>("SELECT DataJson FROM StockAccounts", transaction: tx).ToList())
+        {
+            var acc = Deserialize<StockAccount>(json)!;
+            var mine = acc.Slots.Where(s =>
+                s.Status == StockItemStatus.Reserved && s.OrderId == orderId && s.UnitId == unitId).ToList();
+            if (mine.Count == 0) continue;
+            foreach (var slot in mine) apply(slot);
+            UpsertStockAccount(conn, tx, acc);
+            changed = true;
+        }
+        return changed;
+    }
+
     public bool MarkStockItemDelivered(int orderId, int unitId) =>
         WriteTx((conn, tx) =>
         {

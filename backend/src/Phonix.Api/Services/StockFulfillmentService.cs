@@ -75,6 +75,10 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
     {
         if (unit.Delivered || unit.Rejected) return null;
 
+        // Slot-fulfilled products are served from a multi-seat account, everything else from the item pool.
+        if (_store.GetProduct(unit.ProductId) is { SlotFulfillment: true })
+            return ServeFromSlotAccount(order, unit, actor);
+
         // An earlier pull for this same unit (a deliver modal left open, a retried approval) is reused instead
         // of burning a second account.
         var item = _store.GetStockItems(unit.ProductId).FirstOrDefault(s =>
@@ -93,5 +97,73 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
         _logger.LogInformation("Stock pool delivered item {ItemId} to order {Code} unit {UnitId}",
             item.Id, order.Code, unit.Id);
         return (updated, justCompleted);
+    }
+
+    // How many users the buyer purchased on this unit: a slot line is a single unit for the whole quantity.
+    private static int ConnectionCount(Order order, OrderUnit unit) =>
+        Math.Max(1, order.Items.FirstOrDefault(i =>
+            i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""))?.Quantity ?? 1);
+
+    private (Order order, bool justCompleted)? ServeFromSlotAccount(Order order, OrderUnit unit, string actor)
+    {
+        var count = ConnectionCount(order, unit);
+
+        // An earlier reservation for this same unit (a retried approval, a stale tap) is reused instead of
+        // claiming a second run of seats.
+        var reservation = FindReservation(unit.ProductId, order.Id, unit.Id)
+                          ?? _store.ReserveStockSlots(unit.ProductId, count, order.Id, unit.Id);
+        if (reservation is not { } r) return null; // no account has enough consecutive free slots
+
+        var content = BuildSlotDeliveryContent(unit.Name, r.Account, count, r.Slots);
+        var (updated, justCompleted) = _store.DeliverUnit(order.Id, unit.Id, content, actor);
+        if (updated is null)
+        {
+            _store.ReleaseStockSlots(order.Id, unit.Id); // delivery refused → seats go back
+            return null;
+        }
+
+        _store.MarkStockSlotsDelivered(order.Id, unit.Id);
+        _logger.LogInformation("Stock account {AccountId} seated {Count} slot(s) for order {Code} unit {UnitId}",
+            r.Account.Id, r.Slots.Count, order.Code, unit.Id);
+        return (updated, justCompleted);
+    }
+
+    private (StockAccount Account, List<StockSlot> Slots)? FindReservation(int productId, int orderId, int unitId)
+    {
+        foreach (var acc in _store.GetStockAccounts(productId))
+        {
+            var mine = acc.Slots
+                .Where(s => s.Status == StockItemStatus.Reserved && s.OrderId == orderId && s.UnitId == unitId)
+                .OrderBy(s => s.Index)
+                .ToList();
+            if (mine.Count > 0) return (acc, mine);
+        }
+        return null;
+    }
+
+    // The customer-facing message. This exact shape long predates the slot pool and thousands of customers
+    // know it by heart — do not restyle it.
+    internal static string BuildSlotDeliveryContent(string productName, StockAccount acc, int connections,
+        List<StockSlot> slots)
+    {
+        var lines = new List<string>
+        {
+            productName,
+            $"{connections} Connection",
+            $"{acc.Months} Month",
+            "",
+            "User :",
+            acc.Username,
+            "",
+            "Pass :",
+            SensitiveField.Reveal(acc.Password),
+            "",
+            "Plan :",
+            acc.Plan,
+            "",
+            "User",
+        };
+        lines.AddRange(slots.OrderBy(s => s.Index).Select(s => s.Label));
+        return string.Join("\n", lines);
     }
 }

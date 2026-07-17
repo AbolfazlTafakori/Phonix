@@ -4,6 +4,7 @@ import type {
   Product,
   ProductInput,
   StockItem,
+  StockAccount,
   StockSummary,
   User,
   UserRole,
@@ -127,7 +128,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(msg);
   }
   if (res.status === 204) return undefined as T;
-  return (await res.json()) as T;
+  // Some endpoints reply 200 with an empty body (e.g. Ok() on toggle actions); avoid res.json() throwing.
+  const text = await res.text();
+  if (!text) return undefined as T;
+  return JSON.parse(text) as T;
 }
 
 // Uploads a single image as multipart/form-data to a protected endpoint (sends the CSRF header + cookie,
@@ -204,7 +208,20 @@ export const api = {
     autoDeliver: (productId: number, enabled: boolean) =>
       request<void>("/stock/auto-deliver", { method: "POST", body: json({ productId, enabled }) }),
     pull: (orderId: number, unitId: number) =>
-      request<{ stockItemId: number; content: string }>("/stock/pull", { method: "POST", body: json({ orderId, unitId }) }),
+      request<{ stockItemId?: number; stockAccountId?: number; content: string }>(
+        "/stock/pull", { method: "POST", body: json({ orderId, unitId }) }),
+    accounts: (productId: number) => request<StockAccount[]>(`/stock/accounts${qs({ productId })}`),
+    addAccount: (input: { productId: number; username: string; password: string; plan: string; capacity: number; months: number }) =>
+      request<StockAccount>("/stock/accounts", { method: "POST", body: json(input) }),
+    accountContent: (id: number) =>
+      request<{ username: string; password: string }>(`/stock/accounts/${id}/content`),
+    disableAccount: (id: number) => request<void>(`/stock/accounts/${id}/disable`, { method: "POST" }),
+    enableAccount: (id: number) => request<void>(`/stock/accounts/${id}/enable`, { method: "POST" }),
+    removeAccount: (id: number) => request<void>(`/stock/accounts/${id}`, { method: "DELETE" }),
+    slotAction: (accountId: number, slotId: number, action: "disable" | "enable" | "release") =>
+      request<void>(`/stock/accounts/${accountId}/slots/${slotId}/${action}`, { method: "POST" }),
+    slotFulfillment: (productId: number, enabled: boolean) =>
+      request<void>("/stock/slot-fulfillment", { method: "POST", body: json({ productId, enabled }) }),
   },
   admin: {
     // Role-filtered sidebar + live badge counts for the signed-in staff member.

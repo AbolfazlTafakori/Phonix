@@ -193,6 +193,13 @@ CREATE TABLE IF NOT EXISTS StockItems (
 CREATE INDEX IF NOT EXISTS IX_Stock_ProductId ON StockItems(ProductId);
 CREATE INDEX IF NOT EXISTS IX_Stock_Status    ON StockItems(Status);
 
+CREATE TABLE IF NOT EXISTS StockAccounts (
+    Id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    ProductId INTEGER NOT NULL,
+    DataJson  TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS IX_StockAccounts_ProductId ON StockAccounts(ProductId);
+
 CREATE TABLE IF NOT EXISTS Orders (
     Id       INTEGER PRIMARY KEY AUTOINCREMENT,
     UserId   INTEGER NOT NULL,

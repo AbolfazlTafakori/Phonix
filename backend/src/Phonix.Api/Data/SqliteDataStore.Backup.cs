@@ -55,6 +55,7 @@ public sealed partial class SqliteDataStore
             Categories = All<Category>("Categories"),
             Products = All<Product>("Products"),
             StockItems = All<StockItem>("StockItems"),
+            StockAccounts = All<StockAccount>("StockAccounts"),
             Users = All<AppUser>("Users"),
             Plans = All<SubscriptionPlan>("Plans"),
             HeroSlides = All<HeroSlide>("HeroSlides"),
@@ -87,6 +88,7 @@ public sealed partial class SqliteDataStore
                 Category = MaxId(conn, "Categories"),
                 Product = MaxId(conn, "Products"),
                 Stock = MaxId(conn, "StockItems"),
+                StockAccount = MaxId(conn, "StockAccounts"),
                 User = MaxId(conn, "Users"),
                 Plan = MaxId(conn, "Plans"),
                 Hero = MaxId(conn, "HeroSlides"),
@@ -119,7 +121,7 @@ public sealed partial class SqliteDataStore
         WriteTxNoFk<object?>((conn, tx) =>
         {
             conn.Execute(@"
-DELETE FROM Users; DELETE FROM Products; DELETE FROM StockItems; DELETE FROM Orders; DELETE FROM Transactions;
+DELETE FROM Users; DELETE FROM Products; DELETE FROM StockItems; DELETE FROM StockAccounts; DELETE FROM Orders; DELETE FROM Transactions;
 DELETE FROM Cards; DELETE FROM DiscountCodes; DELETE FROM PaymentMethods;
 DELETE FROM ReferralEarnings; DELETE FROM Notifications; DELETE FROM Categories;
 DELETE FROM Plans; DELETE FROM HeroSlides; DELETE FROM HomeCategories; DELETE FROM Showcase;
@@ -132,6 +134,9 @@ DELETE FROM Conversations; DELETE FROM Counters;", transaction: tx);
             foreach (var si in s.StockItems)
                 conn.Execute("INSERT INTO StockItems (Id, ProductId, Status, DataJson) VALUES (@Id,@ProductId,@Status,@DataJson)",
                     new { si.Id, si.ProductId, Status = (int)si.Status, DataJson = Serialize(si) }, tx);
+            foreach (var sa in s.StockAccounts)
+                conn.Execute("INSERT INTO StockAccounts (Id, ProductId, DataJson) VALUES (@Id,@ProductId,@DataJson)",
+                    new { sa.Id, sa.ProductId, DataJson = Serialize(sa) }, tx);
             foreach (var o in s.Orders) UpsertOrder(conn, tx, o);
             foreach (var t in s.Transactions)
                 conn.Execute("INSERT INTO Transactions (Id, UserId, Status, Date, DataJson) VALUES (@Id,@UserId,@Status,@Date,@DataJson)",
@@ -194,6 +199,7 @@ DELETE FROM Conversations; DELETE FROM Counters;", transaction: tx);
                 s.Categories = GetCategories().ToList();
                 s.Products = GetProducts().ToList();
                 s.StockItems = GetStockItems().ToList();
+                s.StockAccounts = GetStockAccounts().ToList();
                 s.Plans = GetPlans().ToList();
                 s.PlanTypes = GetPlanTypes().ToList();
                 s.DiscountCodes = GetDiscountCodes().ToList();
@@ -243,12 +249,15 @@ DELETE FROM Conversations; DELETE FROM Counters;", transaction: tx);
             switch (section)
             {
                 case BackupSection.Catalog:
-                    conn.Execute("DELETE FROM Categories; DELETE FROM Products; DELETE FROM StockItems; DELETE FROM Plans; DELETE FROM DiscountCodes;", transaction: tx);
+                    conn.Execute("DELETE FROM Categories; DELETE FROM Products; DELETE FROM StockItems; DELETE FROM StockAccounts; DELETE FROM Plans; DELETE FROM DiscountCodes;", transaction: tx);
                     foreach (var c in s.Categories) InsRow(conn, tx, "Categories", c.Id, c);
                     foreach (var p in s.Products) UpsertProduct(conn, tx, p);
                     foreach (var si in s.StockItems)
                         conn.Execute("INSERT INTO StockItems (Id, ProductId, Status, DataJson) VALUES (@Id,@ProductId,@Status,@DataJson)",
                             new { si.Id, si.ProductId, Status = (int)si.Status, DataJson = Serialize(si) }, tx);
+                    foreach (var sa in s.StockAccounts)
+                        conn.Execute("INSERT INTO StockAccounts (Id, ProductId, DataJson) VALUES (@Id,@ProductId,@DataJson)",
+                            new { sa.Id, sa.ProductId, DataJson = Serialize(sa) }, tx);
                     foreach (var p in s.Plans) InsRow(conn, tx, "Plans", p.Id, p);
                     foreach (var d in s.DiscountCodes)
                         conn.Execute("INSERT INTO DiscountCodes (Id, Code, DataJson) VALUES (@Id,@Code,@DataJson)",

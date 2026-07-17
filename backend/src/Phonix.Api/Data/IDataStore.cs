@@ -53,6 +53,23 @@ public interface IDataStore
     // Marks the item reserved for this unit as Delivered once the unit's delivery actually goes through.
     bool MarkStockItemDelivered(int orderId, int unitId);
 
+    // ── Stock accounts (multi-seat shared subscriptions; slots are generated, never typed) ──────────
+    IReadOnlyList<StockAccount> GetStockAccounts(int? productId = null);
+    StockAccount? GetStockAccount(int id);
+    // Persists the account and auto-generates its `Capacity` slots (A0, A1, … — see StockAccount.SlotLabel).
+    StockAccount AddStockAccount(StockAccount account);
+    bool DeleteStockAccount(int id); // refused once any slot is Delivered — that history must survive
+    bool SetStockAccountDisabled(int id, bool disabled);
+    // Same transition rules as SetStockItemStatus, applied to one slot of one account.
+    bool SetStockSlotStatus(int accountId, int slotId, StockItemStatus status);
+    // Atomically reserves `count` CONSECUTIVE Available slots on a single enabled account of the product
+    // (first account — by Id — that can seat the whole request; ones that can't are skipped). Null = no
+    // account has a large-enough consecutive run.
+    (StockAccount Account, List<StockSlot> Slots)? ReserveStockSlots(int productId, int count, int orderId, int unitId);
+    // Marks every slot reserved for this unit as Delivered / releases them back to Available.
+    bool MarkStockSlotsDelivered(int orderId, int unitId);
+    bool ReleaseStockSlots(int orderId, int unitId);
+
     // ── Users ───────────────────────────────────────────────────────────────────────────────────────
     IReadOnlyList<AppUser> GetUsers(string? search = null, UserRole? role = null, bool? blocked = null);
     AppUser? GetUser(int id);

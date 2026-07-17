@@ -121,6 +121,37 @@ export type StockSummary = {
   reserved: number;
   delivered: number;
   disabled: number;
+  slotFulfillment: boolean;
+  accounts: number;
+  slotAvailable: number;
+  slotReserved: number;
+  slotDelivered: number;
+  slotDisabled: number;
+};
+
+// One generated seat on a multi-user stock account (labels like A0, B4 are minted by the backend).
+export type StockSlot = {
+  id: number;
+  index: number;
+  label: string;
+  status: StockItemStatus;
+  orderId: number | null;
+  unitId: number | null;
+  deliveredAtUtc: string | null;
+};
+
+// A multi-user inventory account, without its password — revealed one account at a time.
+export type StockAccount = {
+  id: number;
+  productId: number;
+  username: string;
+  plan: string;
+  capacity: number;
+  months: number;
+  disabled: boolean;
+  addedBy: string | null;
+  addedAtUtc: string;
+  slots: StockSlot[];
 };
 
 export type ProductInput = {

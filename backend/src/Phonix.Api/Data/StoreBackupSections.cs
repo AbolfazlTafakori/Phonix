@@ -59,6 +59,7 @@ public partial class StoreData
                     s.Categories = _categories.ToList();
                     s.Products = _products.ToList();
                     s.StockItems = _stockItems.ToList();
+                    s.StockAccounts = _stockAccounts.ToList();
                     s.Plans = _plans.ToList();
                     s.PlanTypes = _planTypes.ToList();
                     s.DiscountCodes = _discountCodes.ToList();
@@ -112,6 +113,7 @@ public partial class StoreData
                     Replace(_categories, s.Categories);
                     Replace(_products, s.Products);
                     Replace(_stockItems, s.StockItems);
+                    Replace(_stockAccounts, s.StockAccounts);
                     Replace(_plans, s.Plans);
                     Replace(_planTypes, s.PlanTypes);
                     Replace(_discountCodes, s.DiscountCodes);

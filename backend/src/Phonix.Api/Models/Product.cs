@@ -90,6 +90,10 @@ public class Product
     // is confirmed: each unit takes the next available StockItem and is delivered automatically. Units the
     // pool can't cover stay pending for manual fulfillment, so an empty pool degrades gracefully.
     public bool AutoDeliverStock { get; set; }
+    // When true, this product is fulfilled from multi-seat stock ACCOUNTS (StockAccount) instead of one-shot
+    // StockItems: a purchase of N users takes N consecutive slots on a single account and the whole line is
+    // delivered as one message. The switch lives on the stock page, next to auto-delivery.
+    public bool SlotFulfillment { get; set; }
     public bool IsActive { get; set; } = true;
     public bool Featured { get; set; }
     public string Image { get; set; } = "";

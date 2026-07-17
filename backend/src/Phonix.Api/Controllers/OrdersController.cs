@@ -288,8 +288,9 @@ public class OrdersController : ControllerBase
     {
         var (order, justCompleted) = _store.DeliverUnit(id, unitId, (input.Content ?? "").Trim(), User.Identity?.Name);
         if (order is null) return NotFound();
-        // if this unit's content was pulled from the stock pool, the reserved item is now spent.
+        // if this unit's content was pulled from the stock pool, the reserved item/slots are now spent.
         _store.MarkStockItemDelivered(id, unitId);
+        _store.MarkStockSlotsDelivered(id, unitId);
 
         if (input.Email)
         {
