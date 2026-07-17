@@ -10,7 +10,7 @@ Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-89%20passing-3fb950)](#)
+[![Tests](https://img.shields.io/badge/tests-102%20passing-3fb950)](#)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](#-license)
 
 </div>
@@ -56,6 +56,8 @@ The result is a system that boots from a single binary plus one SQLite file, dep
 ### 🔐 Advanced KYC & Authentication
 - **Stateless, encrypted cookies** — no server-side session store to leak or exhaust.
 - **Security stamps** — instantly invalidate all active sessions on credential or permission changes.
+- **Verification that follows the address** — changing an account's email drops its verified status until the new address is re-proven, so the checkout's verified-email gate can never be bypassed.
+- **Tamper-proof 2FA lifecycle** — an active second factor can only be removed or re-provisioned with its current TOTP code; a hijacked session cannot strip it.
 - **Progressive 3-tier verification** — a strict, escalating KYC ladder gating sensitive actions by trust level; payment destinations stay hidden until the cart's required level is met.
 - **Section-scoped staff permissions** — limited staff accounts see and reach only the admin sections an owner explicitly grants.
 
