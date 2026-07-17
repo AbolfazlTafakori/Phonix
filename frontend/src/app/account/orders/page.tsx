@@ -21,6 +21,11 @@ export default function OrdersPage() {
   const [penalty, setPenalty] = useState(0);
   const [cancelling, setCancelling] = useState<number | null>(null);
   const [confirmOrder, setConfirmOrder] = useState<Order | null>(null);
+  // per-order selected product logo: orderId → productId whose delivery info is shown (null = none open).
+  const [selected, setSelected] = useState<Record<number, number | null>>({});
+  // productId → «لوگو سرویس» from the catalog; order items only carry the product image, so the square
+  // service logo set in the admin panel is resolved live (falls back to the item image when unset).
+  const [logoMap, setLogoMap] = useState<Record<number, string>>({});
 
   useEffect(() => {
     if (!user) return;
@@ -29,6 +34,10 @@ export default function OrdersPage() {
         const [list] = await Promise.all([
           api.orders.forUser(user.id),
           api.pricing.getSettings().then((s) => setPenalty(s.cancellationPenaltyPercent)).catch(() => {}),
+          api.products
+            .list()
+            .then((prods) => setLogoMap(Object.fromEntries(prods.filter((p) => p.logo).map((p) => [p.id, p.logo]))))
+            .catch(() => {}),
         ]);
         setOrders(list);
         setError("");
@@ -118,66 +127,132 @@ export default function OrdersPage() {
               </div>
 
               {(() => {
-                const deliveredUnits = (o.units ?? []).filter((u) => u.delivered && u.deliveryContent.trim());
-                const multi = deliveredUnits.length > 1;
-                if (deliveredUnits.length > 0) {
-                  return (
-                    <div className="mt-4 space-y-3">
-                      {deliveredUnits.map((u) => (
-                        <div key={u.id} className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
-                          <div className="mb-2 flex items-center gap-2">
-                            <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
-                            <span className="text-sm font-bold text-emerald-600">
-                              اطلاعات سرویس شما{multi ? ` — اکانت ${u.unitIndex}` : ""}
-                            </span>
-                            {u.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {u.deliveredAt}</span>}
-                          </div>
-                          <DeliveryContent content={u.deliveryContent} />
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-                if (o.deliveryContent) {
-                  return (
-                    <div className="mt-4 rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
-                      <div className="mb-2 flex items-center gap-2">
-                        <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
-                        <span className="text-sm font-bold text-emerald-600">اطلاعات سرویس شما</span>
-                        {o.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {o.deliveredAt}</span>}
-                      </div>
-                      <DeliveryContent content={o.deliveryContent} />
-                    </div>
-                  );
-                }
-                return null;
-              })()}
+                const units = o.units ?? [];
+                // one logo per distinct product line; legacy orders (no units) get a single pseudo-product
+                // from the first item so the order-level deliveryContent stays reachable.
+                const products = o.items
+                  .map((it) => ({ productId: it.productId, name: it.name, image: logoMap[it.productId] || it.image }))
+                  .filter((p, i, arr) => arr.findIndex((x) => x.productId === p.productId) === i);
+                const legacy = units.length === 0;
+                const unitsOf = (pid: number) => units.filter((u) => u.productId === pid);
+                const deliveredOf = (pid: number) =>
+                  legacy
+                    ? o.deliveryContent?.trim()
+                      ? 1
+                      : 0
+                    : unitsOf(pid).filter((u) => u.delivered && u.deliveryContent.trim()).length;
+                const totalOf = (pid: number) => (legacy ? 1 : unitsOf(pid).length);
+                const sel = selected[o.id] ?? null;
+                const toggle = (pid: number) =>
+                  setSelected((s) => ({ ...s, [o.id]: s[o.id] === pid ? null : pid }));
 
-              <div className="mt-3 flex flex-wrap items-center justify-end gap-2">
-                {o.status === "PendingApproval" && o.total - o.walletPaid > 0 && (
-                  <span className="rounded-xl bg-amber-100 px-4 py-2 text-sm font-bold text-amber-700">
-                    در انتظار تأیید پرداخت ({formatToman(o.total - o.walletPaid)})
-                  </span>
-                )}
-                <a
-                  href={`/invoice?id=${o.id}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-xl border border-[color:var(--ac-panel-border)] px-4 py-2 text-sm font-bold transition hover:bg-[color:var(--ac-menu-hover)]"
-                  style={{ color: "var(--ac-text)" }}
-                >
-                  فاکتور
-                </a>
-                {cancellable(o.status) && (
-                  <button
-                    onClick={() => setConfirmOrder(o)}
-                    disabled={cancelling === o.id}
-                    className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-bold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
-                  >
-                    {cancelling === o.id ? "در حال لغو..." : "لغو سفارش"}
-                  </button>
-                )}
-              </div>
+                const selProduct = sel === null ? null : products.find((p) => p.productId === sel) ?? null;
+                const selUnits = sel === null ? [] : unitsOf(sel).filter((u) => u.delivered && u.deliveryContent.trim());
+                const selMulti = sel === null ? false : totalOf(sel) > 1;
+
+                return (
+                  <>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                      {/* product logos — start side (right in RTL), aligned with the invoice button */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {products.map((p) => {
+                          const delivered = deliveredOf(p.productId);
+                          const total = totalOf(p.productId);
+                          const active = sel === p.productId;
+                          return (
+                            <button
+                              key={p.productId}
+                              type="button"
+                              onClick={() => toggle(p.productId)}
+                              title={`${p.name} — ${delivered > 0 ? `اطلاعات سرویس (${toFa(delivered)}/${toFa(total)})` : "در انتظار تحویل"}`}
+                              className={`relative rounded-xl transition ${active ? "ring-2 ring-[#FF5A1F]" : "hover:brightness-95"}`}
+                            >
+                              <img
+                                loading="lazy"
+                                decoding="async"
+                                src={p.image}
+                                alt={p.name}
+                                className={`h-10 w-10 rounded-xl object-cover ${delivered === 0 ? "opacity-50 grayscale" : ""}`}
+                              />
+                              {delivered > 0 && (
+                                <span className="absolute -left-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-emerald-500 text-[10px] text-white">✓</span>
+                              )}
+                              {total > 1 && (
+                                <span className="absolute -bottom-1 -left-1 rounded-full bg-[color:var(--ac-menu-hover)] px-1 text-[10px] font-bold" style={{ color: "var(--ac-text)" }}>
+                                  {toFa(delivered)}/{toFa(total)}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {o.status === "PendingApproval" && o.total - o.walletPaid > 0 && (
+                          <span className="rounded-xl bg-amber-100 px-4 py-2 text-sm font-bold text-amber-700">
+                            در انتظار تأیید پرداخت ({formatToman(o.total - o.walletPaid)})
+                          </span>
+                        )}
+                        <a
+                          href={`/invoice?id=${o.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-xl border border-[color:var(--ac-panel-border)] px-4 py-2 text-sm font-bold transition hover:bg-[color:var(--ac-menu-hover)]"
+                          style={{ color: "var(--ac-text)" }}
+                        >
+                          فاکتور
+                        </a>
+                        {cancellable(o.status) && (
+                          <button
+                            onClick={() => setConfirmOrder(o)}
+                            disabled={cancelling === o.id}
+                            className="rounded-xl border border-rose-300 px-4 py-2 text-sm font-bold text-rose-600 transition hover:bg-rose-50 disabled:opacity-60"
+                          >
+                            {cancelling === o.id ? "در حال لغو..." : "لغو سفارش"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* delivery info for the selected product only */}
+                    {selProduct && (
+                      <div className="mt-4 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <img loading="lazy" decoding="async" src={selProduct.image} alt={selProduct.name} className="h-7 w-7 rounded-lg object-cover" />
+                          <span className="text-sm font-bold" style={{ color: "var(--ac-title)" }}>{selProduct.name}</span>
+                        </div>
+                        {legacy && o.deliveryContent?.trim() ? (
+                          <div className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
+                            <div className="mb-2 flex items-center gap-2">
+                              <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
+                              <span className="text-sm font-bold text-emerald-600">اطلاعات سرویس شما</span>
+                              {o.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {o.deliveredAt}</span>}
+                            </div>
+                            <DeliveryContent content={o.deliveryContent} />
+                          </div>
+                        ) : selUnits.length > 0 ? (
+                          selUnits.map((u) => (
+                            <div key={u.id} className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
+                              <div className="mb-2 flex items-center gap-2">
+                                <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
+                                <span className="text-sm font-bold text-emerald-600">
+                                  اطلاعات سرویس شما{selMulti ? ` — اکانت ${toFa(u.unitIndex)}` : ""}
+                                </span>
+                                {u.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {u.deliveredAt}</span>}
+                              </div>
+                              <DeliveryContent content={u.deliveryContent} />
+                            </div>
+                          ))
+                        ) : (
+                          <div className="rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-700">
+                            این سرویس هنوز تحویل نشده است؛ پس از آماده‌سازی، اطلاعات آن همین‌جا نمایش داده می‌شود.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </Panel>
           ))}
         </div>
