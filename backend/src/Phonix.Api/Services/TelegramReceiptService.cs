@@ -43,16 +43,19 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
     private readonly IFileStorageService _files;
     private readonly IUserMailer _mailer;
     private readonly ITelegramOrderService _orderBot;
+    private readonly IStockFulfillmentService _stock;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<TelegramReceiptService> _logger;
 
     public TelegramReceiptService(IDataStore store, IFileStorageService files, IUserMailer mailer,
-        ITelegramOrderService orderBot, IHttpClientFactory httpFactory, ILogger<TelegramReceiptService> logger)
+        ITelegramOrderService orderBot, IStockFulfillmentService stock, IHttpClientFactory httpFactory,
+        ILogger<TelegramReceiptService> logger)
     {
         _store = store;
         _files = files;
         _mailer = mailer;
         _orderBot = orderBot;
+        _stock = stock;
         _httpFactory = httpFactory;
         _logger = logger;
     }
@@ -236,7 +239,9 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         var updated = _store.GetTransaction(txId.Value) ?? tx;
         // Same customer email an in-panel decision sends (the Pending guard above keeps it to one).
         _ = _mailer.TransactionDecidedAsync(updated);
-        // Approving here also advanced the order into fulfillment, so its accounts go to the orders group.
+        // Approving here also advanced the order into fulfillment: the pool delivers what it can right away,
+        // and only the accounts left over go to the orders group.
+        _stock.AutoDeliverForTransaction(updated);
         _ = _orderBot.AnnounceApprovedOrderAsync(updated, ct);
         await AnswerCallbackAsync(token, callbackId, "✅ تأیید شد.", ct);
         if (chatId is not null && messageId is not null)

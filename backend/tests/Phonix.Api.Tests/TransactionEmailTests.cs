@@ -27,7 +27,8 @@ public class TransactionEmailTests
         var store = TestStore.Create();
         var sender = new CapturingSender();
         var mailer = new UserMailer(store, sender, NullLogger<UserMailer>.Instance);
-        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(), mailer);
+        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(),
+            new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance), mailer);
 
         var tx = store.AddTransaction(new Transaction
         {
@@ -54,7 +55,8 @@ public class TransactionEmailTests
         var store = TestStore.Create();
         var sender = new CapturingSender();
         var mailer = new UserMailer(store, sender, NullLogger<UserMailer>.Instance);
-        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(), mailer);
+        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(),
+            new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance), mailer);
 
         var tx = store.AddTransaction(new Transaction
         {

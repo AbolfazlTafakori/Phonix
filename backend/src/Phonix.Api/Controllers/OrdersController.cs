@@ -29,14 +29,16 @@ public class OrdersController : ControllerBase
     private readonly IEmailSender _email;
     private readonly ITelegramReceiptService _receiptBot;
     private readonly ITelegramOrderService _orderBot;
+    private readonly IStockFulfillmentService _stock;
     private readonly IUserMailer _mailer;
     public OrdersController(IDataStore store, IEmailSender email, ITelegramReceiptService receiptBot,
-        ITelegramOrderService orderBot, IUserMailer mailer)
+        ITelegramOrderService orderBot, IStockFulfillmentService stock, IUserMailer mailer)
     {
         _store = store;
         _email = email;
         _receiptBot = receiptBot;
         _orderBot = orderBot;
+        _stock = stock;
         _mailer = mailer;
     }
 
@@ -51,23 +53,6 @@ public class OrdersController : ControllerBase
     }
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
-
-    // Fulfills every still-pending unit of pool-enabled products straight from the stock pool the moment the
-    // order's payment is confirmed. Units the pool can't cover are simply left for manual fulfillment.
-    private void AutoDeliverFromStock(Order order)
-    {
-        if (order.Status != OrderStatus.Preparing) return;
-        foreach (var unit in order.Units.Where(u => !u.Delivered))
-        {
-            var product = _store.GetProduct(unit.ProductId);
-            if (product is null || !product.AutoDeliverStock) continue;
-            var item = _store.PullStockItem(unit.ProductId, order.Id, unit.Id);
-            if (item is null) continue; // pool empty → stays manual
-            var (updated, _) = _store.DeliverUnit(order.Id, unit.Id, SensitiveField.Reveal(item.Content), "انبار مجازی");
-            if (updated is not null) _store.MarkStockItemDelivered(order.Id, unit.Id);
-            else _store.SetStockItemStatus(item.Id, StockItemStatus.Available); // delivery refused → release
-        }
-    }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("orders", "orders-receipts", "orders-fulfillment", "orders-status")]
@@ -181,7 +166,8 @@ public class OrdersController : ControllerBase
 
         var order = result.Order!;
         // Wallet covered everything → the order is already Preparing; pool-enabled products deliver now.
-        AutoDeliverFromStock(order);
+        _stock.AutoDeliverOrder(order);
+        order = _store.GetOrder(order.Id) ?? order; // pick up whatever the pool just delivered
         // Card-to-card remainder → push its receipt to the admin Telegram chat for one-tap approve/reject
         // (no-op unless the receipt bot is enabled). Fire-and-forget: checkout never waits on Telegram.
         var payTx = _store.GetUserTransactions(order.UserId)
@@ -256,9 +242,12 @@ public class OrdersController : ControllerBase
     {
         if (_store.SetOrderStatus(id, OrderStatus.Preparing, User.Identity?.Name, "تأیید رسید") is not { } o)
             return NotFound();
-        AnnounceToOrderBot(o);
-        AutoDeliverFromStock(o);
-        return RevealInputs(_store.GetOrder(o.Id) ?? o);
+        // Pool first, announce second: an account the pool just delivered must never reach the group with
+        // approve/reject buttons on it.
+        _stock.AutoDeliverOrder(o);
+        var fresh = _store.GetOrder(o.Id) ?? o;
+        AnnounceToOrderBot(fresh);
+        return RevealInputs(fresh);
     }
 
     // Rejects the deposit receipt: cancels the order (restoring stock) with the staff-supplied reason.

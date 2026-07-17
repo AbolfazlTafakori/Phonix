@@ -71,14 +71,16 @@ public class TransactionsController : ControllerBase
     private readonly IFileStorageService _files;
     private readonly ITelegramReceiptService _receiptBot;
     private readonly ITelegramOrderService _orderBot;
+    private readonly IStockFulfillmentService _stock;
     private readonly IUserMailer _mailer;
     public TransactionsController(IDataStore store, IFileStorageService files, ITelegramReceiptService receiptBot,
-        ITelegramOrderService orderBot, IUserMailer mailer)
+        ITelegramOrderService orderBot, IStockFulfillmentService stock, IUserMailer mailer)
     {
         _store = store;
         _files = files;
         _receiptBot = receiptBot;
         _orderBot = orderBot;
+        _stock = stock;
         _mailer = mailer;
     }
 
@@ -221,9 +223,14 @@ public class TransactionsController : ControllerBase
         if (!_store.SetTransactionStatus(id, status, "site", note)) return NotFound();
         var updated = _store.GetTransaction(id)!;
         if (wasPending) _ = _mailer.TransactionDecidedAsync(updated);
-        // Approving an order's payment advances that order to «آماده‌سازی», which is when its accounts go to
-        // the orders group. The claim inside keeps a re-approval from posting them twice.
-        if (wasPending) _ = _orderBot.AnnounceApprovedOrderAsync(updated);
+        // Approving an order's payment advances that order to «آماده‌سازی»: pool-enabled products deliver
+        // themselves right here, and only what the pool couldn't cover goes to the orders group. The claim
+        // inside the announce keeps a re-approval from posting them twice.
+        if (wasPending)
+        {
+            _stock.AutoDeliverForTransaction(updated);
+            _ = _orderBot.AnnounceApprovedOrderAsync(updated);
+        }
         return updated;
     }
 }

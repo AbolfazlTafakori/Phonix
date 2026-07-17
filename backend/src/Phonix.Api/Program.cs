@@ -73,6 +73,9 @@ try
     builder.Services.AddSingleton<ITelegramBackupSender, TelegramBackupSender>();
     builder.Services.AddHostedService<TelegramBackupWorker>();
     builder.Services.AddSingleton<ITelegramAlertSender, TelegramAlertSender>();
+    // Shared by every path that confirms a payment (checkout, receipts page, transactions page, receipt bot)
+    // and by the orders bot's approve button, so the stock pool has exactly one way to deliver.
+    builder.Services.AddSingleton<IStockFulfillmentService, StockFulfillmentService>();
     // Deposit-receipt review over Telegram: pushes new receipts to the admin chat with approve/reject
     // buttons and long-polls for the admin's decision, applying it through the same store path the panel uses.
     builder.Services.AddSingleton<ITelegramReceiptService, TelegramReceiptService>();

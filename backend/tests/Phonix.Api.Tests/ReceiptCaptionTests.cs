@@ -17,7 +17,7 @@ public class ReceiptCaptionTests
 
     private static string BuildCaption(StoreData store, Transaction tx)
     {
-        var svc = new TelegramReceiptService(store, null!, null!, null!, null!, NullLogger<TelegramReceiptService>.Instance);
+        var svc = new TelegramReceiptService(store, null!, null!, null!, null!, null!, NullLogger<TelegramReceiptService>.Instance);
         var method = typeof(TelegramReceiptService).GetMethod("BuildCaption", BindingFlags.NonPublic | BindingFlags.Instance)!;
         return (string)method.Invoke(svc, new object[] { tx })!;
     }

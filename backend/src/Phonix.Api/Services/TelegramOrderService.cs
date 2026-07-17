@@ -17,8 +17,8 @@ namespace Phonix.Api.Services;
 // Two shapes of account exist and the approve button branches on them:
 //   • the customer handed us their own credentials (the plan collects inputs) → we upgraded their account, so
 //     approving simply delivers a confirmation;
-//   • a ready-made account → there is nothing to deliver yet, so the bot asks staff to send it and the reply
-//     becomes the delivered content. (The virtual warehouse will later serve this automatically.)
+//   • a ready-made account → it is served straight from the virtual warehouse when the pool has one; only an
+//     empty pool falls back to asking staff to send it, and the reply becomes the delivered content.
 //
 // Security: only the single configured chat may decide, and every store transition is idempotent, so a stale
 // or replayed tap can never double-apply. Messages are NOT encrypted — Telegram group messages cannot be
@@ -49,14 +49,16 @@ public sealed class TelegramOrderService : ITelegramOrderService
 
     private readonly IDataStore _store;
     private readonly IUserMailer _mailer;
+    private readonly IStockFulfillmentService _stock;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<TelegramOrderService> _logger;
 
-    public TelegramOrderService(IDataStore store, IUserMailer mailer, IHttpClientFactory httpFactory,
-        ILogger<TelegramOrderService> logger)
+    public TelegramOrderService(IDataStore store, IUserMailer mailer, IStockFulfillmentService stock,
+        IHttpClientFactory httpFactory, ILogger<TelegramOrderService> logger)
     {
         _store = store;
         _mailer = mailer;
+        _stock = stock;
         _httpFactory = httpFactory;
         _logger = logger;
     }
@@ -87,7 +89,9 @@ public sealed class TelegramOrderService : ITelegramOrderService
                 return;
             }
 
-            foreach (var unit in order.Units.OrderBy(u => u.UnitIndex))
+            // Only accounts still waiting on staff. One already delivered (by the pool, the panel or an earlier
+            // tap) or rejected has nothing left to decide, so posting it would only invite a second decision.
+            foreach (var unit in order.Units.Where(u => !u.Delivered && !u.Rejected).OrderBy(u => u.UnitIndex))
             {
                 var markup = JsonSerializer.Serialize(new
                 {
@@ -385,7 +389,14 @@ public sealed class TelegramOrderService : ITelegramOrderService
             return;
         }
 
-        // A ready-made account, and there is no warehouse yet: ask staff to send it, and the reply delivers it.
+        // A ready-made account: the warehouse serves it without asking anyone anything.
+        if (_stock.ServeUnit(order, unit, StockFulfillmentService.Actor) is { } served)
+        {
+            await AfterDeliverAsync(token, chatId, messageId, served.order, unit, served.justCompleted, callbackId, ct);
+            return;
+        }
+
+        // Pool empty: ask staff to send it, and the reply delivers it.
         if (chatId is not null && messageId is not null)
             await SendAccountPromptAsync(token, chatId.Value, messageId.Value, order.Id, unit.Id, ct);
         await AnswerCallbackAsync(token, callbackId, "✍️ اکانت آماده را در «پاسخ» ارسال کنید.", ct);
@@ -401,9 +412,16 @@ public sealed class TelegramOrderService : ITelegramOrderService
             await AnswerCallbackAsync(token, callbackId, "تحویل ناموفق بود.", ct);
             return;
         }
+        await AfterDeliverAsync(token, chatId, messageId, updated, unit, justCompleted, callbackId, ct);
+    }
 
+    // Everything a delivered account owes the outside world, shared by the two ways a tap can deliver one:
+    // the customer's own account being confirmed, and the warehouse serving a ready-made one.
+    private async Task AfterDeliverAsync(string token, long? chatId, int? messageId, Order updated, OrderUnit unit,
+        bool justCompleted, string callbackId, CancellationToken ct)
+    {
         _logger.LogInformation("Telegram order decision: order {Code} unit {UnitId} → Delivered (completed={Done})",
-            order.Code, unit.Id, justCompleted);
+            updated.Code, unit.Id, justCompleted);
 
         _ = _mailer.OrderUnitDeliveredAsync(updated, unit.Id);
         if (justCompleted) _ = _mailer.OrderCompletedAsync(updated);
@@ -495,15 +513,16 @@ public sealed class TelegramOrderService : ITelegramOrderService
             : null;
     }
 
-    // Asks staff to reply with a ready-made account. ForceReply pre-opens the reply box, and because the answer
-    // replies to the bot it reaches us even under group privacy mode.
+    // Asks staff to reply with a ready-made account, which only happens once the product's pool has run dry.
+    // ForceReply pre-opens the reply box, and because the answer replies to the bot it reaches us even under
+    // group privacy mode.
     private async Task SendAccountPromptAsync(string token, long chatId, int sourceMsgId, int orderId, int unitId, CancellationToken ct)
     {
         var forceReply = JsonSerializer.Serialize(new { force_reply = true, input_field_placeholder = "اطلاعات اکانت آماده..." });
         await PostFormAsync(token, "sendMessage", new Dictionary<string, string>
         {
             ["chat_id"] = chatId.ToString(),
-            ["text"] = "✍️ انبار مجازی هنوز فعال نیست. لطفاً اطلاعات اکانت آماده را در «پاسخ» به همین پیام ارسال کنید تا برای کاربر ثبت شود.\n"
+            ["text"] = "✍️ انبار این محصول خالی است. لطفاً اطلاعات اکانت آماده را در «پاسخ» به همین پیام ارسال کنید تا برای کاربر ثبت شود.\n"
                      + AccountMarker(orderId, unitId, sourceMsgId),
             ["reply_to_message_id"] = sourceMsgId.ToString(),
             ["reply_markup"] = forceReply,

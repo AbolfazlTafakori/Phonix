@@ -67,6 +67,7 @@ public class ReceiptSendTests
 
         var handler = new CapturingHandler();
         var svc = new TelegramReceiptService(store, null!, new NoopMailer(), new NoopOrderBot(),
+            new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance),
             new StubFactory(handler), NullLogger<TelegramReceiptService>.Instance);
 
         // No receipt image → the text path, which is what a wallet top-up without a photo uses.
@@ -92,6 +93,7 @@ public class ReceiptSendTests
         var store = TestStore.Create();
         var handler = new CapturingHandler();
         var svc = new TelegramReceiptService(store, null!, new NoopMailer(), new NoopOrderBot(),
+            new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance),
             new StubFactory(handler), NullLogger<TelegramReceiptService>.Instance);
 
         var tx = store.AddTransaction(new Transaction { UserId = 1, Type = TxTypes.WalletTopUp, Amount = 1, Status = TxStatus.Pending });
