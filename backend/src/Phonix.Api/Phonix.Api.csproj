@@ -12,6 +12,9 @@
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="SkiaSharp" Version="2.88.8" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="2.88.8" />
+    <!-- Referenced directly only to override the native SQLite that Microsoft.Data.Sqlite 8.0.6 would
+         otherwise pull in (3.41.2, vulnerable to CVE-2025-6965). This bundle ships 3.50.4. -->
+    <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.3" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
   </ItemGroup>
 
