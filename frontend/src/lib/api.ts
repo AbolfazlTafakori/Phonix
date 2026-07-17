@@ -457,6 +457,8 @@ export const api = {
       }
       return (await res.json()) as { ok: boolean };
     },
+    // Sends a real test message with the saved settings; rejects with Telegram's own error text on failure.
+    testBot: (bot: "receipt" | "order") => request<{ ok: boolean }>(`/backup/telegram/test/${bot}`, { method: "POST" }),
     sendSection: (key: string) => request<{ ok: boolean }>(`/backup/telegram/send/${key}`, { method: "POST" }),
     sendAll: () => request<{ ok: boolean }>("/backup/telegram/send-all", { method: "POST" }),
     // kind: "site" (public images) | "documents" (users' encrypted cards/KYC/receipts). Sending media off

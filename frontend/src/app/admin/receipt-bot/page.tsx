@@ -14,6 +14,7 @@ export default function ReceiptBotPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [note, setNote] = useState<Note>(null);
 
   useEffect(() => {
@@ -42,6 +43,20 @@ export default function ReceiptBotPage() {
       setNote({ ok: false, text: e instanceof Error ? e.message : "ذخیره ناموفق بود." });
     } finally {
       setSaving(false);
+    }
+  }
+
+  // Real sends are fire-and-forget and only log, so this is the only way to see WHY the bot isn't posting.
+  async function test() {
+    setTesting(true);
+    setNote(null);
+    try {
+      await api.backup.testBot("receipt");
+      setNote({ ok: true, text: "پیام تست ارسال شد — چت را ببینید." });
+    } catch (e) {
+      setNote({ ok: false, text: e instanceof Error ? e.message : "ارسال تست ناموفق بود." });
+    } finally {
+      setTesting(false);
     }
   }
 
@@ -84,6 +99,9 @@ export default function ReceiptBotPage() {
           <div className="mt-5 flex flex-wrap items-center gap-3">
             <button onClick={save} disabled={saving} className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">
               {saving ? <Spinner /> : "ذخیره تنظیمات"}
+            </button>
+            <button onClick={test} disabled={testing} className="flex h-11 items-center gap-2 rounded-xl border border-white/10 px-6 text-sm font-bold text-white/80 transition hover:bg-white/5 disabled:opacity-50">
+              {testing ? <Spinner /> : "ارسال پیام تست"}
             </button>
             {note && <span className={`text-sm ${note.ok ? "text-emerald-400" : "text-rose-400"}`}>{note.text}</span>}
           </div>

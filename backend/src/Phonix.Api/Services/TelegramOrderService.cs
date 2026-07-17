@@ -34,6 +34,10 @@ public interface ITelegramOrderService
 
     // Long-polls one getUpdates cycle from `offset` and applies any staff decisions. Returns the next offset.
     Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default);
+
+    // Sends a test message with the saved settings and returns Telegram's own error on failure — the real
+    // sends are fire-and-forget and only log, so this is the one place a misconfiguration is visible.
+    Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default);
 }
 
 public sealed class TelegramOrderService : ITelegramOrderService
@@ -121,6 +125,54 @@ public sealed class TelegramOrderService : ITelegramOrderService
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Telegram order announce failed for tx #{TxId}", tx.Id);
+        }
+    }
+
+    public async Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default)
+    {
+        var s = _store.GetTelegramSettings();
+        // Report the exact reason ActiveConfig() would have refused, instead of silently doing nothing.
+        if (!s.OrderBotEnabled) return (false, "ربات سفارشات خاموش است.");
+        var token = (s.OrderBotToken ?? "").Trim();
+        var chatId = (s.OrderChatId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(token)) return (false, "توکن بات سفارشات وارد نشده است.");
+        if (!IsNumericChatId(chatId))
+            return (false, $"شناسهٔ گروه «{chatId}» عددی نیست. باید عدد باشد (گروه/کانال با منفی شروع می‌شود، مثل ‎-1001234567890).");
+
+        return await PostAndReportAsync(token, "sendMessage", new Dictionary<string, string>
+        {
+            ["chat_id"] = chatId,
+            ["text"] = "✅ پیام تست ربات سفارشات فونیکس. اگر این پیام را می‌بینید، تنظیمات درست است.",
+        }, ct);
+    }
+
+    private async Task<(bool ok, string? error)> PostAndReportAsync(string token, string method,
+        Dictionary<string, string> fields, CancellationToken ct)
+    {
+        try
+        {
+            using var http = _httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(20);
+            using var form = new FormUrlEncodedContent(fields);
+            using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/{method}", form, ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (resp.IsSuccessStatusCode) return (true, null);
+
+            var description = body;
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("description", out var d))
+                    description = d.GetString() ?? body;
+            }
+            catch { /* not JSON — fall back to the raw body */ }
+            _logger.LogWarning("Telegram order test failed: {Status} {Description}", (int)resp.StatusCode, description);
+            return (false, $"تلگرام خطا داد ({(int)resp.StatusCode}): {description}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram order test call failed");
+            return (false, $"ارتباط با تلگرام برقرار نشد: {ex.Message}");
         }
     }
 

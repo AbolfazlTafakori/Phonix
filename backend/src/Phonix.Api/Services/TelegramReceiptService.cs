@@ -25,6 +25,11 @@ public interface ITelegramReceiptService
     // Long-polls one getUpdates cycle starting at `offset` and applies any admin decisions. Returns the next
     // offset to poll from (the highest handled update_id + 1, or `offset` when nothing advanced).
     Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default);
+
+    // Sends a test message with the saved settings and returns Telegram's own error on failure. Every real
+    // send is fire-and-forget and only logs, so without this a misconfiguration is invisible: the bot just
+    // silently never posts. This is the one place that reports why.
+    Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default);
 }
 
 public sealed class TelegramReceiptService : ITelegramReceiptService
@@ -100,6 +105,24 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
             // The notification is best-effort: filing the deposit must never fail because Telegram is down.
             _logger.LogWarning(ex, "Telegram receipt notification failed for tx #{TxId}", tx.Id);
         }
+    }
+
+    public async Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default)
+    {
+        var s = _store.GetTelegramSettings();
+        // Report the exact reason ActiveConfig() would have refused, instead of silently doing nothing.
+        if (!s.ReceiptBotEnabled) return (false, "ربات تأیید رسید خاموش است.");
+        var token = (s.ReceiptBotToken ?? "").Trim();
+        var chatId = (s.ReceiptChatId ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(token)) return (false, "توکن بات رسید وارد نشده است.");
+        if (!IsNumericChatId(chatId))
+            return (false, $"شناسهٔ چت «{chatId}» عددی نیست. باید عدد باشد (گروه/کانال با منفی شروع می‌شود، مثل ‎-1001234567890).");
+
+        return await PostAndReportAsync(token, "sendMessage", new Dictionary<string, string>
+        {
+            ["chat_id"] = chatId,
+            ["text"] = "✅ پیام تست ربات رسید فونیکس. اگر این پیام را می‌بینید، تنظیمات درست است.",
+        }, ct);
     }
 
     public async Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default)
@@ -487,6 +510,38 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
             ["parse_mode"] = "HTML",
             ["reply_markup"] = markup,
         }, ct);
+    }
+
+    // Like PostFormAsync but hands back Telegram's own description ("chat not found", "bot was blocked",
+    // "terminated by other getUpdates request", …) rather than swallowing it into a log line.
+    private async Task<(bool ok, string? error)> PostAndReportAsync(string token, string method,
+        Dictionary<string, string> fields, CancellationToken ct)
+    {
+        try
+        {
+            using var http = _httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(20);
+            using var form = new FormUrlEncodedContent(fields);
+            using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/{method}", form, ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (resp.IsSuccessStatusCode) return (true, null);
+
+            var description = body;
+            try
+            {
+                using var doc = JsonDocument.Parse(body);
+                if (doc.RootElement.TryGetProperty("description", out var d))
+                    description = d.GetString() ?? body;
+            }
+            catch { /* not JSON — fall back to the raw body */ }
+            _logger.LogWarning("Telegram receipt test failed: {Status} {Description}", (int)resp.StatusCode, description);
+            return (false, $"تلگرام خطا داد ({(int)resp.StatusCode}): {description}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram receipt test call failed");
+            return (false, $"ارتباط با تلگرام برقرار نشد: {ex.Message}");
+        }
     }
 
     private async Task PostFormAsync(string token, string method, Dictionary<string, string> fields, CancellationToken ct)

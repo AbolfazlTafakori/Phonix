@@ -18,15 +18,20 @@ public class BackupController : ControllerBase
     private readonly IDataStore _store;
     private readonly ITelegramBackupSender _telegram;
     private readonly ITelegramAlertSender _alerts;
+    private readonly ITelegramReceiptService _receiptBot;
+    private readonly ITelegramOrderService _orderBot;
     private readonly IFileStorageService _files;
     private readonly ILogger<BackupController> _logger;
 
     public BackupController(IDataStore store, ITelegramBackupSender telegram, ITelegramAlertSender alerts,
+        ITelegramReceiptService receiptBot, ITelegramOrderService orderBot,
         IFileStorageService files, ILogger<BackupController> logger)
     {
         _store = store;
         _telegram = telegram;
         _alerts = alerts;
+        _receiptBot = receiptBot;
+        _orderBot = orderBot;
         _files = files;
         _logger = logger;
     }
@@ -384,6 +389,21 @@ public class BackupController : ControllerBase
             return BadRequest(clash);
         _store.UpdateTelegramSettings(settings);
         return _store.GetTelegramSettings();
+    }
+
+    // Sends a real test message with the saved settings and reports Telegram's own error. Every other send is
+    // fire-and-forget and only logs, so this is how staff find out WHY a bot isn't posting (bad token, chat
+    // not found, bot not in the group, …) instead of just seeing nothing arrive.
+    [HttpPost("telegram/test/{bot}")]
+    public async Task<ActionResult<object>> TestBot(string bot)
+    {
+        var (ok, error) = bot.ToLowerInvariant() switch
+        {
+            "receipt" => await _receiptBot.SendTestAsync(HttpContext.RequestAborted),
+            "order" => await _orderBot.SendTestAsync(HttpContext.RequestAborted),
+            _ => (false, "ربات نامعتبر است."),
+        };
+        return ok ? Ok(new { ok = true }) : BadRequest(error);
     }
 
     // Returns an error when two enabled bots would share one token, otherwise null.
