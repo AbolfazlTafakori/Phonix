@@ -352,6 +352,26 @@ public partial class StoreData
     // Delivers a single unit. When every unit of the order is delivered the order itself is completed (which
     // credits referral, stamps the delivery time used for subscription expiry, and notifies the customer).
     // Returns (order, justCompleted) so the caller can send the completion email only on the final unit.
+    // The combined customer-facing view of every DELIVERED unit's content (a rejected one has none).
+    internal static string AggregateDeliveryContent(Order o) =>
+        string.Join("\n\n", o.Units.Where(u => u.Delivered).OrderBy(u => u.UnitIndex)
+            .Select(u => o.Units.Count > 1 ? $"اکانت {u.UnitIndex}:\n{u.DeliveryContent}" : u.DeliveryContent));
+
+    public bool UpdateDeliveredUnitContent(int orderId, int unitId, string content)
+    {
+        lock (_gate)
+        {
+            var o = _orders.FirstOrDefault(x => x.Id == orderId);
+            var unit = o?.Units.FirstOrDefault(u => u.Id == unitId);
+            if (o is null || unit is null || !unit.Delivered) return false;
+            if (unit.DeliveryContent == content) return false;
+            unit.DeliveryContent = content;
+            if (o.Status == OrderStatus.Completed) o.DeliveryContent = AggregateDeliveryContent(o);
+            MarkDirty();
+            return true;
+        }
+    }
+
     public (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null)
     {
         Order? snapshot = null;

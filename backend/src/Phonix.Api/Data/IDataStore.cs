@@ -71,6 +71,9 @@ public interface IDataStore
     // Marks every slot reserved for this unit as Delivered / releases them back to Available.
     bool MarkStockSlotsDelivered(int orderId, int unitId);
     bool ReleaseStockSlots(int orderId, int unitId);
+    // Rewrites an already-delivered unit's content (and the order's aggregate) — used to re-apply the current
+    // slot-delivery format to accounts that were delivered before the format changed.
+    bool UpdateDeliveredUnitContent(int orderId, int unitId, string content);
 
     // ── Users ───────────────────────────────────────────────────────────────────────────────────────
     IReadOnlyList<AppUser> GetUsers(string? search = null, UserRole? role = null, bool? blocked = null);

@@ -200,6 +200,28 @@ public class StockAccountTests
     }
 
     [Fact]
+    public void Reformatting_rewrites_an_old_delivered_slot_account_to_the_current_format()
+    {
+        var store = NewStore();
+        Account(store, 10, username: "netacc@mail.com", plan: "Premium", months: 3);
+        var order = PaidSlotOrder(store, qty: 2);
+        var unit = order.Units.Single();
+        var svc = Fulfillment(store);
+        Assert.NotNull(svc.ServeUnit(order, unit, "انبار مجازی"));
+
+        // Simulate the account having been delivered under the OLD format.
+        Assert.True(store.UpdateDeliveredUnitContent(order.Id, unit.Id, "OLD FORMAT"));
+
+        Assert.Equal(1, svc.ReformatDeliveredSlotOrders());
+
+        var content = store.GetOrder(order.Id)!.Units.Single().DeliveryContent;
+        Assert.DoesNotContain("OLD FORMAT", content);
+        Assert.Contains("──────────", content);       // the new block divider
+        Assert.Contains("User : A - 1", content);
+        Assert.Contains("User : A - 2", content);
+    }
+
+    [Fact]
     public void Serving_the_same_unit_twice_never_burns_a_second_run()
     {
         var store = NewStore();

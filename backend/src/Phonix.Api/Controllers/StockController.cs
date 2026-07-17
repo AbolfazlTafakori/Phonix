@@ -58,7 +58,12 @@ public class StockController : ControllerBase
     private const int MaxContentLength = 2000;
 
     private readonly IDataStore _store;
-    public StockController(IDataStore store) => _store = store;
+    private readonly IStockFulfillmentService _fulfillment;
+    public StockController(IDataStore store, IStockFulfillmentService fulfillment)
+    {
+        _store = store;
+        _fulfillment = fulfillment;
+    }
 
     // Per-product pool counters for the overview table. Every product appears (not just pooled ones) so the
     // admin can start a pool — or flip auto-delivery — without leaving the page.
@@ -154,6 +159,10 @@ public class StockController : ControllerBase
         if (_store.GetProduct(productId) is not { } p) return NotFound("محصول یافت نشد.");
         return Ok(p.Plans.Where(pl => pl.IsActive).Select(pl => pl.Type).Distinct().Select(t => new StockPlanTypeDto(t)));
     }
+
+    // Re-applies the current slot-delivery format to accounts delivered before the format changed.
+    [HttpPost("reformat-deliveries")]
+    public IActionResult ReformatDeliveries() => Ok(new { updated = _fulfillment.ReformatDeliveredSlotOrders() });
 
     // Sets the bare service name printed on this product's slot-delivery message (blank = auto-derive).
     [HttpPost("service-name")]

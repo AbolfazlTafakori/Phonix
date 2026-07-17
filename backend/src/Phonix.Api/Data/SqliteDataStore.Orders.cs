@@ -606,6 +606,20 @@ LIMIT 1;",
             return o;
         });
 
+    public bool UpdateDeliveredUnitContent(int orderId, int unitId, string content) =>
+        WriteTx((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id=@orderId", new { orderId }, tx);
+            if (oj is null) return false;
+            var o = Deserialize<Order>(oj)!;
+            var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit is null || !unit.Delivered || unit.DeliveryContent == content) return false;
+            unit.DeliveryContent = content;
+            if (o.Status == OrderStatus.Completed) o.DeliveryContent = StoreData.AggregateDeliveryContent(o);
+            UpsertOrder(conn, tx, o);
+            return true;
+        });
+
     public (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null) =>
         WriteTx<(Order?, bool)>((conn, tx) =>
         {

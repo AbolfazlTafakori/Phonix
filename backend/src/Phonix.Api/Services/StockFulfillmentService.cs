@@ -22,6 +22,10 @@ public interface IStockFulfillmentService
     // Returns null when the pool has nothing (or the unit is already settled), which is the caller's cue to
     // ask for the account by hand.
     (Order order, bool justCompleted)? ServeUnit(Order order, OrderUnit unit, string actor);
+
+    // Re-applies the CURRENT slot-delivery format to every already-delivered slot account, rebuilding each
+    // unit's content from the account + the seats it holds. Returns how many units were rewritten.
+    int ReformatDeliveredSlotOrders();
 }
 
 public sealed class StockFulfillmentService : IStockFulfillmentService
@@ -97,6 +101,32 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
         _logger.LogInformation("Stock pool delivered item {ItemId} to order {Code} unit {UnitId}",
             item.Id, order.Code, unit.Id);
         return (updated, justCompleted);
+    }
+
+    public int ReformatDeliveredSlotOrders()
+    {
+        var updated = 0;
+        // Every delivered seat carries the order+unit it served; grouping them reconstructs each delivered
+        // unit's account and its exact seats, from which the current format is rebuilt.
+        var groups = _store.GetStockAccounts()
+            .SelectMany(a => a.Slots
+                .Where(s => s.Status == StockItemStatus.Delivered && s.OrderId is not null && s.UnitId is not null)
+                .Select(s => (acc: a, slot: s)))
+            .GroupBy(x => (OrderId: x.slot.OrderId!.Value, UnitId: x.slot.UnitId!.Value));
+
+        foreach (var g in groups)
+        {
+            var acc = g.First().acc;
+            var slots = g.Select(x => x.slot).OrderBy(s => s.Index).ToList();
+            var order = _store.GetOrder(g.Key.OrderId);
+            var unit = order?.Units.FirstOrDefault(u => u.Id == g.Key.UnitId);
+            if (unit is null || !unit.Delivered) continue;
+
+            var service = StockAccount.DeriveServiceName(_store.GetProduct(unit.ProductId)?.ServiceName, unit.Name);
+            var content = BuildSlotDeliveryContent(service, acc, slots);
+            if (_store.UpdateDeliveredUnitContent(g.Key.OrderId, g.Key.UnitId, content)) updated++;
+        }
+        return updated;
     }
 
     // How many consecutive seats one purchase claims on a shared account. A plan that sells a fixed user

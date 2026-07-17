@@ -215,6 +215,8 @@ export const api = {
       request<StockAccount>("/stock/accounts", { method: "POST", body: json(input) }),
     serviceName: (productId: number, serviceName: string) =>
       request<void>("/stock/service-name", { method: "POST", body: json({ productId, serviceName }) }),
+    reformatDeliveries: () =>
+      request<{ updated: number }>("/stock/reformat-deliveries", { method: "POST" }),
     accountContent: (id: number) =>
       request<{ username: string; password: string }>(`/stock/accounts/${id}/content`),
     disableAccount: (id: number) => request<void>(`/stock/accounts/${id}/disable`, { method: "POST" }),

@@ -30,8 +30,25 @@ export default function AdminStockPage() {
   const [revealed, setRevealed] = useState<Record<number, string>>({});
   const [modalError, setModalError] = useState("");
 
+  const [reformatBusy, setReformatBusy] = useState(false);
+  const [reformatDone, setReformatDone] = useState<string | null>(null);
+
   async function refreshSummary() {
     setRows(await api.stock.summary());
+  }
+
+  async function reformatDeliveries() {
+    setReformatBusy(true);
+    setReformatDone(null);
+    try {
+      const { updated } = await api.stock.reformatDeliveries();
+      setReformatDone(`${toFa(updated)} سفارش به‌روزرسانی شد ✓`);
+      setTimeout(() => setReformatDone(null), 4000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطا در به‌روزرسانی فرمت");
+    } finally {
+      setReformatBusy(false);
+    }
   }
 
   useEffect(() => {
@@ -238,13 +255,21 @@ export default function AdminStockPage() {
         <Card className="p-8 text-center text-rose-400">{error}</Card>
       ) : (
         <Card className="overflow-hidden">
-          <div className="border-b border-white/8 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/8 p-4">
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="جستجوی محصول..."
               className={`${inputCls} max-w-xs`}
             />
+            <button
+              onClick={reformatDeliveries}
+              disabled={reformatBusy}
+              title="محتوای تحویل اکانت‌های ظرفیتیِ سفارش‌های قبلی را با فرمت جدید بازنویسی می‌کند"
+              className="rounded-lg border border-white/15 px-4 py-2 text-xs font-bold text-white/80 transition hover:bg-white/10 disabled:opacity-50"
+            >
+              {reformatBusy ? "..." : reformatDone ?? "به‌روزرسانی فرمت سفارش‌های قبلی"}
+            </button>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
