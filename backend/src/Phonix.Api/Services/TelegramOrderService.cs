@@ -89,22 +89,37 @@ public sealed class TelegramOrderService : ITelegramOrderService
                 return;
             }
 
-            // Only accounts still waiting on staff. One already delivered (by the pool, the panel or an earlier
-            // tap) or rejected has nothing left to decide, so posting it would only invite a second decision.
-            foreach (var unit in order.Units.Where(u => !u.Delivered && !u.Rejected).OrderBy(u => u.UnitIndex))
+            // Every account except rejected ones. Pending accounts carry approve/reject buttons; ones the pool
+            // already delivered (a fully wallet-paid, auto-delivered order) are posted as an FYI — the service
+            // specs plus a static «تحویل خودکار» badge — so the group still sees the sale but has nothing to decide.
+            foreach (var unit in order.Units.Where(u => !u.Rejected).OrderBy(u => u.UnitIndex))
             {
-                var markup = JsonSerializer.Serialize(new
+                string markup;
+                string caption;
+                if (unit.Delivered)
                 {
-                    inline_keyboard = new[]
+                    caption = $"{BuildUnitCaption(order, unit)}\n\n<b>وضعیت: ✅ تحویل خودکار سرویس انجام شد</b>";
+                    markup = JsonSerializer.Serialize(new
                     {
-                        new object[]
+                        inline_keyboard = new[] { new object[]
+                        {
+                            new { text = "✅ تحویل خودکار سرویس انجام شد", callback_data = $"{DecidedPrefix}{order.Id}:{unit.Id}" },
+                        } },
+                    });
+                }
+                else
+                {
+                    caption = BuildUnitCaption(order, unit);
+                    markup = JsonSerializer.Serialize(new
+                    {
+                        inline_keyboard = new[] { new object[]
                         {
                             new { text = "✅ تأیید", callback_data = $"{ApprovePrefix}{order.Id}:{unit.Id}" },
                             new { text = "❌ رد", callback_data = $"{RejectPrefix}{order.Id}:{unit.Id}" },
-                        },
-                    },
-                });
-                await SendMessageAsync(token, chatId, BuildUnitCaption(order, unit), markup, ct);
+                        } },
+                    });
+                }
+                await SendMessageAsync(token, chatId, caption, markup, ct);
             }
         }
         catch (Exception ex)

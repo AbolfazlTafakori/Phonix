@@ -211,8 +211,10 @@ export const api = {
       request<{ stockItemId?: number; stockAccountId?: number; content: string }>(
         "/stock/pull", { method: "POST", body: json({ orderId, unitId }) }),
     accounts: (productId: number) => request<StockAccount[]>(`/stock/accounts${qs({ productId })}`),
-    addAccount: (input: { productId: number; username: string; password: string; plan: string; capacity: number; months: number }) =>
+    addAccount: (input: { productId: number; username: string; password: string; plan: string; planType: string; capacity: number; months: number }) =>
       request<StockAccount>("/stock/accounts", { method: "POST", body: json(input) }),
+    serviceName: (productId: number, serviceName: string) =>
+      request<void>("/stock/service-name", { method: "POST", body: json({ productId, serviceName }) }),
     accountContent: (id: number) =>
       request<{ username: string; password: string }>(`/stock/accounts/${id}/content`),
     disableAccount: (id: number) => request<void>(`/stock/accounts/${id}/disable`, { method: "POST" }),

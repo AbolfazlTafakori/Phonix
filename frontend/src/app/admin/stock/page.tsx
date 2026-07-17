@@ -142,12 +142,15 @@ export default function AdminStockPage() {
   const [accBusy, setAccBusy] = useState(false);
   const [accError, setAccError] = useState("");
   const [accRevealed, setAccRevealed] = useState<Record<number, string>>({});
-  const emptyForm = { username: "", password: "", plan: "", capacity: "10", months: "1" };
+  const emptyForm = { username: "", password: "", plan: "", planType: "", capacity: "10", months: "1" };
   const [form, setForm] = useState(emptyForm);
+  const [serviceName, setServiceName] = useState("");
+  const [serviceBusy, setServiceBusy] = useState(false);
 
   async function openAccounts(row: StockSummary) {
     setAccTarget(row);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, planType: row.planTypes[0] ?? "" });
+    setServiceName(row.serviceName);
     setAccRevealed({});
     setAccError("");
     setAccLoading(true);
@@ -157,6 +160,20 @@ export default function AdminStockPage() {
       setAccError(e instanceof Error ? e.message : "خطا در بارگذاری اکانت‌ها");
     } finally {
       setAccLoading(false);
+    }
+  }
+
+  async function saveServiceName() {
+    if (!accTarget) return;
+    setServiceBusy(true);
+    setAccError("");
+    try {
+      await api.stock.serviceName(accTarget.productId, serviceName.trim());
+      await refreshSummary();
+    } catch (e) {
+      setAccError(e instanceof Error ? e.message : "خطا در ذخیره‌ی اسم سرویس");
+    } finally {
+      setServiceBusy(false);
     }
   }
 
@@ -183,6 +200,7 @@ export default function AdminStockPage() {
         username: form.username.trim(),
         password: form.password,
         plan: form.plan.trim(),
+        planType: form.planType,
         capacity: Number(form.capacity),
         months: Number(form.months),
       });
@@ -302,6 +320,20 @@ export default function AdminStockPage() {
       >
         {accTarget && (
           <div className="space-y-5">
+            {/* Bare service name printed on the delivery message (blank → auto from the product name). */}
+            <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+              <Field label="اسم سرویس در پیام تحویل">
+                <div className="flex gap-2">
+                  <input value={serviceName} onChange={(e) => setServiceName(e.target.value)}
+                    dir="ltr" className={inputCls} placeholder="مثلاً VYPRVPN (خالی = خودکار از اسم محصول)" />
+                  <button onClick={saveServiceName} disabled={serviceBusy || serviceName.trim() === accTarget.serviceName}
+                    className="shrink-0 rounded-xl border border-white/15 px-4 text-sm font-bold text-white/80 transition hover:bg-white/10 disabled:opacity-40">
+                    {serviceBusy ? "..." : "ذخیره"}
+                  </button>
+                </div>
+              </Field>
+            </div>
+
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               <Field label="نام کاربری اکانت">
                 <input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })}
@@ -315,6 +347,15 @@ export default function AdminStockPage() {
                 <input value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })}
                   dir="ltr" className={inputCls} placeholder="Premium" />
               </Field>
+              {accTarget.planTypes.length > 0 && (
+                <Field label="نوع پلن (مسیر تحویل)">
+                  <select value={form.planType} onChange={(e) => setForm({ ...form, planType: e.target.value })}
+                    className={inputCls}>
+                    <option value="">همه‌ی انواع</option>
+                    {accTarget.planTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </Field>
+              )}
               <Field label="ظرفیت (تعداد کاربر)">
                 <input value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })}
                   type="number" min={1} dir="ltr" className={inputCls} />
@@ -351,6 +392,7 @@ export default function AdminStockPage() {
                       <span className="font-mono text-xs text-white/40">#{toFa(a.id)}</span>
                       <span dir="ltr" className="font-mono text-xs font-bold text-white">{a.username}</span>
                       {a.plan && <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] text-white/60">{a.plan}</span>}
+                      {a.planType && <span className="rounded-md bg-sky-500/15 px-2 py-0.5 text-[11px] font-bold text-sky-300">{a.planType}</span>}
                       <span className="text-[11px] text-white/40">
                         ظرفیت {toFa(a.capacity)} · {toFa(a.months)} ماهه
                       </span>

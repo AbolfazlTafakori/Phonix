@@ -111,17 +111,24 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
         return Math.Max(1, item?.Quantity ?? 1);
     }
 
+    // The plan type an order unit belongs to. Unit.Plan is «{Type} · {Months} ماهه»; the part before «·» is
+    // the type used to route the purchase to the matching accounts.
+    internal static string PlanType(string? plan) =>
+        string.IsNullOrWhiteSpace(plan) ? "" : plan.Split('·')[0].Trim();
+
     private (Order order, bool justCompleted)? ServeFromSlotAccount(Order order, OrderUnit unit, string actor)
     {
         var count = ConnectionCount(order, unit);
+        var planType = PlanType(unit.Plan);
 
         // An earlier reservation for this same unit (a retried approval, a stale tap) is reused instead of
         // claiming a second run of seats.
         var reservation = FindReservation(unit.ProductId, order.Id, unit.Id)
-                          ?? _store.ReserveStockSlots(unit.ProductId, count, order.Id, unit.Id);
-        if (reservation is not { } r) return null; // no account has enough consecutive free slots
+                          ?? _store.ReserveStockSlots(unit.ProductId, count, planType, order.Id, unit.Id);
+        if (reservation is not { } r) return null; // no account of this plan type has enough consecutive seats
 
-        var content = BuildSlotDeliveryContent(unit.Name, r.Account, count, r.Slots);
+        var service = StockAccount.DeriveServiceName(_store.GetProduct(unit.ProductId)?.ServiceName, unit.Name);
+        var content = BuildSlotDeliveryContent(service, r.Account, r.Slots);
         var (updated, justCompleted) = _store.DeliverUnit(order.Id, unit.Id, content, actor);
         if (updated is null)
         {
@@ -148,29 +155,23 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
         return null;
     }
 
-    // The customer-facing message. This exact shape long predates the slot pool and thousands of customers
-    // know it by heart — do not restyle it.
-    internal static string BuildSlotDeliveryContent(string productName, StockAccount acc, int connections,
-        List<StockSlot> slots)
+    // The customer-facing message. One clean block PER seat — each is a single connection on the shared
+    // account, tagged with its own «User : A - 1» label. `serviceName` is the bare product/service name.
+    internal static string BuildSlotDeliveryContent(string serviceName, StockAccount acc, List<StockSlot> slots)
     {
-        var lines = new List<string>
+        var pass = SensitiveField.Reveal(acc.Password);
+        var blocks = slots.OrderBy(s => s.Index).Select(s => string.Join("\n", new[]
         {
-            productName,
-            $"{connections} Connection",
-            $"{acc.Months} Month",
+            $"{serviceName} 1 connection {acc.Months} Month",
             "",
-            "User :",
-            acc.Username,
+            $"User : {acc.Username}",
             "",
-            "Pass :",
-            SensitiveField.Reveal(acc.Password),
+            $"Pass : {pass}",
             "",
-            "Plan :",
-            acc.Plan,
+            $"Plan : {acc.Plan}",
             "",
-            "User",
-        };
-        lines.AddRange(slots.OrderBy(s => s.Index).Select(s => s.Label));
-        return string.Join("\n", lines);
+            $"User : {StockAccount.SlotDisplayLabel(s.Index)}",
+        }));
+        return string.Join("\n\n", blocks);
     }
 }

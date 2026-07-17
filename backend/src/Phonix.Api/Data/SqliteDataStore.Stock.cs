@@ -149,14 +149,15 @@ SELECT last_insert_rowid();",
             return true;
         });
 
-    public (StockAccount Account, List<StockSlot> Slots)? ReserveStockSlots(int productId, int count, int orderId, int unitId)
+    public (StockAccount Account, List<StockSlot> Slots)? ReserveStockSlots(int productId, int count, string planType, int orderId, int unitId)
     {
         if (count <= 0) return null;
         return WriteTx<(StockAccount, List<StockSlot>)?>((conn, tx) =>
         {
             var rows = conn.Query<string>(
                 "SELECT DataJson FROM StockAccounts WHERE ProductId = @productId ORDER BY Id", new { productId }, tx);
-            foreach (var acc in rows.Select(j => Deserialize<StockAccount>(j)!).Where(a => !a.Disabled))
+            foreach (var acc in rows.Select(j => Deserialize<StockAccount>(j)!)
+                         .Where(a => !a.Disabled && StoreData.AccountServesPlanType(a, planType)))
             {
                 var run = StoreData.FindConsecutiveAvailable(acc, count);
                 if (run is null) continue; // this account can't seat the whole request — try the next one

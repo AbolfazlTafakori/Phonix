@@ -94,6 +94,9 @@ public class Product
     // StockItems: a purchase of N users takes N consecutive slots on a single account and the whole line is
     // delivered as one message. The switch lives on the stock page, next to auto-delivery.
     public bool SlotFulfillment { get; set; }
+    // The bare service name printed on the slot-delivery message (e.g. «VYPRVPN»), set on the stock page.
+    // Empty falls back to the Latin part of the product name, upper-cased without spaces (see StockAccount).
+    public string ServiceName { get; set; } = "";
     public bool IsActive { get; set; } = true;
     public bool Featured { get; set; }
     public string Image { get; set; } = "";

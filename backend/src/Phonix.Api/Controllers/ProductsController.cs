@@ -65,6 +65,7 @@ public class ProductsController : ControllerBase
         // full-replace edit must not silently reset them.
         product.AutoDeliverStock = existing?.AutoDeliverStock ?? false;
         product.SlotFulfillment = existing?.SlotFulfillment ?? false;
+        product.ServiceName = existing?.ServiceName ?? "";
         if (!_store.UpdateProduct(product)) return NotFound();
         Services.OrphanCleanup.Queue(_files, _store, oldImages);
         return _store.GetProduct(id)!.ToDto(CategoryName(product.CategoryId));

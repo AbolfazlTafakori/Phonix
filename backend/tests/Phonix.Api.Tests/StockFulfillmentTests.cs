@@ -136,7 +136,7 @@ public class StockFulfillmentTests
     // ── What the group is told ────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task An_account_the_pool_already_delivered_is_never_posted_to_the_group()
+    public async Task An_auto_delivered_account_is_posted_as_an_fyi_and_only_the_rest_are_actionable()
     {
         var store = TestStore.Create();
         var order = PaidOrder(store, qty: 2, autoDeliver: true);
@@ -146,8 +146,20 @@ public class StockFulfillmentTests
         Fulfillment(store).AutoDeliverOrder(order);
         await Bot(store, handler).NotifyOrderAsync(store.GetOrder(order.Id)!);
 
-        var posted = Assert.Single(handler.Calls, c => c.method == "sendMessage");
-        Assert.Contains("اکانت: 2 از 2", posted.body); // only the one the pool could not cover
+        var posts = handler.Calls.Where(c => c.method == "sendMessage").ToList();
+        Assert.Equal(2, posts.Count); // both accounts are posted, but they read differently
+
+        // The pool-delivered one is an FYI: the auto-delivery badge, no approve/reject buttons.
+        var auto = Assert.Single(posts, c => c.body.Contains("اکانت: 1 از 2"));
+        Assert.Contains("تحویل خودکار سرویس انجام شد", auto.body);
+        Assert.DoesNotContain("ordr:ok:", auto.body);
+        Assert.DoesNotContain("ordr:no:", auto.body);
+
+        // The one the pool could not cover still carries the real decision buttons.
+        var actionable = Assert.Single(posts, c => c.body.Contains("اکانت: 2 از 2"));
+        Assert.Contains("ordr:ok:", actionable.body);
+        Assert.Contains("ordr:no:", actionable.body);
+
         Assert.True(store.GetOrder(order.Id)!.Units[0].Delivered);
     }
 

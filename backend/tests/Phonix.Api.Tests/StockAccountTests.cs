@@ -76,7 +76,7 @@ public class StockAccountTests
         var store = NewStore();
         var acc = Account(store, 10);
 
-        var r = store.ReserveStockSlots(1, 3, orderId: 7, unitId: 1);
+        var r = store.ReserveStockSlots(1, 3, "", orderId: 7, unitId: 1);
 
         Assert.NotNull(r);
         Assert.Equal(acc.Id, r!.Value.Account.Id);
@@ -93,7 +93,7 @@ public class StockAccountTests
         Assert.True(store.SetStockSlotStatus(first.Id, first.Slots[2].Id, StockItemStatus.Disabled));
         var second = Account(store, 5, username: "second@mail.com");
 
-        var r = store.ReserveStockSlots(1, 3, orderId: 7, unitId: 1);
+        var r = store.ReserveStockSlots(1, 3, "", orderId: 7, unitId: 1);
 
         Assert.Equal(second.Id, r!.Value.Account.Id);
         Assert.Equal(new[] { "A0", "A1", "A2" }, r.Value.Slots.Select(s => s.Label));
@@ -106,7 +106,29 @@ public class StockAccountTests
         var acc = Account(store, 4);
         Assert.True(store.SetStockSlotStatus(acc.Id, acc.Slots[1].Id, StockItemStatus.Disabled));
 
-        Assert.Null(store.ReserveStockSlots(1, 3, orderId: 7, unitId: 1));
+        Assert.Null(store.ReserveStockSlots(1, 3, "", orderId: 7, unitId: 1));
+    }
+
+    [Fact]
+    public void An_account_only_serves_the_plan_type_it_is_bound_to()
+    {
+        var store = NewStore();
+        store.AddStockAccount(new StockAccount
+        {
+            ProductId = 1, Username = "priv@mail.com", Password = SensitiveField.Protect("p@ss"),
+            PlanType = "اختصاصی", Capacity = 5, Months = 1,
+        });
+
+        Assert.Null(store.ReserveStockSlots(1, 1, "اشتراکی", orderId: 7, unitId: 1)); // wrong type → skipped
+        Assert.NotNull(store.ReserveStockSlots(1, 1, "اختصاصی", orderId: 7, unitId: 1)); // matching type → seated
+    }
+
+    [Fact]
+    public void An_unbound_account_serves_any_plan_type()
+    {
+        var store = NewStore();
+        Account(store, 5); // no PlanType → legacy «any»
+        Assert.NotNull(store.ReserveStockSlots(1, 1, "اشتراکی", orderId: 7, unitId: 1));
     }
 
     [Fact]
@@ -116,13 +138,13 @@ public class StockAccountTests
         var acc = Account(store, 10);
         Assert.True(store.SetStockAccountDisabled(acc.Id, true));
 
-        Assert.Null(store.ReserveStockSlots(1, 1, orderId: 7, unitId: 1));
+        Assert.Null(store.ReserveStockSlots(1, 1, "", orderId: 7, unitId: 1));
     }
 
     // ── Delivery ───────────────────────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Serving_a_unit_delivers_the_exact_legacy_message()
+    public void Serving_a_unit_delivers_one_clean_block_per_seat()
     {
         var store = NewStore();
         Account(store, 10, username: "netacc@mail.com", plan: "Premium", months: 3);
@@ -134,25 +156,18 @@ public class StockAccountTests
         Assert.NotNull(served);
         var delivered = served!.Value.order.Units.Single();
         Assert.True(delivered.Delivered);
-        Assert.Equal(string.Join("\n", new[]
+
+        // Two seats → two identical blocks that differ only by their «User : A - N» seat line.
+        var service = StockAccount.DeriveServiceName(null, delivered.Name);
+        string Block(string seat) => string.Join("\n", new[]
         {
-            delivered.Name,
-            "2 Connection",
-            "3 Month",
-            "",
-            "User :",
-            "netacc@mail.com",
-            "",
-            "Pass :",
-            "p@ss",
-            "",
-            "Plan :",
-            "Premium",
-            "",
-            "User",
-            "A0",
-            "A1",
-        }), delivered.DeliveryContent);
+            $"{service} 1 connection 3 Month", "",
+            "User : netacc@mail.com", "",
+            "Pass : p@ss", "",
+            "Plan : Premium", "",
+            $"User : {seat}",
+        });
+        Assert.Equal($"{Block("A - 1")}\n\n{Block("A - 2")}", delivered.DeliveryContent);
 
         var slots = store.GetStockAccounts(1).Single().Slots;
         Assert.Equal(2, slots.Count(s => s.Status == StockItemStatus.Delivered));
@@ -177,7 +192,10 @@ public class StockAccountTests
         var served = Fulfillment(store).ServeUnit(placed.Order!, placed.Order!.Units.Single(), "انبار مجازی");
 
         Assert.NotNull(served);
-        Assert.Contains("6 Connection", served!.Value.order.Units.Single().DeliveryContent);
+        var content = served!.Value.order.Units.Single().DeliveryContent;
+        // Six seats → six «1 connection» blocks labelled A - 1 … A - 6.
+        Assert.Equal(6, System.Text.RegularExpressions.Regex.Matches(content, "1 connection").Count);
+        foreach (var n in Enumerable.Range(1, 6)) Assert.Contains($"User : A - {n}", content);
         Assert.Equal(6, store.GetStockAccounts(1).Single().Slots.Count(s => s.Status == StockItemStatus.Delivered));
     }
 

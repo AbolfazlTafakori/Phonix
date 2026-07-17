@@ -127,6 +127,9 @@ export type StockSummary = {
   slotReserved: number;
   slotDelivered: number;
   slotDisabled: number;
+  // The bare service name printed on the slot-delivery message, and the plan types an account can bind to.
+  serviceName: string;
+  planTypes: string[];
 };
 
 // One generated seat on a multi-user stock account (labels like A0, B4 are minted by the backend).
@@ -146,6 +149,7 @@ export type StockAccount = {
   productId: number;
   username: string;
   plan: string;
+  planType: string;
   capacity: number;
   months: number;
   disabled: boolean;

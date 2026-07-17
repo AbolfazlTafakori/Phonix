@@ -65,7 +65,9 @@ public interface IDataStore
     // Atomically reserves `count` CONSECUTIVE Available slots on a single enabled account of the product
     // (first account — by Id — that can seat the whole request; ones that can't are skipped). Null = no
     // account has a large-enough consecutive run.
-    (StockAccount Account, List<StockSlot> Slots)? ReserveStockSlots(int productId, int count, int orderId, int unitId);
+    // `planType` restricts the search to accounts bound to that plan type (accounts with no bound type serve
+    // any); empty matches every account of the product.
+    (StockAccount Account, List<StockSlot> Slots)? ReserveStockSlots(int productId, int count, string planType, int orderId, int unitId);
     // Marks every slot reserved for this unit as Delivered / releases them back to Available.
     bool MarkStockSlotsDelivered(int orderId, int unitId);
     bool ReleaseStockSlots(int orderId, int unitId);

@@ -29,6 +29,9 @@ public class StockAccount
     // payloads, so plain backups never carry them.
     public string Password { get; set; } = "";
     public string Plan { get; set; } = "";
+    // Which plan TYPE (اشتراکی/اختصاصی) this account serves. A purchase is only seated on accounts whose
+    // PlanType matches its plan's type; empty means «any type» (legacy accounts serve every plan of the product).
+    public string PlanType { get; set; } = "";
     public int Capacity { get; set; }
     public int Months { get; set; }
     public bool Disabled { get; set; }     // takes the whole account out of rotation without losing history
@@ -54,4 +57,23 @@ public class StockAccount
         Enumerable.Range(0, capacity)
             .Select(i => new StockSlot { Id = i + 1, Index = i, Label = SlotLabel(i) })
             .ToList();
+
+    // Customer-facing seat label: the letter block plus the 1-based seat within it — «A - 1», «A - 2», «B - 1».
+    public static string SlotDisplayLabel(int index)
+    {
+        var label = SlotLabel(index);              // e.g. "A0", "B7"
+        var letters = label[..^1];                 // drop the trailing 0-9 digit
+        return $"{letters} - {index % 10 + 1}";
+    }
+
+    // The bare service name for the delivery message: the product's explicit ServiceName when set, otherwise
+    // the Latin run of its display name, upper-cased and stripped of spaces («… Vypr VPN» → «VYPRVPN»).
+    public static string DeriveServiceName(string? explicitName, string productName)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitName)) return explicitName.Trim();
+        var latin = new StringBuilder();
+        foreach (var ch in productName)
+            if (ch is (>= 'A' and <= 'Z') or (>= 'a' and <= 'z') or (>= '0' and <= '9')) latin.Append(char.ToUpperInvariant(ch));
+        return latin.Length > 0 ? latin.ToString() : productName.Trim();
+    }
 }

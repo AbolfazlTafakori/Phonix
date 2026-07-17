@@ -180,12 +180,20 @@ public partial class StoreData
         _ => false,
     };
 
-    public (StockAccount Account, List<StockSlot> Slots)? ReserveStockSlots(int productId, int count, int orderId, int unitId)
+    // An account serves a purchase when it has no bound plan type (legacy «any»), or its bound type matches
+    // the purchased plan's type.
+    internal static bool AccountServesPlanType(StockAccount acc, string planType) =>
+        string.IsNullOrWhiteSpace(acc.PlanType)
+        || string.Equals(acc.PlanType.Trim(), (planType ?? "").Trim(), StringComparison.Ordinal);
+
+    public (StockAccount Account, List<StockSlot> Slots)? ReserveStockSlots(int productId, int count, string planType, int orderId, int unitId)
     {
         if (count <= 0) return null;
         lock (_gate)
         {
-            foreach (var acc in _stockAccounts.Where(a => a.ProductId == productId && !a.Disabled).OrderBy(a => a.Id))
+            foreach (var acc in _stockAccounts
+                         .Where(a => a.ProductId == productId && !a.Disabled && AccountServesPlanType(a, planType))
+                         .OrderBy(a => a.Id))
             {
                 var run = FindConsecutiveAvailable(acc, count);
                 if (run is null) continue; // this account can't seat the whole request — try the next one
