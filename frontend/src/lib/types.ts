@@ -600,6 +600,11 @@ export type OrderUnit = {
   delivered: boolean;
   deliveredAt: string | null;
   deliveredAtUtc: string | null;
+  // Staff rejected this one account; the buyer was refunded its price after its share of the order discount.
+  rejected: boolean;
+  rejectionReason: string | null;
+  rejectedAtUtc: string | null;
+  refundedAmount: number;
   handledBy: string | null;
 };
 

@@ -219,7 +219,11 @@ public interface IDataStore
     Order? DeliverOrder(int id, string content, string? changedBy = null);
     Order? SaveUnitDraft(int orderId, int unitId, string content, string? changedBy = null);
     (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null);
-    OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null);
+    // applyPenalty: false for a cancellation the customer didn't choose (staff rejecting a receipt/order).
+    OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true);
+    // Rejects ONE account of an order: refunds its price after discount, returns its stock, and settles the
+    // order once no account is left pending. Returns the refunded amount.
+    (Order? order, long refunded, string? error) RejectUnit(int orderId, int unitId, string? reason, string? changedBy = null);
     // Claims the right to announce an order to the Telegram orders group. Returns true exactly once per
     // order — every later caller gets false — so no approval path can post the accounts twice.
     bool TryClaimOrderBotNotification(int orderId);

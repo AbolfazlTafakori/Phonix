@@ -366,12 +366,16 @@ public partial class StoreData
                 unit.DeliveredAtUtc = DateTime.UtcNow;
             }
 
-            // Complete the order once all units are delivered (and it isn't already completed).
-            if (o.Units.Count > 0 && o.Units.All(u => u.Delivered) && o.Status != OrderStatus.Completed)
+            // Complete the order once every unit is settled — delivered, or rejected-and-refunded — and it
+            // isn't already completed. A rejected account must not hold the order open forever.
+            if (o.Units.Count > 0 && o.Units.All(u => u.Delivered || u.Rejected) && o.Units.Any(u => u.Delivered)
+                && o.Status != OrderStatus.Completed)
             {
                 var from = o.Status;
-                // The customer-facing order summary keeps a combined view of every unit's content.
+                // The customer-facing order summary keeps a combined view of every DELIVERED unit's content —
+                // a rejected one has none, and listing it would show the buyer an empty account.
                 o.DeliveryContent = string.Join("\n\n", o.Units
+                    .Where(u => u.Delivered)
                     .OrderBy(u => u.UnitIndex)
                     .Select(u => o.Units.Count > 1 ? $"اکانت {u.UnitIndex}:\n{u.DeliveryContent}" : u.DeliveryContent));
                 o.DeliveredAt = Today();
@@ -412,15 +416,16 @@ public partial class StoreData
     }
 
     // cancels an order: restores stock and, if it was already paid, refunds the wallet
-    // minus the configured cancellation penalty.
-    public OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null)
+    // minus the configured cancellation penalty. `applyPenalty: false` is for a cancellation the CUSTOMER did
+    // not choose (staff rejecting a receipt or an order) — penalising them for our decision would be wrong.
+    public OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true)
     {
-        var result = CancelOrderCore(id, changedBy, reason);
+        var result = CancelOrderCore(id, changedBy, reason, applyPenalty);
         if (result.Error is null) PersistNow(); // stock restored + (possible) refund credited — persist now.
         return result;
     }
 
-    private OrderActionResult CancelOrderCore(int id, string? changedBy = null, string? reason = null)
+    private OrderActionResult CancelOrderCore(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true)
     {
         lock (_gate)
         {
@@ -444,7 +449,7 @@ public partial class StoreData
                 var buyer = UserById(o.UserId);
                 if (buyer is not null)
                 {
-                    var penalty = _settings.CancellationPenaltyPercent;
+                    var penalty = applyPenalty ? _settings.CancellationPenaltyPercent : 0;
                     // Compute the penalty then subtract (rounded AwayFromZero) so the refund matches the
                     // figure shown to the user in the cancel dialog exactly.
                     var penaltyAmount = (long)Math.Round(collected * (double)penalty / 100.0, MidpointRounding.AwayFromZero);
@@ -474,6 +479,100 @@ public partial class StoreData
             PersistNow();
             return true;
         }
+    }
+
+    // What the buyer actually paid for ONE account: its plan price minus that account's share of the order's
+    // discount. VAT and the gateway fee are deliberately excluded — a rejected account refunds the service
+    // price only. Sensitive to rounding, so the share is computed from the order's own subtotal.
+    private static long UnitRefundAmount(Order order, OrderUnit unit)
+    {
+        var item = order.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
+        if (item is null) return 0;
+        var price = item.UnitPrice;
+        if (order.DiscountAmount <= 0 || order.Subtotal <= 0) return price;
+        // This account's slice of the discount, proportional to its price within the order.
+        var share = (long)Math.Round(order.DiscountAmount * (double)price / order.Subtotal, MidpointRounding.AwayFromZero);
+        return Math.Max(0, price - share);
+    }
+
+    // Rejects ONE account of an order: refunds what the buyer paid for it, returns its stock, and leaves the
+    // rest of the order alone. Once every account is either delivered or rejected the order settles itself —
+    // cancelled when nothing survived, completed otherwise.
+    public (Order? order, long refunded, string? error) RejectUnit(int orderId, int unitId, string? reason, string? changedBy = null)
+    {
+        (Order? order, long refunded, string? error) result;
+        lock (_gate)
+        {
+            var o = _orders.FirstOrDefault(x => x.Id == orderId);
+            if (o is null) return (null, 0, "سفارش یافت نشد.");
+            var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit is null) return (null, 0, "اکانت یافت نشد.");
+            if (unit.Delivered) return (null, 0, "این اکانت قبلاً تحویل شده است.");
+            if (unit.Rejected) return (null, 0, "این اکانت قبلاً رد شده است.");
+
+            var refund = UnitRefundAmount(o, unit);
+            unit.Rejected = true;
+            unit.RejectionReason = reason;
+            unit.RejectedAtUtc = DateTime.UtcNow;
+            unit.HandledBy = changedBy;
+            unit.RefundedAmount = refund;
+
+            // The account was never handed over, so its stock goes back on the shelf.
+            var p = _products.FirstOrDefault(x => x.Id == unit.ProductId);
+            if (p is not null) p.Stock += 1;
+
+            if (refund > 0)
+            {
+                var buyer = UserById(o.UserId);
+                if (buyer is not null)
+                {
+                    buyer.Wallet += refund;
+                    var name = string.IsNullOrWhiteSpace(buyer.Name) ? buyer.Username : buyer.Name;
+                    AddTransaction(new Transaction
+                    {
+                        UserId = buyer.Id, UserName = name, Type = TxTypes.Refund, Amount = refund,
+                        Status = TxStatus.Approved, Method = "کیف پول", ApprovedVia = "reject-unit",
+                        OrderCode = o.Code, Date = Today(),
+                    });
+                    AddNotification(buyer.Id, "بازگشت وجه",
+                        $"«{unit.Name}» از سفارش {o.Code} رد شد و {refund:N0} تومان به کیف پول شما بازگشت.", "/account/wallet");
+                }
+            }
+
+            SettleUnitsIfDone(o, changedBy);
+            result = (o, refund, null);
+        }
+        PersistNow();
+        return result;
+    }
+
+    // Closes an order once no account is still pending: all rejected → cancelled, otherwise completed (which
+    // is what issues the invoice). Caller holds _gate.
+    private void SettleUnitsIfDone(Order o, string? changedBy)
+    {
+        if (o.Units.Count == 0 || o.Status is OrderStatus.Completed or OrderStatus.Cancelled) return;
+        if (!o.Units.All(u => u.Delivered || u.Rejected)) return;
+
+        var from = o.Status;
+        if (o.Units.All(u => u.Rejected))
+        {
+            o.Status = OrderStatus.Cancelled;
+            AppendOrderHistory(o, from, OrderStatus.Cancelled, changedBy, "رد همه‌ی اکانت‌ها");
+            AddNotification(o.UserId, "سفارش لغو شد", $"همه‌ی اقلام سفارش {o.Code} رد شد و مبلغ آن‌ها بازگشت داده شد.", "/account/orders");
+        }
+        else
+        {
+            o.DeliveryContent = string.Join("\n\n", o.Units.Where(u => u.Delivered).OrderBy(u => u.UnitIndex)
+                .Select(u => o.Units.Count > 1 ? $"اکانت {u.UnitIndex}:\n{u.DeliveryContent}" : u.DeliveryContent));
+            o.DeliveredAt = Today();
+            o.DeliveredAtUtc ??= DateTime.UtcNow;
+            o.Status = OrderStatus.Completed;
+            EnsureInvoiceNumber(o);
+            CreditReferral(o);
+            AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تعیین تکلیف همه‌ی اکانت‌ها");
+            AddNotification(o.UserId, "سفارش شما آماده شد", $"سفارش {o.Code} آماده و قابل مشاهده در حساب شماست.", "/account/orders");
+        }
+        RefreshUserOrderStats(o.UserId);
     }
 
     // Stamps the order's 16-digit invoice number the first time it completes, unique across every order.

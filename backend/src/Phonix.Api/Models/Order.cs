@@ -57,6 +57,13 @@ public class OrderUnit
     public bool Delivered { get; set; }
     public string? DeliveredAt { get; set; }
     public DateTime? DeliveredAtUtc { get; set; }
+    // Staff rejected THIS account (the rest of the order can still be delivered). The buyer is refunded what
+    // they actually paid for it — its price after its share of the order discount — and the amount is kept
+    // here so the refund is auditable and can never be paid twice.
+    public bool Rejected { get; set; }
+    public string? RejectionReason { get; set; }
+    public DateTime? RejectedAtUtc { get; set; }
+    public long RefundedAmount { get; set; }
     // Last staff member who saved a draft or delivered this unit — shown so a second admin sees who's on it.
     public string? HandledBy { get; set; }
 }

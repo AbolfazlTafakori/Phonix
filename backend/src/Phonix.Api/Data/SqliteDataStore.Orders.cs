@@ -508,8 +508,15 @@ LIMIT 1;",
 
     // Cancels an order: restores stock and, if already paid, refunds the wallet minus the cancellation penalty
     // — the stock restore + refund + transaction all commit together (or roll back together).
-    public OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null) =>
-        WriteTx<OrderActionResult>((conn, tx) =>
+    // applyPenalty: false for a cancellation the customer didn't choose (staff rejecting a receipt/order) —
+    // penalising them for our own decision would be wrong.
+    public OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true) =>
+        WriteTx<OrderActionResult>((conn, tx) => CancelOrderInTx(conn, tx, id, changedBy, reason, applyPenalty));
+
+    // The cancel body, callable from inside an existing write transaction. SetTransactionStatus rejects a
+    // receipt while already holding one, and nesting WriteTx would deadlock — so both share this.
+    private OrderActionResult CancelOrderInTx(SqliteConnection conn, SqliteTransaction tx, int id,
+        string? changedBy, string? reason, bool applyPenalty)
         {
             var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id = @id", new { id }, tx);
             if (oj is null) return new OrderActionResult(null, "سفارش یافت نشد.");
@@ -536,7 +543,7 @@ LIMIT 1;",
                 var buyer = LoadUser(conn, tx, o.UserId);
                 if (buyer is not null)
                 {
-                    var penalty = settings.CancellationPenaltyPercent;
+                    var penalty = applyPenalty ? settings.CancellationPenaltyPercent : 0;
                     var penaltyAmount = (long)Math.Round(collected * (double)penalty / 100.0, MidpointRounding.AwayFromZero);
                     var refund = Math.Max(0, collected - penaltyAmount);
                     buyer.Wallet += refund;
@@ -556,7 +563,7 @@ LIMIT 1;",
             UpsertOrder(conn, tx, o);
             RefreshUserStats(conn, tx, o.UserId);
             return new OrderActionResult(o, null);
-        });
+        }
 
 
     // ── Orders: remaining ───────────────────────────────────────────────────────────────────────────────
@@ -594,10 +601,14 @@ LIMIT 1;",
             if (!unit.Delivered) { unit.Delivered = true; unit.DeliveredAt = Today(); unit.DeliveredAtUtc = DateTime.UtcNow; }
 
             var justCompleted = false;
-            if (o.Units.Count > 0 && o.Units.All(u => u.Delivered) && o.Status != OrderStatus.Completed)
+            // Every unit settled — delivered, or rejected-and-refunded — and at least one actually delivered.
+            // A rejected account must not hold the order open forever.
+            if (o.Units.Count > 0 && o.Units.All(u => u.Delivered || u.Rejected) && o.Units.Any(u => u.Delivered)
+                && o.Status != OrderStatus.Completed)
             {
                 var from = o.Status;
-                o.DeliveryContent = string.Join("\n\n", o.Units.OrderBy(u => u.UnitIndex)
+                // Only DELIVERED units have content; a rejected one would show the buyer an empty account.
+                o.DeliveryContent = string.Join("\n\n", o.Units.Where(u => u.Delivered).OrderBy(u => u.UnitIndex)
                     .Select(u => o.Units.Count > 1 ? $"اکانت {u.UnitIndex}:\n{u.DeliveryContent}" : u.DeliveryContent));
                 o.DeliveredAt = Today(); o.DeliveredAtUtc ??= DateTime.UtcNow; o.Status = OrderStatus.Completed;
                 EnsureInvoiceNumber(conn, tx, o);
@@ -611,6 +622,103 @@ LIMIT 1;",
             else UpsertOrder(conn, tx, o);
             return (o, justCompleted);
         });
+
+    // What the buyer actually paid for ONE account: its plan price minus that account's share of the order's
+    // discount. VAT and the gateway fee are deliberately excluded — a rejected account refunds the service
+    // price only.
+    private static long UnitRefundAmount(Order order, OrderUnit unit)
+    {
+        var item = order.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
+        if (item is null) return 0;
+        var price = item.UnitPrice;
+        if (order.DiscountAmount <= 0 || order.Subtotal <= 0) return price;
+        var share = (long)Math.Round(order.DiscountAmount * (double)price / order.Subtotal, MidpointRounding.AwayFromZero);
+        return Math.Max(0, price - share);
+    }
+
+    // Rejects ONE account of an order: refunds what the buyer paid for it, returns its stock, and leaves the
+    // rest of the order alone. All of it inside one write transaction, so the refund and the flag land together
+    // and a replayed reject can never pay twice.
+    public (Order? order, long refunded, string? error) RejectUnit(int orderId, int unitId, string? reason, string? changedBy = null) =>
+        WriteTx<(Order?, long, string?)>((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id = @id", new { id = orderId }, tx);
+            if (oj is null) return (null, 0, "سفارش یافت نشد.");
+            var o = Deserialize<Order>(oj)!;
+            var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit is null) return (null, 0, "اکانت یافت نشد.");
+            if (unit.Delivered) return (null, 0, "این اکانت قبلاً تحویل شده است.");
+            if (unit.Rejected) return (null, 0, "این اکانت قبلاً رد شده است.");
+
+            var refund = UnitRefundAmount(o, unit);
+            unit.Rejected = true;
+            unit.RejectionReason = reason;
+            unit.RejectedAtUtc = DateTime.UtcNow;
+            unit.HandledBy = changedBy;
+            unit.RefundedAmount = refund;
+
+            // The account was never handed over, so its stock goes back on the shelf.
+            var pj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @pid", new { pid = unit.ProductId }, tx);
+            if (pj is not null)
+            {
+                var p = Deserialize<Product>(pj)!;
+                p.Stock += 1;
+                UpsertProduct(conn, tx, p);
+            }
+
+            if (refund > 0)
+            {
+                var buyer = LoadUser(conn, tx, o.UserId);
+                if (buyer is not null)
+                {
+                    buyer.Wallet += refund;
+                    UpsertUser(conn, tx, buyer);
+                    var name = string.IsNullOrWhiteSpace(buyer.Name) ? buyer.Username : buyer.Name;
+                    InsertTransaction(conn, tx, new Transaction
+                    {
+                        UserId = buyer.Id, UserName = name, Type = TxTypes.Refund, Amount = refund,
+                        Status = TxStatus.Approved, Method = "کیف پول", ApprovedVia = "reject-unit",
+                        OrderCode = o.Code, Date = Today(),
+                    });
+                    AddNotificationTx(conn, tx, buyer.Id, "بازگشت وجه",
+                        $"«{unit.Name}» از سفارش {o.Code} رد شد و {refund:N0} تومان به کیف پول شما بازگشت.", "/account/wallet");
+                }
+            }
+
+            SettleUnitsIfDone(conn, tx, o, changedBy);
+            UpsertOrder(conn, tx, o);
+            RefreshUserStats(conn, tx, o.UserId);
+            return (o, refund, null);
+        });
+
+    // Closes an order once no account is still pending: all rejected → cancelled, otherwise completed (which
+    // is what issues the invoice).
+    private static void SettleUnitsIfDone(SqliteConnection conn, SqliteTransaction tx, Order o, string? changedBy)
+    {
+        if (o.Units.Count == 0 || o.Status is OrderStatus.Completed or OrderStatus.Cancelled) return;
+        if (!o.Units.All(u => u.Delivered || u.Rejected)) return;
+
+        var from = o.Status;
+        if (o.Units.All(u => u.Rejected))
+        {
+            o.Status = OrderStatus.Cancelled;
+            AppendOrderHistory(o, from, OrderStatus.Cancelled, changedBy, "رد همه‌ی اکانت‌ها");
+            AddNotificationTx(conn, tx, o.UserId, "سفارش لغو شد",
+                $"همه‌ی اقلام سفارش {o.Code} رد شد و مبلغ آن‌ها بازگشت داده شد.", "/account/orders");
+        }
+        else
+        {
+            o.DeliveryContent = string.Join("\n\n", o.Units.Where(u => u.Delivered).OrderBy(u => u.UnitIndex)
+                .Select(u => o.Units.Count > 1 ? $"اکانت {u.UnitIndex}:\n{u.DeliveryContent}" : u.DeliveryContent));
+            o.DeliveredAt = Today();
+            o.DeliveredAtUtc ??= DateTime.UtcNow;
+            o.Status = OrderStatus.Completed;
+            EnsureInvoiceNumber(conn, tx, o);
+            AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تعیین تکلیف همه‌ی اکانت‌ها");
+            AddNotificationTx(conn, tx, o.UserId, "سفارش شما آماده شد",
+                $"سفارش {o.Code} آماده و قابل مشاهده در حساب شماست.", "/account/orders");
+        }
+    }
 
     // Atomic claim: the stamp is written inside the write transaction, so two concurrent approvals of the same
     // order can never both win and post the accounts twice.

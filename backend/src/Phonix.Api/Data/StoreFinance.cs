@@ -167,17 +167,15 @@ public partial class StoreData
                 }
             }
 
-            // Rejecting an order's payment cancels the still-pending order so the site status matches the receipt.
+            // Rejecting an order's payment cancels the still-pending order so the site status matches the
+            // receipt. Routed through the real cancel path, which restores the stock and refunds ONLY what was
+            // actually collected — for a pending order that is the wallet portion. The rejected receipt's money
+            // never arrived, so it is never credited. No penalty: the customer didn't cancel, we rejected.
             if (e.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(e.OrderCode) && e.Status != TxStatus.Rejected && status == TxStatus.Rejected)
             {
                 var ord = _orders.FirstOrDefault(o => o.Code == e.OrderCode);
                 if (ord is not null && ord.Status == OrderStatus.PendingApproval)
-                {
-                    ord.Status = OrderStatus.Cancelled;
-                    AppendOrderHistory(ord, OrderStatus.PendingApproval, OrderStatus.Cancelled, "سیستم (رد پرداخت)",
-                        note is { Length: > 0 } ? note : "رد پرداخت سفارش");
-                    RefreshUserOrderStats(ord.UserId);
-                }
+                    CancelOrderCore(ord.Id, "سیستم (رد پرداخت)", note is { Length: > 0 } ? note : "رد پرداخت سفارش", applyPenalty: false);
             }
 
             e.Status = status;

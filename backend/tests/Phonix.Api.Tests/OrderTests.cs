@@ -361,6 +361,93 @@ public class OrderTests
         Assert.Equal(store.GetProduct(1)!.FinalPrice, res.Order!.Items[0].UnitPrice);
     }
 
+    // Rejecting a receipt means the money never arrived — so it must never be credited to the wallet. Only the
+    // wallet portion the buyer really paid comes back, and there is no penalty: they didn't cancel, we rejected.
+    [Fact]
+    public void Rejecting_a_receipt_never_credits_the_receipt_amount_to_the_wallet()
+    {
+        var store = TestStore.Create();
+        var user = store.GetUser(1)!;              // ali — wallet is smaller than the order, so a remainder is due
+        var startWallet = user.Wallet;
+        var startStock = store.GetProduct(1)!.Stock;
+        var planId = store.GetProduct(1)!.Plans.First(p => p.IsActive).Id;
+
+        var placed = store.PlaceOrder(user, new[] { (1, 2, (int?)planId) }, "کیف پول + درگاه", fromWallet: true,
+            paymentMethodId: 3, payment: new RemainderPayment(ApprovedCard(store, 1), "/uploads/r.png", "TRK-1", "1403/03/22", null),
+            customerCheckout: true);
+        var order = placed.Order!;
+        Assert.Equal(OrderStatus.PendingApproval, order.Status);
+        Assert.Equal(startWallet, order.WalletPaid);        // the whole wallet went in
+        Assert.Equal(0, store.GetUser(1)!.Wallet);
+
+        var tx = store.GetTransactions().First(t => t.OrderCode == order.Code && t.Type == TxTypes.OrderPayment);
+        store.SetTransactionStatus(tx.Id, TxStatus.Rejected, "site", "رسید جعلی است");
+
+        // The wallet gets back exactly what it put in — not a toman of the rejected receipt, and no penalty.
+        Assert.Equal(startWallet, store.GetUser(1)!.Wallet);
+        Assert.Equal(OrderStatus.Cancelled, store.GetOrder(order.Id)!.Status);
+        Assert.Equal(startStock, store.GetProduct(1)!.Stock);   // stock returned
+    }
+
+    // Each account is approved/rejected on its own, so rejecting one refunds only what was paid for THAT
+    // account: its price minus its share of the order's discount (no VAT, no gateway fee).
+    [Fact]
+    public void Rejecting_one_account_refunds_its_own_discounted_price_only()
+    {
+        var store = TestStore.Create();
+        var user = store.GetUser(5)!;              // reza — enough wallet to pay in full
+        var planId = store.GetProduct(1)!.Plans.First(p => p.IsActive).Id;
+
+        var placed = store.PlaceOrder(user, new[] { (1, 2, (int?)planId) }, "wallet", fromWallet: true, discountCode: "WELCOME10");
+        var order = placed.Order!;
+        Assert.Equal(OrderStatus.Preparing, order.Status);
+        Assert.True(order.DiscountAmount > 0);
+
+        var unitPrice = order.Items[0].UnitPrice;
+        var expectedShare = (long)Math.Round(order.DiscountAmount * (double)unitPrice / order.Subtotal, MidpointRounding.AwayFromZero);
+        var expectedRefund = unitPrice - expectedShare;
+        var walletBefore = store.GetUser(5)!.Wallet;
+        var stockBefore = store.GetProduct(1)!.Stock;
+
+        var (after, refunded, error) = store.RejectUnit(order.Id, order.Units[0].Id, "موجود نبود", "telegram");
+
+        Assert.Null(error);
+        Assert.Equal(expectedRefund, refunded);                          // price after discount — no VAT/fee
+        Assert.Equal(walletBefore + expectedRefund, store.GetUser(5)!.Wallet);
+        Assert.Equal(stockBefore + 1, store.GetProduct(1)!.Stock);       // only that one account returned
+        Assert.True(after!.Units[0].Rejected);
+        Assert.Equal(expectedRefund, after.Units[0].RefundedAmount);
+        Assert.Equal(OrderStatus.Preparing, after.Status);               // the other account is still pending
+
+        // A replayed reject must never pay twice.
+        var (_, _, second) = store.RejectUnit(order.Id, order.Units[0].Id, "دوباره", "telegram");
+        Assert.NotNull(second);
+        Assert.Equal(walletBefore + expectedRefund, store.GetUser(5)!.Wallet);
+    }
+
+    // One rejected account must not hold the order open: delivering the rest still completes it (and issues
+    // the invoice), while rejecting every account cancels it.
+    [Fact]
+    public void An_order_settles_once_every_account_is_delivered_or_rejected()
+    {
+        var store = TestStore.Create();
+        var planId = store.GetProduct(1)!.Plans.First(p => p.IsActive).Id;
+        var order = store.PlaceOrder(store.GetUser(5)!, new[] { (1, 2, (int?)planId) }, "wallet", fromWallet: true).Order!;
+
+        store.RejectUnit(order.Id, order.Units[0].Id, "موجود نبود", "telegram");
+        var (afterDeliver, justCompleted) = store.DeliverUnit(order.Id, order.Units[1].Id, "اکانت دوم");
+
+        Assert.True(justCompleted);
+        Assert.Equal(OrderStatus.Completed, afterDeliver!.Status);
+        Assert.NotNull(afterDeliver.InvoiceNumber);
+        Assert.DoesNotContain("اکانت 1", afterDeliver.DeliveryContent ?? ""); // the rejected one isn't shown
+
+        // Every account rejected → the order is cancelled, not completed.
+        var other = store.PlaceOrder(store.GetUser(5)!, new[] { (1, 1, (int?)planId) }, "wallet", fromWallet: true).Order!;
+        store.RejectUnit(other.Id, other.Units[0].Id, "موجود نبود", "telegram");
+        Assert.Equal(OrderStatus.Cancelled, store.GetOrder(other.Id)!.Status);
+    }
+
     [Fact]
     public void Order_bot_announcement_is_claimed_exactly_once()
     {

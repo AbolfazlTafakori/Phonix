@@ -148,22 +148,16 @@ SELECT last_insert_rowid();",
             }
 
             // A rejected order payment cancels the still-pending order, so the site status mirrors the receipt
-            // decision. The reason (note) rides along into the history entry.
+            // decision. Routed through the same cancel logic the panel uses, which restores the stock and
+            // refunds ONLY what was actually collected — for a pending order that is the wallet portion. The
+            // rejected receipt's money never arrived, so it is never credited. No penalty: the customer didn't
+            // cancel, we rejected.
             if (e.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(e.OrderCode) && e.Status != TxStatus.Rejected && status == TxStatus.Rejected)
             {
-                var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Code=@code", new { code = e.OrderCode }, tx);
-                if (oj is not null)
-                {
-                    var ord = Deserialize<Order>(oj)!;
-                    if (ord.Status == OrderStatus.PendingApproval)
-                    {
-                        ord.Status = OrderStatus.Cancelled;
-                        AppendOrderHistory(ord, OrderStatus.PendingApproval, OrderStatus.Cancelled, "سیستم (رد پرداخت)",
-                            note is { Length: > 0 } ? note : "رد پرداخت سفارش");
-                        UpsertOrder(conn, tx, ord);
-                        RefreshUserStats(conn, tx, ord.UserId);
-                    }
-                }
+                var orderId = conn.QueryFirstOrDefault<int?>("SELECT Id FROM Orders WHERE Code=@code", new { code = e.OrderCode }, tx);
+                if (orderId is int oid)
+                    CancelOrderInTx(conn, tx, oid, "سیستم (رد پرداخت)",
+                        note is { Length: > 0 } ? note : "رد پرداخت سفارش", applyPenalty: false);
             }
 
             e.Status = status; e.ApprovedVia = via; if (note is not null) e.Note = note;

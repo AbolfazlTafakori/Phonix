@@ -356,20 +356,24 @@ public sealed class TelegramOrderService : ITelegramOrderService
 
         if (action == "no")
         {
-            // Rejecting an account rejects its order: the money was taken for the order as a whole, so the
-            // panel's own cancel path (refund + restock + history) is exactly what should run.
-            var result = _store.CancelOrder(orderId.Value, "telegram", "رد سفارش از طریق تلگرام");
-            if (result.Error is not null)
+            // Reject only THIS account. The buyer is refunded what they actually paid for it — its price after
+            // its share of the order discount — and the rest of the order carries on independently.
+            var (updated, refunded, error) = _store.RejectUnit(orderId.Value, unit.Id, "رد سفارش از طریق تلگرام", "telegram");
+            if (error is not null)
             {
-                await AnswerCallbackAsync(token, callbackId, result.Error, ct);
+                await AnswerCallbackAsync(token, callbackId, error, ct);
                 return;
             }
             _store.AddNotification(order.UserId, "سفارش شما رد شد",
-                $"سفارش {order.Code} رد شد. برای پیگیری به بخش تیکت‌ها مراجعه کنید.", "/account/tickets");
-            _logger.LogInformation("Telegram order decision: order {Code} unit {UnitId} → Rejected", order.Code, unit.Id);
-            await AnswerCallbackAsync(token, callbackId, "❌ رد شد.", ct);
+                $"«{unit.Name}» از سفارش {order.Code} رد شد. برای پیگیری به بخش تیکت‌ها مراجعه کنید.", "/account/tickets");
+            _logger.LogInformation("Telegram order decision: order {Code} unit {UnitId} → Rejected, refunded {Refund}",
+                order.Code, unit.Id, refunded);
+            await AnswerCallbackAsync(token, callbackId, $"❌ رد شد — {refunded:N0} تومان بازگشت.", ct);
             if (chatId is not null && messageId is not null)
-                await EditDecidedAsync(token, chatId.Value, messageId.Value, order, unit, "❌ رد شد", ct);
+            {
+                var rejectedUnit = updated?.Units.FirstOrDefault(u => u.Id == unit.Id) ?? unit;
+                await EditDecidedAsync(token, chatId.Value, messageId.Value, updated ?? order, rejectedUnit, "❌ رد شد", ct);
+            }
             return;
         }
 
