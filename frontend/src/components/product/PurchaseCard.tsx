@@ -53,19 +53,21 @@ export default function PurchaseCard({ product }: { product: Product }) {
   const [planId, setPlanId] = useState<number | null>(typedPlans[0]?.id ?? null);
   const selected: ProductPlan | undefined = typedPlans.find((p) => p.id === planId) ?? typedPlans[0];
 
-  // Identity-level gate, enforced here rather than only at checkout: a buyer who can't reach this product's
-  // required level must not get as far as filling a cart with it. Unknown until /me answers, so the gate stays
-  // closed-but-silent for a guest, who is sent to login on the first action anyway.
+  // Identity-level gate, mirrored here from the server rule (PlaceOrder: buyer.VerificationLevel <
+  // product.RequiredLevel) so a buyer who can't reach the level never fills a cart they can't check out.
+  // Levels: 0 = registered only (can never buy), 1 = approved bank card, 2 = approved national ID.
+  // A missing level falls back to 1, exactly like the model default and the checkout's own `?? 1`.
+  const requiredLevel = product.requiredLevel ?? 1;
   const [level, setLevel] = useState<number | null>(null);
   useEffect(() => {
     if (!user) { setLevel(null); return; }
     let cancelled = false;
     api.account.me()
       .then((me) => { if (!cancelled) setLevel(me.verificationLevel); })
-      .catch(() => { /* leave unknown — checkout still gates it */ });
+      .catch(() => { /* leave unknown — checkout and the server still gate it */ });
     return () => { cancelled = true; };
   }, [user]);
-  const overLevel = user !== null && level !== null && product.requiredLevel > level;
+  const overLevel = user !== null && level !== null && level < requiredLevel;
 
   // A product that sells per plan can't be ordered without one: the plan carries the price and the
   // "collect info from the customer" step. The server refuses such a checkout too.
@@ -228,11 +230,18 @@ export default function PurchaseCard({ product }: { product: Product }) {
            can never check out with; send them to verification instead. */
         <div className="mt-4 rounded-xl border p-4 text-center" style={{ borderColor: "var(--ac-btn-secondary-border)", background: "var(--ac-stat-icon-orange-bg)" }}>
           <p className="text-[13px] font-black" style={{ color: "#F2551F" }}>برای خرید این محصول احراز هویت لازم است</p>
-          <p className="mt-1 text-[12px]" style={{ color: "var(--ac-text)" }}>
-            این محصول به سطح {toFa(product.requiredLevel)} احراز هویت نیاز دارد؛ سطح فعلی شما {toFa(level ?? 0)} است.
+          <p className="mt-1 text-[12px] leading-6" style={{ color: "var(--ac-text)" }}>
+            {/* Name the step, not just a number: level 1 is the bank card, level 2 the national ID. */}
+            این محصول به سطح {toFa(requiredLevel)} ({requiredLevel >= 2 ? "تأیید کارت ملی" : "تأیید کارت بانکی"}) نیاز دارد؛
+            سطح فعلی شما {toFa(level ?? 0)} است.
           </p>
-          <Link href="/account/kyc" className="mt-3 grid h-11 w-full place-items-center rounded-xl text-[14px] font-black text-white transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
-            تکمیل احراز هویت
+          <Link
+            href={requiredLevel >= 2 && (level ?? 0) >= 1 ? "/account/kyc" : "/account/cards"}
+            className="mt-3 grid h-11 w-full place-items-center rounded-xl text-[14px] font-black text-white transition hover:brightness-105"
+            style={{ background: "var(--ac-btn)" }}
+          >
+            {/* Level 2 needs level 1 first (KycController rejects it otherwise), so send them to cards until they have it. */}
+            {requiredLevel >= 2 && (level ?? 0) >= 1 ? "احراز هویت با کارت ملی" : "ثبت و تأیید کارت بانکی"}
           </Link>
         </div>
       ) : planRequired ? (
