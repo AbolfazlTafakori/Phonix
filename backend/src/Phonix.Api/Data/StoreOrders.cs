@@ -103,6 +103,12 @@ public partial class StoreData
                     plan = p.Plans.FirstOrDefault(x => x.Id == pid && x.IsActive);
                     if (plan is null) continue;
                 }
+                // A customer must pick a plan whenever the product offers one: the plan carries the real price
+                // AND the "collect info from the customer" step, so a plan-less checkout would both charge the
+                // bare base price and skip the account details the plan requires. Staff/internal placement is
+                // unaffected — it may still order at the base price.
+                else if (customerCheckout && p.Plans.Any(x => x.IsActive))
+                    return new PlaceOrderResult(null, $"برای «{p.Name}» باید یک پلن انتخاب کنید.");
 
                 var qty = Math.Min(quantity, 100);
                 var planLabel = plan is null ? null : $"{plan.Type} · {plan.Months} ماهه";

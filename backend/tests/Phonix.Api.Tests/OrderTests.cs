@@ -196,7 +196,9 @@ public class OrderTests
         var user = store.GetUser(1)!;
         var cardId = ApprovedCard(store, 1);
 
-        var placed = store.PlaceOrder(user, new[] { (1, 1, (int?)null) }, "درگاه", fromWallet: false, paymentMethodId: 3,
+        // A real customer checkout always carries the chosen plan — a plan-priced product can't be ordered without one.
+        var planId = store.GetProduct(1)!.Plans.First(p => p.IsActive).Id;
+        var placed = store.PlaceOrder(user, new[] { (1, 1, (int?)planId) }, "درگاه", fromWallet: false, paymentMethodId: 3,
             payment: new RemainderPayment(cardId, "/uploads/r.png", "TRK-1", "1403/03/22", null), customerCheckout: true);
 
         Assert.Null(placed.Error);
@@ -327,6 +329,36 @@ public class OrderTests
 
         store.SetOrderStatus(second.Id, OrderStatus.Completed);
         Assert.NotEqual(firstNumber, store.GetOrder(second.Id)!.InvoiceNumber);
+    }
+
+    // A customer checking out a plan-priced product without picking a plan would be charged the bare base
+    // price AND skip the plan's "collect info from the customer" step, since both live on the plan.
+    [Fact]
+    public void A_customer_cannot_check_out_a_plan_priced_product_without_choosing_a_plan()
+    {
+        var store = TestStore.Create();
+        Assert.Contains(store.GetProduct(1)!.Plans, p => p.IsActive);
+        var startStock = store.GetProduct(1)!.Stock;
+
+        var res = store.PlaceOrder(store.GetUser(1)!, new[] { (1, 1, (int?)null) }, "کارت", fromWallet: false,
+            paymentMethodId: 3, payment: new RemainderPayment(ApprovedCard(store, 1), "/uploads/r.png", "TRK-1", "1403/03/22", null),
+            customerCheckout: true);
+
+        Assert.NotNull(res.Error);
+        Assert.Null(res.Order);
+        Assert.Equal(startStock, store.GetProduct(1)!.Stock); // rejected before any stock moved
+    }
+
+    // Staff/internal placement is deliberately unaffected — it may still order at the product's base price.
+    [Fact]
+    public void Internal_placement_may_still_order_at_the_base_price_without_a_plan()
+    {
+        var store = TestStore.Create();
+        var res = store.PlaceOrder(store.GetUser(1)!, new[] { (1, 1, (int?)null) }, "کارت", fromWallet: false);
+
+        Assert.Null(res.Error);
+        Assert.NotNull(res.Order);
+        Assert.Equal(store.GetProduct(1)!.FinalPrice, res.Order!.Items[0].UnitPrice);
     }
 
     [Fact]

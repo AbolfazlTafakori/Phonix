@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -51,6 +52,24 @@ export default function PurchaseCard({ product }: { product: Product }) {
   );
   const [planId, setPlanId] = useState<number | null>(typedPlans[0]?.id ?? null);
   const selected: ProductPlan | undefined = typedPlans.find((p) => p.id === planId) ?? typedPlans[0];
+
+  // Identity-level gate, enforced here rather than only at checkout: a buyer who can't reach this product's
+  // required level must not get as far as filling a cart with it. Unknown until /me answers, so the gate stays
+  // closed-but-silent for a guest, who is sent to login on the first action anyway.
+  const [level, setLevel] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user) { setLevel(null); return; }
+    let cancelled = false;
+    api.account.me()
+      .then((me) => { if (!cancelled) setLevel(me.verificationLevel); })
+      .catch(() => { /* leave unknown — checkout still gates it */ });
+    return () => { cancelled = true; };
+  }, [user]);
+  const overLevel = user !== null && level !== null && product.requiredLevel > level;
+
+  // A product that sells per plan can't be ordered without one: the plan carries the price and the
+  // "collect info from the customer" step. The server refuses such a checkout too.
+  const planRequired = plans.length > 0 && selected == null;
 
   // The cart already keys lines by product + plan, so each duration is its own line with its own quantity.
   // The quantity stepper is revealed only once the *selected* plan is in the cart (i.e. the user pressed
@@ -203,6 +222,24 @@ export default function PurchaseCard({ product }: { product: Product }) {
       {out ? (
         <button type="button" disabled className="mt-4 h-14 w-full cursor-not-allowed rounded-xl border text-[15px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>
           ناموجود
+        </button>
+      ) : overLevel ? (
+        /* The buyer's identity level is below what this product needs — don't let them build a cart they
+           can never check out with; send them to verification instead. */
+        <div className="mt-4 rounded-xl border p-4 text-center" style={{ borderColor: "var(--ac-btn-secondary-border)", background: "var(--ac-stat-icon-orange-bg)" }}>
+          <p className="text-[13px] font-black" style={{ color: "#F2551F" }}>برای خرید این محصول احراز هویت لازم است</p>
+          <p className="mt-1 text-[12px]" style={{ color: "var(--ac-text)" }}>
+            این محصول به سطح {toFa(product.requiredLevel)} احراز هویت نیاز دارد؛ سطح فعلی شما {toFa(level ?? 0)} است.
+          </p>
+          <Link href="/account/kyc" className="mt-3 grid h-11 w-full place-items-center rounded-xl text-[14px] font-black text-white transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
+            تکمیل احراز هویت
+          </Link>
+        </div>
+      ) : planRequired ? (
+        /* Priced per plan, but none is selectable — ordering it would charge the bare base price and skip the
+           plan's info step, so the server refuses it too. */
+        <button type="button" disabled className="mt-4 h-14 w-full cursor-not-allowed rounded-xl border text-[15px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>
+          ابتدا یک پلن انتخاب کنید
         </button>
       ) : inCartQty > 0 ? (
         <div className="mt-4 space-y-2.5">
