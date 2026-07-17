@@ -47,7 +47,10 @@ public class AccountController : ControllerBase
         // Data is keyed by the immutable Id, so a rename keeps every order/ticket/transaction attached.
         if (input.Username is not null && _store.SetUsername(id, input.Username) is string usernameError)
             return BadRequest(usernameError);
-        // email, like username, must stay unique to one account.
+        // email, like username, must stay unique to one account — and always a real address (it is the
+        // account's contact + verification channel, so it can never be blanked or malformed).
+        if (input.Email is not null && !InputValidation.IsEmail(input.Email.Trim()))
+            return BadRequest("ایمیل واردشده معتبر نیست.");
         if (input.Email is not null && _store.SetEmail(id, input.Email) is string emailError)
             return BadRequest(emailError);
         // Capture the avatar being replaced so its now-orphaned file can be cleaned up after the update.

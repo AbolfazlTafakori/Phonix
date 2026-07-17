@@ -46,7 +46,10 @@ public class UsersController : ControllerBase
         // from the store on every request, so the promotion would take effect on their very next call.
         if (input.Role is not null && this.CurrentRole() != UserRole.Admin)
             return StatusCode(403, "تغییر نقش کاربران فقط توسط مدیر امکان‌پذیر است.");
-        // email is a unique identity handle — guard it before the rest of the mutation.
+        // email is a unique identity handle — guard it before the rest of the mutation. Same format rule as
+        // signup: it is the user's contact/verification channel, so it can never be blanked or malformed.
+        if (input.Email is not null && !InputValidation.IsEmail(input.Email.Trim()))
+            return BadRequest("ایمیل واردشده معتبر نیست.");
         if (input.Email is not null && _store.SetEmail(id, input.Email) is string emailError)
             return BadRequest(emailError);
         var ok = _store.UpdateUser(id, u =>

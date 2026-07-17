@@ -485,6 +485,8 @@ public partial class StoreData : IDataStore
                 _users.Any(x => x.Id != userId && string.Equals(x.Email, mail, StringComparison.OrdinalIgnoreCase)))
                 return "این ایمیل قبلاً برای حساب دیگری ثبت شده است.";
             user.Email = mail;
+            // A different address has never been proven: the verified flag must not survive the change.
+            user.EmailVerified = false;
             return null;
         }
     }

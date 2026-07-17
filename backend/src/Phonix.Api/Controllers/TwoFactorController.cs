@@ -35,6 +35,11 @@ public class TwoFactorController : ControllerBase
         if (this.CurrentUserId() is not int id) return Unauthorized();
         var user = _store.GetUser(id);
         if (user is null) return Unauthorized();
+        // Re-provisioning silently resets the enabled flag (SetTwoFactorSecret), so with 2FA active it would
+        // let a hijacked session strip the second factor WITHOUT the current code that Disable demands.
+        // An active 2FA must be disabled (code-verified) before a new secret can be issued.
+        if (user.TwoFactorEnabled)
+            return BadRequest("ابتدا تأیید دومرحله‌ای فعلی را با کد آن غیرفعال کنید، سپس دوباره راه‌اندازی کنید.");
 
         var secret = TotpService.GenerateSecret();
         if (!_store.SetTwoFactorSecret(id, secret)) return Unauthorized();

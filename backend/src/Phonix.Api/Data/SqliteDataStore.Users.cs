@@ -206,6 +206,9 @@ SELECT last_insert_rowid();",
                 conn.ExecuteScalar<long>("SELECT COUNT(1) FROM Users WHERE Id <> @userId AND Email = @mail COLLATE NOCASE", new { userId, mail }, tx) > 0)
                 return "این ایمیل قبلاً برای حساب دیگری ثبت شده است.";
             user.Email = mail;
+            // A different address has never been proven: the verified flag must not survive the change,
+            // otherwise the checkout's verified-email gate can be bypassed with an address nobody owns.
+            user.EmailVerified = false;
             UpsertUser(conn, tx, user);
             return null;
         });
