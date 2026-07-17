@@ -79,6 +79,8 @@ public sealed partial class SqliteDataStore
                 ProductPlan? plan = null;
                 if (planId is int pid)
                 {
+                    // a referenced plan must exist and be active; otherwise reject the line rather than
+                    // silently charging the base price.
                     plan = p.Plans.FirstOrDefault(x => x.Id == pid && x.IsActive);
                     if (plan is null) continue;
                 }
