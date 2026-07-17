@@ -161,13 +161,13 @@ public class StockAccountTests
         var service = StockAccount.DeriveServiceName(null, delivered.Name);
         string Block(string seat) => string.Join("\n", new[]
         {
-            $"{service} 1 connection 3 Month", "",
+            $"{service} 1 Connection 3 Month", "",
             "User : netacc@mail.com", "",
             "Pass : p@ss", "",
             "Plan : Premium", "",
             $"User : {seat}",
         });
-        Assert.Equal($"{Block("A - 1")}\n\n{Block("A - 2")}", delivered.DeliveryContent);
+        Assert.Equal($"{Block("A - 1")}\n\n──────────\n\n{Block("A - 2")}", delivered.DeliveryContent);
 
         var slots = store.GetStockAccounts(1).Single().Slots;
         Assert.Equal(2, slots.Count(s => s.Status == StockItemStatus.Delivered));
@@ -193,8 +193,8 @@ public class StockAccountTests
 
         Assert.NotNull(served);
         var content = served!.Value.order.Units.Single().DeliveryContent;
-        // Six seats → six «1 connection» blocks labelled A - 1 … A - 6.
-        Assert.Equal(6, System.Text.RegularExpressions.Regex.Matches(content, "1 connection").Count);
+        // Six seats → six «1 Connection» blocks labelled A - 1 … A - 6.
+        Assert.Equal(6, System.Text.RegularExpressions.Regex.Matches(content, "1 Connection").Count);
         foreach (var n in Enumerable.Range(1, 6)) Assert.Contains($"User : A - {n}", content);
         Assert.Equal(6, store.GetStockAccounts(1).Single().Slots.Count(s => s.Status == StockItemStatus.Delivered));
     }

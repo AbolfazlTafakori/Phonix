@@ -528,21 +528,34 @@ LIMIT 1;",
             var o = Deserialize<Order>(oj)!;
             if (o.Status == OrderStatus.Cancelled) return new OrderActionResult(null, "این سفارش قبلاً لغو شده است.");
             if (o.Status == OrderStatus.Completed) return new OrderActionResult(null, "سفارش تکمیل‌شده قابل لغو نیست.");
+            // Delivered accounts can't be taken back, so an order whose every unit is already delivered has
+            // nothing left to cancel.
+            if (o.Units.Count > 0 && o.Units.All(u => u.Delivered))
+                return new OrderActionResult(null, "همه‌ی اکانت‌های این سفارش تحویل شده‌اند و قابل لغو نیست.");
             var settings = ReadSingleton<PricingSettings>(conn, tx, PricingKey);
             var from = o.Status;
 
-            // restore stock
+            // Restore stock only for the seats NOT yet handed over — a delivered unit keeps its stock spent.
             foreach (var line in o.Items)
             {
                 var pj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @pid", new { pid = line.ProductId }, tx);
                 if (pj is null) continue;
                 var p = Deserialize<Product>(pj)!;
-                p.Stock += line.Quantity;
+                p.Stock += StoreData.UndeliveredQuantity(o, line);
                 UpsertProduct(conn, tx, p);
             }
+            // Put back any seats still merely reserved for an undelivered unit (no-op for the item pool).
+            foreach (var u in o.Units.Where(u => !u.Delivered))
+                UpdateReservedSlots(conn, tx, o.Id, u.Id, slot =>
+                {
+                    slot.Status = StockItemStatus.Available; slot.OrderId = null; slot.UnitId = null;
+                });
 
-            // refund what was actually collected (full total once approved, else just the wallet portion).
-            var collected = o.Status == OrderStatus.Preparing ? o.Total : o.WalletPaid;
+            // The buyer keeps whatever was already delivered, so its value is NOT refundable.
+            var deliveredValue = o.Units.Where(u => u.Delivered).Sum(u => UnitRefundAmount(o, u));
+            // refund what was actually collected (full total once Preparing, else the wallet portion) MINUS the
+            // value of the accounts already delivered.
+            var collected = Math.Max(0, (o.Status == OrderStatus.Preparing ? o.Total : o.WalletPaid) - deliveredValue);
             if (collected > 0)
             {
                 var buyer = LoadUser(conn, tx, o.UserId);

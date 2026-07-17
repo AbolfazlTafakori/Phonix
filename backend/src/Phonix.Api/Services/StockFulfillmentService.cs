@@ -155,6 +155,10 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
         return null;
     }
 
+    // A divider the account page renders as a rule (and bolds the first line of the block after it); in plain
+    // channels (mail, Telegram) it simply reads as a clean separator between the seats.
+    internal const string SeatDivider = "──────────";
+
     // The customer-facing message. One clean block PER seat — each is a single connection on the shared
     // account, tagged with its own «User : A - 1» label. `serviceName` is the bare product/service name.
     internal static string BuildSlotDeliveryContent(string serviceName, StockAccount acc, List<StockSlot> slots)
@@ -162,7 +166,7 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
         var pass = SensitiveField.Reveal(acc.Password);
         var blocks = slots.OrderBy(s => s.Index).Select(s => string.Join("\n", new[]
         {
-            $"{serviceName} 1 connection {acc.Months} Month",
+            $"{serviceName} 1 Connection {acc.Months} Month",
             "",
             $"User : {acc.Username}",
             "",
@@ -172,6 +176,6 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
             "",
             $"User : {StockAccount.SlotDisplayLabel(s.Index)}",
         }));
-        return string.Join("\n\n", blocks);
+        return string.Join($"\n\n{SeatDivider}\n\n", blocks);
     }
 }

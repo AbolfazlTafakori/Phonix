@@ -438,17 +438,26 @@ public partial class StoreData
             if (o is null) return new OrderActionResult(null, "سفارش یافت نشد.");
             if (o.Status == OrderStatus.Cancelled) return new OrderActionResult(null, "این سفارش قبلاً لغو شده است.");
             if (o.Status == OrderStatus.Completed) return new OrderActionResult(null, "سفارش تکمیل‌شده قابل لغو نیست.");
+            // Delivered accounts can't be taken back, so an order whose every unit is already delivered has
+            // nothing left to cancel.
+            if (o.Units.Count > 0 && o.Units.All(u => u.Delivered))
+                return new OrderActionResult(null, "همه‌ی اکانت‌های این سفارش تحویل شده‌اند و قابل لغو نیست.");
             var from = o.Status;
 
+            // Restore stock only for the seats NOT yet handed over — a delivered unit keeps its stock spent.
             foreach (var line in o.Items)
             {
                 var p = _products.FirstOrDefault(x => x.Id == line.ProductId);
-                if (p is not null) p.Stock += line.Quantity;
+                if (p is not null) p.Stock += UndeliveredQuantity(o, line);
             }
+            // Put back any seats still merely reserved for an undelivered unit (no-op for the item pool).
+            foreach (var u in o.Units.Where(u => !u.Delivered)) ReleaseStockSlots(o.Id, u.Id);
 
-            // refund what was actually collected: the full total once approved (Preparing),
-            // otherwise just the wallet portion already taken for a partially-paid order.
-            var collected = o.Status == OrderStatus.Preparing ? o.Total : o.WalletPaid;
+            // The buyer keeps whatever was already delivered, so its value is NOT refundable.
+            var deliveredValue = o.Units.Where(u => u.Delivered).Sum(u => UnitRefundAmount(o, u));
+            // refund what was actually collected (full total once Preparing, else the wallet portion taken for
+            // a partially-paid order) MINUS the value of the accounts already delivered.
+            var collected = Math.Max(0, (o.Status == OrderStatus.Preparing ? o.Total : o.WalletPaid) - deliveredValue);
             if (collected > 0)
             {
                 var buyer = UserById(o.UserId);
@@ -489,6 +498,15 @@ public partial class StoreData
     // What the buyer actually paid for ONE account: its plan price minus that account's share of the order's
     // discount. VAT and the gateway fee are deliberately excluded — a rejected account refunds the service
     // price only. Sensitive to rounding, so the share is computed from the order's own subtotal.
+    // The part of a line's quantity whose units are still undelivered — the stock a cancellation returns to the
+    // shelf. A line with no units (legacy orders) counts as fully undelivered.
+    internal static long UndeliveredQuantity(Order order, OrderItem line)
+    {
+        var lineUnits = order.Units.Where(u => u.ProductId == line.ProductId && (u.Plan ?? "") == (line.Plan ?? "")).ToList();
+        if (lineUnits.Count == 0) return line.Quantity;
+        return (long)line.Quantity * lineUnits.Count(u => !u.Delivered) / lineUnits.Count;
+    }
+
     private static long UnitRefundAmount(Order order, OrderUnit unit)
     {
         var item = order.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));

@@ -41,11 +41,15 @@ const URL_RE = /(https?:\/\/[^\s<]+)/g;
 // otherwise-Persian line keep the surrounding text intact.
 const hasRtl = (s: string) => /[؀-ۿ]/.test(s);
 
-function Line({ line }: { line: string }) {
+// A run of box-drawing/dashes on its own line is a block separator (see StockFulfillmentService.SeatDivider).
+const isDivider = (s: string) => /^[\s]*[─—-]{3,}[\s]*$/.test(s);
+
+function Line({ line, bold }: { line: string; bold?: boolean }) {
+  if (isDivider(line)) return <hr className="my-2 border-0 border-t" style={{ borderColor: "var(--ac-panel-border)" }} />;
   if (!line.trim()) return <div className="h-3" aria-hidden />;
   const parts = line.split(URL_RE);
   return (
-    <p dir={hasRtl(line) ? "rtl" : "ltr"} className="leading-8" style={{ color: "var(--ac-text)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+    <p dir={hasRtl(line) ? "rtl" : "ltr"} className={`leading-8 ${bold ? "font-bold" : ""}`} style={{ color: "var(--ac-text)", whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
       {parts.map((part, i) =>
         /^https?:\/\//.test(part) ? (
           <span key={i} className="mx-0.5 inline-flex max-w-full items-center gap-1 rounded-lg px-2 py-0.5 align-middle" style={{ background: "var(--ac-menu-hover)", border: "1px solid var(--ac-panel-border)" }}>
@@ -72,13 +76,20 @@ function Line({ line }: { line: string }) {
 export default function DeliveryContent({ content }: { content: string }) {
   const text = (content ?? "").replace(/\r\n/g, "\n");
   const lines = text.split("\n");
+  // Bold the first non-empty line of each block: the very start, and the first line after every divider.
+  let expectHeader = true;
+  const bold = lines.map((line) => {
+    if (isDivider(line)) { expectHeader = true; return false; }
+    if (expectHeader && line.trim()) { expectHeader = false; return true; }
+    return false;
+  });
   return (
     <div className="space-y-0.5 text-sm">
       <div className="mb-2 flex justify-end">
         <CopyButton text={text} label="کپی همه" />
       </div>
       {lines.map((line, i) => (
-        <Line key={i} line={line} />
+        <Line key={i} line={line} bold={bold[i]} />
       ))}
     </div>
   );

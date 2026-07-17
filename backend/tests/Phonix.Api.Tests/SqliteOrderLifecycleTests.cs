@@ -60,4 +60,46 @@ public class SqliteOrderLifecycleTests
         Assert.Equal(490_000, store.GetUser(buyer.Id)!.Wallet); // 400k + 90k refund
         Assert.Equal(3, store.GetProduct(product.Id)!.Stock);   // stock restored
     }
+
+    [Fact]
+    public void Cancelling_refunds_only_the_seats_not_yet_delivered()
+    {
+        var store = FreshStore();
+        store.UpdateSettings(new PricingSettings { CancellationPenaltyPercent = 0m, VatPercent = 0m });
+
+        var buyer = store.RegisterUser(new AppUser { Username = "buy", Name = "Buyer", VerificationLevel = 1, Wallet = 500_000 });
+        var product = store.AddProduct(new Product { Name = "P", CategoryId = 1, Price = 100_000, Stock = 5, RequiredLevel = 1, IsActive = true });
+
+        // Two accounts, fully wallet-paid → Preparing. Wallet 500k → 300k, stock 5 → 3.
+        var placed = store.PlaceOrder(buyer, new[] { (product.Id, 2, (int?)null) }, "test", fromWallet: true);
+        Assert.Null(placed.Error);
+        Assert.Equal(300_000, store.GetUser(buyer.Id)!.Wallet);
+
+        // Deliver the first account; the second is still pending.
+        var order = placed.Order!;
+        var first = order.Units[0];
+        Assert.NotNull(store.DeliverUnit(order.Id, first.Id, "acc-one", "admin").order);
+
+        var cancelled = store.CancelOrder(order.Id);
+        Assert.Null(cancelled.Error);
+
+        // Only the undelivered account is refunded (100k) and its stock (1) returned; the delivered one is kept.
+        Assert.Equal(400_000, store.GetUser(buyer.Id)!.Wallet); // 300k + 100k
+        Assert.Equal(4, store.GetProduct(product.Id)!.Stock);   // 3 + 1 undelivered
+    }
+
+    [Fact]
+    public void An_order_with_every_account_delivered_cannot_be_cancelled()
+    {
+        var store = FreshStore();
+        store.UpdateSettings(new PricingSettings { VatPercent = 0m });
+        var buyer = store.RegisterUser(new AppUser { Username = "buy", Name = "Buyer", VerificationLevel = 1, Wallet = 500_000 });
+        var product = store.AddProduct(new Product { Name = "P", CategoryId = 1, Price = 100_000, Stock = 5, RequiredLevel = 1, IsActive = true });
+
+        var order = store.PlaceOrder(buyer, new[] { (product.Id, 1, (int?)null) }, "test", fromWallet: true).Order!;
+        Assert.NotNull(store.DeliverUnit(order.Id, order.Units[0].Id, "acc", "admin").order); // → Completed
+
+        var cancelled = store.CancelOrder(order.Id);
+        Assert.NotNull(cancelled.Error); // a fully delivered order is off-limits
+    }
 }
