@@ -33,6 +33,21 @@ public record StockAccountDto(int Id, int ProductId, string Username, string Pla
             a.Slots.OrderBy(s => s.Index).Select(StockSlotDto.From).ToList());
 }
 
+// A seat enriched for the inventory-management popup: its lifecycle plus WHO/WHICH order holds it, so an admin
+// reads ownership at a glance. Customer/order are null for free seats. No credentials — those stay on reveal.
+public record ManagedSlotDto(int Id, int Index, string Label, StockItemStatus Status, int? OrderId, int? UnitId,
+    string? OrderCode, string? Customer, DateTime? DeliveredAtUtc);
+
+// An account for the popup: identity + capacity + seat counters + every enriched seat. No password.
+public record ManagedAccountDto(int Id, int ProductId, string Username, string Plan, string PlanType, int Capacity,
+    int Months, bool Disabled, string? AddedBy, DateTime AddedAtUtc,
+    int Available, int Reserved, int Delivered, int Disabled_, IReadOnlyList<ManagedSlotDto> Slots);
+
+// One row of the waiting-for-inventory report: an order unit the pool couldn't fully seat, with how many seats
+// it holds and how many are still missing, so the admin knows exactly what stock to add.
+public record WaitingOrderDto(int OrderId, string OrderCode, string Customer, int ProductId, string ProductName,
+    string PlanType, int Months, int Needed, int Reserved, int Missing, string Date);
+
 // A stock item WITHOUT its payload. Item contents are live credentials, so lists never carry them — an admin
 // reveals one item at a time through the content endpoint (which leaves an audit-log trail like every admin
 // action).
@@ -200,7 +215,56 @@ public class StockController : ControllerBase
             Months = input.Months,
             AddedBy = User.Identity?.Name,
         });
+        // New compatible stock may complete orders parked in the waiting-for-inventory queue — drain it FIFO so
+        // they finish automatically with no manual reassignment.
+        _fulfillment.FulfillWaitingOrders();
         return Ok(StockAccountDto.From(account));
+    }
+
+    // Every account of a product with its seats enriched with the owning order + customer — the data behind the
+    // inventory-management popup's accordions. Read-only, staff-only; no credentials travel here.
+    [HttpGet("accounts/manage")]
+    public IEnumerable<ManagedAccountDto> ManageAccounts([FromQuery] int productId)
+    {
+        // Resolve seat owners once: order code + customer name keyed by order id, for the seats in play.
+        var orders = _store.GetOrders().ToDictionary(o => o.Id);
+        string? Code(int? oid) => oid is int id && orders.TryGetValue(id, out var o) ? o.Code : null;
+        string? Who(int? oid) => oid is int id && orders.TryGetValue(id, out var o) ? o.UserName : null;
+
+        return _store.GetStockAccounts(productId).Select(a =>
+        {
+            int Count(StockItemStatus st) => a.Slots.Count(s => s.Status == st);
+            var slots = a.Slots.OrderBy(s => s.Index).Select(s => new ManagedSlotDto(
+                s.Id, s.Index, s.Label, s.Status, s.OrderId, s.UnitId, Code(s.OrderId), Who(s.OrderId), s.DeliveredAtUtc)).ToList();
+            return new ManagedAccountDto(a.Id, a.ProductId, a.Username, a.Plan, a.PlanType, a.Capacity, a.Months,
+                a.Disabled, a.AddedBy, a.AddedAtUtc, Count(StockItemStatus.Available), Count(StockItemStatus.Reserved),
+                Count(StockItemStatus.Delivered), Count(StockItemStatus.Disabled), slots);
+        });
+    }
+
+    // The waiting-for-inventory queue: orders parked because the pool couldn't fully seat a unit. FIFO order,
+    // with the exact seat shortfall per unit so the admin knows what to add.
+    [HttpGet("waiting")]
+    public IEnumerable<WaitingOrderDto> Waiting()
+    {
+        // Reserved seats held per (order, unit), read once from the pool.
+        var reservedByUnit = _store.GetStockAccounts()
+            .SelectMany(a => a.Slots)
+            .Where(s => s.Status == StockItemStatus.Reserved && s.OrderId is not null && s.UnitId is not null)
+            .GroupBy(s => (OrderId: s.OrderId!.Value, UnitId: s.UnitId!.Value))
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        var rows = new List<WaitingOrderDto>();
+        foreach (var order in _store.GetOrdersWaitingForInventory())
+            foreach (var unit in order.Units.Where(u => u.WaitingForInventory && !u.Delivered && !u.Rejected))
+            {
+                var needed = StockFulfillmentService.ConnectionCount(order, unit);
+                var reserved = reservedByUnit.TryGetValue((order.Id, unit.Id), out var r) ? r : 0;
+                rows.Add(new WaitingOrderDto(order.Id, order.Code, order.UserName, unit.ProductId, unit.Name,
+                    StockFulfillmentService.PlanType(unit.Plan), StockFulfillmentService.SubscriptionMonths(order, unit),
+                    needed, reserved, Math.Max(0, needed - reserved), order.Date));
+            }
+        return rows;
     }
 
     // Reveals one account's password. Separate endpoint on purpose: the reveal is deliberate and audited.

@@ -69,6 +69,10 @@ public class OrderUnit
     public string? RejectionReason { get; set; }
     public DateTime? RejectedAtUtc { get; set; }
     public long RefundedAmount { get; set; }
+    // Set when the seat pool couldn't fully cover this unit at approval time. The seats it DID get are kept
+    // Reserved (never released) and the unit waits in FIFO order for new compatible inventory, which the pool
+    // applies automatically. A waiting unit is never delivered partially. Cleared once fully delivered.
+    public bool WaitingForInventory { get; set; }
     // Last staff member who saved a draft or delivered this unit — shown so a second admin sees who's on it.
     public string? HandledBy { get; set; }
 }

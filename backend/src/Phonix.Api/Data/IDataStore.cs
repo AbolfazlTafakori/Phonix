@@ -68,6 +68,12 @@ public interface IDataStore
     // `planType` restricts the search to accounts bound to that plan type (accounts with no bound type serve
     // any); empty matches every account of the product.
     (StockAccount Account, List<StockSlot> Slots)? ReserveStockSlots(int productId, int count, string planType, int orderId, int unitId);
+    // Multi-inventory allocation: reserves up to `count` Available seats for (orderId, unitId), matching
+    // accounts by product + plan type + subscription months (months <= 0 matches any), oldest account first,
+    // taking every free seat from each compatible account until `count` is held or the pool is exhausted. Seats
+    // already held for this unit count toward the total (idempotent). The result reports the held groups and
+    // whether the count was fully met; when it wasn't, the held seats stay Reserved for the waiting queue.
+    SeatReservation ReserveSeatsAcrossAccounts(int productId, int months, string planType, int count, int orderId, int unitId);
     // Marks every slot reserved for this unit as Delivered / releases them back to Available.
     bool MarkStockSlotsDelivered(int orderId, int unitId);
     bool ReleaseStockSlots(int orderId, int unitId);
@@ -241,6 +247,11 @@ public interface IDataStore
     Order? DeliverOrder(int id, string content, string? changedBy = null);
     Order? SaveUnitDraft(int orderId, int unitId, string content, string? changedBy = null);
     (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null);
+    // Flags/clears a unit as waiting for inventory (its held seats stay Reserved until the pool can complete it).
+    bool SetUnitWaitingForInventory(int orderId, int unitId, bool waiting);
+    // Preparing orders that still have at least one unit waiting for inventory, oldest first — the FIFO queue
+    // the pool drains when new compatible stock is added.
+    IReadOnlyList<Order> GetOrdersWaitingForInventory();
     // applyPenalty: false for a cancellation the customer didn't choose (staff rejecting a receipt/order).
     OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true);
     // Rejects ONE account of an order: refunds its price after discount, returns its stock, and settles the

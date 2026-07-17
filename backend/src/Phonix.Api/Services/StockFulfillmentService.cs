@@ -26,6 +26,10 @@ public interface IStockFulfillmentService
     // Re-applies the CURRENT slot-delivery format to every already-delivered slot account, rebuilding each
     // unit's content from the account + the seats it holds. Returns how many units were rewritten.
     int ReformatDeliveredSlotOrders();
+
+    // Drains the waiting-for-inventory queue in FIFO order — called after new stock is added so parked orders
+    // complete automatically with no manual reassignment. Returns how many waiting units were completed.
+    int FulfillWaitingOrders();
 }
 
 public sealed class StockFulfillmentService : IStockFulfillmentService
@@ -108,22 +112,26 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
         var updated = 0;
         // Every delivered seat carries the order+unit it served; grouping them reconstructs each delivered
         // unit's account and its exact seats, from which the current format is rebuilt.
-        var groups = _store.GetStockAccounts()
+        var byUnit = _store.GetStockAccounts()
             .SelectMany(a => a.Slots
                 .Where(s => s.Status == StockItemStatus.Delivered && s.OrderId is not null && s.UnitId is not null)
                 .Select(s => (acc: a, slot: s)))
             .GroupBy(x => (OrderId: x.slot.OrderId!.Value, UnitId: x.slot.UnitId!.Value));
 
-        foreach (var g in groups)
+        foreach (var g in byUnit)
         {
-            var acc = g.First().acc;
-            var slots = g.Select(x => x.slot).OrderBy(s => s.Index).ToList();
             var order = _store.GetOrder(g.Key.OrderId);
             var unit = order?.Units.FirstOrDefault(u => u.Id == g.Key.UnitId);
             if (unit is null || !unit.Delivered) continue;
 
+            // A unit's seats can span several accounts (multi-inventory) — rebuild one SeatGroup per account.
+            var seatGroups = g.GroupBy(x => x.acc)
+                .OrderBy(grp => grp.Key.Id)
+                .Select(grp => new SeatGroup(grp.Key, grp.Select(x => x.slot).OrderBy(s => s.Index).ToList()))
+                .ToList();
+
             var service = StockAccount.DeriveServiceName(_store.GetProduct(unit.ProductId)?.ServiceName, unit.Name);
-            var content = BuildSlotDeliveryContent(service, acc, slots);
+            var content = BuildSlotDeliveryContent(service, seatGroups);
             if (_store.UpdateDeliveredUnitContent(g.Key.OrderId, g.Key.UnitId, content)) updated++;
         }
         return updated;
@@ -146,19 +154,38 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
     internal static string PlanType(string? plan) =>
         string.IsNullOrWhiteSpace(plan) ? "" : plan.Split('·')[0].Trim();
 
+    // Subscription length (months) of the order line this unit belongs to — the third dimension a compatible
+    // account must match (with product + plan type). 0 when the order carries no machine-readable duration, in
+    // which case the pool matches accounts of any length (legacy orders).
+    internal static int SubscriptionMonths(Order order, OrderUnit unit)
+    {
+        var item = order.Items.FirstOrDefault(i =>
+            i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
+        return item?.PlanMonths ?? 0;
+    }
+
+    // Seats a purchase needs, drawn across as many compatible accounts as it takes (multi-inventory). When the
+    // pool can't cover the whole unit, the seats it DID get stay Reserved and the unit is parked in the
+    // waiting-for-inventory queue — never delivered partially. Completing later happens automatically the
+    // moment new compatible stock is added (FulfillWaitingOrders), so the same code path serves both.
     private (Order order, bool justCompleted)? ServeFromSlotAccount(Order order, OrderUnit unit, string actor)
     {
         var count = ConnectionCount(order, unit);
         var planType = PlanType(unit.Plan);
+        var months = SubscriptionMonths(order, unit);
 
-        // An earlier reservation for this same unit (a retried approval, a stale tap) is reused instead of
-        // claiming a second run of seats.
-        var reservation = FindReservation(unit.ProductId, order.Id, unit.Id)
-                          ?? _store.ReserveStockSlots(unit.ProductId, count, planType, order.Id, unit.Id);
-        if (reservation is not { } r) return null; // no account of this plan type has enough consecutive seats
+        var res = _store.ReserveSeatsAcrossAccounts(unit.ProductId, months, planType, count, order.Id, unit.Id);
+        if (!res.Complete)
+        {
+            // Hold whatever we got (including nothing) and wait; the customer gets no partial delivery.
+            _store.SetUnitWaitingForInventory(order.Id, unit.Id, true);
+            _logger.LogInformation("Order {Code} unit {UnitId} is waiting for inventory ({Held}/{Count} seats held)",
+                order.Code, unit.Id, res.Held, count);
+            return null;
+        }
 
         var service = StockAccount.DeriveServiceName(_store.GetProduct(unit.ProductId)?.ServiceName, unit.Name);
-        var content = BuildSlotDeliveryContent(service, r.Account, r.Slots);
+        var content = BuildSlotDeliveryContent(service, res.Groups);
         var (updated, justCompleted) = _store.DeliverUnit(order.Id, unit.Id, content, actor);
         if (updated is null)
         {
@@ -167,45 +194,63 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
         }
 
         _store.MarkStockSlotsDelivered(order.Id, unit.Id);
-        _logger.LogInformation("Stock account {AccountId} seated {Count} slot(s) for order {Code} unit {UnitId}",
-            r.Account.Id, r.Slots.Count, order.Code, unit.Id);
+        _store.SetUnitWaitingForInventory(order.Id, unit.Id, false); // fully seated → out of the queue
+        _logger.LogInformation("Seated {Count} slot(s) across {Accounts} account(s) for order {Code} unit {UnitId}",
+            res.Held, res.Groups.Count, order.Code, unit.Id);
         return (updated, justCompleted);
     }
 
-    private (StockAccount Account, List<StockSlot> Slots)? FindReservation(int productId, int orderId, int unitId)
+    public int FulfillWaitingOrders()
     {
-        foreach (var acc in _store.GetStockAccounts(productId))
+        var filled = 0;
+        // FIFO: oldest waiting orders first, so the customer who waited longest is completed first.
+        foreach (var order in _store.GetOrdersWaitingForInventory())
         {
-            var mine = acc.Slots
-                .Where(s => s.Status == StockItemStatus.Reserved && s.OrderId == orderId && s.UnitId == unitId)
-                .OrderBy(s => s.Index)
-                .ToList();
-            if (mine.Count > 0) return (acc, mine);
+            foreach (var unit in order.Units.Where(u => u.WaitingForInventory && !u.Delivered && !u.Rejected).ToList())
+            {
+                if (_store.GetProduct(unit.ProductId) is not { SlotFulfillment: true }) continue;
+                try
+                {
+                    if (ServeFromSlotAccount(order, unit, Actor) is not null) filled++;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to fulfil waiting order {Code} unit {UnitId}", order.Code, unit.Id);
+                }
+            }
         }
-        return null;
+        if (filled > 0) _logger.LogInformation("Filled {Count} waiting unit(s) from newly added inventory", filled);
+        return filled;
     }
 
     // A divider the account page renders as a rule (and bolds the first line of the block after it); in plain
     // channels (mail, Telegram) it simply reads as a clean separator between the seats.
     internal const string SeatDivider = "──────────";
 
-    // The customer-facing message. One clean block PER seat — each is a single connection on the shared
-    // account, tagged with its own «User : A - 1» label. `serviceName` is the bare product/service name.
-    internal static string BuildSlotDeliveryContent(string serviceName, StockAccount acc, List<StockSlot> slots)
+    // One customer-facing block for a single seat — a single connection on the shared account, tagged with its
+    // own «User : A - 1» label. `serviceName` is the bare product/service name.
+    private static string SeatBlock(string serviceName, StockAccount acc, StockSlot slot) => string.Join("\n", new[]
     {
-        var pass = SensitiveField.Reveal(acc.Password);
-        var blocks = slots.OrderBy(s => s.Index).Select(s => string.Join("\n", new[]
-        {
-            $"{serviceName} 1 Connection {acc.Months} Month",
-            "",
-            $"User : {acc.Username}",
-            "",
-            $"Pass : {pass}",
-            "",
-            $"Plan : {acc.Plan}",
-            "",
-            $"User : {StockAccount.SlotDisplayLabel(s.Index)}",
-        }));
-        return string.Join($"\n\n{SeatDivider}\n\n", blocks);
-    }
+        $"{serviceName} 1 Connection {acc.Months} Month",
+        "",
+        $"User : {acc.Username}",
+        "",
+        $"Pass : {SensitiveField.Reveal(acc.Password)}",
+        "",
+        $"Plan : {acc.Plan}",
+        "",
+        $"User : {StockAccount.SlotDisplayLabel(slot.Index)}",
+    });
+
+    // The customer-facing message for one seat account: one clean block per seat. Format unchanged — thousands
+    // of existing customers already know it.
+    internal static string BuildSlotDeliveryContent(string serviceName, StockAccount acc, List<StockSlot> slots) =>
+        string.Join($"\n\n{SeatDivider}\n\n", slots.OrderBy(s => s.Index).Select(s => SeatBlock(serviceName, acc, s)));
+
+    // Same message when a unit's seats span several accounts (multi-inventory fulfillment): the per-seat blocks
+    // are simply concatenated across accounts with the same divider, so the customer sees one continuous list in
+    // the exact same format — each block still self-contained with its own credentials.
+    internal static string BuildSlotDeliveryContent(string serviceName, IEnumerable<SeatGroup> groups) =>
+        string.Join($"\n\n{SeatDivider}\n\n", groups
+            .SelectMany(g => g.Slots.OrderBy(s => s.Index).Select(s => SeatBlock(serviceName, g.Account, s))));
 }

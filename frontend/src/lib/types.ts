@@ -158,6 +158,46 @@ export type StockAccount = {
   slots: StockSlot[];
 };
 
+// A seat enriched with who holds it — for the inventory-management popup. Free seats have null order/customer.
+export type StockManagedSlot = StockSlot & {
+  orderCode: string | null;
+  customer: string | null;
+};
+
+// An account for the popup: identity + capacity + per-status seat counters + every enriched seat.
+export type StockManagedAccount = {
+  id: number;
+  productId: number;
+  username: string;
+  plan: string;
+  planType: string;
+  capacity: number;
+  months: number;
+  disabled: boolean;
+  addedBy: string | null;
+  addedAtUtc: string;
+  available: number;
+  reserved: number;
+  delivered: number;
+  disabled_: number;
+  slots: StockManagedSlot[];
+};
+
+// One row of the waiting-for-inventory report: an order unit the pool couldn't fully seat yet.
+export type StockWaitingOrder = {
+  orderId: number;
+  orderCode: string;
+  customer: string;
+  productId: number;
+  productName: string;
+  planType: string;
+  months: number;
+  needed: number;
+  reserved: number;
+  missing: number;
+  date: string;
+};
+
 export type ProductInput = {
   name: string;
   categoryId: number;
@@ -640,6 +680,8 @@ export type OrderUnit = {
   rejectionReason: string | null;
   rejectedAtUtc: string | null;
   refundedAmount: number;
+  // The seat pool couldn't fully cover this unit yet; its held seats stay reserved until new stock completes it.
+  waitingForInventory: boolean;
   handledBy: string | null;
 };
 

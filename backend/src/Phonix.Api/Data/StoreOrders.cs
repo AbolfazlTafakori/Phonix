@@ -419,6 +419,27 @@ public partial class StoreData
         return (snapshot, justCompleted);
     }
 
+    public bool SetUnitWaitingForInventory(int orderId, int unitId, bool waiting)
+    {
+        lock (_gate)
+        {
+            var unit = _orders.FirstOrDefault(x => x.Id == orderId)?.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit is null || unit.WaitingForInventory == waiting) return false;
+            unit.WaitingForInventory = waiting;
+            MarkDirty();
+            return true;
+        }
+    }
+
+    public IReadOnlyList<Order> GetOrdersWaitingForInventory()
+    {
+        lock (_gate)
+            return _orders
+                .Where(o => o.Status == OrderStatus.Preparing && o.Units.Any(u => u.WaitingForInventory && !u.Delivered && !u.Rejected))
+                .OrderBy(o => o.Id)
+                .ToList();
+    }
+
     private Order? DeliverOrderCore(int id, string content, string? changedBy = null)
     {
         lock (_gate)

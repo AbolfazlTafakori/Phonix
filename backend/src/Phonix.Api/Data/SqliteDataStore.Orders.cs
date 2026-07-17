@@ -655,6 +655,29 @@ LIMIT 1;",
             return (o, justCompleted);
         });
 
+    public bool SetUnitWaitingForInventory(int orderId, int unitId, bool waiting) =>
+        WriteTx((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id=@orderId", new { orderId }, tx);
+            if (oj is null) return false;
+            var o = Deserialize<Order>(oj)!;
+            var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit is null || unit.WaitingForInventory == waiting) return false;
+            unit.WaitingForInventory = waiting;
+            UpsertOrder(conn, tx, o);
+            return true;
+        });
+
+    public IReadOnlyList<Order> GetOrdersWaitingForInventory()
+    {
+        using var conn = OpenConnection();
+        return conn.Query<string>("SELECT DataJson FROM Orders WHERE Status = @status ORDER BY Id",
+                new { status = (int)OrderStatus.Preparing })
+            .Select(j => Deserialize<Order>(j)!)
+            .Where(o => o.Units.Any(u => u.WaitingForInventory && !u.Delivered && !u.Rejected))
+            .ToList();
+    }
+
     // What the buyer actually paid for ONE account: its plan price minus that account's share of the order's
     // discount. VAT and the gateway fee are deliberately excluded — a rejected account refunds the service
     // price only.

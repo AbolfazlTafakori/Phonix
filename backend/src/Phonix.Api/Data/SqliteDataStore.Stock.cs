@@ -174,6 +174,23 @@ SELECT last_insert_rowid();",
         });
     }
 
+    public SeatReservation ReserveSeatsAcrossAccounts(int productId, int months, string planType, int count, int orderId, int unitId)
+    {
+        if (count <= 0) return new SeatReservation(Array.Empty<SeatGroup>(), 0, true);
+        return WriteTx((conn, tx) =>
+        {
+            var accounts = conn.Query<string>(
+                    "SELECT DataJson FROM StockAccounts WHERE ProductId = @productId ORDER BY Id", new { productId }, tx)
+                .Select(j => Deserialize<StockAccount>(j)!)
+                .Where(a => !a.Disabled && StoreData.AccountServesPlanType(a, planType) && StoreData.AccountServesMonths(a, months))
+                .ToList();
+            var reservation = StoreData.PlanSeatReservation(accounts, count, orderId, unitId, out var modified);
+            foreach (var acc in accounts.Where(a => modified.Contains(a.Id)))
+                UpsertStockAccount(conn, tx, acc);
+            return reservation;
+        });
+    }
+
     public bool MarkStockSlotsDelivered(int orderId, int unitId) =>
         WriteTx((conn, tx) => UpdateReservedSlots(conn, tx, orderId, unitId, slot =>
         {

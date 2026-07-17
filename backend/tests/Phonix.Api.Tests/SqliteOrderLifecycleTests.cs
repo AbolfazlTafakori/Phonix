@@ -36,6 +36,36 @@ public class SqliteOrderLifecycleTests
         Assert.Equal(10_000, store.GetUser(referrer.Id)!.Wallet);
     }
 
+    // The multi-inventory engine and the waiting queue must behave identically on the production (SQLite) store,
+    // not just the in-memory JSON one — the reservation/upsert path runs inside an IMMEDIATE transaction here.
+    [Fact]
+    public void Sqlite_reserves_seats_across_accounts_and_parks_the_shortfall_as_waiting()
+    {
+        var store = FreshStore();
+        var product = store.AddProduct(new Product { Name = "Shared", CategoryId = 1, Price = 50_000, Stock = 99, RequiredLevel = 1, IsActive = true });
+        StockAccount Acc(string u) => store.AddStockAccount(new StockAccount { ProductId = product.Id, Username = u, Password = "p", Plan = "Prem", Capacity = 2, Months = 3 });
+
+        // First account (2 seats) can't cover a 4-seat unit: 2 held, unit parks in the queue.
+        Acc("first@mail.com");
+        var partial = store.ReserveSeatsAcrossAccounts(product.Id, months: 3, planType: "", count: 4, orderId: 42, unitId: 1);
+        Assert.False(partial.Complete);
+        Assert.Equal(2, partial.Held);
+
+        // A second matching account arrives → the top-up completes the 4 seats across both accounts (idempotent).
+        Acc("second@mail.com");
+        var full = store.ReserveSeatsAcrossAccounts(product.Id, months: 3, planType: "", count: 4, orderId: 42, unitId: 1);
+        Assert.True(full.Complete);
+        Assert.Equal(4, full.Held);
+        Assert.Equal(2, full.Groups.Count); // seats span both accounts
+        Assert.Equal(4, store.GetStockAccounts(product.Id).SelectMany(a => a.Slots)
+            .Count(s => s.Status == StockItemStatus.Reserved && s.OrderId == 42 && s.UnitId == 1));
+
+        // Wrong subscription length is never seated: a 1-month account can't serve a 3-month order.
+        var other = store.AddProduct(new Product { Name = "Other", CategoryId = 1, Price = 50_000, Stock = 9, RequiredLevel = 1, IsActive = true });
+        store.AddStockAccount(new StockAccount { ProductId = other.Id, Username = "wrong", Password = "p", Plan = "P", Capacity = 5, Months = 1 });
+        Assert.False(store.ReserveSeatsAcrossAccounts(other.Id, months: 3, planType: "", count: 1, orderId: 7, unitId: 1).Complete);
+    }
+
     [Fact]
     public void Cancelling_a_paid_order_restores_stock_and_refunds_minus_penalty()
     {

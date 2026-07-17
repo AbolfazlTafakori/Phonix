@@ -17,6 +17,15 @@ public class StockSlot
     public DateTime? DeliveredAtUtc { get; set; }
 }
 
+// The seats one order unit now holds on a single inventory account. A unit's full allocation may span several
+// of these when no single account had enough free seats (multi-inventory fulfillment).
+public sealed record SeatGroup(StockAccount Account, IReadOnlyList<StockSlot> Slots);
+
+// Outcome of reserving seats for an order unit across compatible accounts: the per-account groups now held for
+// the unit, how many seats are held in total, and whether the requested count was fully satisfied. When
+// Complete is false the held seats stay Reserved and the unit waits for new inventory (never partial delivery).
+public sealed record SeatReservation(IReadOnlyList<SeatGroup> Groups, int Held, bool Complete);
+
 // A multi-seat inventory account (a shared subscription): one set of credentials serving `Capacity` numbered
 // slots. The admin enters the account once; the slots are generated automatically and each one lives its own
 // lifecycle. Fulfillment always seats one purchase on CONSECUTIVE free slots of a single account.

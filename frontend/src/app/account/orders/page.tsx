@@ -8,6 +8,7 @@ import { formatToman, toFa } from "@/lib/format";
 import { orderStatusLabel } from "@/lib/labels";
 import { PageTitle, Panel } from "@/components/account/Panel";
 import DeliveryContent from "@/components/account/DeliveryContent";
+import SeatDelivery, { parseSeats } from "@/components/account/SeatDelivery";
 import { StatusBadge } from "@/components/admin/ui";
 import type { Order } from "@/lib/types";
 
@@ -231,18 +232,26 @@ export default function OrdersPage() {
                             <DeliveryContent content={o.deliveryContent} />
                           </div>
                         ) : selUnits.length > 0 ? (
-                          selUnits.map((u) => (
-                            <div key={u.id} className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
-                              <div className="mb-2 flex items-center gap-2">
-                                <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
-                                <span className="text-sm font-bold text-emerald-600">
-                                  اطلاعات سرویس شما{selMulti ? ` — اکانت ${toFa(u.unitIndex)}` : ""}
-                                </span>
-                                {u.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {u.deliveredAt}</span>}
+                          selUnits.map((u) => {
+                            // Shared-account deliveries render as a seat picker; anything else keeps the raw view.
+                            const seats = parseSeats(u.deliveryContent);
+                            return (
+                              <div key={u.id} className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
+                                <div className="mb-2 flex items-center gap-2">
+                                  <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
+                                  <span className="text-sm font-bold text-emerald-600">
+                                    اطلاعات سرویس شما{selMulti ? ` — اکانت ${toFa(u.unitIndex)}` : ""}
+                                  </span>
+                                  {u.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {u.deliveredAt}</span>}
+                                </div>
+                                {seats.length > 0 ? (
+                                  <SeatDelivery seats={seats} deviceInfo={u.customerInputs} />
+                                ) : (
+                                  <DeliveryContent content={u.deliveryContent} />
+                                )}
                               </div>
-                              <DeliveryContent content={u.deliveryContent} />
-                            </div>
-                          ))
+                            );
+                          })
                         ) : (
                           <div className="rounded-xl border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-700">
                             این سرویس هنوز تحویل نشده است؛ پس از آماده‌سازی، اطلاعات آن همین‌جا نمایش داده می‌شود.

@@ -226,6 +226,81 @@ public partial class StoreData
         return null;
     }
 
+    // ── Multi-inventory allocation (feature: an order unit may draw seats from several accounts) ──────
+
+    // An account matches an order's subscription length when its Months equals the order's, or when the order
+    // carries no machine-readable duration (months <= 0) — legacy orders then match any account of the type.
+    internal static bool AccountServesMonths(StockAccount acc, int months) => months <= 0 || acc.Months == months;
+
+    // Seats already Reserved for (orderId, unitId) on an account, in seat order. Counting these makes the
+    // allocation idempotent: a retried approval tops the unit up to its target instead of double-booking.
+    internal static List<StockSlot> HeldSlots(StockAccount acc, int orderId, int unitId) =>
+        acc.Slots.Where(s => s.Status == StockItemStatus.Reserved && s.OrderId == orderId && s.UnitId == unitId)
+            .OrderBy(s => s.Index).ToList();
+
+    // Plans (and applies) the allocation over already-filtered, oldest-first compatible accounts: it keeps the
+    // seats the unit already holds, then takes every Available seat from each account in turn — oldest account
+    // first — until `count` seats are held or the pool is exhausted. Mutates the taken slots to Reserved and
+    // reports which accounts changed so the caller can persist exactly those. Never releases anything.
+    internal static SeatReservation PlanSeatReservation(
+        IReadOnlyList<StockAccount> accounts, int count, int orderId, int unitId, out HashSet<int> modified)
+    {
+        modified = new HashSet<int>();
+        var groups = new Dictionary<int, (StockAccount Account, List<StockSlot> Slots)>();
+        var held = 0;
+
+        // Seats already held for this unit count first (idempotent top-up), oldest account first.
+        foreach (var acc in accounts)
+        {
+            var existing = HeldSlots(acc, orderId, unitId);
+            if (existing.Count == 0) continue;
+            groups[acc.Id] = (acc, existing);
+            held += existing.Count;
+        }
+
+        // Then draw more Available seats, oldest account first, until the target is met or nothing is left.
+        foreach (var acc in accounts)
+        {
+            if (held >= count) break;
+            var take = acc.Slots.Where(s => s.Status == StockItemStatus.Available).OrderBy(s => s.Index)
+                .Take(count - held).ToList();
+            if (take.Count == 0) continue;
+            foreach (var slot in take)
+            {
+                slot.Status = StockItemStatus.Reserved;
+                slot.OrderId = orderId;
+                slot.UnitId = unitId;
+            }
+            modified.Add(acc.Id);
+            if (groups.TryGetValue(acc.Id, out var g))
+                groups[acc.Id] = (acc, g.Slots.Concat(take).OrderBy(s => s.Index).ToList());
+            else
+                groups[acc.Id] = (acc, take);
+            held += take.Count;
+        }
+
+        var ordered = accounts
+            .Where(a => groups.ContainsKey(a.Id))
+            .Select(a => new SeatGroup(a, groups[a.Id].Slots))
+            .ToList();
+        return new SeatReservation(ordered, held, held >= count);
+    }
+
+    public SeatReservation ReserveSeatsAcrossAccounts(int productId, int months, string planType, int count, int orderId, int unitId)
+    {
+        if (count <= 0) return new SeatReservation(Array.Empty<SeatGroup>(), 0, true);
+        lock (_gate)
+        {
+            var accounts = _stockAccounts
+                .Where(a => a.ProductId == productId && !a.Disabled
+                            && AccountServesPlanType(a, planType) && AccountServesMonths(a, months))
+                .OrderBy(a => a.Id).ToList();
+            var reservation = PlanSeatReservation(accounts, count, orderId, unitId, out var modified);
+            if (modified.Count > 0) MarkDirty();
+            return reservation;
+        }
+    }
+
     public bool MarkStockSlotsDelivered(int orderId, int unitId)
     {
         lock (_gate)

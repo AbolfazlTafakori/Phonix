@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { StockAccount, StockItem, StockItemStatus, StockSummary } from "@/lib/types";
+import type { StockItem, StockItemStatus, StockManagedAccount, StockSummary, StockWaitingOrder } from "@/lib/types";
 import { toFa } from "@/lib/format";
 import { Card, PageHeader, Spinner, Modal, Field, Toggle, inputCls } from "@/components/admin/ui";
 
@@ -154,25 +154,35 @@ export default function AdminStockPage() {
 
   // ── Multi-user (slot) accounts ──────────────────────────────────────────────────────────────────
   const [accTarget, setAccTarget] = useState<StockSummary | null>(null);
-  const [accounts, setAccounts] = useState<StockAccount[]>([]);
+  const [accounts, setAccounts] = useState<StockManagedAccount[]>([]);
   const [accLoading, setAccLoading] = useState(false);
   const [accBusy, setAccBusy] = useState(false);
   const [accError, setAccError] = useState("");
   const [accRevealed, setAccRevealed] = useState<Record<number, string>>({});
+  // Which account accordions are expanded, and the waiting-for-inventory report for this product.
+  const [accExpanded, setAccExpanded] = useState<Record<number, boolean>>({});
+  const [waiting, setWaiting] = useState<StockWaitingOrder[]>([]);
   const emptyForm = { username: "", password: "", plan: "", planType: "", capacity: "10", months: "1" };
   const [form, setForm] = useState(emptyForm);
   const [serviceName, setServiceName] = useState("");
   const [serviceBusy, setServiceBusy] = useState(false);
+
+  async function reloadAccounts(productId: number) {
+    const [accs, wait] = await Promise.all([api.stock.manageAccounts(productId), api.stock.waiting()]);
+    setAccounts(accs);
+    setWaiting(wait.filter((w) => w.productId === productId));
+  }
 
   async function openAccounts(row: StockSummary) {
     setAccTarget(row);
     setForm({ ...emptyForm, planType: row.planTypes[0] ?? "" });
     setServiceName(row.serviceName);
     setAccRevealed({});
+    setAccExpanded({});
     setAccError("");
     setAccLoading(true);
     try {
-      setAccounts(await api.stock.accounts(row.productId));
+      await reloadAccounts(row.productId);
     } catch (e) {
       setAccError(e instanceof Error ? e.message : "خطا در بارگذاری اکانت‌ها");
     } finally {
@@ -200,7 +210,7 @@ export default function AdminStockPage() {
     setAccError("");
     try {
       await fn();
-      setAccounts(await api.stock.accounts(accTarget.productId));
+      await reloadAccounts(accTarget.productId);
       await refreshSummary();
     } catch (e) {
       setAccError(e instanceof Error ? e.message : "خطا در انجام عملیات");
@@ -405,81 +415,136 @@ export default function AdminStockPage() {
 
             {accError && <p className="text-sm text-rose-400">{accError}</p>}
 
+            {/* Waiting-for-inventory report: orders the pool couldn't fully seat yet, and exactly what's missing. */}
+            {waiting.length > 0 && (
+              <div className="rounded-xl border border-amber-500/25 bg-amber-500/[0.06] p-3">
+                <div className="mb-2 flex items-center gap-2 text-xs font-bold text-amber-300">
+                  <span>در انتظار موجودی</span>
+                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5">{toFa(waiting.length)}</span>
+                  <span className="mr-auto font-normal text-amber-300/70">با افزودن اکانت سازگار، خودکار تکمیل می‌شوند</span>
+                </div>
+                <div className="space-y-1.5">
+                  {waiting.map((w) => (
+                    <div key={`${w.orderId}`} className="flex flex-wrap items-center gap-2 rounded-lg bg-black/20 px-2.5 py-1.5 text-[11px]">
+                      <span className="font-mono font-bold text-white/80">{w.orderCode}</span>
+                      <span className="text-white/50">{w.customer}</span>
+                      {w.planType && <span className="rounded bg-sky-500/15 px-1.5 py-0.5 font-bold text-sky-300">{w.planType}</span>}
+                      <span className="text-white/40">{toFa(w.months)} ماهه</span>
+                      <span className="mr-auto flex items-center gap-2">
+                        <span className="text-emerald-300">رزرو {toFa(w.reserved)}/{toFa(w.needed)}</span>
+                        <span className="rounded bg-rose-500/15 px-1.5 py-0.5 font-bold text-rose-300">کمبود {toFa(w.missing)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {accLoading ? (
               <div className="grid place-items-center py-10"><Spinner /></div>
             ) : accounts.length === 0 ? (
               <p className="py-6 text-center text-sm text-white/40">هنوز اکانتی برای این محصول ثبت نشده است.</p>
             ) : (
-              <div className="max-h-[45vh] space-y-3 overflow-y-auto pl-1">
-                {accounts.map((a) => (
-                  <div key={a.id} className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-xs text-white/40">#{toFa(a.id)}</span>
-                      <span dir="ltr" className="font-mono text-xs font-bold text-white">{a.username}</span>
-                      {a.plan && <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] text-white/60">{a.plan}</span>}
-                      {a.planType && <span className="rounded-md bg-sky-500/15 px-2 py-0.5 text-[11px] font-bold text-sky-300">{a.planType}</span>}
-                      <span className="text-[11px] text-white/40">
-                        ظرفیت {toFa(a.capacity)} · {toFa(a.months)} ماهه
-                      </span>
-                      {a.disabled && (
-                        <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white/50">غیرفعال</span>
-                      )}
-                      <span className="mr-auto flex items-center gap-1.5">
-                        <button
-                          onClick={() => revealAccount(a.id)}
-                          className="rounded-md border border-white/15 px-2.5 py-1 text-[11px] font-bold text-white/70 transition hover:bg-white/10"
-                        >
-                          {accRevealed[a.id] !== undefined ? "پنهان" : "گذرواژه"}
-                        </button>
-                        <button
-                          onClick={() => accAct(() => (a.disabled ? api.stock.enableAccount(a.id) : api.stock.disableAccount(a.id)))}
-                          disabled={accBusy}
-                          className="rounded-md border border-white/15 px-2.5 py-1 text-[11px] font-bold text-white/70 transition hover:bg-white/10 disabled:opacity-50"
-                        >
-                          {a.disabled ? "فعال‌سازی" : "غیرفعال"}
-                        </button>
-                        {a.slots.every((s) => s.status !== "Delivered") && (
+              <div className="max-h-[45vh] space-y-2.5 overflow-y-auto pl-1">
+                {accounts.map((a) => {
+                  const open = accExpanded[a.id] ?? false;
+                  return (
+                    <div key={a.id} className="overflow-hidden rounded-xl border border-white/8 bg-white/[0.02]">
+                      {/* accordion header — click anywhere to expand; action buttons stop propagation */}
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setAccExpanded((e) => ({ ...e, [a.id]: !open }))}
+                        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") setAccExpanded((s) => ({ ...s, [a.id]: !open })); }}
+                        className="flex cursor-pointer flex-wrap items-center gap-2 p-3 transition hover:bg-white/[0.03]"
+                      >
+                        <span className={`text-white/40 transition-transform ${open ? "rotate-90" : ""}`}>▸</span>
+                        <span className="font-mono text-xs text-white/40">#{toFa(a.id)}</span>
+                        <span dir="ltr" className="font-mono text-xs font-bold text-white">{a.username}</span>
+                        {a.plan && <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] text-white/60">{a.plan}</span>}
+                        {a.planType && <span className="rounded-md bg-sky-500/15 px-2 py-0.5 text-[11px] font-bold text-sky-300">{a.planType}</span>}
+                        <span className="text-[11px] text-white/40">ظرفیت {toFa(a.capacity)} · {toFa(a.months)} ماهه</span>
+                        {/* seat counters — free / reserved / delivered at a glance */}
+                        <span className="flex items-center gap-1.5 text-[11px]">
+                          <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 font-bold text-emerald-400">خالی {toFa(a.available)}</span>
+                          <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-bold text-amber-300">رزرو {toFa(a.reserved)}</span>
+                          <span className="rounded bg-sky-500/15 px-1.5 py-0.5 font-bold text-sky-300">تحویل {toFa(a.delivered)}</span>
+                        </span>
+                        {a.disabled && <span className="rounded-md bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white/50">غیرفعال</span>}
+                        <span className="mr-auto flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                           <button
-                            onClick={() => accAct(() => api.stock.removeAccount(a.id))}
-                            disabled={accBusy}
-                            className="rounded-md border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-400 transition hover:bg-rose-500/10 disabled:opacity-50"
+                            onClick={() => revealAccount(a.id)}
+                            className="rounded-md border border-white/15 px-2.5 py-1 text-[11px] font-bold text-white/70 transition hover:bg-white/10"
                           >
-                            حذف
+                            {accRevealed[a.id] !== undefined ? "پنهان" : "گذرواژه"}
                           </button>
-                        )}
-                      </span>
+                          <button
+                            onClick={() => accAct(() => (a.disabled ? api.stock.enableAccount(a.id) : api.stock.disableAccount(a.id)))}
+                            disabled={accBusy}
+                            className="rounded-md border border-white/15 px-2.5 py-1 text-[11px] font-bold text-white/70 transition hover:bg-white/10 disabled:opacity-50"
+                          >
+                            {a.disabled ? "فعال‌سازی" : "غیرفعال"}
+                          </button>
+                          {a.delivered === 0 && (
+                            <button
+                              onClick={() => accAct(() => api.stock.removeAccount(a.id))}
+                              disabled={accBusy}
+                              className="rounded-md border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-400 transition hover:bg-rose-500/10 disabled:opacity-50"
+                            >
+                              حذف
+                            </button>
+                          )}
+                        </span>
+                      </div>
+
+                      {open && (
+                        <div className="border-t border-white/8 p-3">
+                          {accRevealed[a.id] !== undefined && (
+                            <pre dir="ltr" className="mb-2 overflow-x-auto whitespace-pre-wrap rounded-lg border border-white/8 bg-black/30 p-2.5 font-mono text-xs text-white/80">
+                              {accRevealed[a.id]}
+                            </pre>
+                          )}
+                          {/* one row per seat: status, and (when held) the owning order + customer */}
+                          <div className="space-y-1">
+                            {a.slots.map((s) => {
+                              const held = s.status === "Reserved" || s.status === "Delivered";
+                              const actionable = s.status !== "Delivered";
+                              return (
+                                <div
+                                  key={s.id}
+                                  className="flex items-center gap-2 rounded-lg bg-white/[0.02] px-2.5 py-1.5 text-[11px]"
+                                >
+                                  <span dir="ltr" className="w-10 font-mono font-bold text-white/80">{s.label}</span>
+                                  <span className={`rounded px-1.5 py-0.5 font-bold ${statusMeta[s.status].cls}`}>{statusMeta[s.status].label}</span>
+                                  {held && (
+                                    <span className="flex items-center gap-2 text-white/50">
+                                      <span className="font-mono">{s.orderCode ?? `#${toFa(s.orderId ?? 0)}`}</span>
+                                      {s.customer && <span>{s.customer}</span>}
+                                    </span>
+                                  )}
+                                  {actionable && (
+                                    <button
+                                      disabled={accBusy}
+                                      onClick={() => {
+                                        // one tap cycles the seat through its legal transitions; Delivered is final.
+                                        if (s.status === "Available") accAct(() => api.stock.slotAction(a.id, s.id, "disable"));
+                                        else if (s.status === "Disabled") accAct(() => api.stock.slotAction(a.id, s.id, "enable"));
+                                        else if (s.status === "Reserved") accAct(() => api.stock.slotAction(a.id, s.id, "release"));
+                                      }}
+                                      className="mr-auto rounded border border-white/15 px-2 py-0.5 text-[10px] font-bold text-white/60 transition hover:bg-white/10 disabled:opacity-50"
+                                    >
+                                      {s.status === "Available" ? "غیرفعال" : s.status === "Disabled" ? "فعال" : "آزادسازی"}
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {accRevealed[a.id] !== undefined && (
-                      <pre dir="ltr" className="mt-2 overflow-x-auto whitespace-pre-wrap rounded-lg border border-white/8 bg-black/30 p-2.5 font-mono text-xs text-white/80">
-                        {accRevealed[a.id]}
-                      </pre>
-                    )}
-                    <div dir="ltr" className="mt-2 flex flex-wrap gap-1.5">
-                      {a.slots.map((s) => (
-                        <button
-                          key={s.id}
-                          disabled={accBusy}
-                          title={
-                            s.status === "Reserved" || s.status === "Delivered"
-                              ? `${statusMeta[s.status].label} — سفارش #${s.orderId ?? "?"}`
-                              : statusMeta[s.status].label
-                          }
-                          onClick={() => {
-                            // one tap cycles the slot through its legal transitions; Delivered is final.
-                            if (s.status === "Available") accAct(() => api.stock.slotAction(a.id, s.id, "disable"));
-                            else if (s.status === "Disabled") accAct(() => api.stock.slotAction(a.id, s.id, "enable"));
-                            else if (s.status === "Reserved") accAct(() => api.stock.slotAction(a.id, s.id, "release"));
-                          }}
-                          className={`rounded-md px-2 py-1 font-mono text-[11px] font-bold transition ${statusMeta[s.status].cls} ${
-                            s.status === "Delivered" ? "cursor-default" : "hover:brightness-125"
-                          }`}
-                        >
-                          {s.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
