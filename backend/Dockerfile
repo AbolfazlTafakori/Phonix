@@ -33,4 +33,9 @@ ENV ASPNETCORE_URLS=http://+:5228 \
 USER app
 
 EXPOSE 5228
+
+# Probe /health so orchestrators (and `docker ps`) see real readiness even without the compose override.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://localhost:5228/health || exit 1
+
 ENTRYPOINT ["dotnet", "Phonix.Api.dll"]
