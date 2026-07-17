@@ -3,6 +3,8 @@ import type {
   CategoryInput,
   Product,
   ProductInput,
+  StockItem,
+  StockSummary,
   User,
   UserRole,
   UserUpdateInput,
@@ -188,6 +190,21 @@ export const api = {
     updatePrice: (id: number, body: { price: number; discountPercent: number; priceUsd?: number }) =>
       request<Product>(`/products/${id}/price`, { method: "PUT", body: json(body) }),
     remove: (id: number) => request<void>(`/products/${id}`, { method: "DELETE" }),
+  },
+  stock: {
+    summary: () => request<StockSummary[]>("/stock/summary"),
+    items: (productId: number) => request<StockItem[]>(`/stock${qs({ productId })}`),
+    content: (id: number) => request<{ content: string }>(`/stock/${id}/content`),
+    add: (productId: number, lines: string[]) =>
+      request<StockItem[]>("/stock", { method: "POST", body: json({ productId, lines }) }),
+    disable: (id: number) => request<void>(`/stock/${id}/disable`, { method: "POST" }),
+    enable: (id: number) => request<void>(`/stock/${id}/enable`, { method: "POST" }),
+    release: (id: number) => request<void>(`/stock/${id}/release`, { method: "POST" }),
+    remove: (id: number) => request<void>(`/stock/${id}`, { method: "DELETE" }),
+    autoDeliver: (productId: number, enabled: boolean) =>
+      request<void>("/stock/auto-deliver", { method: "POST", body: json({ productId, enabled }) }),
+    pull: (orderId: number, unitId: number) =>
+      request<{ stockItemId: number; content: string }>("/stock/pull", { method: "POST", body: json({ orderId, unitId }) }),
   },
   admin: {
     // Role-filtered sidebar + live badge counts for the signed-in staff member.

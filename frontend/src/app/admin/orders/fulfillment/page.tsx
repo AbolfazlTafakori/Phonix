@@ -23,6 +23,24 @@ export default function OrderFulfillmentPage() {
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const [pullError, setPullError] = useState("");
+
+  // Reserves the next available stock-pool item for this unit and drops its payload into the content field.
+  // The item stays reserved until the delivery is submitted; abandoning the modal leaves it releasable from
+  // the stock page.
+  async function pullFromStock() {
+    if (!target) return;
+    setBusy(true);
+    setPullError("");
+    try {
+      const { content: pulled } = await api.stock.pull(target.order.id, target.unit.id);
+      setContent(pulled);
+    } catch (e) {
+      setPullError(e instanceof Error ? e.message : "خطا در برداشت از انبار");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -42,6 +60,7 @@ export default function OrderFulfillmentPage() {
 
   function open(order: Order, unit: OrderUnit) {
     setTarget({ order, unit });
+    setPullError("");
     setContent(unit.deliveryContent?.trim() ? unit.deliveryContent : (templates[unit.productId] ?? "").trim());
     setSendEmail(true);
     setEmailSubject(`سفارش ${order.code} آماده شد`);
@@ -163,6 +182,16 @@ export default function OrderFulfillmentPage() {
         <Field label="اطلاعات تحویل (در حساب کاربری مشتری نمایش داده می‌شود)">
           <textarea value={content} onChange={(e) => setContent(e.target.value)} rows={5} className={`${inputCls} resize-none`} placeholder="ایمیل، رمز، لینک دعوت یا هر چیزی که مشتری باید دریافت کند…" />
         </Field>
+        <div className="mt-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] text-white/40">{pullError || "آیتم بعدی انبار مجازی این محصول را در فیلد بالا قرار می‌دهد."}</p>
+          <button
+            onClick={pullFromStock}
+            disabled={busy || !target || target.unit.delivered}
+            className="shrink-0 rounded-lg border border-sky-500/30 px-3 py-1.5 text-xs font-bold text-sky-300 transition hover:bg-sky-500/10 disabled:opacity-50"
+          >
+            برداشت از انبار
+          </button>
+        </div>
 
         <label className="mt-4 flex cursor-pointer items-center justify-between gap-2">
           <span className="text-sm text-white/80">ارسال ایمیل به کاربر</span>

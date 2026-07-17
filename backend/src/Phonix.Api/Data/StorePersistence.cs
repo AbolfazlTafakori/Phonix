@@ -17,6 +17,7 @@ public class StoreSnapshot
 
     public List<Category> Categories { get; set; } = new();
     public List<Product> Products { get; set; } = new();
+    public List<StockItem> StockItems { get; set; } = new();
     public List<AppUser> Users { get; set; } = new();
     public List<SubscriptionPlan> Plans { get; set; } = new();
     public List<HeroSlide> HeroSlides { get; set; } = new();
@@ -50,6 +51,7 @@ public class StoreSnapshot
     {
         public int Category { get; set; }
         public int Product { get; set; }
+        public int Stock { get; set; }
         public int User { get; set; }
         public int Plan { get; set; }
         public int Hero { get; set; }
@@ -123,6 +125,7 @@ public partial class StoreData
             {
                 Categories = _categories.ToList(),
                 Products = _products.ToList(),
+                StockItems = _stockItems.ToList(),
                 Users = _users.ToList(),
                 Plans = _plans.ToList(),
                 HeroSlides = _heroSlides.ToList(),
@@ -166,6 +169,7 @@ public partial class StoreData
                 {
                     Category = _categorySeq,
                     Product = _productSeq,
+                    Stock = _stockSeq,
                     User = _userSeq,
                     Plan = _planSeq,
                     Hero = _heroSeq,
@@ -198,6 +202,7 @@ public partial class StoreData
         {
             Replace(_categories, s.Categories);
             Replace(_products, s.Products);
+            Replace(_stockItems, s.StockItems);
             Replace(_users, s.Users);
             Replace(_plans, s.Plans);
             Replace(_heroSlides, s.HeroSlides);
@@ -229,6 +234,8 @@ public partial class StoreData
 
             _categorySeq = s.Seq.Category;
             _productSeq = s.Seq.Product;
+            // Older snapshots have no Stock seq — heal from the item list so new ids never collide.
+            _stockSeq = Math.Max(s.Seq.Stock, s.StockItems.Count == 0 ? 0 : s.StockItems.Max(x => x.Id));
             _userSeq = s.Seq.User;
             _planSeq = s.Seq.Plan;
             _heroSeq = s.Seq.Hero;

@@ -98,6 +98,31 @@ export type Product = {
   plans: ProductPlan[];
 };
 
+export type StockItemStatus = "Available" | "Reserved" | "Delivered" | "Disabled";
+
+// One pool item, without its payload — contents are credentials and are revealed one at a time.
+export type StockItem = {
+  id: number;
+  productId: number;
+  status: StockItemStatus;
+  orderId: number | null;
+  unitId: number | null;
+  addedBy: string | null;
+  addedAtUtc: string;
+  deliveredAtUtc: string | null;
+};
+
+export type StockSummary = {
+  productId: number;
+  name: string;
+  image: string;
+  autoDeliver: boolean;
+  available: number;
+  reserved: number;
+  delivered: number;
+  disabled: number;
+};
+
 export type ProductInput = {
   name: string;
   categoryId: number;

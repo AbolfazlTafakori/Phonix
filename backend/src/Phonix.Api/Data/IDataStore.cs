@@ -41,6 +41,18 @@ public interface IDataStore
     ProductDeliveryTemplate? AddDeliveryTemplate(int productId, string title, string content);
     bool DeleteDeliveryTemplate(int productId, int templateId);
 
+    // ── Stock pool (virtual inventory of ready-to-deliver items) ────────────────────────────────────
+    IReadOnlyList<StockItem> GetStockItems(int? productId = null);
+    StockItem? GetStockItem(int id);
+    List<StockItem> AddStockItems(int productId, IEnumerable<string> contents, string? addedBy);
+    // Only Available↔Disabled and Reserved→Available (release) transitions are honored; Delivered is final.
+    bool SetStockItemStatus(int id, StockItemStatus status);
+    bool DeleteStockItem(int id); // refused for Delivered items — they are the audit trail of what a buyer got
+    // Atomically reserves the oldest Available item of the product for an order unit (null = pool empty).
+    StockItem? PullStockItem(int productId, int orderId, int unitId);
+    // Marks the item reserved for this unit as Delivered once the unit's delivery actually goes through.
+    bool MarkStockItemDelivered(int orderId, int unitId);
+
     // ── Users ───────────────────────────────────────────────────────────────────────────────────────
     IReadOnlyList<AppUser> GetUsers(string? search = null, UserRole? role = null, bool? blocked = null);
     AppUser? GetUser(int id);

@@ -61,6 +61,9 @@ public class ProductsController : ControllerBase
             ? Array.Empty<string?>()
             : new[] { existing.Image, existing.Logo, existing.ListImage }.Concat(existing.Gallery).ToArray();
         var product = Map(new Product { Id = id }, input);
+        // The product form doesn't carry the stock-pool switch (it lives on the stock page) — a full-replace
+        // edit must not silently reset it.
+        product.AutoDeliverStock = existing?.AutoDeliverStock ?? false;
         if (!_store.UpdateProduct(product)) return NotFound();
         Services.OrphanCleanup.Queue(_files, _store, oldImages);
         return _store.GetProduct(id)!.ToDto(CategoryName(product.CategoryId));

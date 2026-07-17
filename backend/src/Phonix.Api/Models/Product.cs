@@ -86,6 +86,10 @@ public class Product
     public double PriceUsd { get; set; }
     public int DiscountPercent { get; set; }
     public long Stock { get; set; }
+    // When true, an order for this product is fulfilled straight from the stock pool the moment its payment
+    // is confirmed: each unit takes the next available StockItem and is delivered automatically. Units the
+    // pool can't cover stay pending for manual fulfillment, so an empty pool degrades gracefully.
+    public bool AutoDeliverStock { get; set; }
     public bool IsActive { get; set; } = true;
     public bool Featured { get; set; }
     public string Image { get; set; } = "";
