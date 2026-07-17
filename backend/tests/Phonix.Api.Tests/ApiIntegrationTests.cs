@@ -247,6 +247,43 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
     private record CreatedStaff(int Id);
 
     [Fact]
+    public async Task Support_with_users_permission_cannot_promote_anyone_to_admin()
+    {
+        var admin = await LoginTokenAsync("reza", "1234");
+
+        // Support staff whose job legitimately includes managing customers.
+        await RegisterAsync("usermgr", "usermgr@example.com", "test1234");
+        var create = await _client.SendAsync(Authed(HttpMethod.Post, "/api/staff", admin, new
+        {
+            username = "usermgr", role = "Support", permissions = new[] { "users" },
+        }));
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+        var created = await create.Content.ReadFromJsonAsync<CreatedStaff>();
+        var staff = await LoginTokenAsync("usermgr", "test1234");
+
+        // They may edit customers — that is what the section is for.
+        await RegisterAsync("victim", "victim@example.com", "pass1234");
+        Assert.Equal(HttpStatusCode.OK,
+            (await _client.SendAsync(Authed(HttpMethod.Put, $"/api/users/{created!.Id}", staff, new { note = "ok" }))).StatusCode);
+
+        // But handing themselves Admin through this endpoint is refused, and the role never changes.
+        var escalate = await _client.SendAsync(Authed(HttpMethod.Put, $"/api/users/{created.Id}", staff, new { role = "Admin" }));
+        Assert.Equal(HttpStatusCode.Forbidden, escalate.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await _client.SendAsync(Authed(HttpMethod.Get, "/api/staff", staff))).StatusCode);
+
+        // Promoting someone else is refused too.
+        var victimId = await CurrentIdAsync(await LoginTokenAsync("victim", "pass1234", admin: false));
+        Assert.Equal(HttpStatusCode.Forbidden,
+            (await _client.SendAsync(Authed(HttpMethod.Put, $"/api/users/{victimId}", staff, new { role = "Admin" }))).StatusCode);
+
+        // The admin retains the ability the guard scopes to them.
+        Assert.Equal(HttpStatusCode.OK,
+            (await _client.SendAsync(Authed(HttpMethod.Put, $"/api/users/{victimId}", admin, new { role = "Support" }))).StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await _client.SendAsync(Authed(HttpMethod.Delete, $"/api/staff/{created.Id}", admin))).StatusCode);
+    }
+
+    [Fact]
     public async Task Email_must_be_unique_across_accounts()
     {
         await RegisterAsync("uniqone", "shared@example.com", "pass1234");

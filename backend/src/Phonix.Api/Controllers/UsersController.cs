@@ -41,6 +41,11 @@ public class UsersController : ControllerBase
     [HttpPut("{id:int}")]
     public ActionResult<UserDto> Update(int id, UserUpdateInput input)
     {
+        // Roles are the panel's privilege boundary and belong to the Admin-only StaffController. Without this
+        // guard a Support member holding "users" could hand themselves Admin from here — the role is re-read
+        // from the store on every request, so the promotion would take effect on their very next call.
+        if (input.Role is not null && this.CurrentRole() != UserRole.Admin)
+            return StatusCode(403, "تغییر نقش کاربران فقط توسط مدیر امکان‌پذیر است.");
         // email is a unique identity handle — guard it before the rest of the mutation.
         if (input.Email is not null && _store.SetEmail(id, input.Email) is string emailError)
             return BadRequest(emailError);
