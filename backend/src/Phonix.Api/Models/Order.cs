@@ -32,6 +32,10 @@ public class OrderItem
     // time-based subscription). Used by the renewal-reminder worker to compute expiry; the human-readable
     // `Plan` string above is for display only.
     public int? PlanMonths { get; set; }
+    // How many users/seats the chosen plan covers, captured at order time (0 = the plan sells no fixed seat
+    // count). For slot-fulfilled products this is how many consecutive seats one purchase claims on a shared
+    // account; it's also shown as «تعداد کاربر» on the fulfillment/receipt messages.
+    public int UserCount { get; set; }
     public long UnitPrice { get; set; }
     public int Quantity { get; set; }
     public long LineTotal => UnitPrice * Quantity;
@@ -48,6 +52,7 @@ public class OrderUnit
     public string Name { get; set; } = "";
     public string Image { get; set; } = "";
     public string? Plan { get; set; }
+    public int UserCount { get; set; }     // seats the plan covers, mirrored from the line (see OrderItem.UserCount)
     public int UnitIndex { get; set; }     // 1-based position within its product line ("اکانت اول/دوم")
     // What the customer entered for THIS unit at checkout, plus their optional note.
     public List<OrderInputValue> CustomerInputs { get; set; } = new();

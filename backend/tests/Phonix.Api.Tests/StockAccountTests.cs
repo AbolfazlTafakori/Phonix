@@ -160,6 +160,28 @@ public class StockAccountTests
     }
 
     [Fact]
+    public void A_fixed_user_count_plan_seats_the_whole_count_not_the_cart_quantity()
+    {
+        var store = NewStore();
+        Account(store, 10);
+        var product = store.GetProduct(1)!;
+        product.SlotFulfillment = true;
+        product.Plans.Clear();
+        product.Plans.Add(new ProductPlan { Type = "اشتراکی", Months = 3, Price = 50_000, IsActive = true, UserCount = 6 });
+        store.UpdateProduct(product);
+        var planId = store.GetProduct(1)!.Plans.Single().Id; // renumbered by the store on save
+
+        // The buyer takes ONE «۶ کاربر» plan (quantity 1) — it must seat all six users, not just one.
+        var placed = store.PlaceOrder(store.GetUser(5)!, new[] { (1, 1, (int?)planId) }, "wallet", fromWallet: true);
+        Assert.True(placed.Error is null, placed.Error);
+        var served = Fulfillment(store).ServeUnit(placed.Order!, placed.Order!.Units.Single(), "انبار مجازی");
+
+        Assert.NotNull(served);
+        Assert.Contains("6 Connection", served!.Value.order.Units.Single().DeliveryContent);
+        Assert.Equal(6, store.GetStockAccounts(1).Single().Slots.Count(s => s.Status == StockItemStatus.Delivered));
+    }
+
+    [Fact]
     public void Serving_the_same_unit_twice_never_burns_a_second_run()
     {
         var store = NewStore();

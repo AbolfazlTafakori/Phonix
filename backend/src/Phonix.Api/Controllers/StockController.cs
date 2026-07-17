@@ -238,8 +238,7 @@ public class StockController : ControllerBase
         // hand back the ready-to-send delivery message.
         if (_store.GetProduct(unit.ProductId) is { SlotFulfillment: true })
         {
-            var count = Math.Max(1, order.Items.FirstOrDefault(i =>
-                i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""))?.Quantity ?? 1);
+            var count = StockFulfillmentService.ConnectionCount(order, unit);
             // an earlier reservation for this unit is reused instead of claiming a second run of seats.
             var reservation = FindSlotReservation(unit.ProductId, order.Id, unit.Id)
                               ?? _store.ReserveStockSlots(unit.ProductId, count, order.Id, unit.Id);

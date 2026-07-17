@@ -168,6 +168,10 @@ public class OrdersController : ControllerBase
         // Wallet covered everything → the order is already Preparing; pool-enabled products deliver now.
         _stock.AutoDeliverOrder(order);
         order = _store.GetOrder(order.Id) ?? order; // pick up whatever the pool just delivered
+        // A fully wallet-paid order skips receipt approval, so this is the only place its remaining accounts
+        // reach the orders group. (No-op for a card-to-card order: it's still PendingApproval and gets
+        // announced when its receipt is approved.) The claim keeps a later approval from double-posting.
+        AnnounceToOrderBot(order);
         // Card-to-card remainder → push its receipt to the admin Telegram chat for one-tap approve/reject
         // (no-op unless the receipt bot is enabled). Fire-and-forget: checkout never waits on Telegram.
         var payTx = _store.GetUserTransactions(order.UserId)

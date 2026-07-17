@@ -96,7 +96,8 @@ public sealed partial class SqliteDataStore
                 lines.Add(new OrderItem
                 {
                     ProductId = p.Id, Name = p.Name, Image = p.Image, Plan = planLabel,
-                    PlanMonths = plan?.Months, UnitPrice = plan?.FinalPrice ?? p.FinalPrice, Quantity = qty,
+                    PlanMonths = plan?.Months, UserCount = plan?.UserCount ?? 0,
+                    UnitPrice = plan?.FinalPrice ?? p.FinalPrice, Quantity = qty,
                 });
 
                 // A slot-fulfilled product's quantity is USERS ON ONE SHARED ACCOUNT (consecutive slots), so
@@ -109,6 +110,7 @@ public sealed partial class SqliteDataStore
                     units.Add(new OrderUnit
                     {
                         Id = units.Count + 1, ProductId = p.Id, Name = p.Name, Image = p.Image, Plan = planLabel,
+                        UserCount = plan?.UserCount ?? 0,
                         UnitIndex = u + 1, CustomerInputs = ui?.Inputs ?? new(), CustomerNote = ui?.Note,
                     });
                 }

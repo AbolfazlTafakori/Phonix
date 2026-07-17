@@ -119,6 +119,7 @@ public partial class StoreData
                     Image = p.Image,
                     Plan = planLabel,
                     PlanMonths = plan?.Months,   // machine-readable duration → drives renewal-reminder expiry
+                    UserCount = plan?.UserCount ?? 0,
                     UnitPrice = plan?.FinalPrice ?? p.FinalPrice,
                     Quantity = qty,
                 });
@@ -138,6 +139,7 @@ public partial class StoreData
                         Name = p.Name,
                         Image = p.Image,
                         Plan = planLabel,
+                        UserCount = plan?.UserCount ?? 0,
                         UnitIndex = u + 1,
                         CustomerInputs = ui?.Inputs ?? new(),
                         CustomerNote = ui?.Note,

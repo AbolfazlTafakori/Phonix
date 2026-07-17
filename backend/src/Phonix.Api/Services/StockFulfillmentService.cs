@@ -99,10 +99,17 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
         return (updated, justCompleted);
     }
 
-    // How many users the buyer purchased on this unit: a slot line is a single unit for the whole quantity.
-    private static int ConnectionCount(Order order, OrderUnit unit) =>
-        Math.Max(1, order.Items.FirstOrDefault(i =>
-            i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""))?.Quantity ?? 1);
+    // How many consecutive seats one purchase claims on a shared account. A plan that sells a fixed user
+    // count (e.g. «۶ کاربر») seats exactly that many; otherwise it falls back to the legacy model where the
+    // cart quantity is itself the number of users on the account.
+    internal static int ConnectionCount(Order order, OrderUnit unit)
+    {
+        var item = order.Items.FirstOrDefault(i =>
+            i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
+        if (unit.UserCount > 0) return unit.UserCount;
+        if (item?.UserCount > 0) return item.UserCount;
+        return Math.Max(1, item?.Quantity ?? 1);
+    }
 
     private (Order order, bool justCompleted)? ServeFromSlotAccount(Order order, OrderUnit unit, string actor)
     {

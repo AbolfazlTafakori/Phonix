@@ -374,6 +374,9 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
                 serviceLines.AppendLine($"✏️ نام سرویس: {Esc(Dash(item.Name))}");
                 serviceLines.AppendLine($"🔋نوع سرویس: {Esc(Dash(planType))}");
                 serviceLines.AppendLine($"⏰ مدت سرویس: {Esc(Dash(planDuration))}");
+                // Services that sell a fixed seat count show it here too, so the approver sees the full spec.
+                if (item.UserCount > 0)
+                    serviceLines.AppendLine($"👥 تعداد کاربر: {item.UserCount}");
             }
             serviceLines.AppendLine();
         }

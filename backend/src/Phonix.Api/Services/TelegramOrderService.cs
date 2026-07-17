@@ -235,6 +235,9 @@ public sealed class TelegramOrderService : ITelegramOrderService
         sb.AppendLine($"✏️ نام سرویس: {Esc(Dash(unit.Name))}");
         sb.AppendLine($"🔋نوع سرویس: {Esc(Dash(planType))}");
         sb.AppendLine($"⏰ مدت سرویس: {Esc(Dash(planDuration))}");
+        // Services that sell a fixed seat count show it so staff hand over the right-sized account.
+        if (unit.UserCount > 0)
+            sb.AppendLine($"👥 تعداد کاربر: {unit.UserCount}");
         // Which of the buyer's accounts this message is, so five identical messages stay tellable apart.
         if (order.Units.Count > 1)
             sb.AppendLine($"🔢 اکانت: {unit.UnitIndex} از {order.Units.Count}");
