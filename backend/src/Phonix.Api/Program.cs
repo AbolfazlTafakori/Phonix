@@ -170,13 +170,30 @@ try
     using (var scope = app.Services.CreateScope())
     {
         var sqlite = scope.ServiceProvider.GetRequiredService<SqliteDataStore>();
-        if (sqlite.IsEmpty())
+
+        // A Standby that has never bootstrapped must stay empty: its content comes from the Primary's
+        // snapshot, not from local seed data. Seeding it here would leave the store non-empty, which is the
+        // very condition the initial bootstrap waits on — the node would then sit forever with demo content
+        // instead of the Primary's real data. Nothing else changes: standalone and Primary installs seed
+        // exactly as before, and a Standby that has already bootstrapped never reaches this branch anyway.
+        var awaitingFirstBootstrap =
+            string.Equals(Environment.GetEnvironmentVariable("PHONIX_CLUSTER_MODE"), "standby", StringComparison.OrdinalIgnoreCase)
+            && sqlite.GetClusterState().BootstrappedAtUtc is null;
+
+        if (sqlite.IsEmpty() && !awaitingFirstBootstrap)
         {
             Log.Information("SQLite store is empty — importing the legacy JSON snapshot (store.json / seed).");
             var seedSource = new StoreData(); // loads PHONIX_DATA_FILE's store.json, or seeds defaults
             sqlite.LoadSnapshot(seedSource.CaptureSnapshot());
             sqlite.Save();
         }
+        else if (awaitingFirstBootstrap && sqlite.IsEmpty())
+        {
+            Log.Information("Standby has not bootstrapped yet — leaving the store empty so the initial snapshot can be pulled from the Primary.");
+        }
+
+        // The owner is still applied on a Standby: it is the only way in before the first snapshot lands,
+        // and the Primary's own owner replaces it once that snapshot is restored.
         sqlite.EnsureOwnerFromEnvironment();
         var recoded = sqlite.MigrateLegacyUserCodes();
         if (recoded > 0)

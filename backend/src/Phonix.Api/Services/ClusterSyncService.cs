@@ -159,7 +159,11 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         // Fix 3: a fresh Standby attaching to an already-populated Primary can't converge from the incremental
         // outbox alone — it pulls one full snapshot first. Auto-runs when this node is a never-bootstrapped,
         // empty Standby; a non-empty or already-bootstrapped node skips straight to incremental sync.
-        if (state.Role == ClusterRole.Standby && state.BootstrappedAtUtc is null && _store.IsEmpty()
+        // Deliberately not gated on an empty store. A real install is never empty by this point — startup
+        // applies the owner account from the environment — so requiring emptiness meant the initial
+        // bootstrap never ran outside tests. What makes this safe is the pair of conditions that remain:
+        // the operator explicitly configured this node as Standby, and it has never bootstrapped before.
+        if (state.Role == ClusterRole.Standby && state.BootstrappedAtUtc is null
             && !string.IsNullOrWhiteSpace(_configuredPeerUrl))
         {
             var (ok, err) = await BootstrapFromPrimaryAsync();
