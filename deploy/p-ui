@@ -257,8 +257,10 @@ snapshot_data() {
 services_healthy() {
     local i
     for i in $(seq 1 30); do
-        if curl -fsS -o /dev/null "http://127.0.0.1:$API_PORT/health" \
-            && curl -fsS -o /dev/null "http://127.0.0.1:$WEB_PORT"; then
+        # Errors are silenced: this polls during a restart, so the first few attempts are expected to
+        # fail and printing them makes a normal restart look like a failure.
+        if curl -fsS -o /dev/null "http://127.0.0.1:$API_PORT/health" 2>/dev/null \
+            && curl -fsS -o /dev/null "http://127.0.0.1:$WEB_PORT" 2>/dev/null; then
             return 0
         fi
         sleep 1
