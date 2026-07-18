@@ -224,10 +224,16 @@ export default function OrdersPage() {
                         </div>
                         {legacy && o.deliveryContent?.trim() ? (
                           <div className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
-                            <div className="mb-2 flex items-center gap-2">
-                              <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
-                              <span className="text-sm font-bold text-emerald-600">اطلاعات سرویس شما</span>
-                              {o.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {o.deliveredAt}</span>}
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <span className="flex items-center gap-2">
+                                <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
+                                <span className="text-sm font-bold text-emerald-600">اطلاعات سرویس شما</span>
+                              </span>
+                              {o.deliveredAt && (
+                                <span className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                                  تحویل <span dir="ltr" style={{ unicodeBidi: "isolate" }}>{o.deliveredAt}</span>
+                                </span>
+                              )}
                             </div>
                             <DeliveryContent content={o.deliveryContent} />
                           </div>
@@ -237,12 +243,18 @@ export default function OrdersPage() {
                             const seats = parseSeats(u.deliveryContent);
                             return (
                               <div key={u.id} className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
-                                <div className="mb-2 flex items-center gap-2">
-                                  <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
-                                  <span className="text-sm font-bold text-emerald-600">
-                                    اطلاعات سرویس شما{selMulti ? ` — اکانت ${toFa(u.unitIndex)}` : ""}
+                                <div className="mb-2 flex items-center justify-between gap-2">
+                                  <span className="flex items-center gap-2">
+                                    <span className="grid h-6 w-6 place-items-center rounded-full bg-emerald-500/20 text-sm text-emerald-500">✓</span>
+                                    <span className="text-sm font-bold text-emerald-600">
+                                      اطلاعات سرویس شما{selMulti ? ` — اکانت ${toFa(u.unitIndex)}` : ""}
+                                    </span>
                                   </span>
-                                  {u.deliveredAt && <span className="text-xs" style={{ color: "var(--ac-muted)" }}>· تحویل {u.deliveredAt}</span>}
+                                  {u.deliveredAt && (
+                                    <span className="text-xs" style={{ color: "var(--ac-muted)" }}>
+                                      تحویل <span dir="ltr" style={{ unicodeBidi: "isolate" }}>{u.deliveredAt}</span>
+                                    </span>
+                                  )}
                                 </div>
                                 {seats.length > 0 ? (
                                   <SeatDelivery seats={seats} deviceInfo={u.customerInputs} />
