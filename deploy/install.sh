@@ -262,10 +262,25 @@ build_release() {
     local rel="$RELEASES_DIR/$(date +%Y%m%d%H%M%S)"
     mkdir -p "$rel/api" "$rel/web"
 
-    dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$rel/api" --nologo
+    # A release built elsewhere can be handed to the installer with PREBUILT_RELEASE=/path/to/release.
+    # Building needs NuGet and npm, which some networks block outright; on those hosts the artifacts are
+    # produced on a machine that does have access and copied over, and this host only ever runs them.
+    if [[ -n "${PREBUILT_RELEASE:-}" ]]; then
+        [[ -d "$PREBUILT_RELEASE/api" && -d "$PREBUILT_RELEASE/web" ]] \
+            || die "PREBUILT_RELEASE=$PREBUILT_RELEASE must contain both api/ and web/."
+        [[ -f "$PREBUILT_RELEASE/api/Phonix.Api.dll" ]] \
+            || die "No Phonix.Api.dll under $PREBUILT_RELEASE/api — that is not a published backend."
+        [[ -d "$PREBUILT_RELEASE/web/.next" ]] \
+            || die "No .next build under $PREBUILT_RELEASE/web — the frontend was not built."
+        say "Using the prebuilt release at $PREBUILT_RELEASE (skipping compilation)"
+        rsync -a "$PREBUILT_RELEASE/api/" "$rel/api/"
+        rsync -a "$PREBUILT_RELEASE/web/" "$rel/web/"
+    else
+        dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$rel/api" --nologo
 
-    rsync -a --delete --exclude node_modules --exclude .next "$REPO_DIR/frontend/" "$rel/web/"
-    ( cd "$rel/web" && npm ci && NEXT_PUBLIC_API_URL="" NODE_ENV=production npm run build )
+        rsync -a --delete --exclude node_modules --exclude .next "$REPO_DIR/frontend/" "$rel/web/"
+        ( cd "$rel/web" && npm ci && NEXT_PUBLIC_API_URL="" NODE_ENV=production npm run build )
+    fi
 
     chown -R "$APP_USER:$APP_USER" "$rel"
     ln -sfn "$rel" "$CURRENT_LINK"
