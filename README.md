@@ -157,7 +157,7 @@ Exposes aggregate runtime counters only — in-flight requests, thread-pool occu
 p-ui
 ```
 
-- **Zero-downtime hot updates** with snapshot + health-checked auto-rollback.
+- **Zero-downtime hot updates** with snapshot + health-checked auto-rollback — the tool updates itself in the same run, so new menu options arrive automatically.
 - **Domain fallback routing** for resilient public access.
 - **Secure log download** of Serilog audit and application logs.
 - **HA cluster setup** — pick Primary or Standby and it asks only for what that role needs, then wires up and syncs the two servers.
