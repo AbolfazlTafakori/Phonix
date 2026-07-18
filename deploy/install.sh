@@ -48,6 +48,29 @@ detect_local_source() {
     printf '%s' "$dir"
 }
 
+# Builds need packages from nuget.org. Where that host is unreachable, restore hangs until it times out
+# and then fails, even though the packages may already be in the local cache (copied from a machine that
+# does have access). Pointing NuGet at no remote source makes it resolve straight from that cache.
+ensure_offline_nuget() {
+    if curl -fsS -o /dev/null -m 8 https://api.nuget.org/v3/index.json 2>/dev/null; then
+        rm -f "$REPO_DIR/nuget.config"
+        return 0
+    fi
+    if [[ ! -d "$HOME/.nuget/packages" ]]; then
+        warn "nuget.org is unreachable and there is no local package cache — the backend build will fail."
+        return 0
+    fi
+    warn "nuget.org is unreachable — building the backend from the local package cache."
+    cat > "$REPO_DIR/nuget.config" <<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+  </packageSources>
+</configuration>
+XML
+}
+
 # Plain HTTPS download of the source, used when the git protocol is blocked but ordinary web traffic
 # is not. Retried, and only swapped in once the extracted tree is confirmed to look like the repo.
 fetch_source_archive() {
@@ -276,6 +299,7 @@ build_release() {
         rsync -a "$PREBUILT_RELEASE/api/" "$rel/api/"
         rsync -a "$PREBUILT_RELEASE/web/" "$rel/web/"
     else
+        ensure_offline_nuget
         dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$rel/api" --nologo
 
         rsync -a --delete --exclude node_modules --exclude .next "$REPO_DIR/frontend/" "$rel/web/"

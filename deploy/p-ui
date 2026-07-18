@@ -293,6 +293,30 @@ fetch_source_archive() {
     return 0
 }
 
+# Builds need packages from nuget.org. Where that host is unreachable, restore hangs until it times out
+# and then fails, even though every package is already in the local cache from an earlier build. Pointing
+# NuGet at no remote source at all makes it resolve straight from that cache. Regenerated on each build
+# rather than kept as a file, so refreshing the source tree can't quietly undo it.
+ensure_offline_nuget() {
+    if curl -fsS -o /dev/null -m 8 https://api.nuget.org/v3/index.json 2>/dev/null; then
+        rm -f "$REPO_DIR/nuget.config"
+        return 0
+    fi
+    if [[ ! -d "$HOME/.nuget/packages" ]]; then
+        warn "nuget.org is unreachable and there is no local package cache — the backend build will fail."
+        return 0
+    fi
+    warn "nuget.org is unreachable — building the backend from the local package cache."
+    cat > "$REPO_DIR/nuget.config" <<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+  </packageSources>
+</configuration>
+XML
+}
+
 # Refreshes this very tool from the release that was just pulled, so a new menu option ships with a
 # normal update instead of needing a manual copy. Writing to a temp file and renaming keeps the
 # currently-running process on the old inode — bash reads a script incrementally, so overwriting it
@@ -340,6 +364,7 @@ hot_update() {
     mkdir -p "$rel/api" "$rel/web"
 
     say "Building backend..."
+    ensure_offline_nuget
     dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$rel/api" --nologo
 
     say "Building frontend in a separate staging directory..."
