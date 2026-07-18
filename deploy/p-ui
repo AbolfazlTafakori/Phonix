@@ -15,6 +15,7 @@ NGINX_SITE="/etc/nginx/sites-available/phoenix.conf"
 DOTNET_PROJECT="backend/src/Phonix.Api"
 DATA_DIR="/var/lib/phoenix"
 BACKUP_DIR="$DATA_DIR/backups"
+SRC_TARBALL_URL="https://codeload.github.com/AbolfazlTafakori/Phonix/tar.gz/refs/heads/main"
 PUI_SRC="$REPO_DIR/deploy/p-ui"
 PUI_PATH="/usr/local/bin/p-ui"
 API_PORT=5228
@@ -265,6 +266,31 @@ services_healthy() {
     return 1
 }
 
+# Pulls the source as a plain HTTPS archive instead of over the git protocol. Some networks let ordinary
+# HTTPS through but kill git's long-lived transfer, which leaves a node unable to update at all. The
+# download is retried and only swapped in after the extracted tree is confirmed to look like the repo,
+# so a truncated or rejected transfer leaves the working source untouched.
+fetch_source_archive() {
+    local tmp dir
+    tmp="$(mktemp -d)"
+    if ! curl -fL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 \
+        -o "$tmp/src.tar.gz" "$SRC_TARBALL_URL"; then
+        rm -rf "$tmp"; return 1
+    fi
+    if ! tar xzf "$tmp/src.tar.gz" -C "$tmp"; then
+        rm -rf "$tmp"; return 1
+    fi
+    dir="$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    if [[ ! -d "$dir/backend" || ! -d "$dir/frontend" ]]; then
+        warn "The downloaded archive did not contain the expected source tree."
+        rm -rf "$tmp"; return 1
+    fi
+    mkdir -p "$REPO_DIR"
+    rsync -a --delete --exclude .git "$dir/" "$REPO_DIR/"
+    rm -rf "$tmp"
+    return 0
+}
+
 # Refreshes this very tool from the release that was just pulled, so a new menu option ships with a
 # normal update instead of needing a manual copy. Writing to a temp file and renaming keeps the
 # currently-running process on the old inode — bash reads a script incrementally, so overwriting it
@@ -293,20 +319,19 @@ hot_update() {
     snapshot_data
 
     say "Fetching the latest release..."
-    # On a restricted network the remote may be unreachable while the source is already on disk (put
-    # there from an archive or copied in). Rebuild what is there rather than aborting the update.
-    if [[ -d "$REPO_DIR/backend" && -d "$REPO_DIR/frontend" ]]; then
-        if [[ -d "$REPO_DIR/.git" ]]; then
-            if git -C "$REPO_DIR" fetch --all --prune --tags && git -C "$REPO_DIR" reset --hard origin/main; then
-                ok "Updated to the latest origin/main."
-            else
-                warn "Could not reach the git remote — rebuilding from the source already in $REPO_DIR."
-            fi
-        else
-            warn "No git metadata in $REPO_DIR — rebuilding from the source already there."
-        fi
+    # Prefer git when the checkout has it and the remote answers; otherwise fall back to the HTTPS
+    # archive, which is what keeps nodes on restricted networks updatable. Only if both fail do we
+    # rebuild whatever source is already on disk.
+    if [[ -d "$REPO_DIR/.git" ]] \
+        && git -C "$REPO_DIR" fetch --all --prune --tags \
+        && git -C "$REPO_DIR" reset --hard origin/main; then
+        ok "Updated to the latest origin/main."
+    elif fetch_source_archive; then
+        ok "Updated from the source archive over HTTPS."
+    elif [[ -d "$REPO_DIR/backend" && -d "$REPO_DIR/frontend" ]]; then
+        warn "Could not reach GitHub — rebuilding from the source already in $REPO_DIR."
     else
-        git clone "$REPO_URL" "$REPO_DIR"
+        die "Could not reach GitHub and there is no source in $REPO_DIR to build from."
     fi
 
     local rel="$RELEASES_DIR/$(date +%Y%m%d%H%M%S)"
