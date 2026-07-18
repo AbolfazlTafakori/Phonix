@@ -254,6 +254,20 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         {
             var state = _store.GetClusterState();
             if (state.Role != ClusterRole.Standby) return; // only a Standby auto-promotes; Primary/Recovering never auto-transition here
+
+            // A node that has never completed a bootstrap holds no copy of the Primary's data, so promoting it
+            // would put an empty (or seed-only) server in charge of live traffic. That is worse than staying
+            // read-only. It also removes a real setup hazard: configuring the Standby before the Primary used
+            // to make the new node promote itself after the grace period, leaving two Primaries the moment the
+            // real one came online.
+            if (state.BootstrappedAtUtc is null)
+            {
+                _logger.LogWarning(
+                    "Peer unreachable for over {Seconds}s, but this node has never bootstrapped from a Primary — staying read-only instead of promoting.",
+                    _failoverGraceSeconds);
+                return;
+            }
+
             state.Role = ClusterRole.Primary;
             state.LastFailoverAtUtc = DateTime.UtcNow;
             _store.SetClusterState(state);
