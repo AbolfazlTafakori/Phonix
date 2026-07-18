@@ -51,6 +51,7 @@ import type {
   OverviewStats,
   TopProductStat,
   ServerStatus,
+  ClusterStatus,
   AuditLogPage,
   AuthResult,
   LoginResult,
@@ -338,6 +339,13 @@ export const api = {
   },
   serverStatus: {
     get: () => request<ServerStatus>("/admin/server-status"),
+  },
+  cluster: {
+    status: () => request<ClusterStatus>("/cluster/status"),
+    promote: () => request<void>("/cluster/promote", { method: "POST" }),
+    recover: () => request<void>("/cluster/recover", { method: "POST" }),
+    resync: () => request<void>("/cluster/resync", { method: "POST" }),
+    bootstrap: () => request<void>("/cluster/bootstrap", { method: "POST" }),
   },
   auditLogs: {
     list: (params?: {

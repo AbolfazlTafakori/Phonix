@@ -99,6 +99,11 @@ try
     builder.Services.AddSingleton<ServerMetricsCollector>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<ServerMetricsCollector>());
     builder.Services.AddHealthChecks().AddCheck<StoreHealthCheck>("store");
+    // Business-continuity clustering (Primary/Standby): inert unless PHONIX_CLUSTER_MODE is set — the admin
+    // panel's Cluster Management page reads live status off the same instance the background loop updates.
+    builder.Services.AddSingleton<ClusterSyncService>();
+    builder.Services.AddSingleton<IClusterSyncService>(sp => sp.GetRequiredService<ClusterSyncService>());
+    builder.Services.AddHostedService(sp => sp.GetRequiredService<ClusterSyncService>());
 
     // Stateless sessions: claims are encrypted into the httpOnly cookie and validated via a PERSISTED Data
     // Protection key ring (App_Data/keys), so logins survive a restart without an in-memory session table.
@@ -328,6 +333,39 @@ try
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
                 await context.Response.WriteAsync("درخواست نامعتبر (CSRF).");
+                return;
+            }
+        }
+        await next();
+    });
+
+    // Cluster write-gate: when this node is running Standby/Recovering, only the currently-Primary node may
+    // accept BUSINESS writes (orders, products, settings, admin/financial operations) — those return 503 so
+    // clients retry against the Primary. Everything else stays reachable:
+    //   • reads (non-mutating verbs) always pass;
+    //   • the cluster-management/node-to-node routes (/api/cluster) so the panel stays usable and sync works;
+    //   • /health for liveness;
+    //   • /api/auth — login, register, password reset, email verification, 2FA and session/logout — MUST keep
+    //     working on a Standby so staff and customers can still authenticate during failover (Fix 2). These
+    //     writes are safe on a Standby because it holds a disjoint id band (Fix 1), so any row it creates can
+    //     never collide with the Primary's and converges cleanly once the peer returns.
+    // A no-op when clustering isn't configured (Role stays Standalone), so a normal single-server install is
+    // unaffected.
+    var clusterExemptPaths = new[] { "/api/cluster", "/api/auth", "/health" };
+    app.Use(async (context, next) =>
+    {
+        var method = context.Request.Method;
+        var mutating = HttpMethods.IsPost(method) || HttpMethods.IsPut(method)
+            || HttpMethods.IsDelete(method) || HttpMethods.IsPatch(method);
+        var path = context.Request.Path.Value ?? "";
+        var exempt = clusterExemptPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        if (mutating && !exempt)
+        {
+            var cluster = context.RequestServices.GetRequiredService<Phonix.Api.Services.IClusterSyncService>();
+            if (cluster.Role is Phonix.Api.Models.ClusterRole.Standby or Phonix.Api.Models.ClusterRole.Recovering)
+            {
+                context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                await context.Response.WriteAsync("این سرور در حال حاضر Standby است و درخواست‌های نوشتنی را نمی‌پذیرد.");
                 return;
             }
         }

@@ -116,8 +116,18 @@ public sealed partial class SqliteDataStore
     public StoreSnapshot? DeserializeSnapshot(string json) => JsonSerializer.Deserialize<StoreSnapshot>(json, SnapshotJson);
 
     // Replaces the durable contents with a snapshot — atomically (one IMMEDIATE transaction): the whole import
-    // commits or nothing does, so a failed/partial restore can never leave a half-loaded database.
-    public void LoadSnapshot(StoreSnapshot s) =>
+    // commits or nothing does, so a failed/partial restore can never leave a half-loaded database. When
+    // clustering is on, a restore invalidates whatever sync cursor the peer thinks it's at (the data it was
+    // tracking no longer exists in this shape), so it forces a clean re-sync afterward — see
+    // ReseedOutboxFromCurrentState. That runs as its own transaction, sequentially after this one commits,
+    // since WriteTx/WriteTxNoFk can't nest.
+    public void LoadSnapshot(StoreSnapshot s)
+    {
+        LoadSnapshotTx(s);
+        if (_clusterEnabled) ReseedOutboxFromCurrentState();
+    }
+
+    private void LoadSnapshotTx(StoreSnapshot s) =>
         WriteTxNoFk<object?>((conn, tx) =>
         {
             conn.Execute(@"
@@ -242,8 +252,15 @@ DELETE FROM Conversations; DELETE FROM Counters;", transaction: tx);
 
     // Replaces ONLY the given section's tables/singletons from a partial snapshot; every other domain is left
     // untouched. Runs in one FK-disabled IMMEDIATE transaction (a Users restore drops user rows that live
-    // Transactions still reference), so the swap is atomic and never trips the nominal foreign keys.
-    public void RestoreSection(BackupSection section, StoreSnapshot s) =>
+    // Transactions still reference), so the swap is atomic and never trips the nominal foreign keys. Forces
+    // the same clean re-sync as a full restore (see LoadSnapshot) when clustering is on.
+    public void RestoreSection(BackupSection section, StoreSnapshot s)
+    {
+        RestoreSectionTx(section, s);
+        if (_clusterEnabled) ReseedOutboxFromCurrentState();
+    }
+
+    private void RestoreSectionTx(BackupSection section, StoreSnapshot s) =>
         WriteTxNoFk<object?>((conn, tx) =>
         {
             switch (section)

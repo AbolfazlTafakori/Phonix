@@ -47,15 +47,17 @@ SELECT last_insert_rowid();",
                 new { t.UserId, Status = (int)t.Status, t.Date, DataJson = Serialize(t) }, tx);
 
             t.Id = (int)txId;
+            var txJson = Serialize(t);
             conn.Execute("UPDATE Transactions SET DataJson = @DataJson WHERE Id = @Id",
-                new { DataJson = Serialize(t), t.Id }, tx);
+                new { DataJson = txJson, t.Id }, tx);
+            AppendOutbox(conn, tx, "Transactions", t.Id, SyncOp.Upsert, txJson);
 
             return new WithdrawalResult(t, null); // WriteTx COMMITs here → debit + pending tx persist atomically
         });
 
     // Mirrors StoreData.AddTransaction: assigns id (autoincrement), a TX-code, and the date, then rewrites
     // the payload so DataJson carries them. Caller supplies the open connection + transaction.
-    private static Transaction InsertTransaction(SqliteConnection conn, SqliteTransaction tx, Transaction t)
+    private Transaction InsertTransaction(SqliteConnection conn, SqliteTransaction tx, Transaction t)
     {
         if (string.IsNullOrWhiteSpace(t.Date)) t.Date = Today();
         var id = conn.ExecuteScalar<long>(@"
@@ -64,8 +66,10 @@ SELECT last_insert_rowid();",
             new { t.UserId, Status = (int)t.Status, t.Date, DataJson = Serialize(t) }, tx);
         t.Id = (int)id;
         if (string.IsNullOrWhiteSpace(t.Code)) t.Code = $"TX-{9900 + t.Id}";
+        var json = Serialize(t);
         conn.Execute("UPDATE Transactions SET DataJson = @DataJson WHERE Id = @Id",
-            new { DataJson = Serialize(t), t.Id }, tx);
+            new { DataJson = json, t.Id }, tx);
+        AppendOutbox(conn, tx, "Transactions", t.Id, SyncOp.Upsert, json);
         return t;
     }
 
@@ -161,7 +165,9 @@ SELECT last_insert_rowid();",
             }
 
             e.Status = status; e.ApprovedVia = via; if (note is not null) e.Note = note;
-            conn.Execute("UPDATE Transactions SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)e.Status, d = Serialize(e), id }, tx);
+            var json = Serialize(e);
+            conn.Execute("UPDATE Transactions SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)e.Status, d = json, id }, tx);
+            AppendOutbox(conn, tx, "Transactions", id, SyncOp.Upsert, json);
 
             if (becomingApproved && e.UserId > 0)
             {

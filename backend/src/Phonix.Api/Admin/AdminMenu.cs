@@ -110,6 +110,7 @@ public static class AdminMenu
             new("order-bot",   "ارسال سفارشات و ربات تلگرام",     "cart",   "/admin/order-bot",   UserRole.Admin),
             new("email",    "تنظیمات ایمیل و پیامک",       "bell",     "/admin/settings/email", UserRole.Admin),
             new("settings", "تنظیمات عمومی و پیشرفته",     "settings", "/admin/settings",       UserRole.Admin),
+            new("cluster",  "مدیریت خوشه (HA)",            "activity", "/admin/cluster",        UserRole.Admin),
         }),
     };
 

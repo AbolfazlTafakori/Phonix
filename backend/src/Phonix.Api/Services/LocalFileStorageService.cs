@@ -318,4 +318,69 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         var m = IdPattern().Match(id);
         return m.Success && int.TryParse(m.Groups["owner"].Value, out var owner) ? owner : null;
     }
+
+    // ── Cluster media sync (Fix 4) ────────────────────────────────────────────────────────────────────
+    // Filenames are unguessable GUID-shaped ids that never change once written, so name equality already
+    // implies same content; the SHA-256 is the integrity check the receiver verifies before trusting a
+    // transferred file. Enumerated across every known category. Best-effort per file; never throws.
+    public IReadOnlyList<MediaSyncEntry> ListMediaForSync()
+    {
+        var result = new List<MediaSyncEntry>();
+        foreach (var category in Categories)
+        {
+            var dir = Path.Combine(_root, category);
+            if (!Directory.Exists(dir)) continue;
+            foreach (var path in Directory.EnumerateFiles(dir))
+            {
+                try
+                {
+                    var name = Path.GetFileName(path);
+                    var bytes = File.ReadAllBytes(path);
+                    result.Add(new MediaSyncEntry(category, name, bytes.LongLength, Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes))));
+                }
+                catch { /* a file being written / removed mid-scan just isn't advertised this cycle */ }
+            }
+        }
+        return result;
+    }
+
+    public byte[]? ReadRawForSync(string category, string name)
+    {
+        if (!Categories.Contains(category)) return null;
+        if (string.IsNullOrWhiteSpace(name) || Path.GetFileName(name) != name) return null; // no separators/traversal
+        var dir = Path.GetFullPath(Path.Combine(_root, category));
+        var path = Path.GetFullPath(Path.Combine(dir, name));
+        if (!path.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return null;
+        if (!File.Exists(path)) return null;
+        try { return File.ReadAllBytes(path); } catch { return null; }
+    }
+
+    public bool WriteRawFromSync(string category, string name, byte[] content, string expectedSha256)
+    {
+        if (!Categories.Contains(category)) return false;
+        if (string.IsNullOrWhiteSpace(name) || Path.GetFileName(name) != name) return false;
+        // Integrity gate: never write bytes that don't hash to what the peer advertised.
+        var actual = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content));
+        if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase)) return false;
+
+        var dir = Path.GetFullPath(Path.Combine(_root, category));
+        var path = Path.GetFullPath(Path.Combine(dir, name));
+        if (!path.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return false;
+        if (File.Exists(path)) return false; // immutable ids: already have it, never overwrite, never delete
+
+        Directory.CreateDirectory(dir);
+        // Write to a temp file then move, so a crash mid-transfer never leaves a truncated file under a real id.
+        var tmp = path + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            File.WriteAllBytes(tmp, content);
+            File.Move(tmp, path);
+            return true;
+        }
+        catch
+        {
+            if (File.Exists(tmp)) { try { File.Delete(tmp); } catch { /* best-effort */ } }
+            return false;
+        }
+    }
 }

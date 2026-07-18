@@ -38,9 +38,16 @@ public sealed partial class SqliteDataStore : IDataStore
         Converters = { new JsonStringEnumConverter() },
     };
 
+    // Cluster (HA) support: off by default, so a standalone install pays nothing beyond this one field read
+    // at startup. See SqliteDataStore.Cluster.cs for everything this gates.
+    private readonly bool _clusterEnabled;
+
     // dbPath is optional so tests can point at a unique temp file; in production it resolves from
     // PHONIX_DB_FILE or co-locates with the other durable state. (All-optional ctor stays DI-constructable.)
-    public SqliteDataStore(string? dbPath = null)
+    // clusterEnabledOverride lets tests exercise the sync-outbox path without mutating the process-wide
+    // PHONIX_CLUSTER_MODE env var (which would be flaky under parallel test execution); production callers
+    // never pass it, so behavior there is governed by the env var exactly as before.
+    public SqliteDataStore(string? dbPath = null, bool? clusterEnabledOverride = null)
     {
         dbPath ??= ResolveDbPath();
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(dbPath))!);
@@ -51,6 +58,9 @@ public sealed partial class SqliteDataStore : IDataStore
             Pooling = true,                     // reuse handles across requests
             Cache = SqliteCacheMode.Default,    // private cache + WAL is the recommended high-concurrency setup
         }.ToString();
+
+        var clusterMode = Environment.GetEnvironmentVariable("PHONIX_CLUSTER_MODE")?.Trim().ToLowerInvariant();
+        _clusterEnabled = clusterEnabledOverride ?? clusterMode is "primary" or "standby";
 
         // WAL is a DURABLE, file-level setting — set once here; it persists in the database header.
         using (var conn = new SqliteConnection(_connString))
@@ -265,6 +275,44 @@ CREATE TABLE IF NOT EXISTS Singletons (
     Key      TEXT PRIMARY KEY,
     DataJson TEXT NOT NULL
 );
+
+-- Cluster (HA) support — see SqliteDataStore.Cluster.cs. Every local write appends one row here; the peer
+-- pulls whatever has Id greater than its own last-applied cursor. SyncRowVersion is the last-writer-wins
+-- guard for the rare case both nodes edit the same existing row during a network partition. Neither table
+-- is part of any backup/restore snapshot (see SqliteDataStore.Backup.cs) — they are sync bookkeeping, not
+-- business data, and a restore always forces a clean re-sync instead of reconciling stale cursors.
+CREATE TABLE IF NOT EXISTS SyncOutbox (
+    Id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    EntityTable  TEXT NOT NULL,
+    EntityId     INTEGER NOT NULL,
+    Op           TEXT NOT NULL,
+    DataJson     TEXT NULL,
+    CreatedAtUtc TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS IX_SyncOutbox_Table ON SyncOutbox(EntityTable, Id);
+
+CREATE TABLE IF NOT EXISTS SyncRowVersion (
+    EntityTable  TEXT NOT NULL,
+    EntityId     INTEGER NOT NULL,
+    LastWriteUtc TEXT NOT NULL,
+    PRIMARY KEY (EntityTable, EntityId)
+);
+
+-- Dead-letter queue for cluster sync: a remote outbox entry that threw while being applied is parked here
+-- (keyed by its origin OutboxId) INSTEAD of blocking the cursor forever. The sync loop retries these on a
+-- back-off up to a cap; a permanently poisonous event is left visible with its error for an operator to see.
+CREATE TABLE IF NOT EXISTS SyncDeadLetter (
+    OutboxId      INTEGER PRIMARY KEY,
+    EntityTable   TEXT NOT NULL,
+    EntityId      INTEGER NOT NULL,
+    Op            TEXT NOT NULL,
+    DataJson      TEXT NULL,
+    CreatedAtUtc  TEXT NOT NULL,
+    RetryCount    INTEGER NOT NULL DEFAULT 0,
+    LastError     TEXT NULL,
+    FirstFailedUtc TEXT NOT NULL,
+    LastAttemptUtc TEXT NOT NULL
+);
 ");
     }
 
@@ -284,8 +332,12 @@ CREATE TABLE IF NOT EXISTS Singletons (
 
     private bool DeleteRow(string table, int id)
     {
-        using var conn = OpenConnection();
-        return conn.Execute($"DELETE FROM {table} WHERE Id = @id", new { id }) > 0;
+        return WriteTx((conn, tx) =>
+        {
+            var deleted = conn.Execute($"DELETE FROM {table} WHERE Id = @id", new { id }, tx) > 0;
+            if (deleted) AppendOutbox(conn, tx, table, id, SyncOp.Delete, null);
+            return deleted;
+        });
     }
 
     // INSERT with an auto id, then rewrite DataJson so it carries the assigned id (and any derived field the
@@ -298,16 +350,23 @@ CREATE TABLE IF NOT EXISTS Singletons (
                 $"INSERT INTO {table} (DataJson) VALUES (@DataJson); SELECT last_insert_rowid();",
                 new { DataJson = Serialize(value) }, tx);
             setId(value, id);
-            conn.Execute($"UPDATE {table} SET DataJson = @DataJson WHERE Id = @id", new { DataJson = Serialize(value), id }, tx);
+            var json = Serialize(value);
+            conn.Execute($"UPDATE {table} SET DataJson = @DataJson WHERE Id = @id", new { DataJson = json, id }, tx);
+            AppendOutbox(conn, tx, table, id, SyncOp.Upsert, json);
             return id;
         });
     }
 
     private bool UpdateJson<T>(string table, int id, T value)
     {
-        using var conn = OpenConnection();
-        return conn.Execute($"UPDATE {table} SET DataJson = @DataJson WHERE Id = @id",
-            new { DataJson = Serialize(value), id }) > 0;
+        return WriteTx((conn, tx) =>
+        {
+            var json = Serialize(value);
+            var updated = conn.Execute($"UPDATE {table} SET DataJson = @DataJson WHERE Id = @id",
+                new { DataJson = json, id }, tx) > 0;
+            if (updated) AppendOutbox(conn, tx, table, id, SyncOp.Upsert, json);
+            return updated;
+        });
     }
 
     private static int NextCounter(SqliteConnection conn, SqliteTransaction tx, string name)

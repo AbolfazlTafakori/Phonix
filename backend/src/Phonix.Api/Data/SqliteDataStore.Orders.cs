@@ -222,8 +222,10 @@ SELECT last_insert_rowid();",
                 new { order.UserId, Status = (int)order.Status, order.Code, order.Date, DataJson = Serialize(order) }, tx);
             order.Id = (int)orderId;
             order.Code = $"PX-{100000 + order.Id}";
+            var orderJson = Serialize(order);
             conn.Execute("UPDATE Orders SET Code = @Code, DataJson = @DataJson WHERE Id = @Id",
-                new { order.Code, DataJson = Serialize(order), order.Id }, tx);
+                new { order.Code, DataJson = orderJson, order.Id }, tx);
+            AppendOutbox(conn, tx, "Orders", order.Id, SyncOp.Upsert, orderJson);
 
             if (customerCheckout && remainder > 0 && sourceCard is not null)
             {
@@ -273,11 +275,13 @@ SELECT last_insert_rowid();",
         return new DiscountResult(dc, amount, null);
     }
 
-    private static void ConsumeDiscountTx(SqliteConnection conn, SqliteTransaction tx, DiscountCode dc)
+    private void ConsumeDiscountTx(SqliteConnection conn, SqliteTransaction tx, DiscountCode dc)
     {
         dc.UsedCount++;
+        var json = Serialize(dc);
         conn.Execute("UPDATE DiscountCodes SET DataJson = @DataJson WHERE Id = @Id",
-            new { DataJson = Serialize(dc), dc.Id }, tx);
+            new { DataJson = json, dc.Id }, tx);
+        AppendOutbox(conn, tx, "DiscountCodes", dc.Id, SyncOp.Upsert, json);
     }
 
     // ── Discount codes (admin CRUD + public resolve) ────────────────────────────────────────────────────
@@ -292,8 +296,10 @@ SELECT last_insert_rowid();",
                 "INSERT INTO DiscountCodes (Code, DataJson) VALUES (@Code, @DataJson); SELECT last_insert_rowid();",
                 new { code.Code, DataJson = Serialize(code) }, tx);
             code.Id = id;
+            var json = Serialize(code);
             conn.Execute("UPDATE DiscountCodes SET Code = @Code, DataJson = @d WHERE Id = @id",
-                new { code.Code, d = Serialize(code), id }, tx);
+                new { code.Code, d = json, id }, tx);
+            AppendOutbox(conn, tx, "DiscountCodes", id, SyncOp.Upsert, json);
             return code;
         });
 
@@ -312,8 +318,10 @@ SELECT last_insert_rowid();",
             existing.UsageLimit = code.UsageLimit;
             existing.IsActive = code.IsActive;
             existing.ExpiresAt = code.ExpiresAt;
+            var json = Serialize(existing);
             conn.Execute("UPDATE DiscountCodes SET Code = @Code, DataJson = @d WHERE Id = @id",
-                new { existing.Code, d = Serialize(existing), id = existing.Id }, tx);
+                new { existing.Code, d = json, id = existing.Id }, tx);
+            AppendOutbox(conn, tx, "DiscountCodes", existing.Id, SyncOp.Upsert, json);
             return true;
         });
 
@@ -357,13 +365,17 @@ SELECT last_insert_rowid();",
         return value.ToString("D16", CultureInfo.InvariantCulture);
     }
 
-    private static void UpsertOrder(SqliteConnection conn, SqliteTransaction tx, Order o) =>
+    private void UpsertOrder(SqliteConnection conn, SqliteTransaction tx, Order o)
+    {
+        var json = Serialize(o);
         conn.Execute(@"
 INSERT INTO Orders (Id, UserId, Status, Code, Date, DataJson)
 VALUES (@Id, @UserId, @Status, @Code, @Date, @DataJson)
 ON CONFLICT(Id) DO UPDATE SET
     UserId=excluded.UserId, Status=excluded.Status, Code=excluded.Code, Date=excluded.Date, DataJson=excluded.DataJson;",
-            new { o.Id, o.UserId, Status = (int)o.Status, o.Code, o.Date, DataJson = Serialize(o) }, tx);
+            new { o.Id, o.UserId, Status = (int)o.Status, o.Code, o.Date, DataJson = json }, tx);
+        AppendOutbox(conn, tx, "Orders", o.Id, SyncOp.Upsert, json);
+    }
 
     private static AppUser? LoadUser(SqliteConnection conn, SqliteTransaction tx, int id)
     {
@@ -372,7 +384,7 @@ ON CONFLICT(Id) DO UPDATE SET
     }
 
     // Recomputes the buyer's derived order stats from the live Orders table (mirrors RefreshUserOrderStats).
-    private static void RefreshUserStats(SqliteConnection conn, SqliteTransaction tx, int userId)
+    private void RefreshUserStats(SqliteConnection conn, SqliteTransaction tx, int userId)
     {
         var u = LoadUser(conn, tx, userId);
         if (u is null) return;
@@ -397,7 +409,7 @@ ON CONFLICT(Id) DO UPDATE SET
             ChangedAtUtc = DateTime.UtcNow,
         });
 
-    private static void AddNotificationTx(SqliteConnection conn, SqliteTransaction tx, int? userId, string title, string body, string? link)
+    private void AddNotificationTx(SqliteConnection conn, SqliteTransaction tx, int? userId, string title, string body, string? link)
     {
         var n = new Notification
         {
@@ -407,12 +419,14 @@ ON CONFLICT(Id) DO UPDATE SET
             "INSERT INTO Notifications (UserId, DataJson) VALUES (@UserId, @DataJson); SELECT last_insert_rowid();",
             new { UserId = userId, DataJson = Serialize(n) }, tx);
         n.Id = (int)id;
-        conn.Execute("UPDATE Notifications SET DataJson = @DataJson WHERE Id = @Id", new { DataJson = Serialize(n), n.Id }, tx);
+        var json = Serialize(n);
+        conn.Execute("UPDATE Notifications SET DataJson = @DataJson WHERE Id = @Id", new { DataJson = json, n.Id }, tx);
+        AppendOutbox(conn, tx, "Notifications", n.Id, SyncOp.Upsert, json);
     }
 
     // Pays the referrer their commission when a referred buyer's order is completed. Runs inside the caller's
     // transaction so the wallet credit + earning record + transaction row commit atomically with the order.
-    private static void CreditReferralTx(SqliteConnection conn, SqliteTransaction tx, Order order, PricingSettings settings)
+    private void CreditReferralTx(SqliteConnection conn, SqliteTransaction tx, Order order, PricingSettings settings)
     {
         var buyer = LoadUser(conn, tx, order.UserId);
         if (buyer?.ReferredBy is not int referrerId) return;
@@ -427,16 +441,17 @@ ON CONFLICT(Id) DO UPDATE SET
         referrer.Wallet += commission;
         UpsertUser(conn, tx, referrer);
 
-        conn.Execute("INSERT INTO ReferralEarnings (ReferrerId, DataJson) VALUES (@ReferrerId, @DataJson)",
-            new
-            {
-                ReferrerId = referrerId,
-                DataJson = Serialize(new ReferralEarning
-                {
-                    ReferrerId = referrerId, ReferredName = order.UserName, OrderCode = order.Code,
-                    OrderAmount = order.Total, Commission = commission, Date = Today(),
-                }),
-            }, tx);
+        var earning = new ReferralEarning
+        {
+            ReferrerId = referrerId, ReferredName = order.UserName, OrderCode = order.Code,
+            OrderAmount = order.Total, Commission = commission, Date = Today(),
+        };
+        var earningId = (int)conn.ExecuteScalar<long>(
+            "INSERT INTO ReferralEarnings (ReferrerId, DataJson) VALUES (@ReferrerId, @DataJson); SELECT last_insert_rowid();",
+            new { ReferrerId = referrerId, DataJson = Serialize(earning) }, tx);
+        var earningJson = Serialize(earning);
+        conn.Execute("UPDATE ReferralEarnings SET DataJson = @d WHERE Id = @id", new { d = earningJson, id = earningId }, tx);
+        AppendOutbox(conn, tx, "ReferralEarnings", earningId, SyncOp.Upsert, earningJson);
 
         var referrerName = string.IsNullOrWhiteSpace(referrer.Name) ? referrer.Username : referrer.Name;
         InsertTransaction(conn, tx, new Transaction
@@ -763,7 +778,7 @@ LIMIT 1;",
 
     // Closes an order once no account is still pending: all rejected → cancelled, otherwise completed (which
     // is what issues the invoice).
-    private static void SettleUnitsIfDone(SqliteConnection conn, SqliteTransaction tx, Order o, string? changedBy)
+    private void SettleUnitsIfDone(SqliteConnection conn, SqliteTransaction tx, Order o, string? changedBy)
     {
         if (o.Units.Count == 0 || o.Status is OrderStatus.Completed or OrderStatus.Cancelled) return;
         if (!o.Units.All(u => u.Delivered || u.Rejected)) return;
@@ -828,7 +843,9 @@ LIMIT 1;",
 
                 o.RenewalReminderSentUtc = now;
                 var expiresFa = JalaliDate(expires);
-                conn.Execute("UPDATE Orders SET DataJson=@d WHERE Id=@id", new { d = Serialize(o), id = (long)row.Id }, tx);
+                var orderJson = Serialize(o);
+                conn.Execute("UPDATE Orders SET DataJson=@d WHERE Id=@id", new { d = orderJson, id = (long)row.Id }, tx);
+                AppendOutbox(conn, tx, "Orders", (long)row.Id, SyncOp.Upsert, orderJson);
                 AddNotificationTx(conn, tx, user.Id, "یادآوری تمدید اشتراک",
                     $"اشتراک سفارش {o.Code} شما در تاریخ {expiresFa} منقضی می‌شود. برای جلوگیری از قطع سرویس، آن را تمدید کنید.", "/account/orders");
                 due.Add(new RenewalReminder(user.Id, user.Email, o.Code, expiresFa));

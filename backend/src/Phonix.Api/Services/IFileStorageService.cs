@@ -57,4 +57,21 @@ public interface IFileStorageService
 
     // Restores uploaded files from a backup zip (Zip-Slip hardened). Returns the number of files written.
     int ExtractMediaArchive(byte[] zipBytes);
+
+    // ── Cluster media sync (Fix 4) ────────────────────────────────────────────────────────────────────
+    // Every uploaded file across all categories, each with size + SHA-256, so a Standby can diff against its
+    // own copy and pull only what it is missing or what differs. Best-effort; never throws.
+    IReadOnlyList<MediaSyncEntry> ListMediaForSync();
+
+    // Reads a single stored file's raw bytes for node-to-node transfer, or null when the category/name is
+    // invalid or the file is missing. Path-containment hardened exactly like Open().
+    byte[]? ReadRawForSync(string category, string name);
+
+    // Writes a file pulled from the peer into its category folder, but ONLY if its bytes hash to the expected
+    // SHA-256 (integrity gate) — a corrupt transfer is rejected, never written. Existing files are left as-is
+    // (media filenames are immutable GUIDs); nothing is ever deleted. Returns true when a new file was written.
+    bool WriteRawFromSync(string category, string name, byte[] content, string expectedSha256);
 }
+
+// One uploaded file in the media manifest a Standby pulls from the Primary (see IFileStorageService).
+public sealed record MediaSyncEntry(string Category, string Name, long Size, string Sha256);

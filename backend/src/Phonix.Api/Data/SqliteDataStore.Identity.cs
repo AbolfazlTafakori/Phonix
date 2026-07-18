@@ -47,7 +47,9 @@ public sealed partial class SqliteDataStore
                 "INSERT INTO Cards (UserId, Status, DataJson) VALUES (@UserId,@Status,@DataJson); SELECT last_insert_rowid();",
                 new { card.UserId, Status = (int)card.Status, DataJson = Serialize(card) }, tx);
             card.Id = id;
-            conn.Execute("UPDATE Cards SET DataJson=@d WHERE Id=@id", new { d = Serialize(card), id }, tx);
+            var json = Serialize(card);
+            conn.Execute("UPDATE Cards SET DataJson=@d WHERE Id=@id", new { d = json, id }, tx);
+            AppendOutbox(conn, tx, "Cards", id, SyncOp.Upsert, json);
             return new AddCardResult(card, null);
         });
 
@@ -70,7 +72,9 @@ public sealed partial class SqliteDataStore
                         "تبریک! احراز هویت سطح یک شما با موفقیت انجام شد و کارت بانکی شما تأیید گردید. اکنون می‌توانید خرید کنید.", "/account/kyc");
                 }
             }
-            conn.Execute("UPDATE Cards SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)card.Status, d = Serialize(card), id }, tx);
+            var json = Serialize(card);
+            conn.Execute("UPDATE Cards SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)card.Status, d = json, id }, tx);
+            AppendOutbox(conn, tx, "Cards", id, SyncOp.Upsert, json);
             return card;
         });
 
@@ -115,14 +119,18 @@ public sealed partial class SqliteDataStore
                 if (string.IsNullOrWhiteSpace(input.Date)) input.Date = Today();
                 var id = (int)conn.ExecuteScalar<long>("INSERT INTO Kyc (DataJson) VALUES (@d); SELECT last_insert_rowid();", new { d = Serialize(input) }, tx);
                 input.Id = id;
-                conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = Serialize(input), id }, tx);
+                var newJson = Serialize(input);
+                conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = newJson, id }, tx);
+                AppendOutbox(conn, tx, "Kyc", id, SyncOp.Upsert, newJson);
                 return input;
             }
             var existing = Deserialize<KycRequest>((string)existingRow.DataJson)!;
             existing.FullName = input.FullName; existing.NationalId = input.NationalId; existing.BirthDate = input.BirthDate;
             existing.CardImage = input.CardImage; existing.SelfieImage = input.SelfieImage;
             existing.Status = KycStatus.Pending; existing.Note = null; existing.Date = Today();
-            conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = Serialize(existing), id = existing.Id }, tx);
+            var existingJson = Serialize(existing);
+            conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = existingJson, id = existing.Id }, tx);
+            AppendOutbox(conn, tx, "Kyc", existing.Id, SyncOp.Upsert, existingJson);
             return existing;
         });
 
@@ -139,7 +147,9 @@ public sealed partial class SqliteDataStore
                 var user = LoadUser(conn, tx, req.UserId);
                 if (user is not null) { user.VerificationLevel = 2; user.Verified = true; UpsertUser(conn, tx, user); }
             }
-            conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = Serialize(req), id }, tx);
+            var json = Serialize(req);
+            conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = json, id }, tx);
+            AppendOutbox(conn, tx, "Kyc", id, SyncOp.Upsert, json);
             return req;
         });
 }

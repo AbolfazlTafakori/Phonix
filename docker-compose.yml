@@ -34,6 +34,19 @@ services:
       # backup files are plain JSON/zip. Losing this key after the fact makes old encrypted backups
       # unrecoverable, so set it once and keep it somewhere safe outside the server.
       PHONIX_BACKUP_KEY: ${PHONIX_BACKUP_KEY:-}
+      # Optional High Availability (one Primary + one Standby, business continuity only). Leave
+      # PHONIX_CLUSTER_MODE unset/standalone for a normal single-server install — every var below is a
+      # no-op in that case. scripts/install.sh prompts for these when clustering is chosen.
+      PHONIX_CLUSTER_MODE: ${PHONIX_CLUSTER_MODE:-standalone}
+      PHONIX_NODE_ID: ${PHONIX_NODE_ID:-}
+      PHONIX_CLUSTER_PEER: ${PHONIX_CLUSTER_PEER:-}
+      PHONIX_CLUSTER_SECRET: ${PHONIX_CLUSTER_SECRET:-}
+      # PHONIX_CLUSTER_PEER MUST be an https:// URL — cluster sync carries orders/user data and the initial
+      # snapshot, so the link is required to be encrypted. Set this to "true" ONLY for local/dev testing over
+      # plain HTTP; the server refuses to start with an http:// peer otherwise.
+      PHONIX_CLUSTER_ALLOW_INSECURE: ${PHONIX_CLUSTER_ALLOW_INSECURE:-}
+      # How often a Standby reconciles uploaded media (KYC/avatars/product images) with the Primary. Default 60s.
+      PHONIX_CLUSTER_MEDIA_SYNC_INTERVAL_SECONDS: ${PHONIX_CLUSTER_MEDIA_SYNC_INTERVAL_SECONDS:-}
     volumes:
       - phonix-data:/app/App_Data
     ports:

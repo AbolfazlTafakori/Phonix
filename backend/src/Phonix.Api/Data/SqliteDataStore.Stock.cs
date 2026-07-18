@@ -11,9 +11,13 @@ namespace Phonix.Api.Data;
 // wallet debits and stock decrements.
 public sealed partial class SqliteDataStore
 {
-    private static void UpsertStockItem(SqliteConnection conn, SqliteTransaction? tx, StockItem s) =>
+    private void UpsertStockItem(SqliteConnection conn, SqliteTransaction? tx, StockItem s)
+    {
+        var json = Serialize(s);
         conn.Execute("UPDATE StockItems SET ProductId=@ProductId, Status=@Status, DataJson=@DataJson WHERE Id=@Id",
-            new { s.Id, s.ProductId, Status = (int)s.Status, DataJson = Serialize(s) }, tx);
+            new { s.Id, s.ProductId, Status = (int)s.Status, DataJson = json }, tx);
+        if (tx is not null) AppendOutbox(conn, tx, "StockItems", s.Id, SyncOp.Upsert, json);
+    }
 
     public IReadOnlyList<StockItem> GetStockItems(int? productId = null)
     {
@@ -68,7 +72,9 @@ SELECT last_insert_rowid();",
             var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM StockItems WHERE Id = @id", new { id }, tx);
             if (json is null) return false;
             if (Deserialize<StockItem>(json)!.Status == StockItemStatus.Delivered) return false;
-            return conn.Execute("DELETE FROM StockItems WHERE Id = @id", new { id }, tx) > 0;
+            var deleted = conn.Execute("DELETE FROM StockItems WHERE Id = @id", new { id }, tx) > 0;
+            if (deleted) AppendOutbox(conn, tx, "StockItems", id, SyncOp.Delete, null);
+            return deleted;
         });
 
     public StockItem? PullStockItem(int productId, int orderId, int unitId) =>
@@ -90,9 +96,13 @@ SELECT last_insert_rowid();",
     // Every mutation runs inside WriteTx (IMMEDIATE), so two concurrent orders can never reserve the same
     // consecutive run — the same guarantee the one-shot item pool gets.
 
-    private static void UpsertStockAccount(SqliteConnection conn, SqliteTransaction? tx, StockAccount a) =>
+    private void UpsertStockAccount(SqliteConnection conn, SqliteTransaction? tx, StockAccount a)
+    {
+        var json = Serialize(a);
         conn.Execute("UPDATE StockAccounts SET ProductId=@ProductId, DataJson=@DataJson WHERE Id=@Id",
-            new { a.Id, a.ProductId, DataJson = Serialize(a) }, tx);
+            new { a.Id, a.ProductId, DataJson = json }, tx);
+        if (tx is not null) AppendOutbox(conn, tx, "StockAccounts", a.Id, SyncOp.Upsert, json);
+    }
 
     public IReadOnlyList<StockAccount> GetStockAccounts(int? productId = null)
     {
@@ -131,7 +141,9 @@ SELECT last_insert_rowid();",
                     || FieldCrypto.LooksEncrypted(acc.Password) || BackupCrypto.LooksEncrypted(acc.Password))
                     continue;
                 acc.Password = SensitiveField.Protect(acc.Password);
-                conn.Execute("UPDATE StockAccounts SET DataJson = @d WHERE Id = @id", new { d = Serialize(acc), id = row.Id }, tx);
+                var json = Serialize(acc);
+                conn.Execute("UPDATE StockAccounts SET DataJson = @d WHERE Id = @id", new { d = json, id = row.Id }, tx);
+                AppendOutbox(conn, tx, "StockAccounts", row.Id, SyncOp.Upsert, json);
                 migrated++;
             }
             return migrated;
@@ -143,7 +155,9 @@ SELECT last_insert_rowid();",
             var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM StockAccounts WHERE Id = @id", new { id }, tx);
             if (json is null) return false;
             if (Deserialize<StockAccount>(json)!.Slots.Any(s => s.Status == StockItemStatus.Delivered)) return false;
-            return conn.Execute("DELETE FROM StockAccounts WHERE Id = @id", new { id }, tx) > 0;
+            var deleted = conn.Execute("DELETE FROM StockAccounts WHERE Id = @id", new { id }, tx) > 0;
+            if (deleted) AppendOutbox(conn, tx, "StockAccounts", id, SyncOp.Delete, null);
+            return deleted;
         });
 
     public bool SetStockAccountDisabled(int id, bool disabled) =>
@@ -228,7 +242,7 @@ SELECT last_insert_rowid();",
             slot.UnitId = null;
         }));
 
-    private static bool UpdateReservedSlots(SqliteConnection conn, SqliteTransaction? tx, int orderId, int unitId,
+    private bool UpdateReservedSlots(SqliteConnection conn, SqliteTransaction? tx, int orderId, int unitId,
         Action<StockSlot> apply)
     {
         var changed = false;

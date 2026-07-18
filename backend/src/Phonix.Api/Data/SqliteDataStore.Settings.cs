@@ -99,7 +99,14 @@ public sealed partial class SqliteDataStore
                 var plan = Deserialize<SubscriptionPlan>(pl)!;
                 if (plan.PriceUsd <= 0) continue;
                 var toman = (long)Math.Round(plan.PriceUsd * tomanPerUsd);
-                if (toman != plan.Price) { plan.Price = toman; conn.Execute("UPDATE Plans SET DataJson=@d WHERE Id=@id", new { d = Serialize(plan), id = plan.Id }, tx); changed = true; }
+                if (toman != plan.Price)
+                {
+                    plan.Price = toman;
+                    var planJson = Serialize(plan);
+                    conn.Execute("UPDATE Plans SET DataJson=@d WHERE Id=@id", new { d = planJson, id = plan.Id }, tx);
+                    AppendOutbox(conn, tx, "Plans", plan.Id, SyncOp.Upsert, planJson);
+                    changed = true;
+                }
             }
             return changed;
         });
@@ -135,7 +142,9 @@ public sealed partial class SqliteDataStore
                     if (k.UserId == userId && k.Status == KycStatus.Approved)
                     {
                         k.Status = KycStatus.Rejected; k.Note = "احراز هویت توسط مدیر لغو شد";
-                        conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = Serialize(k), id = k.Id }, tx);
+                        var kJson = Serialize(k);
+                        conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = kJson, id = k.Id }, tx);
+                        AppendOutbox(conn, tx, "Kyc", k.Id, SyncOp.Upsert, kJson);
                     }
                 }
             if (level < 1)
@@ -145,7 +154,9 @@ public sealed partial class SqliteDataStore
                     if (card.UserId == userId && card.Status == BankCardStatus.Approved)
                     {
                         card.Status = BankCardStatus.Rejected; card.Note = "توسط مدیر لغو شد";
-                        conn.Execute("UPDATE Cards SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)card.Status, d = Serialize(card), id = card.Id }, tx);
+                        var cardJson = Serialize(card);
+                        conn.Execute("UPDATE Cards SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)card.Status, d = cardJson, id = card.Id }, tx);
+                        AppendOutbox(conn, tx, "Cards", card.Id, SyncOp.Upsert, cardJson);
                     }
                 }
 

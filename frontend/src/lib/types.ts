@@ -542,6 +542,19 @@ export type ServerStatus = {
   status: string;
 };
 
+// Business-continuity cluster status for the "مدیریت خوشه" admin page (GET /api/cluster/status).
+export type ClusterStatus = {
+  role: "Standalone" | "Primary" | "Standby" | "Recovering";
+  clusterEnabled: boolean;
+  nodeId: string;
+  peerUrl: string | null;
+  peerReachable: boolean;
+  lastSyncUtc: string | null;
+  lastPeerContactUtc: string | null;
+  pendingCount: number;
+  deadLetterCount: number;
+};
+
 // One Serilog file surfaced by the admin "system logs" page (GET /api/admin/logs).
 export type LogFile = {
   name: string;

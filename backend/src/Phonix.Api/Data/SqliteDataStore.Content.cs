@@ -67,6 +67,7 @@ public sealed partial class SqliteDataStore
                 .Select(r => (long)r.Id).ToList();
             if (ids.Count == 0) return false;
             conn.Execute("DELETE FROM Comments WHERE Id = @id", ids.Select(x => new { id = x }), tx);
+            foreach (var deletedId in ids) AppendOutbox(conn, tx, "Comments", deletedId, SyncOp.Delete, null);
             return true;
         });
 
@@ -110,7 +111,9 @@ public sealed partial class SqliteDataStore
             var nid = (int)conn.ExecuteScalar<long>("INSERT INTO Notifications (UserId, DataJson) VALUES (@UserId,@DataJson); SELECT last_insert_rowid();",
                 new { UserId = userId, DataJson = Serialize(n) }, tx);
             n.Id = nid;
-            conn.Execute("UPDATE Notifications SET DataJson=@d WHERE Id=@id", new { d = Serialize(n), id = nid }, tx);
+            var json = Serialize(n);
+            conn.Execute("UPDATE Notifications SET DataJson=@d WHERE Id=@id", new { d = json, id = nid }, tx);
+            AppendOutbox(conn, tx, "Notifications", nid, SyncOp.Upsert, json);
             return n;
         });
 
@@ -139,7 +142,13 @@ public sealed partial class SqliteDataStore
             foreach (var row in conn.Query("SELECT Id, DataJson FROM Notifications WHERE UserId=@u OR UserId IS NULL", new { u = userId }, tx).ToList())
             {
                 var n = Deserialize<Notification>((string)row.DataJson)!;
-                if (IsVisibleTo(n, userId) && !n.ReadBy.Contains(userId)) { n.ReadBy.Add(userId); conn.Execute("UPDATE Notifications SET DataJson=@d WHERE Id=@id", new { d = Serialize(n), id = (long)row.Id }, tx); }
+                if (IsVisibleTo(n, userId) && !n.ReadBy.Contains(userId))
+                {
+                    n.ReadBy.Add(userId);
+                    var json = Serialize(n);
+                    conn.Execute("UPDATE Notifications SET DataJson=@d WHERE Id=@id", new { d = json, id = (long)row.Id }, tx);
+                    AppendOutbox(conn, tx, "Notifications", (long)row.Id, SyncOp.Upsert, json);
+                }
             }
             return null;
         });

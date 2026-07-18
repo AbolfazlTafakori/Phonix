@@ -18,13 +18,17 @@ public sealed partial class SqliteDataStore
         for (var i = 0; i < plans.Count; i++) plans[i].Id = i + 1;
     }
 
-    private static void UpsertProduct(SqliteConnection conn, SqliteTransaction? tx, Product p) =>
+    private void UpsertProduct(SqliteConnection conn, SqliteTransaction? tx, Product p)
+    {
+        var json = Serialize(p);
         conn.Execute(@"
 INSERT INTO Products (Id, CategoryId, IsActive, Stock, DataJson)
 VALUES (@Id, @CategoryId, @IsActive, @Stock, @DataJson)
 ON CONFLICT(Id) DO UPDATE SET
     CategoryId=excluded.CategoryId, IsActive=excluded.IsActive, Stock=excluded.Stock, DataJson=excluded.DataJson;",
-            new { p.Id, p.CategoryId, IsActive = p.IsActive ? 1 : 0, p.Stock, DataJson = Serialize(p) }, tx);
+            new { p.Id, p.CategoryId, IsActive = p.IsActive ? 1 : 0, p.Stock, DataJson = json }, tx);
+        if (tx is not null) AppendOutbox(conn, tx, "Products", p.Id, SyncOp.Upsert, json);
+    }
 
     public Product? GetProduct(int id)
     {
@@ -60,8 +64,10 @@ INSERT INTO Products (CategoryId, IsActive, Stock, DataJson) VALUES (@CategoryId
 SELECT last_insert_rowid();",
                 new { product.CategoryId, IsActive = product.IsActive ? 1 : 0, product.Stock, DataJson = Serialize(product) }, tx);
             product.Id = (int)id;
+            var json = Serialize(product);
             conn.Execute("UPDATE Products SET DataJson = @DataJson WHERE Id = @Id",
-                new { DataJson = Serialize(product), product.Id }, tx);
+                new { DataJson = json, product.Id }, tx);
+            AppendOutbox(conn, tx, "Products", product.Id, SyncOp.Upsert, json);
             return product;
         });
 
@@ -75,11 +81,13 @@ SELECT last_insert_rowid();",
             return true;
         });
 
-    public bool DeleteProduct(int id)
-    {
-        using var conn = OpenConnection();
-        return conn.Execute("DELETE FROM Products WHERE Id = @id", new { id }) > 0;
-    }
+    public bool DeleteProduct(int id) =>
+        WriteTx((conn, tx) =>
+        {
+            var deleted = conn.Execute("DELETE FROM Products WHERE Id = @id", new { id }, tx) > 0;
+            if (deleted) AppendOutbox(conn, tx, "Products", id, SyncOp.Delete, null);
+            return deleted;
+        });
 
 
     // ── Categories ──────────────────────────────────────────────────────────────────────────────────────

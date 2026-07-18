@@ -88,7 +88,9 @@ public sealed partial class SqliteDataStore
                 if (c.UserId == userId && c.Status == ConversationStatus.Open)
                 {
                     c.Status = ConversationStatus.Closed;
-                    conn.Execute("UPDATE Conversations SET DataJson=@d WHERE Id=@id", new { d = Serialize(c), id = (long)row.Id }, tx);
+                    var json = Serialize(c);
+                    conn.Execute("UPDATE Conversations SET DataJson=@d WHERE Id=@id", new { d = json, id = (long)row.Id }, tx);
+                    AppendOutbox(conn, tx, "Conversations", (long)row.Id, SyncOp.Upsert, json);
                 }
             }
             return null;
@@ -125,7 +127,9 @@ public sealed partial class SqliteDataStore
                 conv.Id = (int)rowId;
             }
             AppendChatMessage(conn, tx, conv, fromAdmin: false, userName, body);
-            conn.Execute("UPDATE Conversations SET DataJson=@d WHERE Id=@id", new { d = Serialize(conv), id = rowId }, tx);
+            var json = Serialize(conv);
+            conn.Execute("UPDATE Conversations SET DataJson=@d WHERE Id=@id", new { d = json, id = rowId }, tx);
+            AppendOutbox(conn, tx, "Conversations", rowId, SyncOp.Upsert, json);
             return conv;
         });
 
@@ -137,7 +141,9 @@ public sealed partial class SqliteDataStore
             if (cj is null) return (null, 0);
             var conv = Deserialize<ChatConversation>(cj)!;
             AppendChatMessage(conn, tx, conv, fromAdmin: true, authorName, body);
-            conn.Execute("UPDATE Conversations SET DataJson=@d WHERE Id=@id", new { d = Serialize(conv), id = conversationId }, tx);
+            var json = Serialize(conv);
+            conn.Execute("UPDATE Conversations SET DataJson=@d WHERE Id=@id", new { d = json, id = conversationId }, tx);
+            AppendOutbox(conn, tx, "Conversations", conversationId, SyncOp.Upsert, json);
             return (conv, conv.UserId);
         });
         if (result.Conv is null) return null;
@@ -153,7 +159,9 @@ public sealed partial class SqliteDataStore
             var conv = Deserialize<ChatConversation>(cj)!;
             var lastId = conv.Messages.Count == 0 ? 0 : conv.Messages.Max(m => m.Id);
             if (byAdmin) conv.AdminReadUpTo = lastId; else conv.UserReadUpTo = lastId;
-            conn.Execute("UPDATE Conversations SET DataJson=@d WHERE Id=@id", new { d = Serialize(conv), id = conversationId }, tx);
+            var json = Serialize(conv);
+            conn.Execute("UPDATE Conversations SET DataJson=@d WHERE Id=@id", new { d = json, id = conversationId }, tx);
+            AppendOutbox(conn, tx, "Conversations", conversationId, SyncOp.Upsert, json);
             return null;
         });
 

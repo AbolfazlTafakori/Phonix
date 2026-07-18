@@ -18,6 +18,12 @@
 #   BRANCH         git branch to deploy (default: main)
 #   OWNER_USERNAME first admin (owner) account username — skips the interactive prompt when set
 #   OWNER_PASSWORD first admin (owner) account password — skips the interactive prompt when set
+#   CLUSTER_MODE   standalone (default) | primary | standby — optional High Availability, business
+#                  continuity only; skips the interactive prompt when set
+#   NODE_ID        a short label for this server (e.g. germany) — Primary/Standby only
+#   CLUSTER_PEER   the OTHER cluster node's reachable base URL — Primary/Standby only
+#   CLUSTER_SECRET shared secret authenticating node-to-node calls — Primary/Standby only; the Primary
+#                  auto-generates one if not set, the Standby must be given that SAME value
 #
 # The owner account is set on THIS terminal at install time (typed interactively, never generated
 # or printed back) — it's the one account that exists before anything else. The owner then creates
@@ -107,6 +113,66 @@ if [ ! -f .env ]; then
   fi
   sed -i "s#^PHONIX_OWNER_USERNAME=.*#PHONIX_OWNER_USERNAME=${ENTERED_OWNER_USERNAME}#" .env
   sed -i "s#^PHONIX_OWNER_PASSWORD=.*#PHONIX_OWNER_PASSWORD=${ENTERED_OWNER_PASSWORD}#" .env
+
+  # Cluster mode — optional High Availability (one Primary + one Standby, business continuity only, never
+  # required). Pre-set CLUSTER_MODE to skip the prompt; leaving everything unset defaults to Standalone,
+  # which is byte-for-byte today's single-server behavior.
+  if [ -n "${CLUSTER_MODE:-}" ]; then
+    ENTERED_CLUSTER_MODE="$CLUSTER_MODE"
+  elif [ -r /dev/tty ]; then
+    echo
+    log "Cluster mode (press Enter for a normal single-server install):"
+    echo "  1) Standalone (default)"
+    echo "  2) Primary node"
+    echo "  3) Standby node"
+    read -r -p "Choice [1]: " CLUSTER_CHOICE </dev/tty
+    case "${CLUSTER_CHOICE:-1}" in
+      2) ENTERED_CLUSTER_MODE="primary" ;;
+      3) ENTERED_CLUSTER_MODE="standby" ;;
+      *) ENTERED_CLUSTER_MODE="standalone" ;;
+    esac
+  else
+    ENTERED_CLUSTER_MODE="standalone"
+  fi
+  sed -i "s#^PHONIX_CLUSTER_MODE=.*#PHONIX_CLUSTER_MODE=${ENTERED_CLUSTER_MODE}#" .env
+
+  if [ "$ENTERED_CLUSTER_MODE" != "standalone" ]; then
+    # A short label so the admin panel's Cluster Management page can tell the two servers apart.
+    if [ -n "${NODE_ID:-}" ]; then
+      ENTERED_NODE_ID="$NODE_ID"
+    elif [ -r /dev/tty ]; then
+      read -r -p "Node id/label for this server (e.g. germany, iran): " ENTERED_NODE_ID </dev/tty
+    else
+      ENTERED_NODE_ID=""
+    fi
+    sed -i "s#^PHONIX_NODE_ID=.*#PHONIX_NODE_ID=${ENTERED_NODE_ID}#" .env
+
+    # Every cluster node needs the other one's reachable base URL to sync against.
+    if [ -n "${CLUSTER_PEER:-}" ]; then
+      ENTERED_CLUSTER_PEER="$CLUSTER_PEER"
+    elif [ -r /dev/tty ]; then
+      read -r -p "Peer server URL (e.g. https://other-server:5228): " ENTERED_CLUSTER_PEER </dev/tty
+    else
+      die "Cluster mode requires CLUSTER_PEER to be set when running non-interactively."
+    fi
+    sed -i "s#^PHONIX_CLUSTER_PEER=.*#PHONIX_CLUSTER_PEER=${ENTERED_CLUSTER_PEER}#" .env
+
+    # Shared secret authenticating every request between the two nodes. Only the Primary generates one;
+    # the Standby must be given that SAME value (copy it from the Primary's setup — it's shown once below
+    # and never again, same as PHONIX_BACKUP_KEY's generation on the bare-metal installer).
+    if [ -n "${CLUSTER_SECRET:-}" ]; then
+      ENTERED_CLUSTER_SECRET="$CLUSTER_SECRET"
+    elif [ "$ENTERED_CLUSTER_MODE" = "primary" ]; then
+      ENTERED_CLUSTER_SECRET="$(openssl rand -base64 32)"
+      warn "Generated PHONIX_CLUSTER_SECRET — copy this to the Standby's setup, it will not be shown again:"
+      echo "  $ENTERED_CLUSTER_SECRET"
+    elif [ -r /dev/tty ]; then
+      read -r -p "Cluster secret (paste the Primary's PHONIX_CLUSTER_SECRET): " ENTERED_CLUSTER_SECRET </dev/tty
+    else
+      die "Standby mode requires CLUSTER_SECRET to be set when running non-interactively."
+    fi
+    sed -i "s#^PHONIX_CLUSTER_SECRET=.*#PHONIX_CLUSTER_SECRET=${ENTERED_CLUSTER_SECRET}#" .env
+  fi
 else
   warn ".env already exists — leaving it untouched (owner credentials, if changed, must be edited there by hand)."
 fi

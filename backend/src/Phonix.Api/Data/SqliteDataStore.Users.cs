@@ -15,7 +15,9 @@ public sealed partial class SqliteDataStore
 
     // Writes the column projection + the full object payload in one statement. INSERT-or-UPDATE on the PK so
     // the same helper serves both new rows and edits.
-    private static void UpsertUser(SqliteConnection conn, SqliteTransaction? tx, AppUser u) =>
+    private void UpsertUser(SqliteConnection conn, SqliteTransaction? tx, AppUser u)
+    {
+        var json = Serialize(u);
         conn.Execute(@"
 INSERT INTO Users (Id, Username, Email, Phone, Role, Blocked, ReferredBy, VerificationLevel, DataJson)
 VALUES (@Id, @Username, @Email, @Phone, @Role, @Blocked, @ReferredBy, @VerificationLevel, @DataJson)
@@ -33,8 +35,10 @@ ON CONFLICT(Id) DO UPDATE SET
                 Blocked = u.Blocked ? 1 : 0,
                 u.ReferredBy,
                 u.VerificationLevel,
-                DataJson = Serialize(u),
+                DataJson = json,
             }, tx);
+        if (tx is not null) AppendOutbox(conn, tx, "Users", u.Id, SyncOp.Upsert, json);
+    }
 
     // Hot path (called on every authenticated request): O(log n) primary-key lookup, then deserialize.
     public AppUser? GetUser(int id)
@@ -127,8 +131,10 @@ SELECT last_insert_rowid();",
 
             user.Id = (int)id;
             user.Code = NextUserCode(conn, tx);
+            var json = Serialize(user);
             conn.Execute("UPDATE Users SET DataJson = @DataJson WHERE Id = @Id",
-                new { DataJson = Serialize(user), user.Id }, tx);
+                new { DataJson = json, user.Id }, tx);
+            AppendOutbox(conn, tx, "Users", user.Id, SyncOp.Upsert, json);
             return user;
         });
     }
@@ -170,11 +176,13 @@ SELECT last_insert_rowid();",
             return true;
         });
 
-    public bool DeleteUser(int id)
-    {
-        using var conn = OpenConnection();
-        return conn.Execute("DELETE FROM Users WHERE Id = @id", new { id }) > 0;
-    }
+    public bool DeleteUser(int id) =>
+        WriteTx((conn, tx) =>
+        {
+            var deleted = conn.Execute("DELETE FROM Users WHERE Id = @id", new { id }, tx) > 0;
+            if (deleted) AppendOutbox(conn, tx, "Users", id, SyncOp.Delete, null);
+            return deleted;
+        });
 
 
     // ── Users: rename/email/owner ───────────────────────────────────────────────────────────────────────
@@ -234,7 +242,9 @@ INSERT INTO Users (Username, Email, Phone, Role, Blocked, ReferredBy, Verificati
 VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@DataJson); SELECT last_insert_rowid();",
                     new { owner.Username, owner.Email, owner.Phone, Role = (int)owner.Role, Blocked = 0, owner.ReferredBy, owner.VerificationLevel, DataJson = Serialize(owner) }, tx);
                 owner.Id = id; owner.Code = NextUserCode(conn, tx);
-                conn.Execute("UPDATE Users SET DataJson=@d WHERE Id=@id", new { d = Serialize(owner), id }, tx);
+                var ownerJson = Serialize(owner);
+                conn.Execute("UPDATE Users SET DataJson=@d WHERE Id=@id", new { d = ownerJson, id }, tx);
+                AppendOutbox(conn, tx, "Users", id, SyncOp.Upsert, ownerJson);
             }
             else
             {
