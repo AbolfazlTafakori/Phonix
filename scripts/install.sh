@@ -11,11 +11,17 @@
 #          | sudo REPO_URL=https://github.com/<user>/<repo>.git bash
 #
 # Optional environment overrides:
-#   REPO_URL    git URL to clone when not run inside the repo
-#   APP_DIR     install location (default: /opt/phonix)
-#   DOMAIN      public host for both apps; if set, URLs become https://DOMAIN + https://DOMAIN/api
-#   SERVER_IP   public IP used to build default http URLs (auto-detected when unset)
-#   BRANCH      git branch to deploy (default: main)
+#   REPO_URL       git URL to clone when not run inside the repo
+#   APP_DIR        install location (default: /opt/phonix)
+#   DOMAIN         public host for both apps; if set, URLs become https://DOMAIN + https://DOMAIN/api
+#   SERVER_IP      public IP used to build default http URLs (auto-detected when unset)
+#   BRANCH         git branch to deploy (default: main)
+#   OWNER_USERNAME first admin (owner) account username — skips the interactive prompt when set
+#   OWNER_PASSWORD first admin (owner) account password — skips the interactive prompt when set
+#
+# The owner account is set on THIS terminal at install time (typed interactively, never generated
+# or printed back) — it's the one account that exists before anything else. The owner then creates
+# any other staff/admin accounts from the admin panel itself; there is no other way in.
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/phonix}"
@@ -78,8 +84,31 @@ if [ ! -f .env ]; then
 
   sed -i "s#^NEXT_PUBLIC_API_URL=.*#NEXT_PUBLIC_API_URL=${API_URL}#" .env
   sed -i "s#^PHONIX_FRONTEND_URL=.*#PHONIX_FRONTEND_URL=${FRONTEND_URL}#" .env
+
+  # First admin (owner) account — typed on this terminal, never auto-generated or echoed back. Reads
+  # from /dev/tty so this still works when the script is piped via `curl | sudo bash` (stdin in that
+  # case is the script itself, not the keyboard). This owner is the only account that exists at first;
+  # it creates every other staff/admin account afterward from the admin panel.
+  if [ -n "${OWNER_USERNAME:-}" ] && [ -n "${OWNER_PASSWORD:-}" ]; then
+    ENTERED_OWNER_USERNAME="$OWNER_USERNAME"
+    ENTERED_OWNER_PASSWORD="$OWNER_PASSWORD"
+  elif [ -r /dev/tty ]; then
+    echo
+    log "Set up the owner account (the first admin login)."
+    read -r -p "Admin username: " ENTERED_OWNER_USERNAME </dev/tty
+    while true; do
+      read -r -s -p "Admin password: " ENTERED_OWNER_PASSWORD </dev/tty; echo
+      read -r -s -p "Confirm password: " ENTERED_OWNER_PASSWORD_CONFIRM </dev/tty; echo
+      [ "$ENTERED_OWNER_PASSWORD" = "$ENTERED_OWNER_PASSWORD_CONFIRM" ] && break
+      warn "Passwords didn't match — try again."
+    done
+  else
+    die "No terminal to prompt on and OWNER_USERNAME/OWNER_PASSWORD were not set. Re-run with OWNER_USERNAME=... OWNER_PASSWORD=... or run this script interactively (not piped)."
+  fi
+  sed -i "s#^PHONIX_OWNER_USERNAME=.*#PHONIX_OWNER_USERNAME=${ENTERED_OWNER_USERNAME}#" .env
+  sed -i "s#^PHONIX_OWNER_PASSWORD=.*#PHONIX_OWNER_PASSWORD=${ENTERED_OWNER_PASSWORD}#" .env
 else
-  warn ".env already exists — leaving it untouched."
+  warn ".env already exists — leaving it untouched (owner credentials, if changed, must be edited there by hand)."
 fi
 
 # 4) Build + run --------------------------------------------------------------------
@@ -109,4 +138,9 @@ set -a; . ./.env; set +a
 echo
 log "Storefront: ${PHONIX_FRONTEND_URL:-http://<server>:3000}"
 log "API:        ${NEXT_PUBLIC_API_URL:-http://<server>:5228}"
-warn "First admin login uses the seeded credentials — change the password right after logging in."
+if [ -n "${PHONIX_OWNER_USERNAME:-}" ] && [ -n "${PHONIX_OWNER_PASSWORD:-}" ]; then
+  log "Admin login is the username you just set. Log in from the admin panel to create any other staff accounts."
+else
+  warn "PHONIX_OWNER_USERNAME/PHONIX_OWNER_PASSWORD are not set in .env — there is NO admin account yet."
+  warn "Set both in .env by hand, then run: docker compose up -d"
+fi

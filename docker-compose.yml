@@ -26,6 +26,14 @@ services:
       # Set both to "true" only when a TLS-terminating reverse proxy sits in front (see DEPLOY.md).
       PHONIX_BEHIND_PROXY: ${PHONIX_BEHIND_PROXY:-false}
       PHONIX_FORCE_HTTPS: ${PHONIX_FORCE_HTTPS:-false}
+      # (Re)applied on every boot: mints the first admin account if it doesn't exist yet, or fixes its
+      # role/password if it does. Without these, a fresh deploy has NO way to reach the admin panel.
+      PHONIX_OWNER_USERNAME: ${PHONIX_OWNER_USERNAME:-}
+      PHONIX_OWNER_PASSWORD: ${PHONIX_OWNER_PASSWORD:-}
+      # Encrypts store backups downloaded/sent from /admin/backup (AES-256-GCM). Optional — without it,
+      # backup files are plain JSON/zip. Losing this key after the fact makes old encrypted backups
+      # unrecoverable, so set it once and keep it somewhere safe outside the server.
+      PHONIX_BACKUP_KEY: ${PHONIX_BACKUP_KEY:-}
     volumes:
       - phonix-data:/app/App_Data
     ports:
