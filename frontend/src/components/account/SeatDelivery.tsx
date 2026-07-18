@@ -154,15 +154,28 @@ export default function SeatDelivery({ seats, deviceInfo }: { seats: Seat[]; dev
 
       {/* the selected profile only */}
       <div className="space-y-2 rounded-xl p-3" style={{ background: "var(--ac-panel-bg)", border: "1px solid var(--ac-panel-border)" }}>
-        <div dir="ltr" className="text-sm font-bold" style={{ color: "var(--ac-title)", unicodeBidi: "isolate" }}>پروفایل {active.seatLabel}</div>
+        {/* label (right) + seat code (left) — justify-between on the page's own RTL flow puts the first child
+            at the start (right) and the last at the end (left), so this needs no dir override on the row. */}
+        <div className="flex items-baseline justify-between text-sm font-bold" style={{ color: "var(--ac-title)" }}>
+          <span>پروفایل</span>
+          <span dir="ltr" style={{ unicodeBidi: "isolate" }}>{active.seatLabel}</span>
+        </div>
         {/* username (right) + password (left) as a matched pair — page direction is RTL, so the first item in
             DOM order lands on the right without needing an explicit dir override on this row. */}
         <div className="grid grid-cols-2 gap-2">
           <InfoRow label="نام کاربری" value={active.username} />
           <InfoRow label="گذرواژه" value={active.password} sensitive />
         </div>
-        <InfoRow label="پلن" value={active.plan} />
-        {active.months ? <InfoRow label="مدت اشتراک" value={`${active.months} ماه`} /> : null}
+        {/* plan (right) + duration (left), same paired layout — only when there's a duration to pair with,
+            otherwise the plan renders alone so it never leaves an empty cell beside it. */}
+        {active.months ? (
+          <div className="grid grid-cols-2 gap-2">
+            <InfoRow label="پلن" value={active.plan} />
+            <InfoRow label="مدت اشتراک" value={`${active.months} ماه`} />
+          </div>
+        ) : (
+          <InfoRow label="پلن" value={active.plan} />
+        )}
         {deviceInfo && deviceInfo.length > 0 && (
           <div className="space-y-2 border-t pt-2" style={{ borderColor: "var(--ac-divider)" }}>
             <div className="text-[11px] font-bold" style={{ color: "var(--ac-muted)" }}>اطلاعات دستگاه</div>
