@@ -8,6 +8,7 @@ REPO_DIR="$BASE_DIR/repo"
 RELEASES_DIR="$BASE_DIR/releases"
 CURRENT_LINK="$BASE_DIR/current"
 CONF_DIR="/etc/phoenix"
+OFFLINE_NUGET_FLAG="/etc/phoenix/nuget-offline"
 ENV_FILE="$CONF_DIR/phoenix.env"
 SECRET_FILE="$CONF_DIR/secret.env"
 OWNER_FILE="$CONF_DIR/owner.env"
@@ -293,20 +294,9 @@ fetch_source_archive() {
     return 0
 }
 
-# Builds need packages from nuget.org. Where that host is unreachable, restore hangs until it times out
-# and then fails, even though every package is already in the local cache from an earlier build. Pointing
-# NuGet at no remote source at all makes it resolve straight from that cache. Regenerated on each build
-# rather than kept as a file, so refreshing the source tree can't quietly undo it.
-ensure_offline_nuget() {
-    if curl -fsS -o /dev/null -m 8 https://api.nuget.org/v3/index.json 2>/dev/null; then
-        rm -f "$REPO_DIR/nuget.config"
-        return 0
-    fi
-    if [[ ! -d "$HOME/.nuget/packages" ]]; then
-        warn "nuget.org is unreachable and there is no local package cache — the backend build will fail."
-        return 0
-    fi
-    warn "nuget.org is unreachable — building the backend from the local package cache."
+# Points NuGet at no remote source so restore resolves purely from the local package cache. Written into
+# the source tree, which a source refresh wipes — hence the flag in $CONF_DIR that remembers the decision.
+write_offline_nuget_config() {
     cat > "$REPO_DIR/nuget.config" <<'XML'
 <?xml version="1.0" encoding="utf-8"?>
 <configuration>
@@ -315,6 +305,42 @@ ensure_offline_nuget() {
   </packageSources>
 </configuration>
 XML
+}
+
+# Publishes the backend, falling back to an offline restore when nuget.org can't be reached.
+#
+# Reachability is decided by attempting the build, not by probing the host first: a probe can complete a
+# TCP handshake and look healthy on a network that then stalls the actual package requests until they time
+# out, which is exactly how this fails in practice. Once a host has proven it needs the offline path, the
+# flag file skips the slow first attempt on every later build.
+publish_backend() {
+    local out="$1"
+
+    if [[ -f "$OFFLINE_NUGET_FLAG" ]]; then
+        say "Using the local NuGet cache (nuget.org was unreachable on an earlier build)."
+        write_offline_nuget_config
+        dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo
+        return
+    fi
+
+    rm -f "$REPO_DIR/nuget.config"
+    if dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo; then
+        return 0
+    fi
+
+    [[ -d "$HOME/.nuget/packages" ]] || {
+        warn "The backend build failed and there is no local NuGet cache to fall back to."
+        return 1
+    }
+
+    warn "The backend build could not reach nuget.org — retrying against the local package cache."
+    write_offline_nuget_config
+    if dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo; then
+        touch "$OFFLINE_NUGET_FLAG"
+        ok "Built from the local cache; later builds will use it directly."
+        return 0
+    fi
+    return 1
 }
 
 # Refreshes this very tool from the release that was just pulled, so a new menu option ships with a
@@ -364,8 +390,7 @@ hot_update() {
     mkdir -p "$rel/api" "$rel/web"
 
     say "Building backend..."
-    ensure_offline_nuget
-    dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$rel/api" --nologo
+    publish_backend "$rel/api"
 
     say "Building frontend in a separate staging directory..."
     rsync -a --delete --exclude node_modules --exclude .next "$REPO_DIR/frontend/" "$rel/web/"
