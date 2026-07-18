@@ -15,6 +15,7 @@ SECRET_FILE="$CONF_DIR/secret.env"
 OWNER_FILE="$CONF_DIR/owner.env"
 NGINX_SITE="/etc/nginx/sites-available/phoenix.conf"
 NGINX_LINK="/etc/nginx/sites-enabled/phoenix.conf"
+SRC_TARBALL_URL="https://codeload.github.com/AbolfazlTafakori/Phonix/tar.gz/refs/heads/main"
 PUI_SRC="$REPO_DIR/deploy/p-ui"
 PUI_PATH="/usr/local/bin/p-ui"
 API_PORT=5228
@@ -32,6 +33,41 @@ heading() { printf "\n%b\n" "${C_BOLD}${C_CYAN}== $* ==${C_RESET}"; }
 
 require_root() {
     [[ $EUID -eq 0 ]] || die "This installer must run as root (use sudo)."
+}
+
+# Where this script is being run from. When the installer sits inside an extracted copy of the source
+# (deploy/install.sh next to backend/ and frontend/), that copy is what gets installed and no download
+# is attempted. Piping the script in (bash <(curl ...)) leaves BASH_SOURCE pointing at a file
+# descriptor rather than a real tree, which simply falls through to the network path below.
+detect_local_source() {
+    local self dir
+    self="${BASH_SOURCE[0]}"
+    [[ -f "$self" ]] || return 0
+    dir="$(cd "$(dirname "$self")/.." 2>/dev/null && pwd)" || return 0
+    [[ -d "$dir/backend" && -d "$dir/frontend" ]] || return 0
+    printf '%s' "$dir"
+}
+
+# Plain HTTPS download of the source, used when the git protocol is blocked but ordinary web traffic
+# is not. Retried, and only swapped in once the extracted tree is confirmed to look like the repo.
+fetch_source_archive() {
+    local tmp dir
+    tmp="$(mktemp -d)"
+    if ! curl -fL --retry 5 --retry-delay 3 --retry-all-errors --connect-timeout 20 \
+        -o "$tmp/src.tar.gz" "$SRC_TARBALL_URL"; then
+        rm -rf "$tmp"; return 1
+    fi
+    if ! tar xzf "$tmp/src.tar.gz" -C "$tmp"; then
+        rm -rf "$tmp"; return 1
+    fi
+    dir="$(find "$tmp" -mindepth 1 -maxdepth 1 -type d | head -n1)"
+    if [[ ! -d "$dir/backend" || ! -d "$dir/frontend" ]]; then
+        rm -rf "$tmp"; return 1
+    fi
+    mkdir -p "$REPO_DIR"
+    rsync -a --delete --exclude .git "$dir/" "$REPO_DIR/"
+    rm -rf "$tmp"
+    return 0
 }
 
 require_ubuntu() {
@@ -149,21 +185,30 @@ fetch_repo() {
     # create_user_and_dirs chowns $BASE_DIR (which contains $REPO_DIR) to $APP_USER, so git now runs
     # as root over a repo owned by another user. Mark it trusted to avoid "dubious ownership" aborts.
     git config --global --add safe.directory "$REPO_DIR"
-    # Source that is already on disk is used as-is. This covers restricted networks where cloning from
-    # GitHub times out and the tree was delivered another way (an extracted archive, or copied over from
-    # another machine) — the install must not die on a git error when it already has what it needs.
-    if [[ -d "$REPO_DIR/backend" && -d "$REPO_DIR/frontend" ]]; then
-        if [[ -d "$REPO_DIR/.git" ]]; then
-            if git -C "$REPO_DIR" fetch --all --prune && git -C "$REPO_DIR" reset --hard origin/main; then
-                ok "Updated to the latest origin/main."
-            else
-                warn "Could not reach the git remote — building from the source already in $REPO_DIR."
-            fi
+    local local_src; local_src="$(detect_local_source)"
+
+    if [[ -n "$local_src" ]]; then
+        # Running from an extracted copy — install exactly that, no network involved.
+        if [[ "$local_src" != "$REPO_DIR" ]]; then
+            say "Installing from the extracted source at $local_src"
+            mkdir -p "$REPO_DIR"
+            rsync -a --delete --exclude .git "$local_src/" "$REPO_DIR/"
         else
-            warn "No git metadata in $REPO_DIR — building from the source already there."
+            say "Installing from the source already at $REPO_DIR"
         fi
+    elif [[ -d "$REPO_DIR/.git" ]] \
+        && git -C "$REPO_DIR" fetch --all --prune \
+        && git -C "$REPO_DIR" reset --hard origin/main; then
+        ok "Updated to the latest origin/main."
+    elif git clone "$REPO_URL" "$REPO_DIR" 2>/dev/null; then
+        ok "Cloned from $REPO_URL"
+    elif fetch_source_archive; then
+        # git is blocked on some networks while ordinary HTTPS still works.
+        ok "Downloaded the source archive over HTTPS."
+    elif [[ -d "$REPO_DIR/backend" && -d "$REPO_DIR/frontend" ]]; then
+        warn "Could not reach GitHub — building from the source already in $REPO_DIR."
     else
-        git clone "$REPO_URL" "$REPO_DIR"
+        die "Could not reach GitHub and no source is available locally. Extract the repository archive and run deploy/install.sh from inside it."
     fi
     chown -R "$APP_USER:$APP_USER" "$REPO_DIR"
     ok "Source ready at $REPO_DIR"
