@@ -195,6 +195,14 @@ public class AdvancedSettingsController : ControllerBase
     [HttpPut]
     public AdvancedSettings Update(AdvancedSettings input)
     {
+        // CustomHeadScript is raw JavaScript that runs for every visitor, so whoever can set it can act as
+        // any admin who later opens the site (the session cookie rides along and the double-submit CSRF
+        // cookie is readable from script by design). The rest of this page is ordinary content a Support
+        // member with the "pages" permission should be able to edit, so only this one field is held back to
+        // Admin — a Support edit keeps whatever is already stored instead of being rejected outright.
+        if (!User.IsInRole(nameof(UserRole.Admin)))
+            input.CustomHeadScript = _store.GetAdvancedSettings().CustomHeadScript;
+
         _store.UpdateAdvancedSettings(input);
         return _store.GetAdvancedSettings();
     }

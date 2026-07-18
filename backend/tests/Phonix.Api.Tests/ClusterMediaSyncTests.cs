@@ -81,4 +81,38 @@ public sealed class ClusterMediaSyncTests
         Assert.Null(standby.ReadRawForSync("../secrets", name));
         Assert.False(standby.WriteRawFromSync("avatars", "../escape.png", good, goodHash));
     }
+
+    // The peer controls both the category and the file name on every media transfer, and it reaches these
+    // methods straight off the wire. A static analyser flags the Path.Combine calls here because the
+    // sanitising happens in a guard rather than inline, so the containment is pinned down explicitly:
+    // nothing in this set may read or write a single byte outside the uploads root.
+    [Theory]
+    [InlineData("avatars", "../escape.png")]
+    [InlineData("avatars", "../../escape.png")]
+    [InlineData("avatars", "..\\escape.png")]
+    [InlineData("avatars", "sub/escape.png")]
+    [InlineData("avatars", "sub\\escape.png")]
+    [InlineData("avatars", "/etc/passwd")]
+    [InlineData("avatars", "C:\\Windows\\win.ini")]
+    [InlineData("avatars", "")]
+    [InlineData("avatars", ".")]
+    [InlineData("avatars", "..")]
+    [InlineData("../secrets", "a.png")]
+    [InlineData("..", "a.png")]
+    [InlineData("/etc", "passwd")]
+    [InlineData("avatars/../../etc", "passwd")]
+    [InlineData("", "a.png")]
+    public void Media_sync_never_escapes_the_uploads_root(string category, string name)
+    {
+        var standby = StoreWithRoot(out var root);
+        var payload = new byte[] { 1, 2, 3 };
+        var hash = Convert.ToHexString(SHA256.HashData(payload));
+
+        Assert.Null(standby.ReadRawForSync(category, name));
+        Assert.False(standby.WriteRawFromSync(category, name, payload, hash));
+
+        // Nothing was created anywhere outside the root — including no stray temp files inside it.
+        Assert.Empty(standby.ListMediaForSync());
+        Assert.Empty(Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories));
+    }
 }

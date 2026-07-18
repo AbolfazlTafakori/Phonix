@@ -12,6 +12,9 @@ namespace Phonix.Api.Security;
 // not 401/403 — so a standalone install (the overwhelming majority) never reveals that the route even exists.
 public sealed class ClusterPeerAuthAttribute : Attribute, IAsyncAuthorizationFilter
 {
+    private const long MaxSignedBodyBytes = 64 * 1024;
+
+
     public async Task OnAuthorizationAsync(AuthorizationFilterContext context)
     {
         if (!ClusterAuth.IsConfigured)
@@ -21,10 +24,30 @@ public sealed class ClusterPeerAuthAttribute : Attribute, IAsyncAuthorizationFil
         }
 
         var request = context.HttpContext.Request;
-        request.EnableBuffering();
+
+        // The signature covers the body, so the body has to be read before the caller is authenticated —
+        // which means an unauthenticated request gets to allocate whatever it sends. Every node-to-node
+        // payload here is a small JSON object (a cursor, a category/name pair, or {}), so anything larger is
+        // refused outright rather than buffered to memory and disk on an internet-reachable endpoint.
+        if (request.ContentLength is > MaxSignedBodyBytes)
+        {
+            context.Result = new StatusCodeResult(StatusCodes.Status413PayloadTooLarge);
+            return;
+        }
+
+        request.EnableBuffering(bufferThreshold: (int)MaxSignedBodyBytes, bufferLimit: MaxSignedBodyBytes);
         string body;
-        using (var reader = new StreamReader(request.Body, leaveOpen: true))
+        try
+        {
+            using var reader = new StreamReader(request.Body, leaveOpen: true);
             body = await reader.ReadToEndAsync();
+        }
+        catch (IOException)
+        {
+            // Thrown when a chunked request (no Content-Length) runs past the buffer limit.
+            context.Result = new StatusCodeResult(StatusCodes.Status413PayloadTooLarge);
+            return;
+        }
         request.Body.Position = 0;
 
         var timestamp = request.Headers[ClusterAuth.TimestampHeader].ToString();

