@@ -149,9 +149,19 @@ fetch_repo() {
     # create_user_and_dirs chowns $BASE_DIR (which contains $REPO_DIR) to $APP_USER, so git now runs
     # as root over a repo owned by another user. Mark it trusted to avoid "dubious ownership" aborts.
     git config --global --add safe.directory "$REPO_DIR"
-    if [[ -d "$REPO_DIR/.git" ]]; then
-        git -C "$REPO_DIR" fetch --all --prune
-        git -C "$REPO_DIR" reset --hard origin/main
+    # Source that is already on disk is used as-is. This covers restricted networks where cloning from
+    # GitHub times out and the tree was delivered another way (an extracted archive, or copied over from
+    # another machine) — the install must not die on a git error when it already has what it needs.
+    if [[ -d "$REPO_DIR/backend" && -d "$REPO_DIR/frontend" ]]; then
+        if [[ -d "$REPO_DIR/.git" ]]; then
+            if git -C "$REPO_DIR" fetch --all --prune && git -C "$REPO_DIR" reset --hard origin/main; then
+                ok "Updated to the latest origin/main."
+            else
+                warn "Could not reach the git remote — building from the source already in $REPO_DIR."
+            fi
+        else
+            warn "No git metadata in $REPO_DIR — building from the source already there."
+        fi
     else
         git clone "$REPO_URL" "$REPO_DIR"
     fi

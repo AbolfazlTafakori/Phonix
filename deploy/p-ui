@@ -293,9 +293,18 @@ hot_update() {
     snapshot_data
 
     say "Fetching the latest release..."
-    if [[ -d "$REPO_DIR/.git" ]]; then
-        git -C "$REPO_DIR" fetch --all --prune --tags
-        git -C "$REPO_DIR" reset --hard origin/main
+    # On a restricted network the remote may be unreachable while the source is already on disk (put
+    # there from an archive or copied in). Rebuild what is there rather than aborting the update.
+    if [[ -d "$REPO_DIR/backend" && -d "$REPO_DIR/frontend" ]]; then
+        if [[ -d "$REPO_DIR/.git" ]]; then
+            if git -C "$REPO_DIR" fetch --all --prune --tags && git -C "$REPO_DIR" reset --hard origin/main; then
+                ok "Updated to the latest origin/main."
+            else
+                warn "Could not reach the git remote — rebuilding from the source already in $REPO_DIR."
+            fi
+        else
+            warn "No git metadata in $REPO_DIR — rebuilding from the source already there."
+        fi
     else
         git clone "$REPO_URL" "$REPO_DIR"
     fi
