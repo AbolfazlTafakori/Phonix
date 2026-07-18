@@ -155,8 +155,12 @@ export default function SeatDelivery({ seats, deviceInfo }: { seats: Seat[]; dev
       {/* the selected profile only */}
       <div className="space-y-2 rounded-xl p-3" style={{ background: "var(--ac-panel-bg)", border: "1px solid var(--ac-panel-border)" }}>
         <div dir="ltr" className="text-sm font-bold" style={{ color: "var(--ac-title)", unicodeBidi: "isolate" }}>پروفایل {active.seatLabel}</div>
-        <InfoRow label="نام کاربری" value={active.username} />
-        <InfoRow label="گذرواژه" value={active.password} sensitive />
+        {/* username (right) + password (left) as a matched pair — page direction is RTL, so the first item in
+            DOM order lands on the right without needing an explicit dir override on this row. */}
+        <div className="grid grid-cols-2 gap-2">
+          <InfoRow label="نام کاربری" value={active.username} />
+          <InfoRow label="گذرواژه" value={active.password} sensitive />
+        </div>
         <InfoRow label="پلن" value={active.plan} />
         {active.months ? <InfoRow label="مدت اشتراک" value={`${active.months} ماه`} /> : null}
         {deviceInfo && deviceInfo.length > 0 && (
