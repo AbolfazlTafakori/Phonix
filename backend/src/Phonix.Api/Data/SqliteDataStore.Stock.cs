@@ -1,6 +1,7 @@
 using Dapper;
 using Microsoft.Data.Sqlite;
 using Phonix.Api.Models;
+using Phonix.Api.Services;
 
 namespace Phonix.Api.Data;
 
@@ -113,6 +114,27 @@ SELECT last_insert_rowid();",
             account.Id = id;
             UpsertStockAccount(conn, tx, account);
             return account;
+        });
+
+    // One-time normalization: re-encrypts any StockAccount password still stored as plaintext (accounts saved
+    // before at-rest encryption was mandatory) under the current key. Idempotent — an already-encrypted
+    // password (FieldCrypto or the old optional BackupCrypto scheme) is left untouched, so restarts are no-ops.
+    public int MigratePlaintextStockPasswords() =>
+        WriteTx((conn, tx) =>
+        {
+            var rows = conn.Query<(long Id, string DataJson)>("SELECT Id, DataJson FROM StockAccounts", transaction: tx).ToList();
+            var migrated = 0;
+            foreach (var row in rows)
+            {
+                var acc = Deserialize<StockAccount>(row.DataJson)!;
+                if (string.IsNullOrEmpty(acc.Password)
+                    || FieldCrypto.LooksEncrypted(acc.Password) || BackupCrypto.LooksEncrypted(acc.Password))
+                    continue;
+                acc.Password = SensitiveField.Protect(acc.Password);
+                conn.Execute("UPDATE StockAccounts SET DataJson = @d WHERE Id = @id", new { d = Serialize(acc), id = row.Id }, tx);
+                migrated++;
+            }
+            return migrated;
         });
 
     public bool DeleteStockAccount(int id) =>

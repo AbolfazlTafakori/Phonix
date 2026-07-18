@@ -176,6 +176,9 @@ try
         var recoded = sqlite.MigrateLegacyUserCodes();
         if (recoded > 0)
             Log.Information("Rewrote {Count} legacy U-#### user codes to random numeric account ids.", recoded);
+        var encrypted = sqlite.MigratePlaintextStockPasswords();
+        if (encrypted > 0)
+            Log.Information("Encrypted {Count} stock account password(s) that were still stored in plain text.", encrypted);
     }
 
     // Behind a reverse proxy (nginx/Caddy terminating TLS), trust its X-Forwarded-* so the real client IP

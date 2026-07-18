@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { OrderInputValue } from "@/lib/types";
 
 // Seat-based view of a shared-account delivery. The delivered text is one self-contained block per seat (see
@@ -58,32 +58,56 @@ export function parseSeats(content: string): Seat[] {
     .filter((s): s is Seat => s !== null && s.seatLabel !== "");
 }
 
-function CopyRow({ label, value }: { label: string; value: string }) {
-  const [done, setDone] = useState(false);
+// One credential/detail row. No separate copy button — the whole row IS the control: a tap copies the value.
+// `sensitive` rows (the password) stay masked at rest so a stray screenshot of the page never exposes them;
+// a tap reveals the real value just long enough to read/paste, then it re-masks itself automatically.
+const REVEAL_MS = 4000;
+
+function InfoRow({ label, value, sensitive = false }: { label: string; value: string; sensitive?: boolean }) {
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  // Never leaves a sensitive value exposed — it re-masks on its own even if the customer never taps again.
+  useEffect(() => {
+    if (!revealed) return;
+    const t = setTimeout(() => setRevealed(false), REVEAL_MS);
+    return () => clearTimeout(t);
+  }, [revealed]);
+
   if (!value) return null;
+  const masked = "•".repeat(Math.min(Math.max(value.length, 8), 14));
+  const showPlain = !sensitive || revealed;
+
+  async function handleClick() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      /* clipboard unavailable — reveal still works without it */
+    }
+    if (sensitive) setRevealed((r) => !r);
+  }
+
   return (
-    <div className="flex items-center justify-between gap-2 rounded-lg px-3 py-2" style={{ background: "var(--ac-menu-hover)", border: "1px solid var(--ac-panel-border)" }}>
-      <div className="min-w-0">
-        <div className="text-[11px]" style={{ color: "var(--ac-muted)" }}>{label}</div>
-        <div dir="ltr" className="truncate text-sm font-bold" style={{ color: "var(--ac-text)", unicodeBidi: "isolate" }}>{value}</div>
-      </div>
-      <button
-        type="button"
-        onClick={async () => {
-          try {
-            await navigator.clipboard.writeText(value);
-            setDone(true);
-            setTimeout(() => setDone(false), 1500);
-          } catch {
-            /* clipboard unavailable — ignore */
-          }
-        }}
-        className="shrink-0 rounded-md px-2 py-1 text-[11px] font-bold transition hover:brightness-105"
-        style={{ background: "var(--ac-panel-bg)", border: "1px solid var(--ac-panel-border)", color: done ? "#059669" : "var(--ac-muted)" }}
+    <button
+      type="button"
+      onClick={handleClick}
+      dir="ltr"
+      className="flex w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left transition hover:brightness-105"
+      style={{ background: "var(--ac-menu-hover)", border: "1px solid var(--ac-panel-border)" }}
+    >
+      <span className="text-[11px]" style={{ color: "var(--ac-muted)" }}>
+        {label}
+        {copied ? " · کپی شد ✓" : sensitive && !revealed ? " · برای نمایش و کپی لمس کنید" : ""}
+      </span>
+      <span
+        className="truncate text-sm font-bold"
+        style={{ color: "var(--ac-text)", unicodeBidi: "isolate", letterSpacing: sensitive && !showPlain ? "2px" : undefined }}
       >
-        {done ? "کپی شد ✓" : "کپی"}
-      </button>
-    </div>
+        {showPlain ? value : masked}
+      </span>
+    </button>
   );
 }
 
@@ -105,10 +129,12 @@ export default function SeatDelivery({ seats, deviceInfo }: { seats: Seat[]; dev
         </div>
       </div>
 
-      {/* one button per seat; clicking reveals only that seat's info */}
+      {/* one button per profile; clicking reveals only that profile's info. dir="ltr" on the row itself is what
+          keeps the buttons in reading order (A0, A1, A2 left→right) — without it the RTL page direction would
+          lay the flex row out right-to-left and the labels would appear reversed. */}
       <div>
-        <div className="mb-1.5 text-xs font-bold" style={{ color: "var(--ac-muted)" }}>صندلی‌ها</div>
-        <div className="flex flex-wrap gap-2">
+        <div className="mb-1.5 text-xs font-bold" style={{ color: "var(--ac-muted)" }}>پروفایل‌ها</div>
+        <div dir="ltr" className="flex flex-wrap justify-start gap-2">
           {seats.map((s, i) => {
             const on = i === Math.min(sel, seats.length - 1);
             return (
@@ -116,7 +142,6 @@ export default function SeatDelivery({ seats, deviceInfo }: { seats: Seat[]; dev
                 key={i}
                 type="button"
                 onClick={() => setSel(i)}
-                dir="ltr"
                 className={`rounded-lg px-3 py-1.5 text-sm font-bold transition ${on ? "ring-2 ring-[#FF5A1F]" : "hover:brightness-105"}`}
                 style={{ background: on ? "rgba(255,90,31,0.12)" : "var(--ac-menu-hover)", border: "1px solid var(--ac-panel-border)", color: "var(--ac-text)" }}
               >
@@ -127,18 +152,18 @@ export default function SeatDelivery({ seats, deviceInfo }: { seats: Seat[]; dev
         </div>
       </div>
 
-      {/* the selected seat only */}
+      {/* the selected profile only */}
       <div className="space-y-2 rounded-xl p-3" style={{ background: "var(--ac-panel-bg)", border: "1px solid var(--ac-panel-border)" }}>
-        <div dir="ltr" className="text-sm font-bold" style={{ color: "var(--ac-title)", unicodeBidi: "isolate" }}>Seat {active.seatLabel}</div>
-        <CopyRow label="نام کاربری" value={active.username} />
-        <CopyRow label="گذرواژه" value={active.password} />
-        <CopyRow label="پلن" value={active.plan} />
-        {active.months ? <CopyRow label="مدت اشتراک" value={`${active.months} ماه`} /> : null}
+        <div dir="ltr" className="text-sm font-bold" style={{ color: "var(--ac-title)", unicodeBidi: "isolate" }}>پروفایل {active.seatLabel}</div>
+        <InfoRow label="نام کاربری" value={active.username} />
+        <InfoRow label="گذرواژه" value={active.password} sensitive />
+        <InfoRow label="پلن" value={active.plan} />
+        {active.months ? <InfoRow label="مدت اشتراک" value={`${active.months} ماه`} /> : null}
         {deviceInfo && deviceInfo.length > 0 && (
           <div className="space-y-2 border-t pt-2" style={{ borderColor: "var(--ac-divider)" }}>
             <div className="text-[11px] font-bold" style={{ color: "var(--ac-muted)" }}>اطلاعات دستگاه</div>
             {deviceInfo.map((d, i) => (
-              <CopyRow key={i} label={d.label} value={d.value} />
+              <InfoRow key={i} label={d.label} value={d.value} sensitive={d.sensitive} />
             ))}
           </div>
         )}
