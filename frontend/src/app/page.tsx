@@ -13,6 +13,7 @@ import HomeBlog from "@/components/home/HomeBlog";
 import HomeFaq from "@/components/home/HomeFaq";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import HomeFooter from "@/components/home/HomeFooter";
+import Reveal from "@/components/Reveal";
 
 // Home content (hero, showcase, blog picks) is admin-editable, so render per request instead of
 // baking the build-time snapshot into a static page.
@@ -27,15 +28,15 @@ export default async function Home() {
       <main>
         <HomeHero />
         <TrustStats />
-        <HomeCategories />
-        <HomeBestSellers />
-        <HomePromoBanners />
-        <HomeWhyChoose />
-        <HomeHowToBuy />
-        <HomeReviews />
-        <HomeBlog posts={blogPosts} title={content.sections.blogTitle} />
-        <HomeFaq />
-        <HomeNewsletter />
+        <Reveal><HomeCategories /></Reveal>
+        <Reveal><HomeBestSellers /></Reveal>
+        <Reveal><HomePromoBanners /></Reveal>
+        <Reveal><HomeWhyChoose /></Reveal>
+        <Reveal><HomeHowToBuy /></Reveal>
+        <Reveal><HomeReviews /></Reveal>
+        <Reveal><HomeBlog posts={blogPosts} title={content.sections.blogTitle} /></Reveal>
+        <Reveal><HomeFaq /></Reveal>
+        <Reveal><HomeNewsletter /></Reveal>
       </main>
       <HomeFooter brand={content.brand} />
     </div>

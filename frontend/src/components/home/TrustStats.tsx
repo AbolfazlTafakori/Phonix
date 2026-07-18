@@ -1,4 +1,11 @@
-const stats = [
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import StatCountUp from "@/components/StatCountUp";
+
+type Stat = { value: string; label: string; icon: string };
+
+const stats: Stat[] = [
   { value: "+10,000", label: "سفارش موفق", icon: "/figma/stat-orders.png" },
   { value: "+5,000", label: "مشتری راضی", icon: "/figma/stat-customers.png" },
   { value: "99%", label: "رضایت مشتریان", icon: "/figma/stat-satisfaction.png" },
@@ -8,8 +15,27 @@ const stats = [
 // Sizes are fluid (clamp) so the strip scales with the viewport instead of
 // wrapping or overflowing at narrower desktop widths.
 export default function TrustStats() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [animate, setAnimate] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setAnimate(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.4 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">
+    <section ref={ref} className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">
       <div className="hl-card grid grid-cols-2 gap-4 lg:grid-cols-4 rounded-[24px] px-6 py-7">
         {stats.map((s, i) => (
           <div
@@ -28,7 +54,7 @@ export default function TrustStats() {
                 className="whitespace-nowrap font-black leading-none text-[var(--hl-ink)]"
                 style={{ fontSize: "clamp(13px, 1.5vw, 26px)" }}
               >
-                {s.value}
+                <StatCountUp value={s.value} animate={animate} />
               </div>
               <div
                 className="mt-2 whitespace-nowrap font-bold text-[var(--hl-ink-2)]"

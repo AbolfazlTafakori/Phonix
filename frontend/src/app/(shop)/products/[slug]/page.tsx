@@ -10,6 +10,7 @@ import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
 import OpenChatButton from "@/components/product/OpenChatButton";
 import ProductGallery from "@/components/product/ProductGallery";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
+import Reveal from "@/components/Reveal";
 import { absoluteUrl, jsonLdScript, latinBrand, plainExcerpt, productPath, productSlug, productTitle } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
@@ -395,36 +396,38 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
     {/* related products — full width */}
     {related.length > 0 && (
-      <section className="mx-auto max-w-[1840px] px-4 py-4 mt-6 sm:px-6 sm:mt-8 lg:px-8 xl:px-16">
-        <div className="mb-6 flex flex-wrap items-end justify-between gap-3 sm:mb-8">
-          <div className="flex items-start gap-2">
-            <span className="mt-2 h-5 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f] sm:mt-2.5 sm:h-6" />
-            <div>
-              <h2 className="text-[18px] font-black text-[var(--hl-ink)] sm:text-[22px] lg:text-[26px]">محصولات مرتبط</h2>
-              <p className="mt-1 text-[13px] text-[var(--hl-ink-2)] sm:mt-1.5 sm:text-[15px]">پیشنهادهای مشابه برای شما</p>
+      <Reveal>
+        <section className="mx-auto max-w-[1840px] px-4 py-4 mt-6 sm:px-6 sm:mt-8 lg:px-8 xl:px-16">
+          <div className="mb-6 flex flex-wrap items-end justify-between gap-3 sm:mb-8">
+            <div className="flex items-start gap-2">
+              <span className="mt-2 h-5 w-1.5 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f] sm:mt-2.5 sm:h-6" />
+              <div>
+                <h2 className="text-[18px] font-black text-[var(--hl-ink)] sm:text-[22px] lg:text-[26px]">محصولات مرتبط</h2>
+                <p className="mt-1 text-[13px] text-[var(--hl-ink-2)] sm:mt-1.5 sm:text-[15px]">پیشنهادهای مشابه برای شما</p>
+              </div>
             </div>
+            <Link
+              href="/products"
+              className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-[var(--ac-panel-bg)] px-3 py-1.5 text-[13px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2] sm:px-4 sm:py-2 sm:text-[16px]"
+            >
+              مشاهده همه
+            </Link>
           </div>
-          <Link
-            href="/products"
-            className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-[var(--ac-panel-bg)] px-3 py-1.5 text-[13px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2] sm:px-4 sm:py-2 sm:text-[16px]"
-          >
-            مشاهده همه
-          </Link>
-        </div>
-        <BestSellersCarousel products={related.map((p): CarouselCard => ({
-          key: String(p.id),
-          name: p.name,
-          categoryName: p.categoryName,
-          priceLabel: formatToman(productDisplayPrice(p)),
-          badge: p.featured ? "پرفروش" : "تحویل فوری",
-          image: p.image,
-          href: productPath(p),
-        }))} />
-      </section>
+          <BestSellersCarousel products={related.map((p): CarouselCard => ({
+            key: String(p.id),
+            name: p.name,
+            categoryName: p.categoryName,
+            priceLabel: formatToman(productDisplayPrice(p)),
+            badge: p.featured ? "پرفروش" : "تحویل فوری",
+            image: p.image,
+            href: productPath(p),
+          }))} />
+        </section>
+      </Reveal>
     )}
 
     {/* newsletter */}
-    <HomeNewsletter />
+    <Reveal><HomeNewsletter /></Reveal>
   </>
   );
 }

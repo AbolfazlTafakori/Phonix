@@ -117,6 +117,22 @@ body {
   .hero-cta:hover::after { animation: none !important; }
 }
 
+/* ── Scroll-reveal for home sections (see Reveal.tsx) ────────────────────────
+   `.reveal` only ever gets added client-side after hydration, so server-rendered
+   markup (and any no-JS/crawler view) is always fully visible — this class is
+   what hides it, not the default state. */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-visible { opacity: 1; transform: translateY(0); }
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1 !important; transform: none !important; transition: none !important; }
+}
+
 /* ── Light home theme ─────────────────────────────────────────────────────────
    Scoped to the redesigned home page only. Everything lives under `.home-light`
    so the rest of the site (admin / account / shop) keeps its dark theme. */
