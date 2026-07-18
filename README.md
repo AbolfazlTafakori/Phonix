@@ -160,6 +160,7 @@ p-ui
 - **Zero-downtime hot updates** with snapshot + health-checked auto-rollback.
 - **Domain fallback routing** for resilient public access.
 - **Secure log download** of Serilog audit and application logs.
+- **HA cluster setup** — pick Primary or Standby and it asks only for what that role needs, then wires up and syncs the two servers.
 
 ---
 

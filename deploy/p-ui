@@ -9,6 +9,7 @@ RELEASES_DIR="$BASE_DIR/releases"
 CURRENT_LINK="$BASE_DIR/current"
 CONF_DIR="/etc/phoenix"
 ENV_FILE="$CONF_DIR/phoenix.env"
+SECRET_FILE="$CONF_DIR/secret.env"
 OWNER_FILE="$CONF_DIR/owner.env"
 NGINX_SITE="/etc/nginx/sites-available/phoenix.conf"
 DOTNET_PROJECT="backend/src/Phonix.Api"
@@ -56,6 +57,19 @@ validate_password() {
 }
 
 validate_domain() { [[ "$1" =~ ^([a-zA-Z0-9](-?[a-zA-Z0-9])*\.)+[a-zA-Z]{2,}$ ]]; }
+validate_https_url() { [[ "$1" =~ ^https://.+ ]]; }
+validate_cluster_secret() { [[ -n "$1" && ${#1} -ge 16 ]]; }
+
+set_secret() {
+    local k="$1" v="$2"
+    umask 077
+    if [[ -f "$SECRET_FILE" ]] && grep -qE "^$k=" "$SECRET_FILE"; then
+        sed -i "s|^$k=.*|$k=$v|" "$SECRET_FILE"
+    else
+        printf '%s=%s\n' "$k" "$v" >> "$SECRET_FILE"
+    fi
+    chmod 600 "$SECRET_FILE"; chown root:root "$SECRET_FILE"
+}
 
 apply_server_name() {
     local names="$1"
@@ -134,6 +148,92 @@ manage_domain() {
     set_env PHONIX_FRONTEND_URL "https://$primary"
     systemctl restart phoenix-api
     ok "Domains applied and SSL certificate updated: $domains"
+}
+
+cluster_setup() {
+    heading "High-availability cluster setup"
+    local current_mode; current_mode="$(get_env PHONIX_CLUSTER_MODE)"
+    say "Current mode: ${current_mode:-standalone (not clustered)}"
+    [[ -n "$current_mode" && "$current_mode" != "standalone" ]] && say "Node id: $(get_env PHONIX_NODE_ID) — Peer: $(get_env PHONIX_CLUSTER_PEER)"
+    echo
+    echo "  1) Primary — the main, always-writable server"
+    echo "  2) Standby — the backup server that mirrors the Primary"
+    echo "  0) Back"
+    read -rp "Select this server's role: " role_choice
+
+    case "$role_choice" in
+        1) cluster_setup_primary ;;
+        2) cluster_setup_standby ;;
+        *) return ;;
+    esac
+}
+
+cluster_setup_primary() {
+    heading "Configure THIS server as Primary"
+    local node_id peer secret existing_secret
+
+    read -rp "A short label for this server (e.g. germany): " node_id
+    [[ -n "$node_id" ]] || { warn "A label is required."; return; }
+
+    while true; do
+        read -rp "Standby server's reachable address (must start with https://, e.g. https://iran-server:5228): " peer
+        validate_https_url "$peer" && break
+        warn "The peer address must start with https:// — plain http is rejected by the app."
+    done
+
+    existing_secret="$(grep -E '^PHONIX_CLUSTER_SECRET=' "$SECRET_FILE" 2>/dev/null | cut -d= -f2- || true)"
+    if [[ -n "$existing_secret" ]]; then
+        secret="$existing_secret"
+        warn "A cluster secret already exists on this server and will be reused — copy it to the Standby."
+    else
+        secret="$(openssl rand -base64 32)"
+        set_secret PHONIX_CLUSTER_SECRET "$secret"
+        ok "Generated a new cluster secret."
+    fi
+
+    set_env PHONIX_CLUSTER_MODE primary
+    set_env PHONIX_NODE_ID "$node_id"
+    set_env PHONIX_CLUSTER_PEER "$peer"
+
+    systemctl restart phoenix-api
+    services_healthy || warn "The service did not come up healthy after the restart — check: journalctl -u phoenix-api -n 50"
+
+    printf "\n%b\n" "${C_RED}${C_BOLD}┌────────────────────────────────────────────────────────────────┐${C_RESET}"
+    printf "%b\n"   "${C_RED}${C_BOLD}│  PHONIX_CLUSTER_SECRET — copy this to the Standby setup now      │${C_RESET}"
+    printf "%b\n"   "${C_RED}${C_BOLD}└────────────────────────────────────────────────────────────────┘${C_RESET}"
+    printf "\n    %b\n\n" "${C_BOLD}${secret}${C_RESET}"
+    ok "This server is Primary. On the other server, run p-ui → cluster setup → Standby, using this secret and this server's https address as the peer."
+}
+
+cluster_setup_standby() {
+    heading "Configure THIS server as Standby"
+    local node_id peer secret
+
+    read -rp "A short label for this server (e.g. iran): " node_id
+    [[ -n "$node_id" ]] || { warn "A label is required."; return; }
+
+    while true; do
+        read -rp "Primary server's reachable address (must start with https://, e.g. https://germany-server:5228): " peer
+        validate_https_url "$peer" && break
+        warn "The peer address must start with https:// — plain http is rejected by the app."
+    done
+
+    while true; do
+        read -rsp "Cluster secret (paste the value shown on the Primary): " secret; echo
+        validate_cluster_secret "$secret" && break
+        warn "That doesn't look like a valid secret (too short)."
+    done
+
+    set_secret PHONIX_CLUSTER_SECRET "$secret"
+    set_env PHONIX_CLUSTER_MODE standby
+    set_env PHONIX_NODE_ID "$node_id"
+    set_env PHONIX_CLUSTER_PEER "$peer"
+
+    systemctl restart phoenix-api
+    services_healthy || warn "The service did not come up healthy after the restart — check: journalctl -u phoenix-api -n 50"
+
+    ok "This server is Standby and will bootstrap and sync from the Primary automatically."
+    say "Track progress in the admin panel → Cluster Management (pending events should reach 0)."
 }
 
 prune_releases() {
@@ -229,6 +329,7 @@ menu() {
         echo "  1) Update owner credentials (username and password)"
         echo "  2) Domain management (change primary or add a fallback)"
         echo "  3) Zero-downtime application update"
+        echo "  4) High-availability cluster setup (Primary / Standby)"
         echo "  0) Exit"
         echo
         read -rp "Choose an option: " choice
@@ -236,6 +337,7 @@ menu() {
             1) change_owner ;;
             2) manage_domain ;;
             3) hot_update ;;
+            4) cluster_setup ;;
             0) exit 0 ;;
             *) warn "Invalid option." ;;
         esac
