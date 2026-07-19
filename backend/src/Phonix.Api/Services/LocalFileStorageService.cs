@@ -344,10 +344,24 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         return result;
     }
 
+    // The peer names every file it asks for or sends, so this decides what a "file name" is allowed to be
+    // before it ever reaches Path.Combine. Both separators are rejected explicitly rather than leaning on
+    // Path.GetFileName, whose meaning is platform-dependent: on Linux a backslash is an ordinary character,
+    // so "..\escape.png" survives that check untouched and lands on disk as a real file with that literal
+    // name. It stays inside the uploads root there, but the servers run Linux while this is developed on
+    // Windows, and a rule that means two different things on the two platforms is not a rule worth relying on.
+    private static bool IsPlainFileName(string name) =>
+        !string.IsNullOrWhiteSpace(name)
+        && name.IndexOf('/') < 0
+        && name.IndexOf('\\') < 0
+        && name != "."
+        && name != ".."
+        && name.IndexOfAny(Path.GetInvalidFileNameChars()) < 0;
+
     public byte[]? ReadRawForSync(string category, string name)
     {
         if (!Categories.Contains(category)) return null;
-        if (string.IsNullOrWhiteSpace(name) || Path.GetFileName(name) != name) return null; // no separators/traversal
+        if (!IsPlainFileName(name)) return null;
         var dir = Path.GetFullPath(Path.Combine(_root, category));
         var path = Path.GetFullPath(Path.Combine(dir, name));
         if (!path.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return null;
@@ -358,7 +372,7 @@ public sealed partial class LocalFileStorageService : IFileStorageService
     public bool WriteRawFromSync(string category, string name, byte[] content, string expectedSha256)
     {
         if (!Categories.Contains(category)) return false;
-        if (string.IsNullOrWhiteSpace(name) || Path.GetFileName(name) != name) return false;
+        if (!IsPlainFileName(name)) return false;
         // Integrity gate: never write bytes that don't hash to what the peer advertised.
         var actual = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(content));
         if (!string.Equals(actual, expectedSha256, StringComparison.OrdinalIgnoreCase)) return false;
