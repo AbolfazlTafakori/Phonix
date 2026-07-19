@@ -62,7 +62,17 @@ public class SeatSubmissionsController : ControllerBase
         return (order, unit);
     }
 
-    private bool Enabled(OrderUnit unit) => _store.GetProduct(unit.ProductId) is { CollectSeatInfo: true };
+    // Whether the PLAN this unit was sold under asks for seat info. The unit records its plan as the display
+    // string «{Type} · {Months} ماهه», so the plan is matched back by type + duration — the same two fields the
+    // stock pool routes on. A plan that no longer exists (deleted after the sale) collects nothing.
+    private bool Enabled(Order order, OrderUnit unit)
+    {
+        if (_store.GetProduct(unit.ProductId) is not { } product) return false;
+        var type = StockFulfillmentService.PlanType(unit.Plan);
+        var months = StockFulfillmentService.SubscriptionMonths(order, unit);
+        return product.Plans.Any(pl =>
+            pl.CollectSeatInfo && pl.Type == type && (months <= 0 || pl.Months == months));
+    }
 
     // Uploads one picture to protected storage and returns its opaque id; the client then sends that id with
     // the submission. Kept separate from the save so a slow upload never blocks the text the customer typed.
@@ -94,7 +104,7 @@ public class SeatSubmissionsController : ControllerBase
     public ActionResult<SeatUnitInfoDto> ForUnit(int orderId, int unitId)
     {
         if (Resolve(orderId, unitId) is not { } ctx) return Forbid();
-        return Ok(new SeatUnitInfoDto(Enabled(ctx.Unit),
+        return Ok(new SeatUnitInfoDto(Enabled(ctx.Order, ctx.Unit),
             _store.GetSeatSubmissionsForUnit(orderId, unitId).Select(SeatSubmissionDto.From).ToList()));
     }
 
@@ -102,7 +112,7 @@ public class SeatSubmissionsController : ControllerBase
     public ActionResult<SeatSubmissionDto> Save(SeatSubmissionInput input)
     {
         if (Resolve(input.OrderId, input.UnitId) is not { } ctx) return Forbid();
-        if (!Enabled(ctx.Unit)) return BadRequest("این سرویس اطلاعات اضافه‌ای نمی‌خواهد.");
+        if (!Enabled(ctx.Order, ctx.Unit)) return BadRequest("این سرویس اطلاعات اضافه‌ای نمی‌خواهد.");
         if (!ctx.Unit.Delivered) return BadRequest("این اکانت هنوز تحویل نشده است.");
         if (input.SeatIndex < 0) return BadRequest("جایگاه نامعتبر است.");
 

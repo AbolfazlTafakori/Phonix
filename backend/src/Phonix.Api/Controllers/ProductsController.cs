@@ -65,7 +65,6 @@ public class ProductsController : ControllerBase
         // full-replace edit must not silently reset them.
         product.AutoDeliverStock = existing?.AutoDeliverStock ?? false;
         product.SlotFulfillment = existing?.SlotFulfillment ?? false;
-        product.CollectSeatInfo = existing?.CollectSeatInfo ?? false;
         product.ServiceName = existing?.ServiceName ?? "";
         if (!_store.UpdateProduct(product)) return NotFound();
         Services.OrphanCleanup.Queue(_files, _store, oldImages);
@@ -178,6 +177,7 @@ public class ProductsController : ControllerBase
         // Per-plan customer-info settings. Drop blank/invalid fields and clamp the type to a known control;
         // a "password" field is always treated as sensitive regardless of the supplied flag.
         CollectsInfo = plan.CollectsInfo,
+        CollectSeatInfo = plan.CollectSeatInfo,
         InputFields = (plan.InputFields ?? new())
             .Where(f => !string.IsNullOrWhiteSpace(f.Label))
             .Select(f =>

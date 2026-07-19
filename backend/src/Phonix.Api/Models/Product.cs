@@ -67,6 +67,11 @@ public class ProductPlan
     // Longer how-to shown inside a collapsible "آموزش" panel, plus optional non-downloadable media.
     public string TutorialText { get; set; } = "";
     public List<PlanTutorialMedia> TutorialMedia { get; set; } = new();
+    // When true, every delivered SEAT sold under THIS plan asks its holder for a picture and a note in their
+    // panel after delivery (see SeatSubmission). Per plan rather than per product because it's the plan that
+    // decides what a purchase needs: the same service can sell one plan that requires setup details and
+    // another that doesn't.
+    public bool CollectSeatInfo { get; set; }
     // When true the customer also gets a free-text optional notes box.
     public bool AllowNotes { get; set; }
 
@@ -94,11 +99,6 @@ public class Product
     // StockItems: a purchase of N users takes N consecutive slots on a single account and the whole line is
     // delivered as one message. The switch lives on the stock page, next to auto-delivery.
     public bool SlotFulfillment { get; set; }
-    // When true, each delivered SEAT of this product asks its holder for a picture and a note in their panel
-    // (see SeatSubmission). Some services can't be finished without something from the buyer; most need
-    // nothing, so this is off unless the service actually requires it. Lives on the stock page with the other
-    // fulfillment switches.
-    public bool CollectSeatInfo { get; set; }
     // The bare service name printed on the slot-delivery message (e.g. «VYPRVPN»), set on the stock page.
     // Empty falls back to the Latin part of the product name, upper-cased without spaces (see StockAccount).
     public string ServiceName { get; set; } = "";

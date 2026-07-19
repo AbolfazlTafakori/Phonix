@@ -91,6 +91,23 @@ public class SeatSubmissionTests
         Assert.Equal("seat b edited", store.SaveSeatSubmission(Input(1, "seat b edited"))!.Text);
     }
 
+    // The switch lives on the PLAN, so two plans of the SAME product can differ: one asks its buyers for setup
+    // details, the other asks for nothing.
+    [Fact]
+    public void Whether_a_seat_collects_info_is_decided_by_the_plan_not_the_product()
+    {
+        var store = NewStore();
+        var product = store.GetProduct(1)!;
+        product.Plans.Clear();
+        product.Plans.Add(new ProductPlan { Type = "اشتراکی", Months = 3, Price = 50_000, IsActive = true, CollectSeatInfo = true });
+        product.Plans.Add(new ProductPlan { Type = "اختصاصی", Months = 3, Price = 90_000, IsActive = true, CollectSeatInfo = false });
+        store.UpdateProduct(product);
+
+        var saved = store.GetProduct(1)!.Plans;
+        Assert.True(saved.Single(p => p.Type == "اشتراکی").CollectSeatInfo);
+        Assert.False(saved.Single(p => p.Type == "اختصاصی").CollectSeatInfo);
+    }
+
     [Fact]
     public void The_pending_queue_is_what_the_admin_badge_counts()
     {

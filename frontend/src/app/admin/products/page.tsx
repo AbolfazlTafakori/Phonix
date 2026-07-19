@@ -36,7 +36,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   plans: [],
 });
 
-const emptyPlanInfo = { collectsInfo: false, inputFields: [], warningText: "", tutorialText: "", tutorialMedia: [], allowNotes: false } as const;
+const emptyPlanInfo = { collectsInfo: false, collectSeatInfo: false, inputFields: [], warningText: "", tutorialText: "", tutorialMedia: [], allowNotes: false } as const;
 const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true, userCount: 0, rules: "", ...emptyPlanInfo, inputFields: [], tutorialMedia: [] });
 
 // Parse an uploaded product-content .md file into { description, faq } so the admin
@@ -148,6 +148,7 @@ export default function AdminProductsPage() {
       plans: p.plans.map((pl) => ({
         type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive, userCount: pl.userCount ?? 0, rules: pl.rules ?? "",
         collectsInfo: pl.collectsInfo ?? false,
+        collectSeatInfo: pl.collectSeatInfo ?? false,
         inputFields: (pl.inputFields ?? []).map((fld) => ({ ...fld })),
         warningText: pl.warningText ?? "",
         tutorialText: pl.tutorialText ?? "",
@@ -574,6 +575,21 @@ export default function AdminProductsPage() {
                         </label>
                       </div>
                     )}
+                  </div>
+
+                  {/* per-plan: information collected from the buyer AFTER delivery, once per seat. Separate from
+                      the checkout block above — that one asks before payment, this one asks in the panel. */}
+                  <div className="mt-3 border-t border-dashed border-white/10 pt-3">
+                    <label className="flex cursor-pointer items-center justify-between gap-2">
+                      <span>
+                        <span className="text-sm font-bold text-white">دریافت اطلاعات هر پروفایل پس از تحویل</span>
+                        <span className="mt-0.5 block text-[11px] text-white/45">
+                          اگر روشن باشد، خریدارِ این پلن برای هر پروفایل (کاربر) جداگانه یک تصویر و توضیح در پنل خود
+                          ارسال می‌کند و در صفحه‌ی «اطلاعات کاربران اکانت‌ها» برای بررسی می‌آید
+                        </span>
+                      </span>
+                      <Toggle checked={pl.collectSeatInfo} onChange={(v) => setPlan(i, "collectSeatInfo", v)} />
+                    </label>
                   </div>
                 </div>
               ))}

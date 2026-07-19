@@ -41,6 +41,8 @@ export type PlanTutorialMedia = {
 // Per-plan "collect info from the customer" settings, shared by ProductPlan and ProductPlanInput.
 export type PlanInfoSettings = {
   collectsInfo: boolean;
+  // Whether each delivered seat sold under this plan asks its holder for a picture and a note after delivery.
+  collectSeatInfo: boolean;
   inputFields: PlanInputField[];
   warningText: string;
   tutorialText: string;
@@ -129,8 +131,6 @@ export type StockSummary = {
   slotDisabled: number;
   // The bare service name printed on the slot-delivery message, and the plan types an account can bind to.
   serviceName: string;
-  // Whether each delivered seat of this product asks its holder for a picture and a note.
-  collectSeatInfo: boolean;
   planTypes: string[];
 };
 

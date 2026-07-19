@@ -237,8 +237,6 @@ export const api = {
       request<void>(`/stock/accounts/${id}${force ? "?force=true" : ""}`, { method: "DELETE" }),
     slotAction: (accountId: number, slotId: number, action: "disable" | "enable" | "release") =>
       request<void>(`/stock/accounts/${accountId}/slots/${slotId}/${action}`, { method: "POST" }),
-    collectSeatInfo: (productId: number, enabled: boolean) =>
-      request<void>("/stock/collect-seat-info", { method: "POST", body: json({ productId, enabled }) }),
     slotFulfillment: (productId: number, enabled: boolean) =>
       request<void>("/stock/slot-fulfillment", { method: "POST", body: json({ productId, enabled }) }),
   },
