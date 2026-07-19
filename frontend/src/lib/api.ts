@@ -7,6 +7,7 @@ import type {
   StockAccount,
   StockManagedAccount,
   StockWaitingOrder,
+  Invoice,
   SeatSubmission,
   SeatUnitInfo,
   StockSummary,
@@ -413,6 +414,7 @@ export const api = {
       request<PagedResult<Order>>(`/orders/invoices${qs(params)}`),
     forUser: (userId: number) => request<Order[]>(`/orders/user/${userId}`),
     get: (id: number) => request<Order>(`/orders/${id}`),
+    invoice: (id: number) => request<Invoice>(`/orders/${id}/invoice`),
     place: (body: { items: { productId: number; quantity: number; planId?: number | null; units?: { inputs?: { label: string; value: string }[]; note?: string | null }[]; inputs?: { label: string; value: string }[]; note?: string | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null; cardId?: number | null; receiptUrl?: string | null; trackingNumber?: string | null; paymentDate?: string | null; description?: string | null }) =>
       request<Order>("/orders", { method: "POST", body: json(body) }),
     approve: (id: number) => request<Order>(`/orders/${id}/approve`, { method: "POST" }),

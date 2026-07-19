@@ -894,3 +894,35 @@ export type HeroSlideInput = Omit<HeroSlide, "id">;
 export type HomeCategoryInput = Omit<HomeCategory, "id">;
 export type ShowcaseInput = Omit<Showcase, "id">;
 export type BlogPostInput = Omit<BlogPost, "id">;
+
+// One billed line of a customer invoice.
+export type InvoiceLine = {
+  name: string;
+  plan: string | null;
+  quantity: number;
+  unitPrice: number;
+  lineTotal: number;
+};
+
+// A customer invoice. It bills what was DELIVERED: units cancelled from the order are refunded, so they are
+// left off the lines entirely and reported only as a count and a refunded amount. Every figure is computed
+// server-side so the invoice can never drift from the money that actually moved.
+export type Invoice = {
+  invoiceNumber: string | null;
+  orderCode: string;
+  customerName: string;
+  customerCode: string | null;
+  customerEmail: string | null;
+  date: string;
+  issuedAt: string | null;
+  paymentMethod: string;
+  lines: InvoiceLine[];
+  subtotal: number;
+  discountCode: string | null;
+  discountAmount: number;
+  vatAmount: number;
+  feeAmount: number;
+  total: number;
+  excludedCount: number;
+  excludedRefund: number;
+};

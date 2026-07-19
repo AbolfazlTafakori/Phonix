@@ -106,6 +106,20 @@ public class OrdersController : ControllerBase
         return RevealInputs(order);
     }
 
+    // The customer invoice: what was actually DELIVERED, priced from the order's own figures with the
+    // cancelled units' shares taken out. Computed here rather than in the browser so the amounts a buyer is
+    // billed can never drift from the money that moved.
+    [HttpGet("{id:int}/invoice")]
+    public ActionResult<InvoiceDto> Invoice(int id)
+    {
+        var order = _store.GetOrder(id);
+        if (order is null) return NotFound();
+        if (!this.OwnsOrStaff(order.UserId)) return Forbid();
+        // An invoice exists only once the order has been delivered — that's also when its number is issued.
+        if (order.Status != OrderStatus.Completed) return BadRequest("فاکتور پس از تکمیل سفارش صادر می‌شود.");
+        return InvoiceBuilder.Build(order, _store.GetUser(order.UserId));
+    }
+
     // Returns a deep clone of the order with any encrypted sensitive customer inputs decrypted for display.
     // Cloning keeps the live store entity untouched (decrypting in place would persist the plaintext back to
     // store.json on the next flush). Orders without sensitive inputs are returned as-is to avoid the copy.
