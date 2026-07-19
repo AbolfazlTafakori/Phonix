@@ -52,6 +52,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
     private readonly int _failoverGraceSeconds;
     private readonly int _mediaSyncIntervalSeconds;
     private readonly bool _allowInsecurePeer;
+    private readonly string[] _witnessUrls;
 
     // A dead-lettered event is retried this many times before it is left permanently parked (and surfaced in
     // the cluster status) rather than retried forever — one poison event must never wedge the whole cluster.
@@ -62,6 +63,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
     private const long StandbyIdBandOffset = SqliteDataStore.StandbyIdBandOffset;
 
     private long _lastMediaSyncTicks;
+    private long _lastWitnessOkTicks;
 
     // Lock-free published state: the write-gate middleware reads Role on every mutating request, so it must
     // never wait on a SQLite round-trip. Longs carry ticks/enum-as-int via Interlocked; a plain lock guards
@@ -96,6 +98,10 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         // Escape hatch for local/dev two-node testing over plain HTTP. Production MUST leave this unset — the
         // startup guard (ValidatePeerTransport) refuses to run a cluster over unencrypted HTTP otherwise.
         _allowInsecurePeer = string.Equals(Environment.GetEnvironmentVariable("PHONIX_CLUSTER_ALLOW_INSECURE"), "true", StringComparison.OrdinalIgnoreCase);
+        // Independent reference points used to tell "the peer died" apart from "I lost my own connectivity".
+        _witnessUrls = (Environment.GetEnvironmentVariable("PHONIX_CLUSTER_WITNESS_URLS")
+                ?? "https://cloudflare.com/cdn-cgi/trace,https://www.google.com/generate_204")
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
         // Never treat "just booted, haven't contacted the peer yet" as "the peer has been down for ages".
         _lastPeerContactTicks = DateTime.UtcNow.Ticks;
@@ -194,7 +200,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
 
         if (response is null)
         {
-            RecordContactFailure();
+            await RecordContactFailureAsync(ct);
             return;
         }
 
@@ -272,7 +278,33 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         }
     }
 
-    private void RecordContactFailure()
+    // Confirms this node still has working connectivity of its own, by reaching something unrelated to the
+    // peer. Returns null when no witness has ever answered since boot — that means the guard itself is
+    // unusable here (every witness blocked, no egress at all), and the caller must not let it stand in for a
+    // real answer, or failover would be disabled forever on such a host.
+    private async Task<bool?> HasOwnConnectivityAsync(CancellationToken ct)
+    {
+        if (_witnessUrls.Length == 0) return null;
+
+        foreach (var url in _witnessUrls)
+        {
+            try
+            {
+                var client = _httpClientFactory.CreateClient();
+                client.Timeout = TimeSpan.FromSeconds(8);
+                using var response = await client.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, ct);
+                Interlocked.Exchange(ref _lastWitnessOkTicks, DateTime.UtcNow.Ticks);
+                return true;
+            }
+            catch { /* try the next witness */ }
+        }
+
+        // Nothing answered. Only meaningful if a witness HAS answered at some point — otherwise this host
+        // simply cannot reach any of them and the signal carries no information.
+        return Interlocked.Read(ref _lastWitnessOkTicks) > 0 ? false : null;
+    }
+
+    private async Task RecordContactFailureAsync(CancellationToken ct)
     {
         var failures = Interlocked.Increment(ref _consecutiveFailures);
         if (failures < 3) return; // ignore a single blip — a real outage keeps failing across several cycles
@@ -297,6 +329,31 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
                     _failoverGraceSeconds);
                 return;
             }
+        }
+
+        // "I cannot reach the peer" and "the peer is down" are not the same statement, and on a link that can
+        // be cut or filtered wholesale they come apart badly: the Primary keeps serving customers while this
+        // node, seeing only silence, declares itself Primary too. The peer is then demoted the moment the link
+        // returns, and whichever side loses that argument loses its writes with it. So before promoting, this
+        // node has to establish that the silence is not simply its own isolation.
+        var connectivity = await HasOwnConnectivityAsync(ct);
+        if (connectivity == false)
+        {
+            _logger.LogWarning(
+                "Peer unreachable for over {Seconds}s, but no witness is reachable either — this node is isolated, not the Primary down. Staying read-only.",
+                _failoverGraceSeconds);
+            _ = _alerts.SendAlertAsync("🌐 ارتباط این سرور با اینترنت قطع است — ترفیع خودکار انجام نشد تا هر دو سرور هم‌زمان Primary نشوند.");
+            return;
+        }
+        if (connectivity is null)
+            _logger.LogWarning("No cluster witness has ever been reachable from this node — promoting without an isolation check. Set PHONIX_CLUSTER_WITNESS_URLS to a host this server can reach.");
+
+        lock (_transitionLock)
+        {
+            // Re-read under the lock: the witness probe above is an await, so the role could have changed
+            // (a peer-requested demote, an operator action) while it was in flight.
+            var state = _store.GetClusterState();
+            if (state.Role != ClusterRole.Standby || state.BootstrappedAtUtc is null) return;
 
             state.Role = ClusterRole.Primary;
             state.LastFailoverAtUtc = DateTime.UtcNow;
