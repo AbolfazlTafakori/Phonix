@@ -392,7 +392,7 @@ public class OrderTests
     // Each account is approved/rejected on its own, so rejecting one refunds only what was paid for THAT
     // account: its price minus its share of the order's discount (no VAT, no gateway fee).
     [Fact]
-    public void Rejecting_one_account_refunds_its_own_discounted_price_only()
+    public void Rejecting_one_account_refunds_everything_charged_for_it()
     {
         var store = TestStore.Create();
         var user = store.GetUser(5)!;              // reza — enough wallet to pay in full
@@ -404,15 +404,19 @@ public class OrderTests
         Assert.True(order.DiscountAmount > 0);
 
         var unitPrice = order.Items[0].UnitPrice;
-        var expectedShare = (long)Math.Round(order.DiscountAmount * (double)unitPrice / order.Subtotal, MidpointRounding.AwayFromZero);
-        var expectedRefund = unitPrice - expectedShare;
+        // Everything the buyer was charged for this one account: its discounted price PLUS its proportional
+        // share of the VAT and gateway fee, which were levied across the whole order.
+        long Share(long total) => total <= 0
+            ? 0
+            : (long)Math.Round(total * (double)unitPrice / order.Subtotal, MidpointRounding.AwayFromZero);
+        var expectedRefund = unitPrice - Share(order.DiscountAmount) + Share(order.VatAmount) + Share(order.FeeAmount);
         var walletBefore = store.GetUser(5)!.Wallet;
         var stockBefore = store.GetProduct(1)!.Stock;
 
         var (after, refunded, error) = store.RejectUnit(order.Id, order.Units[0].Id, "موجود نبود", "telegram");
 
         Assert.Null(error);
-        Assert.Equal(expectedRefund, refunded);                          // price after discount — no VAT/fee
+        Assert.Equal(expectedRefund, refunded);                          // price after discount, plus tax + fee
         Assert.Equal(walletBefore + expectedRefund, store.GetUser(5)!.Wallet);
         Assert.Equal(stockBefore + 1, store.GetProduct(1)!.Stock);       // only that one account returned
         Assert.True(after!.Units[0].Rejected);

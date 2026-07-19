@@ -330,13 +330,15 @@ public class StockAccountTests
         var order = PaidSlotOrder(store, qty: 2);
         var stockBefore = store.GetProduct(1)!.Stock;
         var walletBefore = store.GetUser(5)!.Wallet;
-        var lineTotal = order.Items.Single().LineTotal;
+        // A slot line is ONE unit covering the whole quantity, so rejecting it returns the entire line — and,
+        // since nothing of the order survives, everything the buyer paid including tax and fee.
+        var expectedRefund = order.Total;
 
         var (updated, refunded, error) = store.RejectUnit(order.Id, order.Units.Single().Id, "تست", "admin");
 
         Assert.Null(error);
-        Assert.Equal(lineTotal, refunded); // both seats' money, not one
-        Assert.Equal(walletBefore + lineTotal, store.GetUser(5)!.Wallet);
+        Assert.Equal(expectedRefund, refunded);
+        Assert.Equal(walletBefore + expectedRefund, store.GetUser(5)!.Wallet);
         Assert.Equal(stockBefore + 2, store.GetProduct(1)!.Stock);
         Assert.Equal(OrderStatus.Cancelled, updated!.Status);
     }

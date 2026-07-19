@@ -696,19 +696,8 @@ LIMIT 1;",
     // What the buyer actually paid for ONE account: its plan price minus that account's share of the order's
     // discount. VAT and the gateway fee are deliberately excluded — a rejected account refunds the service
     // price only.
-    private static long UnitRefundAmount(Order order, OrderUnit unit)
-    {
-        var item = order.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
-        if (item is null) return 0;
-        // A line normally fans out into Quantity units (one unit = one UnitPrice), but a slot-fulfilled line
-        // is a SINGLE unit covering the whole quantity — its refund is the line's share, not one seat's.
-        var unitsOfLine = Math.Max(1, order.Units.Count(u =>
-            u.ProductId == unit.ProductId && (u.Plan ?? "") == (unit.Plan ?? "")));
-        var price = (long)Math.Round(item.UnitPrice * (double)item.Quantity / unitsOfLine, MidpointRounding.AwayFromZero);
-        if (order.DiscountAmount <= 0 || order.Subtotal <= 0) return price;
-        var share = (long)Math.Round(order.DiscountAmount * (double)price / order.Subtotal, MidpointRounding.AwayFromZero);
-        return Math.Max(0, price - share);
-    }
+    // One shared rule for both stores — see StoreData.UnitRefundAmount.
+    private static long UnitRefundAmount(Order order, OrderUnit unit) => StoreData.UnitRefundAmount(order, unit);
 
     // Rejects ONE account of an order: refunds what the buyer paid for it, returns its stock, and leaves the
     // rest of the order alone. All of it inside one write transaction, so the refund and the flag land together

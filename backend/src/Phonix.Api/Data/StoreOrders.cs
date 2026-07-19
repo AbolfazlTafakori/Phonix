@@ -548,7 +548,12 @@ public partial class StoreData
         return (long)line.Quantity * lineUnits.Count(u => !u.Delivered) / lineUnits.Count;
     }
 
-    private static long UnitRefundAmount(Order order, OrderUnit unit)
+    // What a buyer gets back when ONE account of an order is cancelled: everything they were actually charged
+    // for it — its price, less its slice of the order discount, plus its slice of the VAT and gateway fee.
+    // Including tax and fee matters: they were levied on the whole order, so the share belonging to something
+    // never delivered is not the shop's to keep. Every slice is proportional to the unit's price within the
+    // order, which is also what makes the sum of the parts add back up to the order total.
+    internal static long UnitRefundAmount(Order order, OrderUnit unit)
     {
         var item = order.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
         if (item is null) return 0;
@@ -557,10 +562,14 @@ public partial class StoreData
         var unitsOfLine = Math.Max(1, order.Units.Count(u =>
             u.ProductId == unit.ProductId && (u.Plan ?? "") == (unit.Plan ?? "")));
         var price = (long)Math.Round(item.UnitPrice * (double)item.Quantity / unitsOfLine, MidpointRounding.AwayFromZero);
-        if (order.DiscountAmount <= 0 || order.Subtotal <= 0) return price;
-        // This account's slice of the discount, proportional to its price within the order.
-        var share = (long)Math.Round(order.DiscountAmount * (double)price / order.Subtotal, MidpointRounding.AwayFromZero);
-        return Math.Max(0, price - share);
+        if (order.Subtotal <= 0) return price;
+
+        long Share(long total) => total <= 0
+            ? 0
+            : (long)Math.Round(total * (double)price / order.Subtotal, MidpointRounding.AwayFromZero);
+
+        var net = Math.Max(0, price - Share(order.DiscountAmount));
+        return net + Share(order.VatAmount) + Share(order.FeeAmount);
     }
 
     // Rejects ONE account of an order: refunds what the buyer paid for it, returns its stock, and leaves the
