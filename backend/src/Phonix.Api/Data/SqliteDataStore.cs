@@ -267,6 +267,19 @@ CREATE TABLE IF NOT EXISTS Kyc            (Id INTEGER PRIMARY KEY AUTOINCREMENT,
 CREATE TABLE IF NOT EXISTS Tickets        (Id INTEGER PRIMARY KEY AUTOINCREMENT, DataJson TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS Conversations  (Id INTEGER PRIMARY KEY AUTOINCREMENT, DataJson TEXT NOT NULL);
 
+-- Per-seat customer submissions (a picture + a note the buyer files for one seat of a shared account).
+-- Looked up by unit (the customer's own panel) and by status (the staff review queue), so both are indexed.
+CREATE TABLE IF NOT EXISTS SeatSubmissions (
+    Id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    UserId   INTEGER NOT NULL,
+    OrderId  INTEGER NOT NULL,
+    UnitId   INTEGER NOT NULL,
+    Status   INTEGER NOT NULL,
+    DataJson TEXT    NOT NULL
+);
+CREATE INDEX IF NOT EXISTS IX_SeatSubmissions_Unit   ON SeatSubmissions(OrderId, UnitId);
+CREATE INDEX IF NOT EXISTS IX_SeatSubmissions_Status ON SeatSubmissions(Status);
+
 -- Named monotonic counters that aren't a table PK (currently just the global chat-message id).
 CREATE TABLE IF NOT EXISTS Counters (Name TEXT PRIMARY KEY, Value INTEGER NOT NULL);
 

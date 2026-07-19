@@ -15,6 +15,7 @@ public record AddStockAccountInput(int ProductId, string Username, string Passwo
 // round-trip the live secret.
 public record UpdateStockAccountInput(string Username, string? Password, string Plan, string PlanType, int Capacity, int Months);
 public record SlotFulfillmentInput(int ProductId, bool Enabled);
+public record CollectSeatInfoInput(int ProductId, bool Enabled);
 public record ServiceNameInput(int ProductId, string ServiceName);
 // The plan types a product offers, so the account form can bind an account to one of them.
 public record StockPlanTypeDto(string Type);
@@ -64,7 +65,7 @@ public record StockItemDto(int Id, int ProductId, StockItemStatus Status, int? O
 public record StockSummaryDto(int ProductId, string Name, string Image, bool AutoDeliver,
     int Available, int Reserved, int Delivered, int Disabled,
     bool SlotFulfillment, int Accounts, int SlotAvailable, int SlotReserved, int SlotDelivered, int SlotDisabled,
-    string ServiceName, IReadOnlyList<string> PlanTypes);
+    string ServiceName, IReadOnlyList<string> PlanTypes, bool CollectSeatInfo);
 
 [ApiController]
 [Route("api/stock")]
@@ -108,7 +109,8 @@ public class StockController : ControllerBase
                 Count(StockItemStatus.Delivered), Count(StockItemStatus.Disabled),
                 p.SlotFulfillment, accounts.Count, Slot(StockItemStatus.Available), Slot(StockItemStatus.Reserved),
                 Slot(StockItemStatus.Delivered), Slot(StockItemStatus.Disabled),
-                p.ServiceName, p.Plans.Where(pl => pl.IsActive).Select(pl => pl.Type).Distinct().ToList());
+                p.ServiceName, p.Plans.Where(pl => pl.IsActive).Select(pl => pl.Type).Distinct().ToList(),
+                p.CollectSeatInfo);
         });
     }
 
@@ -354,6 +356,18 @@ public class StockController : ControllerBase
             if (mine.Count > 0) return (acc, mine);
         }
         return null;
+    }
+
+    // Asks each seat holder of this product for a picture and a note in their panel (see SeatSubmission).
+    // Off unless the service genuinely needs something from the buyer.
+    [HttpPost("collect-seat-info")]
+    public IActionResult CollectSeatInfo(CollectSeatInfoInput input)
+    {
+        var product = _store.GetProduct(input.ProductId);
+        if (product is null) return NotFound();
+        product.CollectSeatInfo = input.Enabled;
+        _store.UpdateProduct(product);
+        return Ok();
     }
 
     // Toggles slot-account fulfillment for a product (its stock-page switch, like auto-deliver).

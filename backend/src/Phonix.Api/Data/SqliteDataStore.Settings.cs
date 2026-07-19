@@ -184,6 +184,7 @@ public sealed partial class SqliteDataStore
             PendingKyc: kyc.Count(k => k.Status == KycStatus.Pending),
             PendingCards: Count("SELECT COUNT(1) FROM Cards WHERE Status=@s", new { s = (int)BankCardStatus.Pending }),
             PendingComments: comments.Count(c => c.Status == CommentStatus.Pending),
-            UnreadChats: convos.Count(c => c.Messages.Any(m => !m.FromAdmin && m.Id > c.AdminReadUpTo)));
+            UnreadChats: convos.Count(c => c.Messages.Any(m => !m.FromAdmin && m.Id > c.AdminReadUpTo)),
+            PendingSeatInfo: Count("SELECT COUNT(1) FROM SeatSubmissions WHERE Status=@s", new { s = (int)SeatSubmissionStatus.Pending }));
     }
 }

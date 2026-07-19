@@ -84,6 +84,7 @@ public partial class StoreData
                     s.Transactions = _transactions.ToList();
                     s.PaymentMethods = _paymentMethods.ToList();
                     s.PaymentSettings = _paymentSettings;
+                    s.SeatSubmissions = _seatSubmissions.ToList();
                     break;
                 case BackupSection.Support:
                     s.Tickets = _tickets.ToList();
@@ -139,6 +140,7 @@ public partial class StoreData
                     Replace(_transactions, s.Transactions);
                     Replace(_paymentMethods, s.PaymentMethods);
                     _paymentSettings = s.PaymentSettings;
+                    Replace(_seatSubmissions, s.SeatSubmissions);
                     break;
                 case BackupSection.Support:
                     Replace(_tickets, s.Tickets);

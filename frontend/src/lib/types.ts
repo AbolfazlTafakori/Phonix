@@ -129,6 +129,8 @@ export type StockSummary = {
   slotDisabled: number;
   // The bare service name printed on the slot-delivery message, and the plan types an account can bind to.
   serviceName: string;
+  // Whether each delivered seat of this product asks its holder for a picture and a note.
+  collectSeatInfo: boolean;
   planTypes: string[];
 };
 
@@ -141,6 +143,35 @@ export type StockSlot = {
   orderId: number | null;
   unitId: number | null;
   deliveredAtUtc: string | null;
+};
+
+// Information the buyer files for ONE seat of a shared account after delivery. `editable` is the server's
+// word on whether they may still change it — it closes the moment staff review the seat.
+export type SeatSubmission = {
+  id: number;
+  orderId: number;
+  unitId: number;
+  seatIndex: number;
+  seatLabel: string;
+  productId: number;
+  productName: string;
+  orderCode: string;
+  userName: string;
+  imageId: string | null;
+  text: string;
+  status: "Pending" | "Reviewed";
+  editable: boolean;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+  reviewedBy: string | null;
+  reviewedAtUtc: string | null;
+  reviewNote: string | null;
+};
+
+// Whether a delivered unit's service asks for seat info at all, plus what's already been filed for it.
+export type SeatUnitInfo = {
+  enabled: boolean;
+  submissions: SeatSubmission[];
 };
 
 // A multi-user inventory account, without its password — revealed one account at a time.

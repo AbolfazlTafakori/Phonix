@@ -257,7 +257,7 @@ export default function OrdersPage() {
                                   )}
                                 </div>
                                 {seats.length > 0 ? (
-                                  <SeatDelivery seats={seats} deviceInfo={u.customerInputs} />
+                                  <SeatDelivery seats={seats} deviceInfo={u.customerInputs} orderId={o.id} unitId={u.id} />
                                 ) : (
                                   <DeliveryContent content={u.deliveryContent} />
                                 )}

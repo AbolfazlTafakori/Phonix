@@ -71,6 +71,7 @@ public sealed partial class SqliteDataStore
             Tickets = All<Ticket>("Tickets"),
             Notifications = All<Notification>("Notifications"),
             Conversations = All<ChatConversation>("Conversations"),
+            SeatSubmissions = All<SeatSubmission>("SeatSubmissions"),
             // ReferralEarnings has no Id column — order by rowid instead.
             ReferralEarnings = conn.Query<string>("SELECT DataJson FROM ReferralEarnings ORDER BY rowid")
                 .Select(j => Deserialize<ReferralEarning>(j)!).ToList(),
@@ -105,6 +106,7 @@ public sealed partial class SqliteDataStore
                 Notification = MaxId(conn, "Notifications"),
                 Discount = MaxId(conn, "DiscountCodes"),
                 Conversation = MaxId(conn, "Conversations"),
+                SeatSubmission = MaxId(conn, "SeatSubmissions"),
                 ChatMessage = conn.ExecuteScalar<int?>("SELECT Value FROM Counters WHERE Name='chatMessage'") ?? 0,
             },
         };
@@ -136,7 +138,7 @@ DELETE FROM Cards; DELETE FROM DiscountCodes; DELETE FROM PaymentMethods;
 DELETE FROM ReferralEarnings; DELETE FROM Notifications; DELETE FROM Categories;
 DELETE FROM Plans; DELETE FROM HeroSlides; DELETE FROM HomeCategories; DELETE FROM Showcase;
 DELETE FROM BlogPosts; DELETE FROM Comments; DELETE FROM Kyc; DELETE FROM Tickets;
-DELETE FROM Conversations; DELETE FROM Counters;", transaction: tx);
+DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", transaction: tx);
 
             // hybrid-column tables use their typed upserts/inserts (Id preserved)
             foreach (var u in s.Users) UpsertUser(conn, tx, u);
@@ -176,6 +178,7 @@ DELETE FROM Conversations; DELETE FROM Counters;", transaction: tx);
             foreach (var k in s.Kyc) Ins("Kyc", k.Id, k);
             foreach (var tk in s.Tickets) Ins("Tickets", tk.Id, tk);
             foreach (var cv in s.Conversations) Ins("Conversations", cv.Id, cv);
+            foreach (var ss in s.SeatSubmissions) InsertSeatSubmissionRow(conn, tx, ss);
 
             // restore the global chat-message counter so new messages keep unique ids
             conn.Execute("INSERT INTO Counters (Name, Value) VALUES ('chatMessage', @v) ON CONFLICT(Name) DO UPDATE SET Value=@v",
@@ -234,6 +237,7 @@ DELETE FROM Conversations; DELETE FROM Counters;", transaction: tx);
                 s.Transactions = GetTransactions().ToList();
                 s.PaymentMethods = GetPaymentMethods().ToList();
                 s.PaymentSettings = GetPaymentSettings();
+                s.SeatSubmissions = GetSeatSubmissions().ToList();
                 break;
             case BackupSection.Support:
                 s.Tickets = GetTickets().ToList();
@@ -303,13 +307,14 @@ DELETE FROM Conversations; DELETE FROM Counters;", transaction: tx);
                     WriteSingleton(conn, tx, FavoritesKey, s.Favorites);
                     break;
                 case BackupSection.Commerce:
-                    conn.Execute("DELETE FROM Orders; DELETE FROM Transactions; DELETE FROM PaymentMethods;", transaction: tx);
+                    conn.Execute("DELETE FROM Orders; DELETE FROM Transactions; DELETE FROM PaymentMethods; DELETE FROM SeatSubmissions;", transaction: tx);
                     foreach (var o in s.Orders) UpsertOrder(conn, tx, o);
                     foreach (var t in s.Transactions)
                         conn.Execute("INSERT INTO Transactions (Id, UserId, Status, Date, DataJson) VALUES (@Id,@UserId,@Status,@Date,@DataJson)",
                             new { t.Id, t.UserId, Status = (int)t.Status, t.Date, DataJson = Serialize(t) }, tx);
                     foreach (var m in s.PaymentMethods)
                         conn.Execute("INSERT INTO PaymentMethods (Id, DataJson) VALUES (@Id,@DataJson)", new { m.Id, DataJson = Serialize(m) }, tx);
+                    foreach (var ss in s.SeatSubmissions) InsertSeatSubmissionRow(conn, tx, ss);
                     WriteSingleton(conn, tx, PaymentKey, s.PaymentSettings);
                     break;
                 case BackupSection.Support:

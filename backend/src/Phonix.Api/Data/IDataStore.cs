@@ -53,6 +53,16 @@ public interface IDataStore
     // Marks the item reserved for this unit as Delivered once the unit's delivery actually goes through.
     bool MarkStockItemDelivered(int orderId, int unitId);
 
+    // ── Per-seat customer submissions (a picture + note filed for ONE seat of a shared account) ─────
+    IReadOnlyList<SeatSubmission> GetSeatSubmissions(SeatSubmissionStatus? status = null);
+    IReadOnlyList<SeatSubmission> GetSeatSubmissionsForUnit(int orderId, int unitId);
+    SeatSubmission? GetSeatSubmission(int id);
+    // Creates the seat's submission, or replaces the one already there. Null when the existing entry has been
+    // reviewed — from that point it's frozen and only staff can reopen it.
+    SeatSubmission? SaveSeatSubmission(SeatSubmission input);
+    SeatSubmission? ReviewSeatSubmission(int id, string? reviewedBy, string? note);
+    SeatSubmission? ReopenSeatSubmission(int id, string? note); // hands the seat back for a correction
+
     // ── Stock accounts (multi-seat shared subscriptions; slots are generated, never typed) ──────────
     IReadOnlyList<StockAccount> GetStockAccounts(int? productId = null);
     StockAccount? GetStockAccount(int id);

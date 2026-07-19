@@ -143,6 +143,15 @@ export default function AdminStockPage() {
     }
   }
 
+  async function toggleSeatInfo(row: StockSummary, enabled: boolean) {
+    setRows((p) => p.map((r) => (r.productId === row.productId ? { ...r, collectSeatInfo: enabled } : r)));
+    try {
+      await api.stock.collectSeatInfo(row.productId, enabled);
+    } finally {
+      await refreshSummary();
+    }
+  }
+
   async function toggleSlots(row: StockSummary, enabled: boolean) {
     setRows((p) => p.map((r) => (r.productId === row.productId ? { ...r, slotFulfillment: enabled } : r)));
     try {
@@ -334,6 +343,7 @@ export default function AdminStockPage() {
                   <th className="p-4 font-medium">غیرفعال</th>
                   <th className="p-4 font-medium">تحویل خودکار</th>
                   <th className="p-4 font-medium">اکانت ظرفیتی</th>
+                  <th className="p-4 font-medium">دریافت اطلاعات کاربر</th>
                   <th className="p-4" />
                 </tr>
               </thead>
@@ -362,6 +372,11 @@ export default function AdminStockPage() {
                           </span>
                         )}
                       </span>
+                    </td>
+                    {/* asks every delivered seat's holder for a picture + note in their panel; only for
+                        services that genuinely need something from the buyer */}
+                    <td className="p-4">
+                      <Toggle checked={r.collectSeatInfo} onChange={(v) => toggleSeatInfo(r, v)} />
                     </td>
                     <td className="p-4 text-left">
                       <span className="flex justify-end gap-1.5">

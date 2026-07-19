@@ -23,6 +23,7 @@ public enum AdminBadge
     PendingCards,
     PendingComments,
     UnreadChats,
+    PendingSeatInfo,
 }
 
 public sealed record AdminMenuItem(
@@ -72,6 +73,7 @@ public static class AdminMenu
             new("products",   "محصولات و پلن‌ها",           "box",     "/admin/products"),
             new("plan-types", "نوع سرویس (پلن‌ها)",          "tag",     "/admin/plan-types"),
             new("stock-pool", "انبار مجازی / استخر اکانت",  "grid",    "/admin/stock"),
+            new("seat-info",  "اطلاعات کاربران اکانت‌ها",   "users",   "/admin/seat-info", Badge: AdminBadge.PendingSeatInfo),
             new("categories", "دسته‌بندی‌ها",               "columns", "/admin/categories"),
         }),
         new("finance", "مالی، بازاریابی و تحلیل", UserRole.Support, new AdminMenuItem[]

@@ -32,6 +32,7 @@ public sealed partial class SqliteDataStore
         "Users", "Orders", "Products", "StockItems", "StockAccounts", "Transactions", "Cards",
         "Notifications", "Categories", "Plans", "HeroSlides", "HomeCategories", "Showcase", "BlogPosts",
         "Comments", "Tickets", "Conversations", "Kyc", "PaymentMethods", "DiscountCodes", "ReferralEarnings",
+        "SeatSubmissions",
     };
 
     private static void TouchRowVersion(SqliteConnection conn, SqliteTransaction tx, string table, long id, string whenUtcIso) =>

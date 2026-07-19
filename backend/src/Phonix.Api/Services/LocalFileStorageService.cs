@@ -27,7 +27,7 @@ public sealed partial class LocalFileStorageService : IFileStorageService
 
     // The only categories that may be written/read, so a caller can never reach an arbitrary subfolder.
     // "avatars" holds public images (profile pictures, site/admin imagery) served anonymously.
-    private static readonly HashSet<string> Categories = new(StringComparer.Ordinal) { "kyc", "cards", "receipts", "avatars" };
+    private static readonly HashSet<string> Categories = new(StringComparer.Ordinal) { "kyc", "cards", "receipts", "avatars", "seat-info" };
 
     private const string PublicCategory = "avatars";
 

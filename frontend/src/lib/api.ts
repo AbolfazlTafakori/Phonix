@@ -7,6 +7,8 @@ import type {
   StockAccount,
   StockManagedAccount,
   StockWaitingOrder,
+  SeatSubmission,
+  SeatUnitInfo,
   StockSummary,
   User,
   UserRole,
@@ -235,6 +237,8 @@ export const api = {
       request<void>(`/stock/accounts/${id}${force ? "?force=true" : ""}`, { method: "DELETE" }),
     slotAction: (accountId: number, slotId: number, action: "disable" | "enable" | "release") =>
       request<void>(`/stock/accounts/${accountId}/slots/${slotId}/${action}`, { method: "POST" }),
+    collectSeatInfo: (productId: number, enabled: boolean) =>
+      request<void>("/stock/collect-seat-info", { method: "POST", body: json({ productId, enabled }) }),
     slotFulfillment: (productId: number, enabled: boolean) =>
       request<void>("/stock/slot-fulfillment", { method: "POST", body: json({ productId, enabled }) }),
   },
@@ -288,6 +292,23 @@ export const api = {
   // backend endpoint and returns an absolute URL usable directly as an <img src>.
   media: {
     upload: (file: File) => uploadForm<{ url: string }>("/upload", file).then((r) => r.url),
+  },
+  // Per-seat information a buyer files after delivery (a picture + a note, one per seat of a shared account).
+  // Images live in protected storage: they're referenced by opaque id and streamed from an ownership-checked
+  // endpoint, never a public URL.
+  seatInfo: {
+    forUnit: (orderId: number, unitId: number) =>
+      request<SeatUnitInfo>(`/seat-info/unit/${orderId}/${unitId}`),
+    upload: (file: File) => uploadForm<{ id: string }>("/seat-info/upload", file).then((r) => r.id),
+    save: (input: { orderId: number; unitId: number; seatIndex: number; seatLabel: string; imageId: string | null; text: string }) =>
+      request<SeatSubmission>("/seat-info", { method: "POST", body: json(input) }),
+    imageSrc: (id: string) => `${BASE}/api/seat-info/image/${encodeURIComponent(id)}`,
+    // staff-only
+    all: (status?: "Pending" | "Reviewed") => request<SeatSubmission[]>(`/seat-info${qs({ status })}`),
+    review: (id: number, note?: string) =>
+      request<SeatSubmission>(`/seat-info/${id}/review`, { method: "POST", body: json({ note: note ?? null }) }),
+    reopen: (id: number, note?: string) =>
+      request<SeatSubmission>(`/seat-info/${id}/reopen`, { method: "POST", body: json({ note: note ?? null }) }),
   },
   discounts: {
     list: () => request<DiscountCode[]>("/discounts"),

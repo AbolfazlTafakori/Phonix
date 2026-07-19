@@ -34,6 +34,7 @@ public class StoreSnapshot
     public List<Ticket> Tickets { get; set; } = new();
     public List<Notification> Notifications { get; set; } = new();
     public List<ChatConversation> Conversations { get; set; } = new();
+    public List<SeatSubmission> SeatSubmissions { get; set; } = new();
     public List<ReferralEarning> ReferralEarnings { get; set; } = new();
     public List<DiscountCode> DiscountCodes { get; set; } = new();
     public List<string> PlanTypes { get; set; } = new();
@@ -70,6 +71,7 @@ public class StoreSnapshot
         public int Notification { get; set; }
         public int Discount { get; set; }
         public int Conversation { get; set; }
+        public int SeatSubmission { get; set; }
         public int ChatMessage { get; set; }
     }
 }
@@ -140,6 +142,7 @@ public partial class StoreData
                 Transactions = _transactions.ToList(),
                 Cards = _cards.ToList(),
                 Kyc = _kyc.ToList(),
+                SeatSubmissions = _seatSubmissions.ToList(),
                 Orders = _orders.ToList(),
                 Tickets = _tickets.ToList(),
                 Notifications = _notifications.ToList(),
@@ -184,6 +187,7 @@ public partial class StoreData
                     Tx = _txSeq,
                     Card = _cardSeq,
                     Kyc = _kycSeq,
+                    SeatSubmission = _seatSubmissionSeq,
                     Order = _orderSeq,
                     Ticket = _ticketSeq,
                     Notification = _notificationSeq,
@@ -218,6 +222,7 @@ public partial class StoreData
             Replace(_transactions, s.Transactions);
             Replace(_cards, s.Cards);
             Replace(_kyc, s.Kyc);
+            Replace(_seatSubmissions, s.SeatSubmissions);
             Replace(_orders, s.Orders);
             Replace(_tickets, s.Tickets);
             Replace(_notifications, s.Notifications);
@@ -252,6 +257,7 @@ public partial class StoreData
             _txSeq = s.Seq.Tx;
             _cardSeq = s.Seq.Card;
             _kycSeq = s.Seq.Kyc;
+            _seatSubmissionSeq = s.Seq.SeatSubmission;
             _orderSeq = s.Seq.Order;
             _ticketSeq = s.Seq.Ticket;
             _notificationSeq = s.Seq.Notification;

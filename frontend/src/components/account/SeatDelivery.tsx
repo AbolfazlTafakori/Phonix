@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { OrderInputValue } from "@/lib/types";
+import { api } from "@/lib/api";
+import type { OrderInputValue, SeatUnitInfo } from "@/lib/types";
+import SeatInfoForm from "./SeatInfoForm";
 
 // Seat-based view of a shared-account delivery. The delivered text is one self-contained block per seat (see
 // StockFulfillmentService.BuildSlotDeliveryContent); this parses those blocks and shows the account header once,
@@ -111,10 +113,36 @@ function InfoRow({ label, value, sensitive = false }: { label: string; value: st
   );
 }
 
-export default function SeatDelivery({ seats, deviceInfo }: { seats: Seat[]; deviceInfo?: OrderInputValue[] }) {
+export default function SeatDelivery({
+  seats,
+  deviceInfo,
+  orderId,
+  unitId,
+}: {
+  seats: Seat[];
+  deviceInfo?: OrderInputValue[];
+  // Present only when the caller knows which delivered unit these seats came from — that's what lets each
+  // seat collect its own info. Omitted (e.g. a preview), the form simply isn't offered.
+  orderId?: number;
+  unitId?: number;
+}) {
   const [sel, setSel] = useState(0);
+  // Whether this service asks for per-seat info, and what's already been filed, keyed by seat index. Loaded
+  // once per unit; a save updates the entry in place so switching seats never refetches.
+  const [info, setInfo] = useState<SeatUnitInfo | null>(null);
+  useEffect(() => {
+    if (orderId === undefined || unitId === undefined) return;
+    let alive = true;
+    api.seatInfo
+      .forUnit(orderId, unitId)
+      .then((r) => { if (alive) setInfo(r); })
+      .catch(() => { /* the panel still shows the credentials if this fails */ });
+    return () => { alive = false; };
+  }, [orderId, unitId]);
+
   if (seats.length === 0) return null;
-  const active = seats[Math.min(sel, seats.length - 1)];
+  const activeIndex = Math.min(sel, seats.length - 1);
+  const active = seats[activeIndex];
   const service = seats.find((s) => s.service)?.service ?? "";
   const months = seats.find((s) => s.months)?.months ?? "";
 
@@ -175,6 +203,28 @@ export default function SeatDelivery({ seats, deviceInfo }: { seats: Seat[]; dev
           </div>
         ) : (
           <InfoRow label="پلن" value={active.plan} />
+        )}
+        {/* per-seat submission — scoped to the profile selected above, so on a multi-seat purchase each person
+            files their own picture and note without touching anyone else's */}
+        {info?.enabled && orderId !== undefined && unitId !== undefined && (
+          <SeatInfoForm
+            key={activeIndex}
+            orderId={orderId}
+            unitId={unitId}
+            seatIndex={activeIndex}
+            seatLabel={active.seatLabel}
+            submission={info.submissions.find((s) => s.seatIndex === activeIndex)}
+            onSaved={(saved) =>
+              setInfo((prev) =>
+                prev === null
+                  ? prev
+                  : {
+                      ...prev,
+                      submissions: [...prev.submissions.filter((s) => s.seatIndex !== saved.seatIndex), saved],
+                    },
+              )
+            }
+          />
         )}
         {deviceInfo && deviceInfo.length > 0 && (
           <div className="space-y-2 border-t pt-2" style={{ borderColor: "var(--ac-divider)" }}>
