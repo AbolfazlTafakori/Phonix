@@ -20,6 +20,7 @@ export default function SeatInfoForm({
   unitId,
   seatIndex,
   seatLabel,
+  hint,
   submission,
   onSaved,
 }: {
@@ -27,6 +28,8 @@ export default function SeatInfoForm({
   unitId: number;
   seatIndex: number;
   seatLabel: string;
+  // The plan's own wording for what to send; blank falls back to a generic instruction.
+  hint?: string;
   submission?: SeatSubmission;
   onSaved: (s: SeatSubmission) => void;
 }) {
@@ -68,6 +71,17 @@ export default function SeatInfoForm({
     }
   }
 
+  // What the footer tells the customer about changing this later. Before the first approval editing is free;
+  // afterwards it costs one of the allowances the plan granted, and each change re-enters the review queue.
+  const approved = submission?.status === "Reviewed" || (submission?.editsUsed ?? 0) > 0;
+  const statusNote = !submission
+    ? ""
+    : !approved
+      ? "تا پیش از بررسی، قابل ویرایش است."
+      : submission.editsLeft > 0
+        ? `${submission.editsLeft} بار دیگر می‌توانید این اطلاعات را تغییر دهید؛ هر تغییر دوباره بررسی می‌شود.`
+        : "";
+
   // What to show in the image slot: a freshly picked file wins, otherwise whatever is already on file.
   const imageSrc = pending?.preview ?? (submission?.imageId ? api.seatInfo.imageSrc(submission.imageId) : null);
 
@@ -96,9 +110,10 @@ export default function SeatInfoForm({
         </span>
       </div>
 
-      <p className="text-[11px] leading-5" style={{ color: "var(--ac-muted)" }}>
-        برای راه‌اندازی این پروفایل به اطلاعات شما نیاز داریم. تصویر و توضیح مربوط به <b>همین پروفایل</b> را وارد کنید؛
-        اگر اشتراک شما چند کاربره است، برای هر پروفایل جداگانه این کار را انجام دهید.
+      <p className="whitespace-pre-wrap text-[11px] leading-5" style={{ color: "var(--ac-muted)" }}>
+        {hint?.trim()
+          ? hint.trim()
+          : "برای راه‌اندازی این پروفایل به اطلاعات شما نیاز داریم. تصویر و توضیح مربوط به همین پروفایل را وارد کنید؛ اگر اشتراک شما چند کاربره است، برای هر پروفایل جداگانه این کار را انجام دهید."}
       </p>
 
       {/* image slot — a tap opens the picker; the current or freshly chosen picture previews in place */}
@@ -179,9 +194,9 @@ export default function SeatInfoForm({
           این اطلاعات بررسی شده و دیگر قابل ویرایش نیست. برای تغییر با پشتیبانی تماس بگیرید.
         </p>
       ) : (
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-[11px]" style={{ color: "var(--ac-muted)" }}>
-            {saved ? "ذخیره شد ✓" : submission ? "تا پیش از بررسی، قابل ویرایش است." : ""}
+            {saved ? "ذخیره شد ✓" : statusNote}
           </span>
           <button
             type="button"

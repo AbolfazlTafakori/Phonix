@@ -108,6 +108,46 @@ public class SeatSubmissionTests
         Assert.False(saved.Single(p => p.Type == "اختصاصی").CollectSeatInfo);
     }
 
+    // The plan may grant post-approval corrections. Each one costs an allowance and sends the seat back to the
+    // queue, so staff always re-approve what they're actually working from.
+    [Fact]
+    public void A_granted_allowance_lets_the_buyer_correct_an_approved_seat()
+    {
+        var store = NewStore();
+        var input = Input(0, "first");
+        input.EditLimit = 1;
+        var saved = store.SaveSeatSubmission(input)!;
+        store.ReviewSeatSubmission(saved.Id, "admin", null);
+
+        // One correction is allowed: it lands, spends the allowance, and re-enters the review queue.
+        var corrected = store.SaveSeatSubmission(Input(0, "corrected"))!;
+        Assert.Equal("corrected", corrected.Text);
+        Assert.Equal(SeatSubmissionStatus.Pending, corrected.Status);
+        Assert.Equal(1, corrected.EditsUsed);
+        Assert.Equal(0, corrected.EditsLeft);
+        Assert.Null(corrected.ReviewedAtUtc);
+
+        // Editing again before the re-review is still free — the allowance pays for changing an APPROVED seat.
+        Assert.NotNull(store.SaveSeatSubmission(Input(0, "again")));
+        Assert.Equal(1, store.GetSeatSubmission(saved.Id)!.EditsUsed);
+
+        // Once approved a second time, the spent allowance leaves it frozen for good.
+        store.ReviewSeatSubmission(saved.Id, "admin", null);
+        Assert.False(store.GetSeatSubmission(saved.Id)!.Editable);
+        Assert.Null(store.SaveSeatSubmission(Input(0, "blocked")));
+    }
+
+    [Fact]
+    public void Without_an_allowance_approval_freezes_the_seat()
+    {
+        var store = NewStore();
+        var saved = store.SaveSeatSubmission(Input(0, "mine"))!;  // EditLimit defaults to 0
+        store.ReviewSeatSubmission(saved.Id, "admin", null);
+
+        Assert.False(store.GetSeatSubmission(saved.Id)!.Editable);
+        Assert.Null(store.SaveSeatSubmission(Input(0, "nope")));
+    }
+
     [Fact]
     public void The_pending_queue_is_what_the_admin_badge_counts()
     {

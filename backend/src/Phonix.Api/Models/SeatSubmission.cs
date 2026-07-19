@@ -34,13 +34,20 @@ public class SeatSubmission
     public string Text { get; set; } = "";
 
     public SeatSubmissionStatus Status { get; set; } = SeatSubmissionStatus.Pending;
+    // How many post-approval changes this seat is allowed, SNAPSHOT from the plan when the submission is first
+    // filed — raising or lowering the plan's limit later never changes what an existing buyer was promised.
+    public int EditLimit { get; set; }
+    public int EditsUsed { get; set; }
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public string? ReviewedBy { get; set; }
     public DateTime? ReviewedAtUtc { get; set; }
     public string? ReviewNote { get; set; }  // optional message from staff, shown to the customer
 
-    // A submission is the customer's to change right up until staff act on it — after that it's frozen, so the
-    // admin never works from details that shift under them.
-    public bool Editable => Status == SeatSubmissionStatus.Pending;
+    // The customer's to change right up until staff act on it. After approval it's frozen — the admin must
+    // never work from details that shift under them — unless the plan granted post-approval corrections, in
+    // which case each one costs an allowance and returns the seat to the queue for a fresh look.
+    public bool Editable => Status == SeatSubmissionStatus.Pending || EditsUsed < EditLimit;
+    // Changes still available to the customer once this seat has been approved.
+    public int EditsLeft => Math.Max(0, EditLimit - EditsUsed);
 }

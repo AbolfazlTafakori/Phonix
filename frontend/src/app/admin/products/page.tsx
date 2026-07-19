@@ -36,7 +36,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   plans: [],
 });
 
-const emptyPlanInfo = { collectsInfo: false, collectSeatInfo: false, inputFields: [], warningText: "", tutorialText: "", tutorialMedia: [], allowNotes: false } as const;
+const emptyPlanInfo = { collectsInfo: false, collectSeatInfo: false, seatInfoHint: "", seatInfoEditLimit: 0, inputFields: [], warningText: "", tutorialText: "", tutorialMedia: [], allowNotes: false } as const;
 const emptyPlan = (type: string): ProductPlanInput => ({ type, months: 1, price: 0, priceUsd: 0, discountPercent: 0, isActive: true, userCount: 0, rules: "", ...emptyPlanInfo, inputFields: [], tutorialMedia: [] });
 
 // Parse an uploaded product-content .md file into { description, faq } so the admin
@@ -149,6 +149,8 @@ export default function AdminProductsPage() {
         type: pl.type, months: pl.months, price: pl.price, priceUsd: pl.priceUsd ?? 0, discountPercent: pl.discountPercent, isActive: pl.isActive, userCount: pl.userCount ?? 0, rules: pl.rules ?? "",
         collectsInfo: pl.collectsInfo ?? false,
         collectSeatInfo: pl.collectSeatInfo ?? false,
+        seatInfoHint: pl.seatInfoHint ?? "",
+        seatInfoEditLimit: pl.seatInfoEditLimit ?? 0,
         inputFields: (pl.inputFields ?? []).map((fld) => ({ ...fld })),
         warningText: pl.warningText ?? "",
         tutorialText: pl.tutorialText ?? "",
@@ -590,6 +592,36 @@ export default function AdminProductsPage() {
                       </span>
                       <Toggle checked={pl.collectSeatInfo} onChange={(v) => setPlan(i, "collectSeatInfo", v)} />
                     </label>
+
+                    {pl.collectSeatInfo && (
+                      <div className="mt-3 space-y-3">
+                        <Field label="متن راهنما (داخل کادر پنل کاربر)">
+                          <textarea
+                            value={pl.seatInfoHint}
+                            onChange={(e) => setPlan(i, "seatInfoHint", e.target.value)}
+                            rows={2}
+                            placeholder="مثلاً: یک اسکرین‌شات از صفحه‌ی تنظیمات اکانت و ایمیل خود را بفرستید."
+                            className={`${inputCls} resize-none`}
+                          />
+                        </Field>
+                        <Field label="تعداد ویرایش مجاز پس از تأیید">
+                          <input
+                            value={pl.seatInfoEditLimit}
+                            onChange={(e) => setPlan(i, "seatInfoEditLimit", Math.max(0, Number(e.target.value) || 0))}
+                            type="number"
+                            min={0}
+                            max={20}
+                            dir="ltr"
+                            className={inputCls}
+                          />
+                          <p className="mt-1 text-[11px] text-white/45">
+                            ۰ یعنی پس از تأیید ادمین قفل می‌شود. عدد بزرگ‌تر یعنی کاربر همان تعداد بار می‌تواند
+                            اطلاعات را عوض کند؛ هر تغییر دوباره به صف بررسی برمی‌گردد. (پیش از اولین تأیید، ویرایش
+                            همیشه آزاد است و از این سهمیه کم نمی‌شود.)
+                          </p>
+                        </Field>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}

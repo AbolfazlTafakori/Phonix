@@ -178,6 +178,9 @@ public class ProductsController : ControllerBase
         // a "password" field is always treated as sensitive regardless of the supplied flag.
         CollectsInfo = plan.CollectsInfo,
         CollectSeatInfo = plan.CollectSeatInfo,
+        SeatInfoHint = (plan.SeatInfoHint ?? "").Trim(),
+        // A negative allowance is meaningless; clamp so the panel can trust the number it renders.
+        SeatInfoEditLimit = Math.Clamp(plan.SeatInfoEditLimit, 0, 20),
         InputFields = (plan.InputFields ?? new())
             .Where(f => !string.IsNullOrWhiteSpace(f.Label))
             .Select(f =>

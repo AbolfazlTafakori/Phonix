@@ -74,10 +74,7 @@ SELECT last_insert_rowid();",
             }
 
             if (!existing.Editable) return null;
-            existing.ImageId = input.ImageId ?? existing.ImageId; // keeping the old picture is a valid edit
-            existing.Text = input.Text;
-            existing.SeatLabel = input.SeatLabel;
-            existing.UpdatedAtUtc = DateTime.UtcNow;
+            StoreData.ApplyEdit(existing, input);
             UpsertSeatSubmission(conn, tx, existing);
             return existing;
         });

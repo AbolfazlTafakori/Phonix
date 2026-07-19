@@ -11,21 +11,21 @@ namespace Phonix.Api.Controllers;
 // list; the label travels along only so the admin queue shows the same «A - 8» the customer saw.
 public record SeatSubmissionInput(int OrderId, int UnitId, int SeatIndex, string SeatLabel, string? ImageId, string Text);
 public record SeatReviewInput(string? Note);
-// What the panel needs for one delivered unit: whether this service asks for seat info at all, and whatever
-// the customer has already filed.
-public record SeatUnitInfoDto(bool Enabled, IReadOnlyList<SeatSubmissionDto> Submissions);
+// What the panel needs for one delivered unit: whether this plan asks for seat info at all, the wording it
+// asks with, and whatever the customer has already filed.
+public record SeatUnitInfoDto(bool Enabled, string Hint, IReadOnlyList<SeatSubmissionDto> Submissions);
 
 // A submission as it leaves the API. The image is referenced by id — never a public URL — and is streamed back
 // through the owner-checked download endpoint below.
 public record SeatSubmissionDto(int Id, int OrderId, int UnitId, int SeatIndex, string SeatLabel, int ProductId,
     string ProductName, string OrderCode, string UserName, string? ImageId, string Text, SeatSubmissionStatus Status,
     bool Editable, DateTime CreatedAtUtc, DateTime UpdatedAtUtc, string? ReviewedBy, DateTime? ReviewedAtUtc,
-    string? ReviewNote)
+    string? ReviewNote, int EditLimit, int EditsUsed, int EditsLeft)
 {
     public static SeatSubmissionDto From(SeatSubmission s) =>
         new(s.Id, s.OrderId, s.UnitId, s.SeatIndex, s.SeatLabel, s.ProductId, s.ProductName, s.OrderCode, s.UserName,
             s.ImageId, s.Text, s.Status, s.Editable, s.CreatedAtUtc, s.UpdatedAtUtc, s.ReviewedBy, s.ReviewedAtUtc,
-            s.ReviewNote);
+            s.ReviewNote, s.EditLimit, s.EditsUsed, s.EditsLeft);
 }
 
 // Per-seat information a buyer files after delivery. A purchase covering several seats gets one submission per
@@ -62,15 +62,16 @@ public class SeatSubmissionsController : ControllerBase
         return (order, unit);
     }
 
-    // Whether the PLAN this unit was sold under asks for seat info. The unit records its plan as the display
-    // string «{Type} · {Months} ماهه», so the plan is matched back by type + duration — the same two fields the
-    // stock pool routes on. A plan that no longer exists (deleted after the sale) collects nothing.
-    private bool Enabled(Order order, OrderUnit unit)
+    // The PLAN this unit was sold under — it owns whether seat info is collected, what to ask for, and how many
+    // post-approval corrections the buyer gets. The unit records its plan as the display string
+    // «{Type} · {Months} ماهه», so the plan is matched back by type + duration: the same two fields the seat
+    // pool routes on. Null when the plan was deleted after the sale, which collects nothing.
+    private ProductPlan? PlanFor(Order order, OrderUnit unit)
     {
-        if (_store.GetProduct(unit.ProductId) is not { } product) return false;
+        if (_store.GetProduct(unit.ProductId) is not { } product) return null;
         var type = StockFulfillmentService.PlanType(unit.Plan);
         var months = StockFulfillmentService.SubscriptionMonths(order, unit);
-        return product.Plans.Any(pl =>
+        return product.Plans.FirstOrDefault(pl =>
             pl.CollectSeatInfo && pl.Type == type && (months <= 0 || pl.Months == months));
     }
 
@@ -104,7 +105,8 @@ public class SeatSubmissionsController : ControllerBase
     public ActionResult<SeatUnitInfoDto> ForUnit(int orderId, int unitId)
     {
         if (Resolve(orderId, unitId) is not { } ctx) return Forbid();
-        return Ok(new SeatUnitInfoDto(Enabled(ctx.Order, ctx.Unit),
+        var plan = PlanFor(ctx.Order, ctx.Unit);
+        return Ok(new SeatUnitInfoDto(plan is not null, plan?.SeatInfoHint ?? "",
             _store.GetSeatSubmissionsForUnit(orderId, unitId).Select(SeatSubmissionDto.From).ToList()));
     }
 
@@ -112,7 +114,7 @@ public class SeatSubmissionsController : ControllerBase
     public ActionResult<SeatSubmissionDto> Save(SeatSubmissionInput input)
     {
         if (Resolve(input.OrderId, input.UnitId) is not { } ctx) return Forbid();
-        if (!Enabled(ctx.Order, ctx.Unit)) return BadRequest("این سرویس اطلاعات اضافه‌ای نمی‌خواهد.");
+        if (PlanFor(ctx.Order, ctx.Unit) is not { } plan) return BadRequest("این سرویس اطلاعات اضافه‌ای نمی‌خواهد.");
         if (!ctx.Unit.Delivered) return BadRequest("این اکانت هنوز تحویل نشده است.");
         if (input.SeatIndex < 0) return BadRequest("جایگاه نامعتبر است.");
 
@@ -138,6 +140,9 @@ public class SeatSubmissionsController : ControllerBase
             UserName = ctx.Order.UserName,
             ImageId = string.IsNullOrWhiteSpace(input.ImageId) ? null : input.ImageId,
             Text = text,
+            // Snapshot the plan's allowance onto the submission, so changing the plan later never alters what
+            // an existing buyer was already promised.
+            EditLimit = Math.Max(0, plan.SeatInfoEditLimit),
         });
         if (saved is null) return BadRequest("این اطلاعات بررسی شده و دیگر قابل ویرایش نیست.");
         return Ok(SeatSubmissionDto.From(saved));

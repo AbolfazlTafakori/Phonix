@@ -72,6 +72,13 @@ public class ProductPlan
     // decides what a purchase needs: the same service can sell one plan that requires setup details and
     // another that doesn't.
     public bool CollectSeatInfo { get; set; }
+    // What the panel box tells the buyer to send. Empty falls back to a generic instruction; services differ
+    // enough («یک اسکرین‌شات از صفحه‌ی تنظیمات») that a fixed sentence is rarely right.
+    public string SeatInfoHint { get; set; } = "";
+    // How many times a buyer may change their submission AFTER staff have approved it once. 0 (the default)
+    // freezes it on approval; 1 buys them a single correction. Each such change sends the seat back to the
+    // review queue, so staff always see what they're approving.
+    public int SeatInfoEditLimit { get; set; }
     // When true the customer also gets a free-text optional notes box.
     public bool AllowNotes { get; set; }
 

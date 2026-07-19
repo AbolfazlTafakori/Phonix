@@ -41,8 +41,11 @@ export type PlanTutorialMedia = {
 // Per-plan "collect info from the customer" settings, shared by ProductPlan and ProductPlanInput.
 export type PlanInfoSettings = {
   collectsInfo: boolean;
-  // Whether each delivered seat sold under this plan asks its holder for a picture and a note after delivery.
+  // Whether each delivered seat sold under this plan asks its holder for a picture and a note after delivery,
+  // what to ask for, and how many corrections the buyer may make after staff first approve it (0 = frozen).
   collectSeatInfo: boolean;
+  seatInfoHint: string;
+  seatInfoEditLimit: number;
   inputFields: PlanInputField[];
   warningText: string;
   tutorialText: string;
@@ -166,11 +169,17 @@ export type SeatSubmission = {
   reviewedBy: string | null;
   reviewedAtUtc: string | null;
   reviewNote: string | null;
+  // Post-approval corrections: the allowance snapshotted from the plan, how many are spent, what's left.
+  editLimit: number;
+  editsUsed: number;
+  editsLeft: number;
 };
 
 // Whether a delivered unit's service asks for seat info at all, plus what's already been filed for it.
 export type SeatUnitInfo = {
   enabled: boolean;
+  // The plan's own wording for what the buyer should send; empty falls back to a generic instruction.
+  hint: string;
   submissions: SeatSubmission[];
 };
 
