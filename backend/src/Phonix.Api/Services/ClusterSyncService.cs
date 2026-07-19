@@ -56,6 +56,9 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
     // A dead-lettered event is retried this many times before it is left permanently parked (and surfaced in
     // the cluster status) rather than retried forever — one poison event must never wedge the whole cluster.
     private const int MaxDeadLetterRetries = 5;
+    // The snapshot is the whole database and a media file can be several megabytes; both cross the same link
+    // the 7-second control calls use, so they get their own budget rather than the control-call deadline.
+    private static readonly TimeSpan BulkTransferTimeout = TimeSpan.FromMinutes(10);
     private const long StandbyIdBandOffset = SqliteDataStore.StandbyIdBandOffset;
 
     private long _lastMediaSyncTicks;
@@ -352,7 +355,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
                 continue; // already have an identical copy — incremental: skip
 
             var body = JsonSerializer.Serialize(new ClusterMediaFileInput(entry.Category, entry.Name), JsonOpts);
-            using var response = await SendSignedAsync(HttpMethod.Post, "/api/cluster/media/file", body, ct);
+            using var response = await SendSignedAsync(HttpMethod.Post, "/api/cluster/media/file", body, ct, BulkTransferTimeout);
             if (response is null || !response.IsSuccessStatusCode) continue;
             var bytes = await response.Content.ReadAsByteArrayAsync(ct);
             // The integrity gate inside WriteRawFromSync rejects the file if the bytes don't hash to what the
@@ -377,7 +380,8 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         if (state.Role != ClusterRole.Standby)
             return (false, "بوت‌استرپ فقط روی سرور Standby ممکن است (برای جلوگیری از بازنویسی داده‌های Primary).");
 
-        var snapshot = await CallPeerAsync<ClusterSnapshotResponse>(HttpMethod.Post, "/api/cluster/sync/snapshot", "{}", CancellationToken.None);
+        var snapshot = await CallPeerAsync<ClusterSnapshotResponse>(HttpMethod.Post, "/api/cluster/sync/snapshot", "{}",
+            CancellationToken.None, BulkTransferTimeout);
         if (snapshot is null)
             return (false, "دریافت اسنپ‌شات از سرور مقابل ناموفق بود — اتصال و تنظیمات را بررسی کنید.");
 
@@ -486,7 +490,8 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
 
     // ── Shared signed-request plumbing ───────────────────────────────────────────────────────────────────
 
-    private async Task<HttpResponseMessage?> SendSignedAsync(HttpMethod method, string path, string body, CancellationToken ct)
+    private async Task<HttpResponseMessage?> SendSignedAsync(HttpMethod method, string path, string body, CancellationToken ct,
+        TimeSpan? timeout = null)
     {
         if (string.IsNullOrWhiteSpace(_configuredPeerUrl)) return null;
         var signed = ClusterAuth.SignRequest(method.Method, path, body);
@@ -495,7 +500,13 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         try
         {
             var client = _httpClientFactory.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(10);
+            // Control calls (a cursor pull, a demote, a manifest) answer in milliseconds, and a short timeout
+            // is what makes a dead peer show up as unreachable quickly. Bulk transfers — the initial snapshot
+            // and each media file — are whole payloads over an intercontinental link, where the peer answers
+            // immediately but the body takes far longer than any control call ever would. Holding both to the
+            // same deadline made bootstrap impossible on a slow link: the Primary served the snapshot in
+            // 274ms and the Standby then hung up mid-download, reporting it as a connection problem.
+            client.Timeout = timeout ?? TimeSpan.FromSeconds(10);
             using var request = new HttpRequestMessage(method, _configuredPeerUrl + path)
             {
                 Content = new StringContent(body, Encoding.UTF8, "application/json"),
@@ -511,9 +522,10 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         }
     }
 
-    private async Task<T?> CallPeerAsync<T>(HttpMethod method, string path, string body, CancellationToken ct)
+    private async Task<T?> CallPeerAsync<T>(HttpMethod method, string path, string body, CancellationToken ct,
+        TimeSpan? timeout = null)
     {
-        using var response = await SendSignedAsync(method, path, body, ct);
+        using var response = await SendSignedAsync(method, path, body, ct, timeout);
         if (response is null || !response.IsSuccessStatusCode) return default;
         var json = await response.Content.ReadAsStringAsync(ct);
         return JsonSerializer.Deserialize<T>(json, JsonOpts);
