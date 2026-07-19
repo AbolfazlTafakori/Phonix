@@ -263,11 +263,23 @@ export default function AdminProductsPage() {
     },
   ];
 
+  // Search over the product list. It matches the product's own identity (name, SKU, category) AND its plans,
+  // so «۶ ماهه» or «اشتراکی» finds every product that sells such a plan — that's how an admin actually looks
+  // for something here. Digits are normalized so a Persian-typed «۶» matches a plan stored as 6.
+  const norm = (s: string) => s.replace(/[۰-۹]/g, (d) => String("۰۱۲۳۴۵۶۷۸۹".indexOf(d))).toLowerCase().trim();
+  const [query, setQuery] = useState("");
+  const q = norm(query);
+  const visible = q
+    ? products.filter((p) =>
+        [p.name, p.sku, p.categoryName, ...p.plans.map((pl) => `${pl.type} ${pl.months} ماهه ${pl.userCount || ""}`)]
+          .some((field) => norm(field ?? "").includes(q)))
+    : products;
+
   return (
     <div>
       <PageHeader
         title="محصولات"
-        desc={`${formatNumber(products.length)} محصول`}
+        desc={q ? `${formatNumber(visible.length)} از ${formatNumber(products.length)} محصول` : `${formatNumber(products.length)} محصول`}
         action={
           <button onClick={openNew} className="flex items-center gap-2 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-5 py-2.5 text-sm font-bold text-white transition hover:brightness-110">
             <AdminIcon name="plus" className="h-4 w-4" />
@@ -282,7 +294,28 @@ export default function AdminProductsPage() {
         <Card className="p-8 text-center text-rose-400">{error}</Card>
       ) : (
         <Card className="overflow-hidden">
-          <DataTable columns={columns} rows={products} rowKey={(p) => p.id} minWidth={820} empty="محصولی یافت نشد" />
+          {/* search bar — scoped to this table only; it filters the rows below and nothing else on the panel */}
+          <div className="border-b border-white/8 p-3">
+            <div className="relative">
+              <AdminIcon name="search" className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="جست‌وجو در محصولات و پلن‌ها (نام، SKU، دسته، نوع پلن، مدت)"
+                className={`${inputCls} pr-10`}
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery("")}
+                  aria-label="پاک کردن جست‌وجو"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-white/40 transition hover:text-white/80"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+          <DataTable columns={columns} rows={visible} rowKey={(p) => p.id} minWidth={820} empty="محصولی یافت نشد" />
         </Card>
       )}
 
