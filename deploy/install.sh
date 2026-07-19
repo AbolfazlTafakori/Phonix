@@ -402,6 +402,21 @@ server {
         proxy_set_header X-Forwarded-Proto \$scheme;
     }
 
+    # Cluster admin actions restore a whole database across the link between the two nodes, so they run for
+    # as long as that transfer takes — measured at 67s for a 1MB snapshot on a 95KB/s link, and it scales
+    # with the data. The 60s default cut the response off mid-operation and showed the operator a 504 while
+    # the node was still working and about to succeed, which reads as a failure it isn't.
+    location /api/cluster/ {
+        proxy_pass http://127.0.0.1:$API_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 900s;
+        proxy_send_timeout 900s;
+    }
+
     location / {
         proxy_pass http://127.0.0.1:$WEB_PORT;
         proxy_http_version 1.1;
