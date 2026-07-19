@@ -190,14 +190,14 @@ export default function SeatDelivery({
         </div>
         {/* username (right) + password (left) as a matched pair — page direction is RTL, so the first item in
             DOM order lands on the right without needing an explicit dir override on this row. */}
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
           <InfoRow label="نام کاربری" value={active.username} />
           <InfoRow label="گذرواژه" value={active.password} sensitive />
         </div>
         {/* plan (right) + duration (left), same paired layout — only when there's a duration to pair with,
             otherwise the plan renders alone so it never leaves an empty cell beside it. */}
         {active.months ? (
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
             <InfoRow label="پلن" value={active.plan} />
             <InfoRow label="مدت اشتراک" value={`${active.months} ماه`} />
           </div>
@@ -213,6 +213,7 @@ export default function SeatDelivery({
             unitId={unitId}
             seatIndex={activeIndex}
             seatLabel={active.seatLabel}
+            hint={info.hint}
             submission={info.submissions.find((s) => s.seatIndex === activeIndex)}
             onSaved={(saved) =>
               setInfo((prev) =>

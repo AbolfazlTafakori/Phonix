@@ -324,7 +324,7 @@ export default function AdminStockPage() {
             </button>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full min-w-[880px] text-sm">
               <thead>
                 <tr className="border-b border-white/8 text-right text-xs text-white/45">
                   <th className="p-4 font-medium">محصول</th>
