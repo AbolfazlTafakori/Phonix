@@ -149,12 +149,24 @@ SELECT last_insert_rowid();",
             return migrated;
         });
 
-    public bool DeleteStockAccount(int id) =>
+    public StockAccount? UpdateStockAccount(int id, string username, string? encryptedPassword, string plan,
+        string planType, int capacity, int months) =>
+        WriteTx<StockAccount?>((conn, tx) =>
+        {
+            var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM StockAccounts WHERE Id = @id", new { id }, tx);
+            if (json is null) return null;
+            var acc = Deserialize<StockAccount>(json)!;
+            if (!StoreData.ApplyAccountEdit(acc, username, encryptedPassword, plan, planType, capacity, months)) return null;
+            UpsertStockAccount(conn, tx, acc);
+            return acc;
+        });
+
+    public bool DeleteStockAccount(int id, bool force = false) =>
         WriteTx((conn, tx) =>
         {
             var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM StockAccounts WHERE Id = @id", new { id }, tx);
             if (json is null) return false;
-            if (Deserialize<StockAccount>(json)!.Slots.Any(s => s.Status == StockItemStatus.Delivered)) return false;
+            if (!force && Deserialize<StockAccount>(json)!.Slots.Any(s => s.Status == StockItemStatus.Delivered)) return false;
             var deleted = conn.Execute("DELETE FROM StockAccounts WHERE Id = @id", new { id }, tx) > 0;
             if (deleted) AppendOutbox(conn, tx, "StockAccounts", id, SyncOp.Delete, null);
             return deleted;

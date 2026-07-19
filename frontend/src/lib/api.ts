@@ -226,7 +226,13 @@ export const api = {
       request<{ username: string; password: string }>(`/stock/accounts/${id}/content`),
     disableAccount: (id: number) => request<void>(`/stock/accounts/${id}/disable`, { method: "POST" }),
     enableAccount: (id: number) => request<void>(`/stock/accounts/${id}/enable`, { method: "POST" }),
-    removeAccount: (id: number) => request<void>(`/stock/accounts/${id}`, { method: "DELETE" }),
+    // A blank password keeps the stored one. Delivered units on this account are rebuilt server-side, so the
+    // edit reaches the customers' panels right away.
+    updateAccount: (id: number, input: { username: string; password: string; plan: string; planType: string; capacity: number; months: number }) =>
+      request<StockAccount>(`/stock/accounts/${id}`, { method: "PUT", body: json(input) }),
+    // `force` also removes accounts that hold delivered seats (expired subscription, test account).
+    removeAccount: (id: number, force = false) =>
+      request<void>(`/stock/accounts/${id}${force ? "?force=true" : ""}`, { method: "DELETE" }),
     slotAction: (accountId: number, slotId: number, action: "disable" | "enable" | "release") =>
       request<void>(`/stock/accounts/${accountId}/slots/${slotId}/${action}`, { method: "POST" }),
     slotFulfillment: (productId: number, enabled: boolean) =>

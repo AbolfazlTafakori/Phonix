@@ -199,6 +199,76 @@ public class StockAccountTests
         Assert.Equal(6, store.GetStockAccounts(1).Single().Slots.Count(s => s.Status == StockItemStatus.Delivered));
     }
 
+    // ── Editing and removing an account ────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void Editing_an_account_reaches_the_panel_of_every_customer_seated_on_it()
+    {
+        var store = NewStore();
+        var acc = Account(store, 10, username: "old@mail.com", plan: "Premium", months: 3);
+        var order = PaidSlotOrder(store, qty: 2);
+        var svc = Fulfillment(store);
+        Assert.NotNull(svc.ServeUnit(order, order.Units.Single(), "انبار مجازی"));
+
+        // The provider reset the credentials and upgraded the plan.
+        var updated = store.UpdateStockAccount(acc.Id, "new@mail.com", SensitiveField.Protect("newpass"),
+            "Ultra", "", capacity: 10, months: 3);
+        Assert.NotNull(updated);
+        svc.ReformatDeliveredSlotOrders();
+
+        // The customer's own order — what their panel renders — now carries the new values, and the seats they
+        // hold are untouched.
+        var content = store.GetOrder(order.Id)!.Units.Single().DeliveryContent;
+        Assert.Contains("User : new@mail.com", content);
+        Assert.Contains("Pass : newpass", content);
+        Assert.Contains("Plan : Ultra", content);
+        Assert.DoesNotContain("old@mail.com", content);
+        Assert.Equal(2, store.GetStockAccounts(1).Single().Slots.Count(s => s.Status == StockItemStatus.Delivered));
+    }
+
+    [Fact]
+    public void Growing_capacity_appends_seats_and_shrinking_past_a_used_seat_is_refused()
+    {
+        var store = NewStore();
+        var acc = Account(store, 4);
+        Assert.True(store.SetStockSlotStatus(acc.Id, acc.Slots[2].Id, StockItemStatus.Disabled));
+
+        var grown = store.UpdateStockAccount(acc.Id, acc.Username, null, acc.Plan, "", capacity: 12, months: acc.Months);
+        Assert.NotNull(grown);
+        Assert.Equal(12, grown!.Slots.Count);
+        Assert.Equal("B1", grown.Slots[11].Label);           // labels continue the same sequence
+        Assert.Equal(StockItemStatus.Disabled, grown.Slots[2].Status); // existing lifecycles survive
+
+        // Seat index 2 is in use, so the capacity can't drop to 2 — but it may drop to 3.
+        Assert.Null(store.UpdateStockAccount(acc.Id, acc.Username, null, acc.Plan, "", capacity: 2, months: acc.Months));
+        Assert.Equal(3, store.UpdateStockAccount(acc.Id, acc.Username, null, acc.Plan, "", capacity: 3, months: acc.Months)!.Slots.Count);
+    }
+
+    [Fact]
+    public void A_blank_password_on_an_edit_keeps_the_stored_one()
+    {
+        var store = NewStore();
+        var acc = Account(store, 4);
+        var updated = store.UpdateStockAccount(acc.Id, "renamed@mail.com", null, acc.Plan, "", acc.Capacity, acc.Months);
+        Assert.Equal("p@ss", SensitiveField.Reveal(updated!.Password));
+    }
+
+    [Fact]
+    public void A_sold_account_is_only_deleted_on_purpose()
+    {
+        var store = NewStore();
+        var acc = Account(store, 2);
+        var order = PaidSlotOrder(store, qty: 2);
+        Assert.NotNull(Fulfillment(store).ServeUnit(order, order.Units.Single(), "انبار مجازی"));
+
+        // Sold out: a plain delete is refused so history can't vanish by accident…
+        Assert.False(store.DeleteStockAccount(acc.Id));
+        // …but an expired or test account can be forced out, and the buyer keeps what they already received.
+        Assert.True(store.DeleteStockAccount(acc.Id, force: true));
+        Assert.Empty(store.GetStockAccounts(1));
+        Assert.Contains("User : A - 1", store.GetOrder(order.Id)!.Units.Single().DeliveryContent);
+    }
+
     [Fact]
     public void Reformatting_rewrites_an_old_delivered_slot_account_to_the_current_format()
     {

@@ -235,6 +235,48 @@ export default function AdminStockPage() {
     });
   }
 
+  // ── Editing an existing account ────────────────────────────────────────────────────────────────
+  // Which account is open in edit mode, and its draft. The password field starts blank on purpose: leaving it
+  // blank keeps the stored secret, so the live credential is never sent back down to the browser to be edited.
+  const [editing, setEditing] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState(emptyForm);
+
+  function startEdit(a: StockManagedAccount) {
+    setEditing(a.id);
+    setEditForm({
+      username: a.username,
+      password: "",
+      plan: a.plan,
+      planType: a.planType,
+      capacity: String(a.capacity),
+      months: String(a.months),
+    });
+  }
+
+  function saveEdit(id: number) {
+    return accAct(async () => {
+      await api.stock.updateAccount(id, {
+        username: editForm.username.trim(),
+        password: editForm.password,
+        plan: editForm.plan.trim(),
+        planType: editForm.planType,
+        capacity: Number(editForm.capacity),
+        months: Number(editForm.months),
+      });
+      setEditing(null);
+    });
+  }
+
+  // Deleting an account that still holds delivered seats needs an explicit confirmation — the buyers keep the
+  // credentials already on their orders, but the pool loses the record of which seats went where.
+  function removeAccount(a: StockManagedAccount) {
+    if (a.delivered > 0 && !confirm(
+      `این اکانت ${toFa(a.delivered)} جایگاه تحویل‌شده دارد. با حذف، سابقه‌ی جایگاه‌ها از انبار پاک می‌شود ` +
+      "(اطلاعات تحویل‌شده در سفارش مشتری باقی می‌ماند). حذف شود؟"
+    )) return;
+    return accAct(() => api.stock.removeAccount(a.id, a.delivered > 0));
+  }
+
   async function revealAccount(id: number) {
     if (accRevealed[id] !== undefined) {
       setAccRevealed((r) => {
@@ -485,17 +527,73 @@ export default function AdminStockPage() {
                           >
                             {a.disabled ? "فعال‌سازی" : "غیرفعال"}
                           </button>
-                          {a.delivered === 0 && (
-                            <button
-                              onClick={() => accAct(() => api.stock.removeAccount(a.id))}
-                              disabled={accBusy}
-                              className="rounded-md border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-400 transition hover:bg-rose-500/10 disabled:opacity-50"
-                            >
-                              حذف
-                            </button>
-                          )}
+                          <button
+                            onClick={() => (editing === a.id ? setEditing(null) : startEdit(a))}
+                            disabled={accBusy}
+                            className="rounded-md border border-white/15 px-2.5 py-1 text-[11px] font-bold text-white/70 transition hover:bg-white/10 disabled:opacity-50"
+                          >
+                            {editing === a.id ? "انصراف" : "ویرایش"}
+                          </button>
+                          <button
+                            onClick={() => removeAccount(a)}
+                            disabled={accBusy}
+                            className="rounded-md border border-rose-500/30 px-2.5 py-1 text-[11px] font-bold text-rose-400 transition hover:bg-rose-500/10 disabled:opacity-50"
+                          >
+                            حذف
+                          </button>
                         </span>
                       </div>
+
+                      {/* edit panel — same fields as the create form; saving rewrites the delivered messages of
+                          every order seated on this account, so customers see the new details in their panel */}
+                      {editing === a.id && (
+                        <div className="space-y-3 border-t border-white/8 bg-white/[0.02] p-3">
+                          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+                            <Field label="نام کاربری اکانت">
+                              <input value={editForm.username} onChange={(e) => setEditForm({ ...editForm, username: e.target.value })}
+                                dir="ltr" className={inputCls} />
+                            </Field>
+                            <Field label="گذرواژه (خالی = بدون تغییر)">
+                              <input value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })}
+                                dir="ltr" className={inputCls} placeholder="••••••" />
+                            </Field>
+                            <Field label="پلن">
+                              <input value={editForm.plan} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value })}
+                                dir="ltr" className={inputCls} />
+                            </Field>
+                            {accTarget.planTypes.length > 0 && (
+                              <Field label="نوع پلن (مسیر تحویل)">
+                                <select value={editForm.planType} onChange={(e) => setEditForm({ ...editForm, planType: e.target.value })}
+                                  className={inputCls}>
+                                  <option value="">همه‌ی انواع</option>
+                                  {accTarget.planTypes.map((t) => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                              </Field>
+                            )}
+                            <Field label="ظرفیت (تعداد کاربر)">
+                              <input value={editForm.capacity} onChange={(e) => setEditForm({ ...editForm, capacity: e.target.value })}
+                                type="number" min={1} dir="ltr" className={inputCls} />
+                            </Field>
+                            <Field label="مدت اشتراک (ماه)">
+                              <input value={editForm.months} onChange={(e) => setEditForm({ ...editForm, months: e.target.value })}
+                                type="number" min={1} dir="ltr" className={inputCls} />
+                            </Field>
+                          </div>
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-xs text-white/40">
+                              تغییرات بلافاصله در پنل کاربرانی که روی این اکانت جایگاه دارند اعمال می‌شود. کاهش ظرفیت فقط تا
+                              آخرین جایگاه خالی ممکن است.
+                            </p>
+                            <button
+                              onClick={() => saveEdit(a.id)}
+                              disabled={accBusy || !editForm.username.trim() || Number(editForm.capacity) < 1}
+                              className="shrink-0 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-5 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
+                            >
+                              {accBusy ? "..." : "ذخیره‌ی تغییرات"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
 
                       {open && (
                         <div className="border-t border-white/8 p-3">

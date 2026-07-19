@@ -11,6 +11,9 @@ public record AddStockInput(int ProductId, List<string> Lines);
 public record PullStockInput(int OrderId, int UnitId);
 public record StockAutoDeliverInput(int ProductId, bool Enabled);
 public record AddStockAccountInput(int ProductId, string Username, string Password, string Plan, string PlanType, int Capacity, int Months);
+// An edit of an existing account. Password is optional — blank keeps the stored one, so the form never has to
+// round-trip the live secret.
+public record UpdateStockAccountInput(string Username, string? Password, string Plan, string PlanType, int Capacity, int Months);
 public record SlotFulfillmentInput(int ProductId, bool Enabled);
 public record ServiceNameInput(int ProductId, string ServiceName);
 // The plan types a product offers, so the account form can bind an account to one of them.
@@ -93,7 +96,13 @@ public class StockController : ControllerBase
             var accounts = accountsByProduct.TryGetValue(p.Id, out var accs) ? accs : new List<StockAccount>();
             var slots = accounts.SelectMany(a => a.Slots).ToList();
             int Count(StockItemStatus st) => items.Count(s => s.Status == st);
-            int Slot(StockItemStatus st) => slots.Count(s => s.Status == st);
+            // Free seats on a DISABLED account are not sellable — the reservation paths skip those accounts —
+            // so they must not be counted as available here either, or the overview would promise stock that
+            // can never be seated. Reserved/Delivered still count everywhere: that history stays visible.
+            var sellableSlots = accounts.Where(a => !a.Disabled).SelectMany(a => a.Slots).ToList();
+            int Slot(StockItemStatus st) => st == StockItemStatus.Available
+                ? sellableSlots.Count(s => s.Status == st)
+                : slots.Count(s => s.Status == st);
             return new StockSummaryDto(p.Id, p.Name, string.IsNullOrWhiteSpace(p.Logo) ? p.Image : p.Logo,
                 p.AutoDeliverStock, Count(StockItemStatus.Available), Count(StockItemStatus.Reserved),
                 Count(StockItemStatus.Delivered), Count(StockItemStatus.Disabled),
@@ -284,9 +293,42 @@ public class StockController : ControllerBase
     public IActionResult EnableAccount(int id) =>
         _store.SetStockAccountDisabled(id, false) ? Ok() : NotFound();
 
+    // Editing a live account: the credentials on file change (the provider reset the password, the plan was
+    // upgraded, the term was extended). The seats keep their owners, and every already-delivered unit seated on
+    // this account is rebuilt from the new values — so the change reaches the customers' panels immediately
+    // instead of leaving them with credentials that no longer work.
+    [HttpPut("accounts/{id:int}")]
+    public ActionResult<StockAccountDto> UpdateAccount(int id, UpdateStockAccountInput input)
+    {
+        var current = _store.GetStockAccount(id);
+        if (current is null) return NotFound("اکانت یافت نشد.");
+        if (_store.GetProduct(current.ProductId) is not { } product) return NotFound("محصول یافت نشد.");
+        if (string.IsNullOrWhiteSpace(input.Username)) return BadRequest("نام کاربری اکانت الزامی است.");
+        if (input.Capacity is < 1 or > 1000) return BadRequest("ظرفیت اکانت باید بین ۱ تا ۱۰۰۰ باشد.");
+        if (input.Months is < 1 or > 120) return BadRequest("مدت اشتراک باید بین ۱ تا ۱۲۰ ماه باشد.");
+        var planType = (input.PlanType ?? "").Trim();
+        if (planType.Length > 0 && !product.Plans.Any(pl => pl.IsActive && pl.Type == planType))
+            return BadRequest("نوع پلن انتخاب‌شده برای این محصول معتبر نیست.");
+
+        // A blank password means «keep the stored one» — the edit form never carries the live secret back.
+        var password = string.IsNullOrWhiteSpace(input.Password) ? null : SensitiveField.Protect(input.Password.Trim());
+        var updated = _store.UpdateStockAccount(id, input.Username.Trim(), password, (input.Plan ?? "").Trim(),
+            planType, input.Capacity, input.Months);
+        if (updated is null)
+            return BadRequest("کاهش ظرفیت ممکن نیست: جایگاه‌های حذف‌شونده رزرو یا تحویل‌شده‌اند.");
+
+        // Push the new credentials into every delivered unit that sits on this account, then use the freed
+        // seats (a capacity increase) for orders parked in the waiting queue.
+        _fulfillment.ReformatDeliveredSlotOrders();
+        _fulfillment.FulfillWaitingOrders();
+        return Ok(StockAccountDto.From(updated));
+    }
+
+    // `force` deletes an account even when it holds delivered seats — a finished or expired subscription, or a
+    // test account, that no longer belongs in the pool. Customers keep the credentials already on their orders.
     [HttpDelete("accounts/{id:int}")]
-    public IActionResult DeleteAccount(int id) =>
-        _store.DeleteStockAccount(id) ? Ok() : BadRequest("اکانتی که جای تحویل‌شده دارد قابل حذف نیست.");
+    public IActionResult DeleteAccount(int id, [FromQuery] bool force = false) =>
+        _store.DeleteStockAccount(id, force) ? Ok() : BadRequest("اکانتی که جای تحویل‌شده دارد قابل حذف نیست.");
 
     [HttpPost("accounts/{id:int}/slots/{slotId:int}/disable")]
     public IActionResult DisableSlot(int id, int slotId) =>

@@ -58,8 +58,17 @@ public interface IDataStore
     StockAccount? GetStockAccount(int id);
     // Persists the account and auto-generates its `Capacity` slots (A0, A1, … — see StockAccount.SlotLabel).
     StockAccount AddStockAccount(StockAccount account);
-    bool DeleteStockAccount(int id); // refused once any slot is Delivered — that history must survive
+    // Refused once any slot is Delivered, so a sold account's history can't vanish by accident. `force` is the
+    // deliberate override for accounts that are done with — a finished/expired subscription, or a test account —
+    // and it releases nothing: the buyer's already-delivered credentials stay on their order.
+    bool DeleteStockAccount(int id, bool force = false);
     bool SetStockAccountDisabled(int id, bool disabled);
+    // Edits an account's credentials/metadata in place, keeping its Id and every slot's lifecycle. A null
+    // `encryptedPassword` keeps the stored one. Capacity may only grow (new slots are appended) or shrink down
+    // to the last non-Available slot. Returns the updated account, or null when it doesn't exist / the requested
+    // capacity would drop a slot that is in use.
+    StockAccount? UpdateStockAccount(int id, string username, string? encryptedPassword, string plan, string planType,
+        int capacity, int months);
     // Same transition rules as SetStockItemStatus, applied to one slot of one account.
     bool SetStockSlotStatus(int accountId, int slotId, StockItemStatus status);
     // Atomically reserves `count` CONSECUTIVE Available slots on a single enabled account of the product

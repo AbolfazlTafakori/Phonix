@@ -134,12 +134,55 @@ public partial class StoreData
         }
     }
 
-    public bool DeleteStockAccount(int id)
+    // The one shared rule for editing an account in place: identity and every slot's lifecycle are preserved,
+    // only the credentials/metadata change. Capacity grows by appending fresh slots (labels continue the same
+    // sequence) and shrinks only when every dropped slot is still free. Returns false when it can't shrink.
+    internal static bool ApplyAccountEdit(StockAccount acc, string username, string? encryptedPassword, string plan,
+        string planType, int capacity, int months)
+    {
+        if (capacity < acc.Capacity && acc.Slots.Any(s => s.Index >= capacity && s.Status != StockItemStatus.Available))
+            return false;
+
+        acc.Username = username;
+        if (encryptedPassword is not null) acc.Password = encryptedPassword;
+        acc.Plan = plan;
+        acc.PlanType = planType;
+        acc.Months = months;
+
+        if (capacity > acc.Capacity)
+        {
+            var nextId = acc.Slots.Count == 0 ? 1 : acc.Slots.Max(s => s.Id) + 1;
+            for (var i = acc.Capacity; i < capacity; i++)
+                acc.Slots.Add(new StockSlot { Id = nextId++, Index = i, Label = StockAccount.SlotLabel(i) });
+        }
+        else if (capacity < acc.Capacity)
+        {
+            acc.Slots.RemoveAll(s => s.Index >= capacity);
+        }
+        acc.Capacity = capacity;
+        return true;
+    }
+
+    public StockAccount? UpdateStockAccount(int id, string username, string? encryptedPassword, string plan,
+        string planType, int capacity, int months)
     {
         lock (_gate)
         {
             var acc = _stockAccounts.FirstOrDefault(a => a.Id == id);
-            if (acc is null || acc.Slots.Any(s => s.Status == StockItemStatus.Delivered)) return false;
+            if (acc is null || !ApplyAccountEdit(acc, username, encryptedPassword, plan, planType, capacity, months))
+                return null;
+            MarkDirty();
+            return acc;
+        }
+    }
+
+    public bool DeleteStockAccount(int id, bool force = false)
+    {
+        lock (_gate)
+        {
+            var acc = _stockAccounts.FirstOrDefault(a => a.Id == id);
+            if (acc is null) return false;
+            if (!force && acc.Slots.Any(s => s.Status == StockItemStatus.Delivered)) return false;
             _stockAccounts.Remove(acc);
             MarkDirty();
             return true;
