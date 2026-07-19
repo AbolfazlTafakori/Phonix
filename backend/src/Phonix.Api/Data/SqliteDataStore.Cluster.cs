@@ -238,7 +238,7 @@ WHERE RetryCount < @maxRetries ORDER BY OutboxId LIMIT @limit;",
     // cursor to the Primary's high-water mark — every later change flows through the ordinary pull loop. Unlike
     // LoadSnapshot (which re-seeds the outbox for the peer to pull back), this is the RECEIVING side: it must
     // NOT create outbox rows, or the Standby would immediately try to push the Primary's own data back to it.
-    public void RestoreFromPeerSnapshot(StoreSnapshot snapshot, long peerHighWaterMark)
+    public void RestoreFromPeerSnapshot(StoreSnapshot snapshot, long peerHighWaterMark, string? peerDataEpoch = null)
     {
         LoadSnapshotTx(snapshot);
         WriteTx<object?>((conn, tx) =>
@@ -249,6 +249,9 @@ WHERE RetryCount < @maxRetries ORDER BY OutboxId LIMIT @limit;",
         var state = GetClusterState();
         state.LastAppliedCursor = peerHighWaterMark;
         state.BootstrappedAtUtc = DateTime.UtcNow;
+        // Records which lineage of the peer's data this node is now an exact copy of, so a later restore on
+        // the peer is detected on the next pull.
+        state.PeerDataEpoch = peerDataEpoch;
         SetClusterState(state);
     }
 
@@ -295,7 +298,20 @@ WHERE NOT EXISTS (SELECT 1 FROM sqlite_sequence WHERE name = @table);", new { ta
     // outbox is cleared and re-seeded with one fresh Upsert row per row now present in every synced table —
     // an ordinary batch of ordinary outbox rows through the same incremental-pull mechanism, not a new
     // full-snapshot wire format. Called from LoadSnapshot/RestoreSection, inside their own transaction.
-    public int ReseedOutboxFromCurrentState() =>
+    public int ReseedOutboxFromCurrentState()
+    {
+        // Rotating the epoch is what makes a restore visible to the peer. The reseeded outbox below is
+        // upserts only — it can describe every row that now exists, but nothing about the rows the restore
+        // removed. A peer replaying those upserts converges on the restored rows while quietly keeping its
+        // own copies of everything that was deleted, and no counter or health check ever reports it. The new
+        // epoch tells the peer its cursor belongs to a lineage that no longer exists, so it re-bootstraps.
+        var state = GetClusterState();
+        state.DataEpoch = Guid.NewGuid().ToString("N");
+        SetClusterState(state);
+        return ReseedOutboxRows();
+    }
+
+    private int ReseedOutboxRows() =>
         WriteTx((conn, tx) =>
         {
             conn.Execute("DELETE FROM SyncOutbox", tx);

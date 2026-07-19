@@ -32,12 +32,24 @@ public class ClusterState
     // Set once a fresh Standby has successfully pulled and restored the Primary's initial snapshot (bootstrap).
     // Distinguishes "empty because brand new, still needs its first full sync" from "legitimately empty".
     public DateTime? BootstrappedAtUtc { get; set; }
+
+    // Identifies the current lineage of this node's data. Incremental sync is a cursor over an append-only
+    // outbox, which only ever describes CHANGES — so a wholesale replacement of the data (a full or section
+    // restore) is invisible to it: rows the restore dropped were never written as deletes, and the peer keeps
+    // them forever while every health signal reads clean. Rotating this on any such replacement gives the peer
+    // a way to notice its cursor now points into a different lineage and re-bootstrap instead of silently
+    // diverging. Null on a node that has never been restored.
+    public string? DataEpoch { get; set; }
+
+    // The peer DataEpoch this node's data was last aligned to (set when a snapshot is restored from the peer).
+    // A pull that reports a different epoch means the peer's data was replaced underneath this node.
+    public string? PeerDataEpoch { get; set; }
 }
 
 // A Standby attaching to an already-populated Primary pulls one of these once, restores it wholesale, then
 // switches to ordinary incremental pulls starting at HighWaterMark. SnapshotJson is the SAME StoreSnapshot
 // wire format the backup/restore flow already uses — no new serialization surface.
-public sealed record ClusterSnapshotResponse(string SnapshotJson, long HighWaterMark);
+public sealed record ClusterSnapshotResponse(string SnapshotJson, long HighWaterMark, string? DataEpoch = null);
 
 // One media file as advertised by the Primary's manifest: its category folder, opaque filename, size and
 // SHA-256. The Standby downloads only the files it is missing or whose checksum differs, and never deletes.
@@ -57,4 +69,4 @@ public sealed record SyncOutboxEntry(long Id, string EntityTable, long EntityId,
 // The node-to-node pull response: the caller's new outbox entries, plus enough of THIS node's own state
 // (role, high-water mark) for the caller to detect a live Primary/Primary conflict and know how far behind
 // it still is — without either side needing a second round-trip.
-public sealed record ClusterSyncPullResponse(IReadOnlyList<SyncOutboxEntry> Entries, string Role, long HighWaterMark);
+public sealed record ClusterSyncPullResponse(IReadOnlyList<SyncOutboxEntry> Entries, string Role, long HighWaterMark, string? DataEpoch = null);

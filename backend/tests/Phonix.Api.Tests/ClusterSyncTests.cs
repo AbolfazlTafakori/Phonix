@@ -204,6 +204,49 @@ public class ClusterSyncTests
         Assert.Empty(standby.GetOutboxSince(0));
     }
 
+    // A restore on the Primary replaces its data wholesale. The reseeded outbox can only describe rows that
+    // now exist, so replaying it leaves the Standby holding every row the restore removed — with the cursor
+    // caught up and the dead-letter queue empty, nothing reports the divergence. The rotating epoch is what
+    // makes that case detectable, and a fresh snapshot is what actually repairs it.
+    [Fact]
+    public void A_restore_on_the_primary_rotates_the_epoch_and_a_resnapshot_drops_rows_the_restore_removed()
+    {
+        var primary = FreshStore(clusterEnabled: true);
+        primary.AddCategory(new Category { Name = "Cat" });
+        var kept = primary.AddProduct(new Product { Name = "Kept", CategoryId = 1, Price = 5, Stock = 1, IsActive = true });
+        primary.AddProduct(new Product { Name = "DroppedByRestore", CategoryId = 1, Price = 7, Stock = 1, IsActive = true });
+
+        // Standby mirrors the Primary exactly, and records which lineage it copied.
+        var standby = FreshStore(clusterEnabled: true);
+        var epochBefore = primary.GetClusterState().DataEpoch;
+        standby.RestoreFromPeerSnapshot(primary.CaptureSnapshot(), primary.GetOutboxHighWaterMark(), epochBefore);
+        Assert.Equal(2, standby.GetProducts().Count);
+        Assert.Equal(epochBefore, standby.GetClusterState().PeerDataEpoch);
+
+        // A backup taken when only "Kept" existed is restored over the Primary — "DroppedByRestore" is gone.
+        var backup = new StoreSnapshot
+        {
+            Categories = primary.GetCategories().ToList(),
+            Products = primary.GetProducts().Where(p => p.Id == kept.Id).ToList(),
+        };
+        primary.LoadSnapshot(backup);
+        Assert.Single(primary.GetProducts());
+
+        var epochAfter = primary.GetClusterState().DataEpoch;
+        Assert.NotNull(epochAfter);
+        Assert.NotEqual(epochBefore, epochAfter); // the peer can now tell its cursor belongs to a dead lineage
+
+        // Replaying the reseeded outbox alone cannot remove anything — the Standby stays a superset.
+        foreach (var entry in primary.GetOutboxSince(0)) standby.ApplyRemoteOp(entry);
+        Assert.Equal(2, standby.GetProducts().Count);
+
+        // Re-snapshotting on the new epoch is what actually converges the two nodes.
+        standby.RestoreFromPeerSnapshot(primary.CaptureSnapshot(), primary.GetOutboxHighWaterMark(), epochAfter);
+        Assert.Single(standby.GetProducts());
+        Assert.Equal("Kept", standby.GetProducts().First().Name);
+        Assert.Equal(epochAfter, standby.GetClusterState().PeerDataEpoch);
+    }
+
     // ── Fix 5: a single poison event is dead-lettered, retried, and never wedges the cursor. ──────────────
     [Fact]
     public void Dead_letter_queue_tracks_retries_and_clears_on_success()

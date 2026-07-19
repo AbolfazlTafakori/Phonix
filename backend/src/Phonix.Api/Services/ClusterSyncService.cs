@@ -198,6 +198,33 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         Interlocked.Exchange(ref _lastPeerContactTicks, DateTime.UtcNow.Ticks);
         Interlocked.Exchange(ref _consecutiveFailures, 0);
 
+        // The peer's data was replaced wholesale (restored) since this node last aligned with it. Applying
+        // its outbox from here would converge on the restored rows while keeping every row the restore
+        // deleted — a divergence nothing else reports, because the cursor stays caught up and the dead-letter
+        // queue stays empty. Take a fresh full snapshot instead; that is the only operation that also removes.
+        if (state.Role is ClusterRole.Standby or ClusterRole.Recovering
+            && response.DataEpoch is not null && state.PeerDataEpoch is not null
+            && !string.Equals(response.DataEpoch, state.PeerDataEpoch, StringComparison.Ordinal))
+        {
+            _logger.LogWarning("Peer data was restored (epoch changed) — re-bootstrapping from its snapshot instead of replaying the outbox.");
+            var (rebootstrapped, error) = await BootstrapFromPrimaryAsync();
+            if (rebootstrapped)
+            {
+                _ = _alerts.SendAlertAsync("♻️ داده‌های سرور اصلی بازیابی شد — این سرور به‌طور خودکار همگام‌سازی کامل انجام داد.");
+                return;
+            }
+            _logger.LogWarning("Re-bootstrap after peer restore failed: {Error}", error);
+            return; // don't advance the cursor into a lineage this node no longer matches
+        }
+
+        // First observation of a peer epoch (fresh upgrade, or a node bootstrapped before epochs existed):
+        // adopt it without re-syncing, so rolling this out doesn't trigger a snapshot on every node at once.
+        if (response.DataEpoch is not null && state.PeerDataEpoch is null)
+        {
+            state.PeerDataEpoch = response.DataEpoch;
+            _store.SetClusterState(state);
+        }
+
         var cursor = state.LastAppliedCursor;
         foreach (var entry in response.Entries)
         {
@@ -358,7 +385,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         if (parsed is null)
             return (false, "اسنپ‌شات دریافتی نامعتبر بود.");
 
-        _store.RestoreFromPeerSnapshot(parsed, snapshot.HighWaterMark);
+        _store.RestoreFromPeerSnapshot(parsed, snapshot.HighWaterMark, snapshot.DataEpoch);
         _store.EnsureStandbyIdBand();
 
         var mediaCount = await PullMediaAsync(CancellationToken.None);
@@ -424,7 +451,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
     {
         var state = _store.GetClusterState();
         var entries = _store.GetOutboxSince(since);
-        return new ClusterSyncPullResponse(entries, state.Role.ToString(), _store.GetOutboxHighWaterMark());
+        return new ClusterSyncPullResponse(entries, state.Role.ToString(), _store.GetOutboxHighWaterMark(), state.DataEpoch);
     }
 
     public void HandleDemote()
@@ -448,7 +475,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
     // StoreSnapshot wire format the backup flow uses, plus this node's outbox high-water mark so the caller
     // can pin its incremental cursor to exactly where the snapshot ends.
     public ClusterSnapshotResponse HandleSnapshotRequest() =>
-        new(_store.SerializeSnapshot(), _store.GetOutboxHighWaterMark());
+        new(_store.SerializeSnapshot(), _store.GetOutboxHighWaterMark(), _store.GetClusterState().DataEpoch);
 
     // Media manifest handler (Fix 4): advertises every uploaded file with its checksum for the peer to diff.
     public ClusterMediaManifest HandleMediaManifest() =>
