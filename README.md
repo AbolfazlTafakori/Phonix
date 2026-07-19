@@ -10,7 +10,7 @@ Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-102%20passing-3fb950)](#)
+[![Tests](https://img.shields.io/badge/tests-170%20passing-3fb950)](#)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](#-license)
 
 </div>
@@ -61,6 +61,20 @@ The result is a system that boots from a single binary plus one SQLite file, dep
 - **Progressive 3-tier verification** — a strict, escalating KYC ladder gating sensitive actions by trust level; payment destinations stay hidden until the cart's required level is met.
 - **Section-scoped staff permissions** — limited staff accounts see and reach only the admin sections an owner explicitly grants.
 
+### 🌍 High Availability — Primary / Standby Cluster
+Optional two-server clustering for **business continuity** (a datacenter or connectivity outage), not load balancing. Exactly one node is writable at a time; the other mirrors it continuously and stays read-only. A single-server install is unaffected — `standalone` is the default and behaves exactly as before.
+
+- **Continuous mirroring** — every write is journaled to an outbox and pulled by the peer, so a healthy Standby is an exact copy of the Primary: same rows, same uploaded files, verified by checksum.
+- **Automatic failover** — a Standby that loses its Primary for longer than the grace period (default 90s) promotes itself and keeps taking orders unattended. A node that has never completed a first sync never promotes: an empty server must not take charge of live traffic.
+- **Manual failback** — a returning Primary comes back read-only (`Recovering`) and catches up; reclaiming the role is a deliberate click, never automatic, and only once it is fully caught up.
+- **Attach to a populated Primary** — a fresh Standby pulls one full snapshot, pins its sync cursor, then transfers media. Neither server has to start empty.
+- **Restore-aware re-sync** — a wholesale restore on the Primary rotates a data epoch the peer notices on its next pull. Incremental sync only ever describes changes, so without this a Standby silently keeps rows the restore deleted while every health signal reads clean.
+- **Disjoint id bands** — the Standby reserves its own autoincrement range, so ids minted on both sides during a partition can never collide.
+- **Isolated sync failures** — one bad event is dead-lettered and retried on its own; it can never wedge every later change behind it.
+- **Encrypted, authenticated node link** — HMAC-SHA256 over method, path, timestamp and body, with a replay window. Plain HTTP between nodes is refused at startup.
+
+> Public traffic still follows DNS. When a Standby promotes itself, point the domain at it — that switch is deliberately a human decision.
+
 ### 🤖 Telegram Automation
 - **Receipt bot** — every card-to-card receipt lands in the admin chat with one-tap approve/reject.
 - **Order bot** — confirmed orders are announced to the fulfillment team exactly once, with claim-based dedup across approval paths.
@@ -81,7 +95,8 @@ The result is a system that boots from a single binary plus one SQLite file, dep
 | Backend      | ASP.NET Core 8 (C# 12)                       |
 | Persistence  | Embedded SQLite (WAL) via `IDataStore`       |
 | Logging      | Serilog (structured audit + app logs)        |
-| Ops          | `install.sh` installer · `p-ui` CLI          |
+| Ops          | `install.sh` installer · `p-ui` CLI · Docker Compose |
+| Availability | Optional Primary/Standby cluster (outbox sync) |
 
 ---
 
@@ -93,7 +108,13 @@ Phonix/
 │   ├── src/Phonix.Api/        # ASP.NET Core 8 API, controllers, security middleware
 │   └── tests/                 # Integration, concurrency and security test suites
 ├── frontend/                  # Next.js 16 storefront & admin
-├── install.sh                # Interactive Linux installer
+├── deploy/
+│   ├── install.sh             # Bare-metal installer (systemd + nginx + certbot)
+│   └── p-ui                   # Operations CLI installed to /usr/local/bin
+├── scripts/                   # Docker-based install and local dev helpers
+├── docker-compose.yml         # Containerised stack (API + storefront)
+├── install.sh                 # One-line bootstrap that fetches and runs deploy/install.sh
+├── DEPLOY.md                  # Deployment, configuration and HA cluster guide
 └── README.md
 ```
 
@@ -133,6 +154,17 @@ Already cloned the repo? Run the installer directly:
 sudo bash install.sh
 ```
 
+### Two-server HA (optional)
+
+Install both servers normally, each on its own reachable HTTPS hostname, then pair them from `p-ui` → *High-availability cluster setup*. Order matters: configure the **Primary first** so the Standby has something to sync from.
+
+```
+Server A (Primary)   p-ui → 4 → Primary   # prints the shared secret once — copy it
+Server B (Standby)   p-ui → 4 → Standby   # paste that same secret
+```
+
+Each node needs the other's base URL (`https://…`, no port and no `/api` — the app appends its own path), reachable from the opposite side. The Standby then bootstraps and mirrors on its own. Full walkthrough, environment variables and failover/failback procedure: **[DEPLOY.md](DEPLOY.md)**.
+
 ---
 
 ## 🔬 Load-Test Diagnostics
@@ -161,6 +193,8 @@ p-ui
 - **Domain fallback routing** for resilient public access.
 - **Secure log download** of Serilog audit and application logs.
 - **HA cluster setup** — pick Primary or Standby and it asks only for what that role needs, then wires up and syncs the two servers.
+
+Updates work on restricted networks too: the tool falls back from the git protocol to an HTTPS source archive, and builds from a local package cache when the NuGet feed is unreachable.
 
 ---
 
