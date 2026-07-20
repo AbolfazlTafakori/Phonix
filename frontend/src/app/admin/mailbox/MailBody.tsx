@@ -29,7 +29,7 @@ export default function MailBody({
 <meta charset="utf-8">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; script-src 'none'; frame-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
 <style>
-  html,body{margin:0;padding:14px;background:transparent;color:#dcdce6;
+  html,body{margin:0;padding:14px;background:#15151f;color:#dcdce6;
     font:14px/1.9 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;word-break:break-word;overflow-wrap:anywhere}
   a{color:#8aa6ff}
   img{max-width:100%;height:auto}
@@ -47,7 +47,7 @@ export default function MailBody({
         sandbox=""
         srcDoc={srcDoc}
         title="متن ایمیل"
-        className={`w-full rounded-xl border border-white/8 bg-transparent ${className || "h-[52vh]"}`}
+        className={`w-full rounded-xl border border-white/8 bg-[#15151f] ${className || "h-[52vh]"}`}
       />
     );
   }

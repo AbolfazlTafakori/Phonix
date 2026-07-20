@@ -253,9 +253,9 @@ export default function AdminMailboxPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_400px_minmax(0,1fr)]">
-        {/* Folder rail */}
-        <Card className="h-max p-2">
+      <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_400px_minmax(0,1fr)]">
+        {/* Folder rail — pinned to the top so it stays put while a long thread scrolls, like Gmail's. */}
+        <Card className="h-max p-2 lg:sticky lg:top-4">
           {folders.length === 0 ? (
             <p className="p-4 text-center text-sm text-white/35">پوشه‌ای یافت نشد</p>
           ) : (
