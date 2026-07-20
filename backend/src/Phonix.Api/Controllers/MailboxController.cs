@@ -68,6 +68,25 @@ public class MailboxController : ControllerBase
         return result.Ok ? Ok(result.Value) : Problem(result.Error);
     }
 
+    [HttpGet("conversations")]
+    public async Task<IActionResult> Conversations(
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 25,
+        [FromQuery] string? search = null,
+        [FromQuery] bool unreadOnly = false,
+        CancellationToken ct = default)
+    {
+        var result = await _mail.ListConversationsAsync(page, pageSize, search, unreadOnly, ct);
+        return result.Ok ? Ok(result.Value) : Problem(result.Error);
+    }
+
+    [HttpGet("conversations/{id}")]
+    public async Task<IActionResult> Conversation(string id, CancellationToken ct = default)
+    {
+        var result = await _mail.GetConversationAsync(id, ct);
+        return result.Ok ? Ok(result.Value) : Problem(result.Error);
+    }
+
     [HttpGet("messages")]
     public async Task<IActionResult> List(
         [FromQuery] string folder = "INBOX",

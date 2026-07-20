@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
 import { api } from "@/lib/api";
 import type { MailFolder, MailMessage } from "@/lib/types";
 import { Card } from "@/components/admin/ui";
 import AdminIcon from "@/components/admin/AdminIcon";
+import MailBody from "./MailBody";
 
 type Props = {
   message: MailMessage;
@@ -29,26 +29,6 @@ export default function MailReadingPane({
   onMarkUnread,
   onMove,
 }: Props) {
-  // SECOND line of defense. The body was already run through an allowlist sanitizer server-side; this puts
-  // the result in an iframe with an empty sandbox — no allow-scripts and no allow-same-origin — so it cannot
-  // execute anything, cannot read the panel's cookies or DOM, and cannot navigate the top window. The CSP
-  // inside the document blocks any network fetch on top of that, which stops tracking pixels from loading
-  // even if one somehow survived sanitizing.
-  const srcDoc = useMemo(() => {
-    if (!message.htmlBody) return "";
-    return `<!doctype html><html dir="auto"><head>
-<meta charset="utf-8">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'none'; font-src 'none'; script-src 'none'; frame-src 'none'; connect-src 'none'; form-action 'none'; base-uri 'none'">
-<style>
-  html,body{margin:0;padding:0;background:transparent;color:#dcdce6;
-    font:14px/1.9 system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;word-break:break-word;overflow-wrap:anywhere}
-  a{color:#6f93ff}
-  table{max-width:100%;border-collapse:collapse}
-  blockquote{margin:0 0 0 .8rem;padding-right:.8rem;border-right:2px solid rgba(255,255,255,.15);color:#a9a9bb}
-  pre{white-space:pre-wrap}
-</style></head><body>${message.htmlBody}</body></html>`;
-  }, [message.htmlBody]);
-
   const canReply = Boolean(message.from.address);
 
   return (
@@ -120,22 +100,7 @@ export default function MailReadingPane({
 
       {/* Body */}
       <div className="min-h-[240px] flex-1 overflow-auto p-5">
-        {message.htmlBody ? (
-          <iframe
-            // An empty sandbox attribute is the maximum restriction the platform offers: no scripts, no
-            // same-origin, no forms, no top-level navigation. Do not add allow-* tokens here.
-            sandbox=""
-            srcDoc={srcDoc}
-            title="متن ایمیل"
-            className="h-[60vh] w-full border-0 bg-transparent"
-          />
-        ) : message.textBody ? (
-          <pre className="whitespace-pre-wrap break-words font-sans text-sm leading-8 text-white/75" dir="auto">
-            {message.textBody}
-          </pre>
-        ) : (
-          <p className="text-sm text-white/35">این ایمیل متنی ندارد.</p>
-        )}
+        <MailBody html={message.htmlBody} text={message.textBody} className="h-[60vh]" />
       </div>
     </Card>
   );

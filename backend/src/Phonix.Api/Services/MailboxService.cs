@@ -2,6 +2,7 @@ using MailKit;
 using MailKit.Net.Imap;
 using MailKit.Net.Smtp;
 using MailKit.Search;
+using System.Text;
 using MimeKit;
 using MimeKit.Text;
 using Phonix.Api.Data;
@@ -248,23 +249,7 @@ public sealed class MailboxService : IMailboxService
             var flags = summaries.FirstOrDefault()?.Flags ?? MessageFlags.None;
 
             var (html, hadRemote) = MailHtmlSanitizer.Sanitize(message.HtmlBody);
-
-            var attachments = new List<MailAttachmentInfo>();
-            var index = 0;
-            foreach (var part in message.BodyParts.OfType<MimePart>())
-            {
-                // Inline images are listed too: they are stripped out of the rendered body by the sanitizer,
-                // so listing them is the only way the admin can still get at them.
-                if (!part.IsAttachment && part.ContentDisposition?.Disposition != ContentDisposition.Inline) { index++; continue; }
-                if (part is TextPart && !part.IsAttachment) { index++; continue; }
-
-                attachments.Add(new MailAttachmentInfo(
-                    Index: index,
-                    FileName: SafeFileName(part.FileName, index),
-                    ContentType: part.ContentType?.MimeType ?? "application/octet-stream",
-                    Size: part.Content?.Stream?.Length ?? 0));
-                index++;
-            }
+            var attachments = ExtractAttachments(message);
 
             await box.CloseAsync(false, token);
 
@@ -284,6 +269,218 @@ public sealed class MailboxService : IMailboxService
                 References: string.Join(" ", message.References),
                 Attachments: attachments));
         }, ct);
+
+    private static List<MailAttachmentInfo> ExtractAttachments(MimeMessage message)
+    {
+        var attachments = new List<MailAttachmentInfo>();
+        var index = 0;
+        foreach (var part in message.BodyParts.OfType<MimePart>())
+        {
+            // Inline images are listed too: they are stripped out of the rendered body by the sanitizer, so
+            // listing them is the only way the admin can still get at them.
+            if (!part.IsAttachment && part.ContentDisposition?.Disposition != ContentDisposition.Inline) { index++; continue; }
+            if (part is TextPart && !part.IsAttachment) { index++; continue; }
+
+            attachments.Add(new MailAttachmentInfo(
+                Index: index,
+                FileName: SafeFileName(part.FileName, index),
+                ContentType: part.ContentType?.MimeType ?? "application/octet-stream",
+                Size: part.Content?.Stream?.Length ?? 0));
+            index++;
+        }
+        return attachments;
+    }
+
+    // ── Conversations ───────────────────────────────────────────────────────────────────────────────
+    // INBOX carries what customers send us; Sent carries our replies. A conversation is every message across
+    // BOTH that shares one outside party and one normalized subject. Threading is done here, in the service,
+    // rather than via the IMAP THREAD extension because THREAD is per-folder and cannot span INBOX+Sent.
+
+    // Cap per folder so a mailbox that has been running for years cannot turn one page load into a fetch of
+    // tens of thousands of envelopes. Newest wins when the cap bites — old threads drop off the bottom.
+    private const int MaxScan = 1000;
+
+    public Task<MailResult<MailConversationPage>> ListConversationsAsync(int page, int pageSize, string? search, bool unreadOnly, CancellationToken ct = default) =>
+        WithImapAsync(async (client, token) =>
+        {
+            page = Math.Max(1, page);
+            pageSize = Math.Clamp(pageSize, 1, MaxPageSize);
+
+            var rows = await ScanForThreadingAsync(client, token);
+            var conversations = GroupIntoConversations(rows);
+
+            var term = (search ?? "").Trim();
+            IEnumerable<MailConversationSummary> filtered = conversations;
+            if (unreadOnly) filtered = filtered.Where(c => c.Unread > 0);
+            if (term.Length > 0)
+                filtered = filtered.Where(c =>
+                    c.Subject.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    c.Party.Address.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    c.Party.Name.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                    c.Preview.Contains(term, StringComparison.OrdinalIgnoreCase));
+
+            var ordered = filtered.OrderByDescending(c => c.LastDate).ToList();
+            var slice = ordered.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+            return MailResult<MailConversationPage>.Success(new MailConversationPage(slice, ordered.Count, page, pageSize));
+        }, ct);
+
+    public Task<MailResult<MailConversationDetail>> GetConversationAsync(string id, CancellationToken ct = default) =>
+        WithImapAsync(async (client, token) =>
+        {
+            var rows = await ScanForThreadingAsync(client, token);
+            var group = rows.Where(r => ConversationId(r) == id).OrderBy(r => r.Date).ToList();
+            if (group.Count == 0) return MailResult<MailConversationDetail>.Fail("این گفتگو پیدا نشد.");
+
+            var messages = new List<MailThreadMessage>(group.Count);
+            IMailFolder? inbox = null;
+            var toMarkSeen = new List<UniqueId>();
+
+            foreach (var row in group)
+            {
+                var box = await OpenAsync(client, row.Folder, FolderAccess.ReadOnly, token);
+                if (box is null) continue;
+                var message = await box.GetMessageAsync(new UniqueId(row.Uid), token);
+                var (html, hadRemote) = MailHtmlSanitizer.Sanitize(message.HtmlBody);
+
+                messages.Add(new MailThreadMessage(
+                    Folder: row.Folder,
+                    Uid: row.Uid,
+                    FromCustomer: row.FromCustomer,
+                    From: FirstAddress(message.From),
+                    To: Addresses(message.To),
+                    Date: message.Date,
+                    TextBody: Truncate(Clean(message.TextBody), MaxBodyChars),
+                    HtmlBody: Truncate(html, MaxBodyChars),
+                    HadRemoteContent: hadRemote,
+                    Attachments: ExtractAttachments(message),
+                    Seen: row.Seen));
+
+                if (row.FromCustomer && !row.Seen) toMarkSeen.Add(new UniqueId(row.Uid));
+                await box.CloseAsync(false, token);
+            }
+
+            // Opening a conversation marks the customer's messages read — same as Gmail. Best-effort: a failed
+            // flag update must not fail the read.
+            if (toMarkSeen.Count > 0)
+            {
+                inbox = await OpenAsync(client, "INBOX", FolderAccess.ReadWrite, token);
+                if (inbox is not null)
+                {
+                    try { await inbox.AddFlagsAsync(toMarkSeen, MessageFlags.Seen, true, token); } catch { /* best effort */ }
+                    await inbox.CloseAsync(false, token);
+                }
+            }
+
+            var lastInbound = group.LastOrDefault(r => r.FromCustomer);
+            var first = group[0];
+            return MailResult<MailConversationDetail>.Success(new MailConversationDetail(
+                Id: id,
+                Subject: first.Subject.Length > 0 ? first.Subject : "(بدون موضوع)",
+                Party: first.Party,
+                ReplyFolder: lastInbound?.Folder,
+                ReplyUid: lastInbound?.Uid,
+                Messages: messages));
+        }, ct);
+
+    // One scanned message reduced to just what threading and the list row need.
+    private sealed record ThreadRow(
+        string Folder, uint Uid, bool FromCustomer, MailAddressInfo Party,
+        string RawSubject, string Subject, DateTimeOffset Date, string Preview,
+        bool Seen, bool Flagged, bool HasAttachments);
+
+    private async Task<List<ThreadRow>> ScanForThreadingAsync(ImapClient client, CancellationToken ct)
+    {
+        var rows = new List<ThreadRow>();
+        foreach (var (name, fromCustomer) in new[] { ("INBOX", true), ("Sent", false) })
+        {
+            var box = await OpenAsync(client, name, FolderAccess.ReadOnly, ct);
+            if (box is null) continue;
+
+            var uids = await box.SearchAsync(SearchQuery.All, ct);
+            var recent = uids.OrderByDescending(u => u.Id).Take(MaxScan).ToList();
+            if (recent.Count > 0)
+            {
+                var summaries = await box.FetchAsync(recent,
+                    MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope | MessageSummaryItems.Flags |
+                    MessageSummaryItems.BodyStructure | MessageSummaryItems.PreviewText, ct);
+
+                foreach (var s in summaries)
+                {
+                    var env = s.Envelope;
+                    var flags = s.Flags ?? MessageFlags.None;
+                    // The outside party is whoever is NOT us: the sender of an inbound message, the recipient
+                    // of one we sent. That is what makes both halves of a thread group together.
+                    var party = fromCustomer ? FirstAddress(env?.From) : FirstAddress(env?.To);
+                    var rawSubject = Clean(env?.Subject);
+                    rows.Add(new ThreadRow(
+                        Folder: box.FullName,
+                        Uid: s.UniqueId.Id,
+                        FromCustomer: fromCustomer,
+                        Party: party,
+                        RawSubject: rawSubject,
+                        Subject: NormalizeSubject(rawSubject),
+                        Date: env?.Date ?? s.InternalDate ?? DateTimeOffset.MinValue,
+                        Preview: Truncate(Clean(s.PreviewText), 200),
+                        Seen: flags.HasFlag(MessageFlags.Seen),
+                        Flagged: flags.HasFlag(MessageFlags.Flagged),
+                        HasAttachments: s.Attachments?.Any() == true));
+                }
+            }
+            await box.CloseAsync(false, ct);
+        }
+        return rows;
+    }
+
+    private static List<MailConversationSummary> GroupIntoConversations(List<ThreadRow> rows)
+    {
+        var groups = rows
+            .Where(r => !string.IsNullOrEmpty(r.Party.Address))
+            .GroupBy(ConversationId);
+
+        var result = new List<MailConversationSummary>();
+        foreach (var g in groups)
+        {
+            var ordered = g.OrderBy(r => r.Date).ToList();
+            var last = ordered[^1];
+            // A display subject/party taken from the newest message, so a renamed thread shows its latest form.
+            result.Add(new MailConversationSummary(
+                Id: g.Key,
+                Subject: last.RawSubject.Length > 0 ? last.RawSubject : "(بدون موضوع)",
+                Party: ordered.FirstOrDefault(r => r.FromCustomer)?.Party ?? last.Party,
+                LastDate: last.Date,
+                Count: ordered.Count,
+                Unread: ordered.Count(r => r.FromCustomer && !r.Seen),
+                Preview: last.Preview,
+                HasAttachments: ordered.Any(r => r.HasAttachments),
+                Flagged: ordered.Any(r => r.Flagged),
+                LastFromCustomer: last.FromCustomer));
+        }
+        return result;
+    }
+
+    // Group key AND public id in one: the outside party's address plus the normalized subject, encoded so it
+    // survives in a URL. Deterministic, so the detail call re-derives the same id from a fresh scan without
+    // any stored state.
+    private static string ConversationId(ThreadRow r)
+    {
+        var key = $"{r.Party.Address.ToLowerInvariant()}{r.Subject.ToLowerInvariant()}";
+        return Convert.ToBase64String(Encoding.UTF8.GetBytes(key)).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+    }
+
+    // Strips any run of reply/forward prefixes so "Re: Fwd: Order" and "Order" thread together. Covers the
+    // English and Persian prefixes a customer's client is likely to prepend.
+    private static string NormalizeSubject(string subject)
+    {
+        var t = subject.Trim();
+        while (true)
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(t, @"^(re|fwd|fw|aw|پاسخ|ارجاع)\s*:\s*",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (!m.Success) break;
+            t = t[m.Length..].Trim();
+        }
+        return t;
+    }
 
     public Task<MailResult<MailAttachmentContent>> GetAttachmentAsync(string folder, uint uid, int index, CancellationToken ct = default) =>
         WithImapAsync(async (client, token) =>

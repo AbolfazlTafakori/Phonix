@@ -723,6 +723,50 @@ export type MailPage = {
   uidValidity: number;
 };
 
+// A topic thread: every inbound + outbound message sharing one party and normalized subject.
+export type MailConversation = {
+  id: string;
+  subject: string;
+  party: MailAddress;
+  date: string;
+  count: number;
+  unread: number;
+  preview: string;
+  hasAttachments: boolean;
+  flagged: boolean;
+  lastFromCustomer: boolean;
+};
+
+export type MailThreadMessage = {
+  folder: string;
+  uid: number;
+  fromCustomer: boolean;
+  from: MailAddress;
+  to: MailAddress[];
+  date: string;
+  textBody: string;
+  htmlBody: string;
+  hadRemoteContent: boolean;
+  attachments: MailAttachment[];
+  seen: boolean;
+};
+
+export type MailConversationDetail = {
+  id: string;
+  subject: string;
+  party: MailAddress;
+  replyFolder: string | null;
+  replyUid: number | null;
+  messages: MailThreadMessage[];
+};
+
+export type MailConversationPage = {
+  items: MailConversation[];
+  total: number;
+  page: number;
+  pageSize: number;
+};
+
 // The password is intentionally absent; `hasPassword` is all the panel is told about it.
 export type MailboxSettings = {
   enabled: boolean;

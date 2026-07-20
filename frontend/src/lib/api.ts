@@ -36,6 +36,8 @@ import type {
   MailFolder,
   MailPage,
   MailMessage,
+  MailConversationPage,
+  MailConversationDetail,
   MailboxSettings,
   MailboxSettingsInput,
   TelegramSettings,
@@ -489,6 +491,10 @@ export const api = {
   },
   mailbox: {
     folders: () => request<MailFolder[]>("/mailbox/folders"),
+    // The inbox as topic threads (INBOX + Sent merged), the way the panel's main view shows it.
+    conversations: (params?: { page?: number; pageSize?: number; search?: string; unreadOnly?: boolean }) =>
+      request<MailConversationPage>(`/mailbox/conversations${qs(params)}`),
+    conversation: (id: string) => request<MailConversationDetail>(`/mailbox/conversations/${encodeURIComponent(id)}`),
     list: (params: { folder: string; page?: number; pageSize?: number; search?: string; unreadOnly?: boolean }) =>
       request<MailPage>(`/mailbox/messages${qs(params)}`),
     get: (folder: string, uid: number) => request<MailMessage>(`/mailbox/messages/${uid}${qs({ folder })}`),

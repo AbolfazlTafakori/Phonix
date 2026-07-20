@@ -54,6 +54,55 @@ public sealed record MailPage(
 
 public sealed record MailAttachmentContent(byte[] Content, string ContentType, string FileName);
 
+// ── Conversations ──────────────────────────────────────────────────────────────────────────────────
+// A conversation groups every message — inbound (INBOX) and our own replies (Sent) — that share the same
+// outside party AND the same normalized subject, so a back-and-forth on one topic reads as one thread the
+// way Gmail shows it. Four unrelated topics from one customer become four conversations, not one pile.
+//
+// The id is derived from the group key (party address + normalized subject), so it is stable across requests
+// without any server-side state: the detail call re-derives the same grouping and matches on it.
+
+public sealed record MailConversationSummary(
+    string Id,
+    string Subject,
+    MailAddressInfo Party,      // the OUTSIDE participant — the customer, never the support address
+    DateTimeOffset LastDate,
+    int Count,
+    int Unread,
+    string Preview,
+    bool HasAttachments,
+    bool Flagged,
+    bool LastFromCustomer);     // false when the last message in the thread was our reply → "awaiting them"
+
+// One message inside a thread, carrying its full (sanitized) body so the whole conversation renders at once.
+public sealed record MailThreadMessage(
+    string Folder,
+    uint Uid,
+    bool FromCustomer,          // true = inbound (INBOX); false = our reply (Sent)
+    MailAddressInfo From,
+    IReadOnlyList<MailAddressInfo> To,
+    DateTimeOffset Date,
+    string TextBody,
+    string HtmlBody,
+    bool HadRemoteContent,
+    IReadOnlyList<MailAttachmentInfo> Attachments,
+    bool Seen);
+
+public sealed record MailConversationDetail(
+    string Id,
+    string Subject,
+    MailAddressInfo Party,
+    // The uid+folder of the most recent INBOUND message, so a reply threads onto what the customer last sent.
+    string? ReplyFolder,
+    uint? ReplyUid,
+    IReadOnlyList<MailThreadMessage> Messages);
+
+public sealed record MailConversationPage(
+    IReadOnlyList<MailConversationSummary> Items,
+    int Total,
+    int Page,
+    int PageSize);
+
 // An outgoing message composed in the panel. `InReplyToUid` is set when replying, so the service can pull the
 // original's Message-Id/References and keep the customer's client threading the conversation.
 public sealed record MailSendRequest(
@@ -86,6 +135,12 @@ public interface IMailboxService
     Task<MailResult<IReadOnlyList<MailFolderInfo>>> GetFoldersAsync(CancellationToken ct = default);
 
     Task<MailResult<MailPage>> ListAsync(string folder, int page, int pageSize, string? search, bool unreadOnly, CancellationToken ct = default);
+
+    // The inbox as conversations: INBOX + Sent, grouped into topic threads.
+    Task<MailResult<MailConversationPage>> ListConversationsAsync(int page, int pageSize, string? search, bool unreadOnly, CancellationToken ct = default);
+
+    // One full thread. Opening it marks its inbound messages read, the way opening a Gmail conversation does.
+    Task<MailResult<MailConversationDetail>> GetConversationAsync(string id, CancellationToken ct = default);
 
     Task<MailResult<MailMessageDetail>> GetAsync(string folder, uint uid, CancellationToken ct = default);
 
