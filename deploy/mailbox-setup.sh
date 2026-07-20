@@ -118,14 +118,36 @@ ensure_cert() {
     fi
     names+=(-d "$MAIL_HOST")
 
-    # No authenticator is passed on purpose. Naming the existing lineage makes certbot reuse whatever method
-    # already issues this certificate (nginx plugin, webroot, standalone) — guessing one here would fail on
-    # any server set up differently from the one this was written against.
+    # certbot does NOT infer the authenticator in non-interactive mode, even when the lineage is named — it
+    # exits with "Missing command line flags". So the method this certificate already renews with is read
+    # from its own renewal config and passed explicitly. That also makes this correct on servers set up
+    # differently from the one it was written against, instead of hardcoding a guess.
+    local conf="/etc/letsencrypt/renewal/$DOMAIN.conf" auth="" webroot="" auth_flags=()
+    [[ -f "$conf" ]] || die "No renewal config at $conf — cannot tell how this certificate is issued."
+
+    auth="$(sed -n 's/^[[:space:]]*authenticator[[:space:]]*=[[:space:]]*//p' "$conf" | head -1 | tr -d '[:space:]')"
+    case "$auth" in
+        nginx)  auth_flags=(--nginx) ;;
+        apache) auth_flags=(--apache) ;;
+        webroot)
+            # webroot_path is a comma-separated list; the first entry serves the challenge.
+            webroot="$(sed -n 's/^[[:space:]]*webroot_path[[:space:]]*=[[:space:]]*//p' "$conf" \
+                | head -1 | cut -d, -f1 | tr -d '[:space:]')"
+            [[ -n "$webroot" ]] || die "Renewal config says webroot but records no path — expand the certificate by hand."
+            auth_flags=(--webroot -w "$webroot")
+            ;;
+        *)
+            die "Unrecognised authenticator '$auth' in $conf.
+   Expand the certificate yourself with the method that server uses, then re-run this script."
+            ;;
+    esac
+    say "Using the method this certificate already renews with: $auth"
+
     certbot certonly --cert-name "$DOMAIN" --expand --non-interactive --agree-tos --keep-until-expiring \
-        "${names[@]}" \
+        "${auth_flags[@]}" "${names[@]}" \
         || die "certbot failed — the certificate is unchanged and nothing else has been touched yet.
-   Check that $MAIL_HOST resolves here and is reachable, then re-run.
-   The method certbot uses is recorded in /etc/letsencrypt/renewal/$DOMAIN.conf"
+   Check that $MAIL_HOST resolves here and is reachable on port 80, then re-run.
+   Full detail: /var/log/letsencrypt/letsencrypt.log"
     ok "Certificate now covers $MAIL_HOST."
 }
 
