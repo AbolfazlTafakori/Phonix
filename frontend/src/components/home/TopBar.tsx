@@ -4,10 +4,11 @@ import Link from "next/link";
 export default function TopBar() {
   return (
     <div className="hl-grad text-white">
-      <div className="mx-auto flex h-[44px] max-w-[1840px] items-center justify-center gap-4 px-4 text-[12.5px] font-bold sm:h-[48px] sm:px-8 sm:text-[15px] xl:px-16">
+      {/* Grows to two lines on a phone so the offer stays readable; a single truncated line on ≥sm. */}
+      <div className="mx-auto flex min-h-[44px] max-w-[1840px] items-center justify-center gap-4 px-4 py-1.5 text-[12px] font-bold leading-snug sm:h-[48px] sm:py-0 sm:px-8 sm:text-[15px] xl:px-16">
         <p className="flex min-w-0 items-center gap-2 text-center">
           <span aria-hidden className="shrink-0 text-[15px] sm:text-[17px]">🎉</span>
-          <span className="truncate">جشنواره تابستانی فونیکس وریفای! تخفیف‌های ویژه تا ۳۰ درصد روی آیتم‌های محبوب خدمات</span>
+          <span className="line-clamp-2 sm:line-clamp-none sm:truncate">جشنواره تابستانی فونیکس وریفای! تخفیف‌های ویژه تا ۳۰ درصد روی آیتم‌های محبوب خدمات</span>
         </p>
         <Link
           href="/products"

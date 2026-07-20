@@ -21,10 +21,10 @@ export default function HomeHero() {
         <div className="absolute -left-32 top-20 h-[440px] w-[440px] rounded-full bg-[#ef233c]/10 blur-[130px]" />
       </div>
 
-      <div className="mx-auto grid max-w-[1840px] grid-cols-1 items-center gap-8 px-4 py-10 sm:px-8 sm:py-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:py-16 lg:pl-2 lg:pr-44">
-        {/* illustration (right in RTL) */}
+      <div className="mx-auto grid max-w-[1840px] grid-cols-1 items-center gap-6 px-4 py-7 sm:gap-8 sm:px-8 sm:py-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:py-16 lg:pl-2 lg:pr-44">
+        {/* illustration (right in RTL) — trimmed on phones so the headline surfaces sooner */}
         <div className="hero-anim-art relative order-1 flex items-center justify-center">
-          <div className="relative aspect-[4/3] w-full max-w-[360px] sm:max-w-[520px] lg:max-w-[640px]">
+          <div className="relative aspect-[4/3] w-full max-w-[280px] sm:max-w-[520px] lg:max-w-[640px]">
             <div aria-hidden className="hero-aura absolute inset-[6%] rounded-full bg-[#ff5a1f]/15 blur-3xl" />
             <img
               fetchPriority="high"
@@ -63,13 +63,14 @@ export default function HomeHero() {
             </Link>
           </div>
 
-          <div className="mx-auto mt-8 flex max-w-[620px] flex-wrap items-center justify-center gap-x-8 gap-y-4 sm:mt-10 sm:gap-x-12 lg:mx-0">
+          {/* Even 3-up grid on phones (icon over label), the original inline row on ≥sm. */}
+          <div className="mx-auto mt-8 grid max-w-[620px] grid-cols-3 gap-3 sm:mt-10 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-x-12 sm:gap-y-4 lg:mx-0">
             {trust.map((t) => (
-              <div key={t.title} className="flex items-center gap-3.5">
-                <img src={t.icon} alt="" aria-hidden className="h-12 w-12 shrink-0 object-contain sm:h-14 sm:w-14" />
+              <div key={t.title} className="flex flex-col items-center gap-2 text-center sm:flex-row sm:gap-3.5 sm:text-right">
+                <img src={t.icon} alt="" aria-hidden className="h-10 w-10 shrink-0 object-contain sm:h-14 sm:w-14" />
                 <div>
-                  <div className="text-[17px] font-bold text-[var(--hl-ink)]">{t.title}</div>
-                  <div className="text-[14px] text-[var(--hl-muted)]">{t.sub}</div>
+                  <div className="text-[13px] font-bold leading-tight text-[var(--hl-ink)] sm:text-[17px]">{t.title}</div>
+                  <div className="text-[11px] text-[var(--hl-muted)] sm:text-[14px]">{t.sub}</div>
                 </div>
               </div>
             ))}

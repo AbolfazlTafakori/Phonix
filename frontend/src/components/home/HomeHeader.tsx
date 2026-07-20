@@ -238,6 +238,19 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
             ))}
           </ul>
         </nav>
+
+        {/* Account CTA — so the drawer can start a session or reach the account without closing to hunt for the icon. */}
+        <div className="border-t border-[var(--hl-border)] p-3">
+          <Link
+            href={user ? "/account" : "/login"}
+            onClick={() => setMenuOpen(false)}
+            className="hl-cta flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-[15px] font-bold text-white"
+            style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
+          >
+            <UserIcon className="h-5 w-5" />
+            {user ? "حساب کاربری من" : "ورود / ثبت‌نام"}
+          </Link>
+        </div>
       </aside>
     </>
   );
