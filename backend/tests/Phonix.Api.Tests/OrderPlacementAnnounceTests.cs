@@ -66,7 +66,7 @@ public class OrderPlacementAnnounceTests
         public Task KycDecidedAsync(KycRequest kyc) => Task.CompletedTask;
     }
 
-    private static OrdersController Controller(StoreData store, BotHandler handler, int userId)
+    private static OrdersController Controller(IDataStore store, BotHandler handler, int userId)
     {
         store.UpdateTelegramSettings(new TelegramSettings { OrderBotEnabled = true, OrderBotToken = Token, OrderChatId = Chat });
         var stock = new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance);

@@ -18,21 +18,33 @@ public class ProductsController : ControllerBase
     private readonly IDataStore _store;
     private readonly Services.UsdRateService _rate;
     private readonly Services.IFileStorageService _files;
+    private readonly Services.CatalogCache _cache;
 
-    public ProductsController(IDataStore store, Services.UsdRateService rate, Services.IFileStorageService files)
+    public ProductsController(IDataStore store, Services.UsdRateService rate, Services.IFileStorageService files,
+        Services.CatalogCache cache)
     {
         _store = store;
         _rate = rate;
         _files = files;
+        _cache = cache;
     }
 
     [AllowAnonymous]
     [HttpGet]
     public IEnumerable<ProductDto> Get([FromQuery] int? categoryId, [FromQuery] string? search)
     {
-        var names = CategoryNames();
-        return _store.GetProducts(categoryId, search)
-            .Select(p => p.ToDto(names.GetValueOrDefault(p.CategoryId, "")));
+        List<ProductDto> Build(int? cat, string? term)
+        {
+            var names = CategoryNames();
+            return _store.GetProducts(cat, term)
+                .Select(p => p.ToDto(names.GetValueOrDefault(p.CategoryId, ""))).ToList();
+        }
+
+        // Only the plain listing is cached — it is the one every visitor loads. A filtered or searched request
+        // is answered from the store, so caching never has to reason about a key space.
+        return categoryId is null && string.IsNullOrWhiteSpace(search)
+            ? _cache.Products(() => Build(null, null))
+            : Build(categoryId, search);
     }
 
     [AllowAnonymous]
@@ -47,6 +59,7 @@ public class ProductsController : ControllerBase
     public ActionResult<ProductDto> Create(ProductInput input)
     {
         var product = _store.AddProduct(Map(new Product(), input));
+        _cache.Invalidate();
         return CreatedAtAction(nameof(Get), new { id = product.Id }, product.ToDto(CategoryName(product.CategoryId)));
     }
 
@@ -67,6 +80,7 @@ public class ProductsController : ControllerBase
         product.SlotFulfillment = existing?.SlotFulfillment ?? false;
         product.ServiceName = existing?.ServiceName ?? "";
         if (!_store.UpdateProduct(product)) return NotFound();
+        _cache.Invalidate();
         Services.OrphanCleanup.Queue(_files, _store, oldImages);
         return _store.GetProduct(id)!.ToDto(CategoryName(product.CategoryId));
     }
@@ -81,6 +95,7 @@ public class ProductsController : ControllerBase
         product.PriceUsd = Math.Max(0, input.PriceUsd ?? 0);
         ApplyUsdPrice(product);
         _store.UpdateProduct(product);
+        _cache.Invalidate();
         return _store.GetProduct(id)!.ToDto(CategoryName(product.CategoryId));
     }
 
@@ -92,6 +107,7 @@ public class ProductsController : ControllerBase
             ? Array.Empty<string?>()
             : new[] { existing.Image, existing.Logo, existing.ListImage }.Concat(existing.Gallery).ToArray();
         if (!_store.DeleteProduct(id)) return NotFound();
+        _cache.Invalidate();
         Services.OrphanCleanup.Queue(_files, _store, oldImages);
         return NoContent();
     }

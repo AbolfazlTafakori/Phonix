@@ -11,12 +11,12 @@ namespace Phonix.Api.Tests;
 // Seed reference: product 1 = Netflix, user 5 = reza (wallet 920,000 — enough to pay in full).
 public class StockAccountTests
 {
-    private static StoreData NewStore() => TestStore.Create();
+    private static IDataStore NewStore() => TestStore.Create();
 
-    private static StockFulfillmentService Fulfillment(StoreData store) =>
+    private static StockFulfillmentService Fulfillment(IDataStore store) =>
         new(store, NullLogger<StockFulfillmentService>.Instance);
 
-    private static StockAccount Account(StoreData store, int capacity, string username = "acc@mail.com",
+    private static StockAccount Account(IDataStore store, int capacity, string username = "acc@mail.com",
         string plan = "Premium", int months = 3) =>
         store.AddStockAccount(new StockAccount
         {
@@ -29,7 +29,7 @@ public class StockAccountTests
             AddedBy = "admin",
         });
 
-    private static Order PaidSlotOrder(StoreData store, int qty)
+    private static Order PaidSlotOrder(IDataStore store, int qty)
     {
         var product = store.GetProduct(1)!;
         product.SlotFulfillment = true;

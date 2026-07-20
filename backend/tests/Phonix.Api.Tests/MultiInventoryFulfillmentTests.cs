@@ -14,12 +14,12 @@ namespace Phonix.Api.Tests;
 // Seed reference: product 1 = Netflix, user 5 = reza (wallet 920,000).
 public class MultiInventoryFulfillmentTests
 {
-    private static StoreData NewStore() => TestStore.Create();
+    private static IDataStore NewStore() => TestStore.Create();
 
-    private static StockFulfillmentService Fulfillment(StoreData store) =>
+    private static StockFulfillmentService Fulfillment(IDataStore store) =>
         new(store, NullLogger<StockFulfillmentService>.Instance);
 
-    private static StockAccount Account(StoreData store, int capacity, string username, int months = 3, string planType = "") =>
+    private static StockAccount Account(IDataStore store, int capacity, string username, int months = 3, string planType = "") =>
         store.AddStockAccount(new StockAccount
         {
             ProductId = 1,
@@ -35,7 +35,7 @@ public class MultiInventoryFulfillmentTests
     // A cheap, fully-wallet-paid (→ Preparing) slot order whose single unit needs `users` seats. Driving the
     // seat count through a fixed-user-count plan (qty 1) keeps the order affordable, so it lands in Preparing
     // where the waiting-for-inventory queue lives — unlike a large qty that would need a receipt.
-    private static Order PaidSlotOrder(StoreData store, int users, int months = 3)
+    private static Order PaidSlotOrder(IDataStore store, int users, int months = 3)
     {
         var product = store.GetProduct(1)!;
         product.SlotFulfillment = true;
@@ -50,11 +50,11 @@ public class MultiInventoryFulfillmentTests
         return placed.Order!;
     }
 
-    private static int ReservedSeats(StoreData store, int orderId, int unitId) =>
+    private static int ReservedSeats(IDataStore store, int orderId, int unitId) =>
         store.GetStockAccounts(1).SelectMany(a => a.Slots)
             .Count(s => s.Status == StockItemStatus.Reserved && s.OrderId == orderId && s.UnitId == unitId);
 
-    private static int DeliveredSeats(StoreData store, int orderId, int unitId) =>
+    private static int DeliveredSeats(IDataStore store, int orderId, int unitId) =>
         store.GetStockAccounts(1).SelectMany(a => a.Slots)
             .Count(s => s.Status == StockItemStatus.Delivered && s.OrderId == orderId && s.UnitId == unitId);
 

@@ -465,10 +465,10 @@ public class OrderTests
         Assert.False(store.TryClaimOrderBotNotification(order.Id));
     }
 
-    private static long Vat(StoreData store, long goods) =>
+    private static long Vat(IDataStore store, long goods) =>
         (long)Math.Round(goods * (double)store.GetSettings().VatPercent / 100.0, MidpointRounding.AwayFromZero);
 
-    private static int ApprovedCard(StoreData store, int userId)
+    private static int ApprovedCard(IDataStore store, int userId)
     {
         var card = store.AddCard(userId, "6037991234567893", "علی محمدی", "/uploads/card.png").Card!;
         store.SetCardStatus(card.Id, BankCardStatus.Approved, null);

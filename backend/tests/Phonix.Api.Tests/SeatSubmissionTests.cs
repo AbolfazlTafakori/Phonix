@@ -8,7 +8,7 @@ namespace Phonix.Api.Tests;
 // frozen once staff review it.
 public class SeatSubmissionTests
 {
-    private static StoreData NewStore() => TestStore.Create();
+    private static IDataStore NewStore() => TestStore.Create();
 
     private static SeatSubmission Input(int seatIndex, string text, string? imageId = null) => new()
     {

@@ -255,7 +255,7 @@ public class BackupController : ControllerBase
     [HttpGet("sections")]
     public IActionResult Sections() => Ok(new
     {
-        sections = StoreData.BackupSections.Select(x => new { key = x.Section.ToString(), label = x.Label }),
+        sections = BackupSections.All.Select(x => new { key = x.Section.ToString(), label = x.Label }),
         history = _store.GetBackupLog().Select(h => new { h.Section, h.Target, h.Ok, h.Error, h.AtUtc }),
         encrypted = BackupCrypto.IsEnabled,
     });
@@ -315,7 +315,7 @@ public class BackupController : ControllerBase
     public async Task<IActionResult> SendSection(string section)
     {
         if (!Enum.TryParse<BackupSection>(section, ignoreCase: true, out var sec)) return NotFound();
-        var label = StoreData.BackupSections.First(x => x.Section == sec).Label;
+        var label = BackupSections.All.First(x => x.Section == sec).Label;
         var (ok, err) = await _telegram.SendSectionAsync(sec, $"پشتیبان دستی فونیکس — {label}", HttpContext.RequestAborted);
         return ok ? Ok(new { ok = true }) : BadRequest(err);
     }
@@ -343,7 +343,7 @@ public class BackupController : ControllerBase
     public async Task<IActionResult> SendAll()
     {
         var errors = new List<string>();
-        foreach (var (sec, label) in StoreData.BackupSections)
+        foreach (var (sec, label) in BackupSections.All)
         {
             var (ok, err) = await _telegram.SendSectionAsync(sec, $"پشتیبان لحظه‌ای فونیکس — {label}", HttpContext.RequestAborted);
             if (!ok) errors.Add($"{label}: {err}");

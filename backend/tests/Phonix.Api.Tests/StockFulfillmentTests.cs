@@ -61,10 +61,10 @@ public class StockFulfillmentTests
         public Task KycDecidedAsync(KycRequest kyc) => Task.CompletedTask;
     }
 
-    private static StockFulfillmentService Fulfillment(StoreData store) =>
+    private static StockFulfillmentService Fulfillment(IDataStore store) =>
         new(store, NullLogger<StockFulfillmentService>.Instance);
 
-    private static TelegramOrderService Bot(StoreData store, BotHandler handler)
+    private static TelegramOrderService Bot(IDataStore store, BotHandler handler)
     {
         store.UpdateTelegramSettings(new TelegramSettings
         {
@@ -75,7 +75,7 @@ public class StockFulfillmentTests
     }
 
     // A paid order for `qty` ready-made accounts of product 1 (its plans collect nothing from the buyer).
-    private static Order PaidOrder(StoreData store, int qty = 1, bool autoDeliver = false)
+    private static Order PaidOrder(IDataStore store, int qty = 1, bool autoDeliver = false)
     {
         var product = store.GetProduct(1)!;
         product.AutoDeliverStock = autoDeliver;
@@ -86,7 +86,7 @@ public class StockFulfillmentTests
         return placed.Order;
     }
 
-    private static void Stock(StoreData store, params string[] contents) =>
+    private static void Stock(IDataStore store, params string[] contents) =>
         store.AddStockItems(1, contents.Select(SensitiveField.Protect), "admin");
 
     // One staff tap on an account's «✅ تأیید», as Telegram would deliver it.

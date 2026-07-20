@@ -1,3 +1,4 @@
+using Phonix.Api.Data;
 using Phonix.Api.Models;
 using Phonix.Api.Services;
 using Xunit;
@@ -11,7 +12,7 @@ namespace Phonix.Api.Tests;
 public class InvoiceTests
 {
     // A paid two-account order, with one account delivered and the other rejected.
-    private static (Data.StoreData store, Order order) PartlyCancelled(string? discountCode = null)
+    private static (IDataStore store, Order order) PartlyCancelled(string? discountCode = null)
     {
         var store = TestStore.Create();
         var planId = store.GetProduct(1)!.Plans.First(p => p.IsActive).Id;
