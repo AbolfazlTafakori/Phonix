@@ -60,6 +60,9 @@ public static class AdminMenu
             new("transactions", "تراکنش‌ها و کیف پول",  "wallet",    "/admin/transactions", Badge: AdminBadge.PendingTransactions),
             new("tickets",      "تیکت‌های پشتیبانی",    "ticket",    "/admin/tickets",      Badge: AdminBadge.OpenTickets),
             new("chat",         "گفتگوی زنده",          "chat",      "/admin/chat",         Badge: AdminBadge.UnreadChats),
+            // No badge: the unread count lives on the IMAP server, and fetching it here would put a network
+            // round-trip (and a hang, when the mail host is down) in front of every admin page load.
+            new("mailbox",      "صندوق ایمیل",          "mail",      "/admin/mailbox"),
         }),
         new("users", "کاربران و احراز هویت", UserRole.Support, new AdminMenuItem[]
         {

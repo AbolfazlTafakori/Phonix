@@ -669,6 +669,77 @@ export type EmailSettings = {
   useSsl: boolean;
 };
 
+// ── Admin mailbox (inbound IMAP) ──────────────────────────────────────────────────────────────────
+// Mirrors the records in Services/IMailboxService.cs. `uid` is the IMAP UID and is only unique WITHIN a
+// folder, so every call that names a message names its folder too.
+export type MailFolder = {
+  name: string;
+  title: string;
+  kind: "inbox" | "sent" | "drafts" | "trash" | "spam" | "archive" | "other";
+  total: number;
+  unread: number;
+};
+
+export type MailAddress = { name: string; address: string };
+
+export type MailSummary = {
+  uid: number;
+  subject: string;
+  from: MailAddress;
+  to: MailAddress[];
+  date: string;
+  preview: string;
+  seen: boolean;
+  flagged: boolean;
+  answered: boolean;
+  hasAttachments: boolean;
+};
+
+export type MailAttachment = { index: number; fileName: string; contentType: string; size: number };
+
+export type MailMessage = {
+  uid: number;
+  subject: string;
+  from: MailAddress;
+  to: MailAddress[];
+  cc: MailAddress[];
+  date: string;
+  textBody: string;
+  // Sanitized server-side, and still rendered inside a sandboxed iframe — see the reading pane.
+  htmlBody: string;
+  hadRemoteContent: boolean;
+  seen: boolean;
+  flagged: boolean;
+  messageId: string;
+  references: string;
+  attachments: MailAttachment[];
+};
+
+export type MailPage = {
+  items: MailSummary[];
+  total: number;
+  page: number;
+  pageSize: number;
+  uidValidity: number;
+};
+
+// The password is intentionally absent; `hasPassword` is all the panel is told about it.
+export type MailboxSettings = {
+  enabled: boolean;
+  imapHost: string;
+  imapPort: number;
+  imapUseSsl: boolean;
+  smtpHost: string;
+  smtpPort: number;
+  smtpUseSsl: boolean;
+  username: string;
+  address: string;
+  displayName: string;
+  hasPassword: boolean;
+};
+
+export type MailboxSettingsInput = Omit<MailboxSettings, "hasPassword"> & { password?: string };
+
 export type PaymentSettings = {
   telegramEnabled: boolean;
   telegramBotToken: string;

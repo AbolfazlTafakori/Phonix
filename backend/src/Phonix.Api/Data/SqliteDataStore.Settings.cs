@@ -4,6 +4,7 @@ using Dapper;
 using Microsoft.Data.Sqlite;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
+using Phonix.Api.Services;
 
 namespace Phonix.Api.Data;
 
@@ -16,6 +17,7 @@ public sealed partial class SqliteDataStore
     private const string AdvancedKey = "advanced";
     private const string EmailKey = "email";
     private const string TelegramKey = "telegram";
+    private const string MailboxKey = "mailbox";
     private const string PlanTypesKey = "plantypes";
     private const string FavoritesKey = "favorites";
 
@@ -25,6 +27,37 @@ public sealed partial class SqliteDataStore
     public void UpdateAdvancedSettings(AdvancedSettings s) { using var conn = OpenConnection(); WriteSingleton(conn, null, AdvancedKey, s); }
     public EmailSettings GetEmailSettings() => GetSingleton<EmailSettings>(EmailKey);
     public void UpdateEmailSettings(EmailSettings settings) { using var conn = OpenConnection(); WriteSingleton(conn, null, EmailKey, settings); }
+    public MailboxSettings GetMailboxSettings()
+    {
+        var m = GetSingleton<MailboxSettings>(MailboxKey);
+        m.Password = SensitiveField.Reveal(m.Password ?? "");
+        return m;
+    }
+
+    public void UpdateMailboxSettings(MailboxSettings settings)
+    {
+        using var conn = OpenConnection();
+        var stored = ReadSingletonNoTx<MailboxSettings>(conn, MailboxKey);
+
+        stored.Enabled = settings.Enabled;
+        stored.ImapHost = (settings.ImapHost ?? "").Trim();
+        stored.ImapPort = settings.ImapPort is > 0 and <= 65535 ? settings.ImapPort : 993;
+        stored.ImapUseSsl = settings.ImapUseSsl;
+        stored.SmtpHost = (settings.SmtpHost ?? "").Trim();
+        stored.SmtpPort = settings.SmtpPort is > 0 and <= 65535 ? settings.SmtpPort : 587;
+        stored.SmtpUseSsl = settings.SmtpUseSsl;
+        stored.Username = (settings.Username ?? "").Trim();
+        stored.Address = (settings.Address ?? "").Trim();
+        stored.DisplayName = (settings.DisplayName ?? "").Trim();
+
+        // The panel never receives the stored password, so it cannot send it back. An empty value therefore
+        // means "unchanged", not "clear it" — otherwise editing the display name would break the connection.
+        var incoming = settings.Password ?? "";
+        if (!string.IsNullOrEmpty(incoming)) stored.Password = SensitiveField.Protect(incoming);
+
+        WriteSingleton(conn, null, MailboxKey, stored);
+    }
+
     public TelegramSettings GetTelegramSettings() => GetSingleton<TelegramSettings>(TelegramKey);
 
     public void UpdateTelegramSettings(TelegramSettings settings)

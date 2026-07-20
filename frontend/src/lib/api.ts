@@ -33,6 +33,11 @@ import type {
   PaymentMethodInput,
   PaymentSettings,
   EmailSettings,
+  MailFolder,
+  MailPage,
+  MailMessage,
+  MailboxSettings,
+  MailboxSettingsInput,
   TelegramSettings,
   Transaction,
   TxStatus,
@@ -481,6 +486,67 @@ export const api = {
   paymentSettings: {
     get: () => request<PaymentSettings>("/payment-settings"),
     update: (body: PaymentSettings) => request<PaymentSettings>("/payment-settings", { method: "PUT", body: json(body) }),
+  },
+  mailbox: {
+    folders: () => request<MailFolder[]>("/mailbox/folders"),
+    list: (params: { folder: string; page?: number; pageSize?: number; search?: string; unreadOnly?: boolean }) =>
+      request<MailPage>(`/mailbox/messages${qs(params)}`),
+    get: (folder: string, uid: number) => request<MailMessage>(`/mailbox/messages/${uid}${qs({ folder })}`),
+    setSeen: (folder: string, uid: number, value: boolean) =>
+      request<{ ok: boolean }>(`/mailbox/messages/${uid}/seen${qs({ folder })}`, { method: "POST", body: json({ value }) }),
+    setFlagged: (folder: string, uid: number, value: boolean) =>
+      request<{ ok: boolean }>(`/mailbox/messages/${uid}/flagged${qs({ folder })}`, { method: "POST", body: json({ value }) }),
+    move: (folder: string, uid: number, target: string) =>
+      request<{ ok: boolean }>(`/mailbox/messages/${uid}/move${qs({ folder })}`, { method: "POST", body: json({ target }) }),
+
+    // The href for an attachment. It is a normal authenticated GET, so a plain <a download> works only
+    // because the panel and API share the cookie; the endpoint forces a download disposition regardless.
+    attachmentUrl: (folder: string, uid: number, index: number) =>
+      `${BASE}/api/mailbox/messages/${uid}/attachments/${index}${qs({ folder })}`,
+
+    // multipart, because a reply carries files. Content-Type is left to the browser so it can write the
+    // multipart boundary (same reason as uploadForm above).
+    send: async (input: {
+      to: string[];
+      cc?: string[];
+      subject: string;
+      body: string;
+      replyToFolder?: string;
+      inReplyToUid?: number;
+      files?: File[];
+    }): Promise<{ ok: boolean }> => {
+      const csrf = getCsrfToken();
+      const fd = new FormData();
+      input.to.forEach((address) => fd.append("to", address));
+      (input.cc ?? []).forEach((address) => fd.append("cc", address));
+      fd.append("subject", input.subject);
+      fd.append("body", input.body);
+      if (input.replyToFolder) fd.append("replyToFolder", input.replyToFolder);
+      if (input.inReplyToUid !== undefined) fd.append("inReplyToUid", String(input.inReplyToUid));
+      (input.files ?? []).forEach((file) => fd.append("files", file));
+
+      const res = await fetch(`${BASE}/api/mailbox/send`, {
+        method: "POST",
+        credentials: "include",
+        cache: "no-store",
+        headers: { ...(csrf ? { "X-CSRF-Token": csrf } : {}) },
+        body: fd,
+      });
+      if (!res.ok) {
+        if (res.status === 401) handleUnauthorized();
+        let msg = `خطا در ارسال ایمیل (${res.status})`;
+        try { const t = await res.text(); if (t) msg = t.replace(/^"|"$/g, ""); } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      return (await res.json()) as { ok: boolean };
+    },
+
+    settings: {
+      get: () => request<MailboxSettings>("/mailbox/settings"),
+      update: (body: MailboxSettingsInput) =>
+        request<MailboxSettings>("/mailbox/settings", { method: "PUT", body: json(body) }),
+      test: () => request<{ ok: boolean }>("/mailbox/settings/test", { method: "POST" }),
+    },
   },
   emailSettings: {
     get: () => request<EmailSettings>("/email-settings"),

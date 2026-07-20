@@ -179,6 +179,13 @@ public interface IDataStore
     EmailSettings GetEmailSettings();
     void UpdateEmailSettings(EmailSettings settings);
 
+    // ── Mailbox (inbound IMAP) settings ─────────────────────────────────────────────────────────────
+    // Returns the password DECRYPTED, ready to hand to MailKit; the controller strips it before it goes out
+    // over the wire. UpdateMailboxSettings encrypts on the way in and treats an empty password as
+    // "keep the stored one", so saving the form doesn't wipe a credential the UI never received.
+    MailboxSettings GetMailboxSettings();
+    void UpdateMailboxSettings(MailboxSettings settings);
+
     // ── Content: hero slides ────────────────────────────────────────────────────────────────────────
     IReadOnlyList<HeroSlide> GetHeroSlides();
     HeroSlide? GetHeroSlide(int id);
