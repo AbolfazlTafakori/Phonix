@@ -253,32 +253,33 @@ export default function AdminMailboxPage() {
         </Card>
       )}
 
-      <div className="grid items-start gap-4 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_400px_minmax(0,1fr)]">
-        {/* Folder rail — pinned to the top so it stays put while a long thread scrolls, like Gmail's. */}
-        <Card className="h-max p-2 lg:sticky lg:top-4">
-          {folders.length === 0 ? (
-            <p className="p-4 text-center text-sm text-white/35">پوشه‌ای یافت نشد</p>
-          ) : (
-            folders.map((f) => (
-              <button
-                key={f.name}
-                onClick={() => selectFolder(f.name)}
-                className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition ${
-                  folder === f.name ? "bg-white/10 font-bold text-white" : "text-white/60 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                <AdminIcon name={folderIcon[f.kind]} className="h-4 w-4 shrink-0" />
-                <span className="flex-1 truncate text-right">{f.title}</span>
-                {f.unread > 0 && (
-                  <span className="rounded-full bg-[#e60053]/20 px-1.5 text-[11px] font-bold text-[#ff5a8a]">
-                    {formatNumber(f.unread)}
-                  </span>
-                )}
-              </button>
-            ))
-          )}
-        </Card>
+      {/* Folder bar — a single horizontal row so the list and thread get the full width beneath it. Scrolls
+          sideways on a narrow screen rather than wrapping into a tall block. */}
+      {folders.length > 0 && (
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1">
+          {folders.map((f) => (
+            <button
+              key={f.name}
+              onClick={() => selectFolder(f.name)}
+              className={`flex shrink-0 items-center gap-2 rounded-xl border px-4 py-2 text-sm transition ${
+                folder === f.name
+                  ? "border-transparent bg-white/10 font-bold text-white"
+                  : "border-white/8 text-white/60 hover:bg-white/5 hover:text-white"
+              }`}
+            >
+              <AdminIcon name={folderIcon[f.kind]} className="h-4 w-4 shrink-0" />
+              <span className="whitespace-nowrap">{f.title}</span>
+              {f.unread > 0 && (
+                <span className="rounded-full bg-[#e60053]/20 px-1.5 text-[11px] font-bold text-[#ff5a8a]">
+                  {formatNumber(f.unread)}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
 
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
         {/* List column */}
         <Card className={`flex flex-col overflow-hidden ${somethingOpen ? "hidden xl:flex" : ""}`}>
           <div className="flex flex-wrap items-center gap-2 border-b border-white/8 p-3">
@@ -394,7 +395,7 @@ export default function AdminMailboxPage() {
         </Card>
 
         {/* Detail column */}
-        <div className={`lg:col-span-2 xl:col-span-1 ${!somethingOpen ? "hidden xl:block" : ""}`}>
+        <div className={`${!somethingOpen ? "hidden xl:block" : ""}`}>
           {isInbox ? (
             openConvId === null ? (
               <Card className="grid h-full min-h-[320px] place-items-center p-12 text-center text-sm text-white/30">
