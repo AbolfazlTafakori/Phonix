@@ -110,7 +110,7 @@ LIMIT 1;", new { id = identifier });
     public AppUser RegisterUser(AppUser user)
     {
         user.Role = UserRole.Customer;
-        user.SecurityStamp = StoreData.NewStamp();
+        user.SecurityStamp = SecurityStamp.New();
         user.EmailVerified = false; // must confirm their email before they can order
         if (string.IsNullOrWhiteSpace(user.JoinedAt)) user.JoinedAt = Today();
 
@@ -235,7 +235,7 @@ SELECT last_insert_rowid();",
                 var owner = new AppUser
                 {
                     Name = username, Username = username, Password = PasswordHasher.Hash(password), Role = UserRole.Admin,
-                    SecurityStamp = StoreData.NewStamp(), EmailVerified = true, Verified = true, VerificationLevel = 2, JoinedAt = Today(),
+                    SecurityStamp = SecurityStamp.New(), EmailVerified = true, Verified = true, VerificationLevel = 2, JoinedAt = Today(),
                 };
                 var id = (int)conn.ExecuteScalar<long>(@"
 INSERT INTO Users (Username, Email, Phone, Role, Blocked, ReferredBy, VerificationLevel, DataJson)
@@ -252,7 +252,7 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
                 var changed = false;
                 if (owner.Role != UserRole.Admin) { owner.Role = UserRole.Admin; changed = true; }
                 if (owner.Blocked) { owner.Blocked = false; changed = true; }
-                if (!PasswordHasher.Verify(password, owner.Password)) { owner.Password = PasswordHasher.Hash(password); owner.SecurityStamp = StoreData.NewStamp(); changed = true; }
+                if (!PasswordHasher.Verify(password, owner.Password)) { owner.Password = PasswordHasher.Hash(password); owner.SecurityStamp = SecurityStamp.New(); changed = true; }
                 if (changed) UpsertUser(conn, tx, owner);
             }
             return null;
@@ -273,7 +273,7 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
             if (user.Role != UserRole.Customer) return new StaffResult(null, "این حساب از قبل دسترسی کارمندی دارد.");
             user.Role = role;
             user.Permissions = role == UserRole.Support ? permissions.Distinct().ToList() : new();
-            user.SecurityStamp = StoreData.NewStamp();
+            user.SecurityStamp = SecurityStamp.New();
             UpsertUser(conn, tx, user);
             return new StaffResult(user, null);
         });
@@ -283,7 +283,7 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
 
     public string RotateSecurityStamp(int userId)
     {
-        var stamp = StoreData.NewStamp();
+        var stamp = SecurityStamp.New();
         var ok = UpdateUser(userId, u => u.SecurityStamp = stamp);
         return ok ? stamp : "";
     }

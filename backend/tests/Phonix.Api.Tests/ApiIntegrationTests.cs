@@ -51,7 +51,9 @@ public class PhonixAppFactory : WebApplicationFactory<Program>
     {
         var dir = Path.Combine(Path.GetTempPath(), "phonix-tests", Guid.NewGuid().ToString());
         Directory.CreateDirectory(dir);
-        Environment.SetEnvironmentVariable("PHONIX_DATA_FILE", Path.Combine(dir, "store.json"));
+        var dataFile = Path.Combine(dir, "store.json");
+        TestSeed.WriteLegacyFile(dataFile); // the app imports this on first boot, so it comes up seeded
+        Environment.SetEnvironmentVariable("PHONIX_DATA_FILE", dataFile);
         Environment.SetEnvironmentVariable("PHONIX_LOG_DIR", dir);
         Environment.SetEnvironmentVariable("PHONIX_DISABLE_TARPIT", "true");
         Environment.SetEnvironmentVariable("PHONIX_AUTH_RATE_LIMIT", "100000");
@@ -456,7 +458,9 @@ public class MandatoryTwoFactorAppFactory : WebApplicationFactory<Program>
     {
         var dir = Path.Combine(Path.GetTempPath(), "phonix-tests", Guid.NewGuid().ToString());
         Directory.CreateDirectory(dir);
-        Environment.SetEnvironmentVariable("PHONIX_DATA_FILE", Path.Combine(dir, "store.json"));
+        var dataFile = Path.Combine(dir, "store.json");
+        TestSeed.WriteLegacyFile(dataFile); // the app imports this on first boot, so it comes up seeded
+        Environment.SetEnvironmentVariable("PHONIX_DATA_FILE", dataFile);
         Environment.SetEnvironmentVariable("PHONIX_LOG_DIR", dir);
         Environment.SetEnvironmentVariable("PHONIX_DISABLE_TARPIT", "true");
         Environment.SetEnvironmentVariable("PHONIX_AUTH_RATE_LIMIT", "100000");
@@ -474,7 +478,9 @@ public class CaptchaAppFactory : WebApplicationFactory<Program>
     {
         var dir = Path.Combine(Path.GetTempPath(), "phonix-tests", Guid.NewGuid().ToString());
         Directory.CreateDirectory(dir);
-        Environment.SetEnvironmentVariable("PHONIX_DATA_FILE", Path.Combine(dir, "store.json"));
+        var dataFile = Path.Combine(dir, "store.json");
+        TestSeed.WriteLegacyFile(dataFile); // the app imports this on first boot, so it comes up seeded
+        Environment.SetEnvironmentVariable("PHONIX_DATA_FILE", dataFile);
         Environment.SetEnvironmentVariable("PHONIX_LOG_DIR", dir);
         Environment.SetEnvironmentVariable("PHONIX_DISABLE_TARPIT", "true");
         Environment.SetEnvironmentVariable("PHONIX_AUTH_RATE_LIMIT", "100000");

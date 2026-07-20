@@ -139,7 +139,7 @@ public class Phase9FeatureTests
     [Fact]
     public void Updating_settings_propagates_instantly_and_persists_to_disk()
     {
-        var store = TestStore.Create();
+        var store = TestStore.Create(out var dbPath);
         var settings = store.GetSettings();
         settings.SubscriptionReminderHoursBefore = 72;
         store.UpdateSettings(settings);
@@ -148,7 +148,7 @@ public class Phase9FeatureTests
         Assert.Equal(72, store.GetSettings().SubscriptionReminderHoursBefore);
 
         // durable: a brand-new store pointed at the same file (a "restart") reloads it identically.
-        var reloaded = new StoreData();
+        var reloaded = TestStore.Reopen(dbPath);
         Assert.Equal(72, reloaded.GetSettings().SubscriptionReminderHoursBefore);
     }
 }

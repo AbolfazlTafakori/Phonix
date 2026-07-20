@@ -15,7 +15,7 @@ public class ReceiptCaptionTests
 {
     private const int TelegramCaptionLimit = 1024;
 
-    private static string BuildCaption(StoreData store, Transaction tx)
+    private static string BuildCaption(IDataStore store, Transaction tx)
     {
         var svc = new TelegramReceiptService(store, null!, null!, null!, null!, null!, NullLogger<TelegramReceiptService>.Instance);
         var method = typeof(TelegramReceiptService).GetMethod("BuildCaption", BindingFlags.NonPublic | BindingFlags.Instance)!;

@@ -409,6 +409,10 @@ ON CONFLICT(Id) DO UPDATE SET
             ChangedAtUtc = DateTime.UtcNow,
         });
 
+    // Raises a composed notice inside the caller's transaction, so it commits with the change that caused it.
+    private void Notify(SqliteConnection conn, SqliteTransaction tx, int? userId, Notice notice) =>
+        AddNotificationTx(conn, tx, userId, notice.Title, notice.Body, notice.Link);
+
     private void AddNotificationTx(SqliteConnection conn, SqliteTransaction tx, int? userId, string title, string body, string? link)
     {
         var n = new Notification
@@ -521,8 +525,7 @@ LIMIT 1;",
             if (from != OrderStatus.Completed) AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تحویل سفارش");
             UpsertOrder(conn, tx, o);
             RefreshUserStats(conn, tx, o.UserId);
-            AddNotificationTx(conn, tx, o.UserId, "سفارش شما آماده شد",
-                $"سفارش {o.Code} آماده و قابل مشاهده در حساب شماست.", "/account/orders");
+            Notify(conn, tx, o.UserId, OrderNotices.Ready(o));
             return o;
         });
 
@@ -556,7 +559,7 @@ LIMIT 1;",
                 var pj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @pid", new { pid = line.ProductId }, tx);
                 if (pj is null) continue;
                 var p = Deserialize<Product>(pj)!;
-                p.Stock += StoreData.UndeliveredQuantity(o, line);
+                p.Stock += OrderRules.UndeliveredQuantity(o, line);
                 UpsertProduct(conn, tx, p);
             }
             // Put back any seats still merely reserved for an undelivered unit (no-op for the item pool).
@@ -630,7 +633,7 @@ LIMIT 1;",
             var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
             if (unit is null || !unit.Delivered || unit.DeliveryContent == content) return false;
             unit.DeliveryContent = content;
-            if (o.Status == OrderStatus.Completed) o.DeliveryContent = StoreData.AggregateDeliveryContent(o);
+            if (o.Status == OrderStatus.Completed) o.DeliveryContent = OrderRules.AggregateDeliveryContent(o);
             UpsertOrder(conn, tx, o);
             return true;
         });
@@ -663,7 +666,7 @@ LIMIT 1;",
                 AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تحویل همه‌ی اکانت‌ها");
                 UpsertOrder(conn, tx, o);
                 RefreshUserStats(conn, tx, o.UserId);
-                AddNotificationTx(conn, tx, o.UserId, "سفارش شما آماده شد", $"سفارش {o.Code} آماده و قابل مشاهده در حساب شماست.", "/account/orders");
+                Notify(conn, tx, o.UserId, OrderNotices.Ready(o));
                 justCompleted = true;
             }
             else UpsertOrder(conn, tx, o);
@@ -697,7 +700,7 @@ LIMIT 1;",
     // discount. VAT and the gateway fee are deliberately excluded — a rejected account refunds the service
     // price only.
     // One shared rule for both stores — see StoreData.UnitRefundAmount.
-    private static long UnitRefundAmount(Order order, OrderUnit unit) => StoreData.UnitRefundAmount(order, unit);
+    private static long UnitRefundAmount(Order order, OrderUnit unit) => OrderRules.UnitRefundAmount(order, unit);
 
     // Rejects ONE account of an order: refunds what the buyer paid for it, returns its stock, and leaves the
     // rest of the order alone. All of it inside one write transaction, so the refund and the flag land together
@@ -754,8 +757,7 @@ LIMIT 1;",
                         Status = TxStatus.Approved, Method = "کیف پول", ApprovedVia = "reject-unit",
                         OrderCode = o.Code, Date = Today(),
                     });
-                    AddNotificationTx(conn, tx, buyer.Id, "بازگشت وجه",
-                        $"«{unit.Name}» از سفارش {o.Code} رد شد و {refund:N0} تومان به کیف پول شما بازگشت.", "/account/wallet");
+                    Notify(conn, tx, buyer.Id, OrderNotices.UnitRefunded(o, unit, refund));
                 }
             }
 
@@ -777,8 +779,7 @@ LIMIT 1;",
         {
             o.Status = OrderStatus.Cancelled;
             AppendOrderHistory(o, from, OrderStatus.Cancelled, changedBy, "رد همه‌ی اکانت‌ها");
-            AddNotificationTx(conn, tx, o.UserId, "سفارش لغو شد",
-                $"همه‌ی اقلام سفارش {o.Code} رد شد و مبلغ آن‌ها بازگشت داده شد.", "/account/orders");
+            Notify(conn, tx, o.UserId, OrderNotices.Cancelled(o));
         }
         else
         {
@@ -789,8 +790,7 @@ LIMIT 1;",
             o.Status = OrderStatus.Completed;
             EnsureInvoiceNumber(conn, tx, o);
             AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تعیین تکلیف همه‌ی اکانت‌ها");
-            AddNotificationTx(conn, tx, o.UserId, "سفارش شما آماده شد",
-                $"سفارش {o.Code} آماده و قابل مشاهده در حساب شماست.", "/account/orders");
+            Notify(conn, tx, o.UserId, OrderNotices.Ready(o));
         }
     }
 
@@ -835,8 +835,7 @@ LIMIT 1;",
                 var orderJson = Serialize(o);
                 conn.Execute("UPDATE Orders SET DataJson=@d WHERE Id=@id", new { d = orderJson, id = (long)row.Id }, tx);
                 AppendOutbox(conn, tx, "Orders", (long)row.Id, SyncOp.Upsert, orderJson);
-                AddNotificationTx(conn, tx, user.Id, "یادآوری تمدید اشتراک",
-                    $"اشتراک سفارش {o.Code} شما در تاریخ {expiresFa} منقضی می‌شود. برای جلوگیری از قطع سرویس، آن را تمدید کنید.", "/account/orders");
+                Notify(conn, tx, user.Id, OrderNotices.RenewalDue(o, expiresFa));
                 due.Add(new RenewalReminder(user.Id, user.Email, o.Code, expiresFa));
             }
             return null;

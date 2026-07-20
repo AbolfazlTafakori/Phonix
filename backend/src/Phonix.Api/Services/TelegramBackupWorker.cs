@@ -40,7 +40,7 @@ public class TelegramBackupWorker : BackgroundService
             if (DateTime.UtcNow - last < interval) continue;
 
             // each section as its own (small) file, so none hits Telegram's size limit.
-            foreach (var (section, label) in StoreData.BackupSections)
+            foreach (var (section, label) in BackupSections.All)
             {
                 await _sender.SendSectionAsync(section, $"پشتیبان خودکار فونیکس — {label}", stoppingToken);
                 await Task.Delay(TimeSpan.FromSeconds(2), stoppingToken); // gentle on Telegram rate limits

@@ -68,6 +68,7 @@ try
     builder.Services.AddHttpClient();
     // Live USDT→Toman rate for USD-priced products: one instance serves both the background refresher and
     // the controllers that read/refresh the rate.
+    builder.Services.AddSingleton<CatalogCache>();
     builder.Services.AddSingleton<UsdRateService>();
     builder.Services.AddHostedService(sp => sp.GetRequiredService<UsdRateService>());
     builder.Services.AddSingleton<ITelegramBackupSender, TelegramBackupSender>();
@@ -182,10 +183,19 @@ try
 
         if (sqlite.IsEmpty() && !awaitingFirstBootstrap)
         {
-            Log.Information("SQLite store is empty — importing the legacy JSON snapshot (store.json / seed).");
-            var seedSource = new StoreData(); // loads PHONIX_DATA_FILE's store.json, or seeds defaults
-            sqlite.LoadSnapshot(seedSource.CaptureSnapshot());
-            sqlite.Save();
+            // A pre-SQLite install still has its store.json; import it once. A fresh install has nothing to
+            // import and starts empty — the owner account created below is the way in, and the catalogue is
+            // built from the panel rather than from demo content.
+            if (LegacyJsonImport.Read(out var legacyPath) is { } legacy)
+            {
+                Log.Information("SQLite store is empty — importing the legacy JSON snapshot from {Path}.", legacyPath);
+                sqlite.LoadSnapshot(legacy);
+                sqlite.Save();
+            }
+            else
+            {
+                Log.Information("SQLite store is empty and no legacy snapshot was found — starting fresh.");
+            }
         }
         else if (awaitingFirstBootstrap && sqlite.IsEmpty())
         {

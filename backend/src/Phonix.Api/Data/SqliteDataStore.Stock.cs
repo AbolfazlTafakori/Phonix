@@ -156,7 +156,7 @@ SELECT last_insert_rowid();",
             var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM StockAccounts WHERE Id = @id", new { id }, tx);
             if (json is null) return null;
             var acc = Deserialize<StockAccount>(json)!;
-            if (!StoreData.ApplyAccountEdit(acc, username, encryptedPassword, plan, planType, capacity, months)) return null;
+            if (!StockRules.ApplyAccountEdit(acc, username, encryptedPassword, plan, planType, capacity, months)) return null;
             UpsertStockAccount(conn, tx, acc);
             return acc;
         });
@@ -190,7 +190,7 @@ SELECT last_insert_rowid();",
             if (json is null) return false;
             var acc = Deserialize<StockAccount>(json)!;
             var slot = acc.Slots.FirstOrDefault(s => s.Id == slotId);
-            if (slot is null || !StoreData.SlotTransitionAllowed(slot.Status, status)) return false;
+            if (slot is null || !StockRules.SlotTransitionAllowed(slot.Status, status)) return false;
             slot.Status = status;
             if (status == StockItemStatus.Available) { slot.OrderId = null; slot.UnitId = null; }
             UpsertStockAccount(conn, tx, acc);
@@ -205,9 +205,9 @@ SELECT last_insert_rowid();",
             var rows = conn.Query<string>(
                 "SELECT DataJson FROM StockAccounts WHERE ProductId = @productId ORDER BY Id", new { productId }, tx);
             foreach (var acc in rows.Select(j => Deserialize<StockAccount>(j)!)
-                         .Where(a => !a.Disabled && StoreData.AccountServesPlanType(a, planType)))
+                         .Where(a => !a.Disabled && StockRules.AccountServesPlanType(a, planType)))
             {
-                var run = StoreData.FindConsecutiveAvailable(acc, count);
+                var run = StockRules.FindConsecutiveAvailable(acc, count);
                 if (run is null) continue; // this account can't seat the whole request — try the next one
                 foreach (var slot in run)
                 {
@@ -230,9 +230,9 @@ SELECT last_insert_rowid();",
             var accounts = conn.Query<string>(
                     "SELECT DataJson FROM StockAccounts WHERE ProductId = @productId ORDER BY Id", new { productId }, tx)
                 .Select(j => Deserialize<StockAccount>(j)!)
-                .Where(a => !a.Disabled && StoreData.AccountServesPlanType(a, planType) && StoreData.AccountServesMonths(a, months))
+                .Where(a => !a.Disabled && StockRules.AccountServesPlanType(a, planType) && StockRules.AccountServesMonths(a, months))
                 .ToList();
-            var reservation = StoreData.PlanSeatReservation(accounts, count, orderId, unitId, out var modified);
+            var reservation = StockRules.PlanSeatReservation(accounts, count, orderId, unitId, out var modified);
             foreach (var acc in accounts.Where(a => modified.Contains(a.Id)))
                 UpsertStockAccount(conn, tx, acc);
             return reservation;

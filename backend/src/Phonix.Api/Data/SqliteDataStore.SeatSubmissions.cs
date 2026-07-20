@@ -74,7 +74,7 @@ SELECT last_insert_rowid();",
             }
 
             if (!existing.Editable) return null;
-            StoreData.ApplyEdit(existing, input);
+            SeatSubmissionRules.ApplyEdit(existing, input);
             UpsertSeatSubmission(conn, tx, existing);
             return existing;
         });

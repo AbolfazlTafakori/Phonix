@@ -14,13 +14,19 @@ namespace Phonix.Api.Controllers;
 public class CategoriesController : ControllerBase
 {
     private readonly IDataStore _store;
+    private readonly Services.CatalogCache _cache;
 
-    public CategoriesController(IDataStore store) => _store = store;
+    public CategoriesController(IDataStore store, Services.CatalogCache cache)
+    {
+        _store = store;
+        _cache = cache;
+    }
 
     [AllowAnonymous]
     [HttpGet]
+    // Each category carries a product count, so the uncached version is a scan per category on every visit.
     public IEnumerable<CategoryDto> Get() =>
-        _store.GetCategories().Select(c => c.ToDto(_store.CountProducts(c.Id)));
+        _cache.Categories(() => _store.GetCategories().Select(c => c.ToDto(_store.CountProducts(c.Id))).ToList());
 
     [AllowAnonymous]
     [HttpGet("{id:int}")]
@@ -42,6 +48,7 @@ public class CategoriesController : ControllerBase
             IsActive = input.IsActive,
             SortOrder = input.SortOrder,
         });
+        _cache.Invalidate();
         return CreatedAtAction(nameof(Get), new { id = category.Id }, category.ToDto(0));
     }
 
@@ -59,9 +66,15 @@ public class CategoriesController : ControllerBase
             SortOrder = input.SortOrder,
         });
         if (!ok) return NotFound();
+        _cache.Invalidate();
         return _store.GetCategory(id)!.ToDto(_store.CountProducts(id));
     }
 
     [HttpDelete("{id:int}")]
-    public IActionResult Delete(int id) => _store.DeleteCategory(id) ? NoContent() : NotFound();
+    public IActionResult Delete(int id)
+    {
+        if (!_store.DeleteCategory(id)) return NotFound();
+        _cache.Invalidate();
+        return NoContent();
+    }
 }
