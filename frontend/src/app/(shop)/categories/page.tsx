@@ -98,7 +98,9 @@ export default async function CategoriesPage() {
               </p>
             </div>
 
-            <div className="w-full max-w-sm shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[var(--hl-tint)] p-5 pb-5 shadow-sm sm:p-6 xl:w-[300px] xl:max-w-none">
+            {/* The feature card only reads well in the desktop three-column row; below xl it stacked awkwardly
+                under the text, so it is shown at xl+ only and the hero stays shield + heading on phone/tablet. */}
+            <div className="hidden shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[var(--hl-tint)] p-6 shadow-sm xl:block xl:w-[300px]">
               <h3 className="text-center text-[20px] font-black leading-[1.6] text-[var(--hl-ink)]">دسترسی آسان به<br /><span className="text-[24px]">خدمات دیجیتال</span></h3>
               <div className="mt-6 flex items-end gap-1">
                 <ul className="flex-1 space-y-6">
