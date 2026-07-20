@@ -235,6 +235,12 @@ install_dovecot() {
         if (( major > 2 || (major == 2 && minor >= 4) )); then
             echo "mail_driver = maildir"
             echo "mail_path = %{home}/Maildir"
+            # 2.4 introduced mail_inbox_path, defaulting to /var/mail/%{user} — the old mbox spool. Left at
+            # that default, Dovecot autocreates INBOX at /var/mail/<user>, which the mailbox user cannot write
+            # (permission denied), AND reads INBOX from there while Postfix delivers to ~/Maildir — so mail
+            # would land in one place and be read from another. Blanking it makes INBOX use mail_path, so it
+            # is the Maildir Postfix delivers to.
+            echo "mail_inbox_path ="
             echo
             echo "ssl_server_cert_file = /etc/letsencrypt/live/$DOMAIN/fullchain.pem"
             echo "ssl_server_key_file = /etc/letsencrypt/live/$DOMAIN/privkey.pem"
