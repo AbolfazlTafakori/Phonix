@@ -217,35 +217,51 @@ install_dovecot() {
         ok "Dovecot already installed."
     fi
 
-    # One drop-in file rather than edits scattered through Dovecot's stock config: everything this script
-    # owns lives here, so it is obvious what was added and trivial to remove.
-    cat > /etc/dovecot/conf.d/99-phoenix.conf <<CONF
-# Managed by deploy/mailbox-setup.sh — remove this file to undo the IMAP setup.
+    # Dovecot 2.4 renamed most of what this file sets — ssl_cert became ssl_server_cert_file, and
+    # mail_location split into mail_driver + mail_path. Writing 2.3 syntax to a 2.4 server is a fatal config
+    # error, so the version decides the grammar rather than an assumption about which one is installed.
+    local ver major minor
+    ver="$(dovecot --version 2>/dev/null | awk '{print $1}')"
+    major="${ver%%.*}"; minor="$(printf '%s' "$ver" | cut -d. -f2)"
+    [[ -n "$major" && -n "$minor" ]] || die "Could not read the Dovecot version — refusing to guess its config syntax."
+    say "Dovecot $ver detected."
 
-# IMAPS only. Plain IMAP on 143 stays off so a password can never cross the network unencrypted.
-protocols = imap
-ssl = required
-ssl_cert = </etc/letsencrypt/live/$DOMAIN/fullchain.pem
-ssl_key = </etc/letsencrypt/live/$DOMAIN/privkey.pem
-ssl_min_protocol = TLSv1.2
+    # One drop-in file rather than edits scattered through the stock config: everything this script owns
+    # lives here, so it is obvious what was added and trivial to remove.
+    {
+        echo "# Managed by deploy/mailbox-setup.sh — remove this file to undo the IMAP setup."
+        echo
 
-# Matches Postfix's home_mailbox=Maildir/.
-mail_location = maildir:~/Maildir
+        if (( major > 2 || (major == 2 && minor >= 4) )); then
+            echo "mail_driver = maildir"
+            echo "mail_path = %{home}/Maildir"
+            echo
+            echo "ssl_server_cert_file = /etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+            echo "ssl_server_key_file = /etc/letsencrypt/live/$DOMAIN/privkey.pem"
+        else
+            echo "mail_location = maildir:~/Maildir"
+            echo
+            echo "ssl = required"
+            echo "ssl_cert = </etc/letsencrypt/live/$DOMAIN/fullchain.pem"
+            echo "ssl_key = </etc/letsencrypt/live/$DOMAIN/privkey.pem"
+        fi
 
-# System users, so the mailbox password is the one set by passwd above.
-disable_plaintext_auth = yes
-auth_mechanisms = plain login
+        echo "ssl_min_protocol = TLSv1.2"
+        echo
+        echo "# Credentials may never cross the network in the clear; Dovecot refuses plaintext auth"
+        echo "# unless the connection is already TLS, which covers both 993 and STARTTLS on 143."
+        echo "auth_allow_cleartext = no"
+        echo "auth_mechanisms = plain login"
+    } > /etc/dovecot/conf.d/99-phoenix.conf
 
-service imap-login {
-  inet_listener imap {
-    port = 0
-  }
-  inet_listener imaps {
-    port = 993
-    ssl = yes
-  }
-}
-CONF
+    # Validate before anything restarts. Dovecot refuses to start on a bad setting, and finding that out
+    # here — with the file still removable — beats finding out from a dead service.
+    if ! doveconf -n >/dev/null 2>/tmp/dovecot-check.err; then
+        local reason; reason="$(cat /tmp/dovecot-check.err)"
+        rm -f /etc/dovecot/conf.d/99-phoenix.conf
+        die "Dovecot rejected the configuration, so it was removed and nothing was restarted:
+   $reason"
+    fi
     ok "Wrote /etc/dovecot/conf.d/99-phoenix.conf"
 }
 
