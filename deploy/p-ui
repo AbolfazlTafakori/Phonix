@@ -419,6 +419,32 @@ hot_update() {
     fi
 }
 
+# Runs the mailbox setup shipped with the repo. It is a one-time server change rather than part of a
+# release, so it is invoked deliberately from here rather than folded into the update flow.
+mailbox_setup() {
+    heading "Support mailbox setup"
+
+    local script="$REPO_DIR/deploy/mailbox-setup.sh"
+    # warn+return, not die: a menu action must hand control back to the menu rather than drop the operator
+    # out of the tool entirely.
+    if [[ ! -f "$script" ]]; then
+        warn "$script not found — run a zero-downtime update first to fetch it."
+        return
+    fi
+
+    say "This gives the shop an address it can RECEIVE on (support@ by default)."
+    say "Sending is not touched — info@ keeps going out exactly as it does now."
+    say "main.cf and aliases are backed up before any change."
+    echo
+    read -rp "Mailbox name [support]: " mbox
+    mbox="${mbox:-support}"
+    echo
+    read -rp "Set up ${mbox}@ now? [y/N]: " confirm
+    [[ "$confirm" =~ ^[Yy]$ ]] || { warn "Cancelled — nothing was changed."; return; }
+
+    MAIL_USER="$mbox" bash "$script"
+}
+
 banner() {
     clear
     printf "%b\n" "${C_BOLD}${C_CYAN}Phoenix Store — System Management${C_RESET}"
@@ -433,6 +459,7 @@ menu() {
         echo "  2) Domain management (change primary or add a fallback)"
         echo "  3) Zero-downtime application update"
         echo "  4) High-availability cluster setup (Primary / Standby)"
+        echo "  5) Support mailbox setup (receive email at support@)"
         echo "  0) Exit"
         echo
         read -rp "Choose an option: " choice
@@ -441,6 +468,7 @@ menu() {
             2) manage_domain ;;
             3) hot_update ;;
             4) cluster_setup ;;
+            5) mailbox_setup ;;
             0) exit 0 ;;
             *) warn "Invalid option." ;;
         esac
