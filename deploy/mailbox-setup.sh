@@ -202,6 +202,13 @@ create_mailbox() {
         newaliases
         ok "Mail for ${MAIL_USER}@${DOMAIN} now lands in that mailbox."
     fi
+
+    # A fresh Maildir has only INBOX; the standard folders are defined in Dovecot's namespace but not created
+    # until something uses them. The panel needs them up front: replies are filed in Sent, and its
+    # archive/spam/delete actions move messages into Archive/Junk/Trash. Created here (idempotent) so those
+    # work on first use rather than silently no-op'ing against a folder that does not exist yet. Deferred to
+    # apply() via a flag, because doveadm needs Dovecot already running with the config this script writes.
+    NEEDS_STD_FOLDERS=1
 }
 
 # ── IMAP ─────────────────────────────────────────────────────────────────────────────────────────
@@ -290,12 +297,19 @@ HOOK
 open_firewall() {
     command -v ufw >/dev/null 2>&1 || return 0
     ufw status 2>/dev/null | grep -q "Status: active" || return 0
-    if ufw status | grep -q "^993"; then
-        ok "Firewall already allows 993."
-    else
-        ufw allow 993/tcp >/dev/null
-        ok "Opened port 993 (IMAPS)."
-    fi
+
+    # 25 is for RECEIVING: other mail servers connect here to deliver. Without it the MX points at a port the
+    # firewall drops, so mail is silently deferred and never arrives — with nothing in the local log to show
+    # for it. 587 is deliberately NOT opened: the shop's backend submits from localhost, which ufw never
+    # blocks, so exposing the authenticated submission port to the internet would only invite brute force.
+    for port in 25 993; do
+        if ufw status | grep -qE "^${port}(/tcp)?\b"; then
+            ok "Firewall already allows ${port}."
+        else
+            ufw allow "${port}/tcp" >/dev/null
+            ok "Opened port ${port}/tcp."
+        fi
+    done
 }
 
 apply() {
@@ -306,6 +320,15 @@ apply() {
     systemctl enable --now dovecot >/dev/null 2>&1 || die "Dovecot failed to start — check: journalctl -u dovecot -n 50"
     systemctl restart dovecot
     ok "Dovecot running."
+
+    # Now that Dovecot is up with the final config, create the standard folders the panel relies on. doveadm
+    # needs a running server, so this cannot happen back in ensure_mailbox. Both commands are idempotent —
+    # an existing folder is left untouched — so re-runs are safe.
+    if [[ "${NEEDS_STD_FOLDERS:-0}" == "1" ]]; then
+        doveadm mailbox create    -u "$MAIL_USER" Sent Drafts Junk Trash Archive >/dev/null 2>&1 || true
+        doveadm mailbox subscribe -u "$MAIL_USER" Sent Drafts Junk Trash Archive >/dev/null 2>&1 || true
+        ok "Ensured standard folders (Sent, Drafts, Junk, Trash, Archive)."
+    fi
 }
 
 verify() {
