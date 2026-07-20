@@ -63,6 +63,10 @@ try
     // Registered as a singleton (shared state) with a dedicated background flusher on its own schedule.
     builder.Services.AddSingleton<AuditStore>();
     builder.Services.AddHostedService<AuditPersistenceWorker>();
+    // The record of outbound email keeps its own file for the same reason the audit trail does: it is
+    // high-volume and disposable, so it never touches the main store, its backups or the cluster link.
+    builder.Services.AddSingleton<EmailLogStore>();
+    builder.Services.AddHostedService<EmailLogPersistenceWorker>();
     builder.Services.AddSingleton<IEmailSender, EmailSender>();
     builder.Services.AddSingleton<IUserMailer, UserMailer>();
     builder.Services.AddHttpClient();

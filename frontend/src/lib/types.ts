@@ -571,6 +571,27 @@ export type AuditLogPage = {
   totalPages: number;
 };
 
+// One outbound email as it was attempted. The body is never stored — delivery emails carry live
+// credentials, so only recipient, subject and outcome are kept.
+export type SentEmail = {
+  id: number;
+  to: string;
+  subject: string;
+  sentAt: string;
+  success: boolean;
+  error: string | null;
+};
+
+export type SentEmailPage = {
+  items: SentEmail[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  // How many of the retained attempts failed — the number worth surfacing to an admin.
+  failed: number;
+};
+
 // Live process metrics for the dashboard server-status widget (GET /api/admin/server-status).
 export type ServerStatus = {
   cpuPercent: number;

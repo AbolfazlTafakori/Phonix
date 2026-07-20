@@ -56,6 +56,7 @@ import type {
   ServerStatus,
   ClusterStatus,
   AuditLogPage,
+  SentEmailPage,
   AuthResult,
   LoginResult,
   TwoFactorStatus,
@@ -372,6 +373,18 @@ export const api = {
     recover: () => request<void>("/cluster/recover", { method: "POST" }),
     resync: () => request<void>("/cluster/resync", { method: "POST" }),
     bootstrap: () => request<void>("/cluster/bootstrap", { method: "POST" }),
+  },
+  // The record of what the shop has sent. info@ receives nothing, so this is the only way to answer
+  // "did this customer actually get their email?".
+  emailLog: {
+    list: (params?: {
+      search?: string;
+      status?: "sent" | "failed";
+      from?: string;
+      to?: string;
+      page?: number;
+      pageSize?: number;
+    }) => request<SentEmailPage>(`/admin/email-log${qs(params)}`),
   },
   auditLogs: {
     list: (params?: {

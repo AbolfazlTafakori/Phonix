@@ -11,11 +11,13 @@ namespace Phonix.Api.Services;
 public class EmailSender : IEmailSender
 {
     private readonly IDataStore _store;
+    private readonly EmailLogStore _log;
     private readonly ILogger<EmailSender> _logger;
 
-    public EmailSender(IDataStore store, ILogger<EmailSender> logger)
+    public EmailSender(IDataStore store, EmailLogStore log, ILogger<EmailSender> logger)
     {
         _store = store;
+        _log = log;
         _logger = logger;
     }
 
@@ -24,6 +26,7 @@ public class EmailSender : IEmailSender
         if (string.IsNullOrWhiteSpace(to))
         {
             _logger.LogWarning("Email skipped: recipient has no address. Subject: {Subject}", subject);
+            _log.Record("", subject, success: false, error: "گیرنده آدرس ایمیل ندارد.");
             return false;
         }
 
@@ -31,6 +34,7 @@ public class EmailSender : IEmailSender
         if (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Host))
         {
             _logger.LogInformation("EMAIL (SMTP not configured, not sent) → {To} | {Subject}\n{Body}", to, subject, body);
+            _log.Record(to, subject, success: false, error: "SMTP پیکربندی نشده است.");
             return false;
         }
 
@@ -63,11 +67,13 @@ public class EmailSender : IEmailSender
 #pragma warning restore SYSLIB0014
             await client.SendMailAsync(message);
             _logger.LogInformation("Email sent to {To}: {Subject}", to, subject);
+            _log.Record(to, subject, success: true);
             return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send email to {To}", to);
+            _log.Record(to, subject, success: false, error: ex.Message);
             return false;
         }
     }

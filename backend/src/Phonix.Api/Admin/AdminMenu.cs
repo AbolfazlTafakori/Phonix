@@ -107,6 +107,7 @@ public static class AdminMenu
             new("staff",    "مدیریت کارکنان و نقش‌ها",     "shield",   "/admin/staff",          UserRole.Admin),
             new("audit",    "لاگ‌های ممیزی سیستم",         "search",   "/admin/audit-logs",     UserRole.Admin),
             new("logs",     "لاگ‌های فایل سیستم",          "activity", "/admin/logs",           UserRole.Admin),
+            new("email-log", "ایمیل‌های ارسال‌شده",         "bell",     "/admin/email-log",      UserRole.Admin),
             new("backup",   "پشتیبان‌گیری و ربات تلگرام",  "disk",     "/admin/backup",         UserRole.Admin),
             new("receipt-bot", "تأیید رسید خودکار و ربات تلگرام", "wallet", "/admin/receipt-bot", UserRole.Admin),
             new("order-bot",   "ارسال سفارشات و ربات تلگرام",     "cart",   "/admin/order-bot",   UserRole.Admin),
