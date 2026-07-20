@@ -10,18 +10,24 @@ Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-170%20passing-3fb950)](#)
+[![Tests](https://img.shields.io/badge/tests-190%20passing-3fb950)](#)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](#-license)
 
 </div>
 
 ---
 
-## Overview
+## About
 
-Phoenix Store is a production-grade storefront and back-office platform built around a single guiding principle: **maximum throughput with minimum trust assumptions.** It pairs a modern Next.js 16 / React 19 frontend with a hardened ASP.NET Core 8 API, backed by an embedded SQLite engine (WAL, serialized writes) reached through a single `IDataStore` abstraction.
+Phoenix Store is a complete, self-hosted shop for **digital goods** — subscription accounts, gift codes, licences and verification services — covering everything from the storefront a customer browses to the back office the team fulfils orders from.
 
-The result is a system that boots from a single binary plus one SQLite file, deploys to a bare Ubuntu VPS in minutes with one interactive command, scales to high request volumes on commodity hardware, and treats every privileged operation as hostile until cryptographically proven otherwise.
+What makes selling digital goods different from selling physical ones is that the product *is* a credential. So the platform is built around that: inventory is a pool of ready-to-deliver accounts rather than a warehouse count, a paid order can fulfil itself the moment payment clears, one shared subscription is sold as numbered seats to several buyers at once, and every credential is encrypted at rest and revealed one at a time behind an audited endpoint.
+
+It ships as a **right-to-left Persian storefront** with a full admin panel: catalogue and plans, a wallet and manual receipt approval, discount codes, tiered identity verification, support tickets and live chat, a blog with SEO output, and Telegram bots that put receipt approval and order dispatch in a group chat.
+
+Operationally it is deliberately small: one binary and one SQLite file. There is no database server to run, no cache to warm and no message broker to babysit. A bare Ubuntu VPS becomes a working shop with a single interactive command, updates are zero-downtime with automatic rollback, and an optional second server can mirror the first for business continuity.
+
+Two constraints shaped the design throughout — **every privileged action is treated as hostile until proven otherwise**, and **money movements are atomic**: a wallet debit, the stock it consumes and the audit record it produces all commit together or not at all.
 
 ---
 
@@ -84,6 +90,15 @@ Optional two-server clustering for **business continuity** (a datacenter or conn
 - **Interactive Linux installer** (`install.sh`) — guided, one-command provisioning.
 - **`p-ui` CLI** — zero-downtime hot updates with health-checked auto-rollback, plus domain fallback routing.
 - **Serilog-powered audit pipeline** — structured, secure audit logging with a gated log-download facility.
+
+---
+
+## 🏷️ Topics
+
+`ecommerce` · `digital-goods` · `subscription-management` · `storefront` · `admin-dashboard`
+`dotnet` · `aspnetcore` · `csharp` · `nextjs` · `react` · `typescript` · `tailwindcss`
+`sqlite` · `self-hosted` · `high-availability` · `zero-trust` · `two-factor-authentication` · `kyc`
+`telegram-bot` · `rtl` · `persian`
 
 ---
 
