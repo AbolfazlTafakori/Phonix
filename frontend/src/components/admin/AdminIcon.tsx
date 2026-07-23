@@ -169,6 +169,26 @@ const paths: Record<string, React.ReactNode> = {
       <path d="m9 12 2 2 4-4" />
     </>
   ),
+  eye: (
+    <>
+      <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
+      <circle cx="12" cy="12" r="3.2" />
+    </>
+  ),
+  copy: (
+    <>
+      <rect x="9" y="9" width="11.5" height="11.5" rx="2" />
+      <path d="M5.5 15H4.5A1.5 1.5 0 0 1 3 13.5v-9A1.5 1.5 0 0 1 4.5 3h9A1.5 1.5 0 0 1 15 4.5v1" />
+    </>
+  ),
+  "chevron-up": <path d="m6 15 6-6 6 6" />,
+  "chevron-down": <path d="m6 9 6 6 6-6" />,
+  layers: (
+    <>
+      <path d="m12 3 9 5-9 5-9-5 9-5Z" />
+      <path d="m3 13 9 5 9-5" />
+    </>
+  ),
   mail: (
     <>
       <rect x="2.5" y="5" width="19" height="14" rx="2.5" />

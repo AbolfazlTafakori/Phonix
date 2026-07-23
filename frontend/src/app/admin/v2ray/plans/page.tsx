@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { V2RayCategory, V2RayInbound, V2RayPanelInfo, V2RayPlan, V2RayPlanInput } from "@/lib/types";
 import { formatToman } from "@/lib/format";
@@ -20,6 +20,8 @@ export default function AdminV2RayPlansPage() {
   const [categories, setCategories] = useState<V2RayCategory[]>([]);
   const [plans, setPlans] = useState<V2RayPlan[]>([]);
   const [panels, setPanels] = useState<V2RayPanelInfo[]>([]);
+  // panelId -> inboundId -> protocol, so a plan card can show what it actually sells without another fetch.
+  const [protocols, setProtocols] = useState<Record<number, Record<number, string>>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState<V2RayPlan | "new" | null>(null);
@@ -34,6 +36,21 @@ export default function AdminV2RayPlansPage() {
       setCategories(c);
       setPlans(p);
       setPanels(pn);
+
+      // One inbound read per panel (there are only a handful), best-effort: a panel that is unreachable just
+      // leaves its plans without a protocol label rather than failing the page.
+      const map: Record<number, Record<number, string>> = {};
+      await Promise.all(
+        pn.map(async (panel) => {
+          try {
+            const list = await api.v2ray.inbounds(panel.id);
+            map[panel.id] = Object.fromEntries(list.map((i) => [i.id, i.protocol]));
+          } catch {
+            map[panel.id] = {};
+          }
+        }),
+      );
+      setProtocols(map);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در بارگذاری");
     } finally {
@@ -94,8 +111,9 @@ export default function AdminV2RayPlansPage() {
           plans={plans}
           categories={categories}
           panels={panels}
+          protocols={protocols}
           onEdit={setEditing}
-          onDeleted={(id) => setPlans((p) => p.filter((x) => x.id !== id))}
+          onChanged={load}
         />
       )}
     </div>
@@ -192,93 +210,268 @@ function CategoryManager({
   );
 }
 
+// Plans grouped by SERVER, mirroring how an operator thinks about them: each panel is a location and its
+// plans sit under it. The card carries the whole spec at a glance plus the row of actions.
 function PlanList({
   plans,
   categories,
   panels,
+  protocols,
   onEdit,
-  onDeleted,
+  onChanged,
 }: {
   plans: V2RayPlan[];
   categories: V2RayCategory[];
   panels: V2RayPanelInfo[];
+  protocols: Record<number, Record<number, string>>;
   onEdit: (p: V2RayPlan) => void;
-  onDeleted: (id: number) => void;
+  onChanged: () => void;
 }) {
-  const catName = (id: number) => categories.find((c) => c.id === id)?.name ?? "—";
-  const panelLabel = (id: number) => {
-    const p = panels.find((x) => x.id === id);
-    if (!p) return "پنل حذف‌شده";
+  const [busyId, setBusyId] = useState<number | null>(null);
+
+  const catName = (id: number) => categories.find((c) => c.id === id)?.name ?? "";
+  const serverLabel = (panel: V2RayPanelInfo) => {
+    if (panel.name.trim()) return panel.name;
     try {
-      return new URL(p.url).host;
+      return new URL(panel.url).host;
     } catch {
-      return p.url;
+      return panel.url;
     }
   };
 
-  async function remove(id: number) {
-    if (!confirm("این پلن حذف شود؟")) return;
+  // The protocol a plan sells, read from the inbounds it is mapped to (e.g. "vless").
+  const protocolOf = (p: V2RayPlan) => {
+    const byInbound = protocols[p.panelId] ?? {};
+    const found = [...new Set(p.inboundIds.map((id) => byInbound[id]).filter(Boolean))];
+    return found.join(" · ");
+  };
+
+  const toInput = (p: V2RayPlan): V2RayPlanInput => ({
+    categoryId: p.categoryId,
+    title: p.title,
+    description: p.description,
+    panelId: p.panelId,
+    inboundIds: p.inboundIds,
+    volumeGb: p.volumeGb,
+    durationDays: p.durationDays,
+    ipLimit: p.ipLimit,
+    price: p.price,
+    discountPercent: p.discountPercent,
+    active: p.active,
+    sortOrder: p.sortOrder,
+  });
+
+  async function run(id: number, work: () => Promise<unknown>) {
+    setBusyId(id);
     try {
-      await api.v2ray.plans.remove(id);
-      onDeleted(id);
+      await work();
+      onChanged();
     } catch {
-      /* ignore; the row stays */
+      /* the list reloads on the next successful action */
+    } finally {
+      setBusyId(null);
     }
+  }
+
+  const toggleActive = (p: V2RayPlan) =>
+    run(p.id, () => api.v2ray.plans.update(p.id, { ...toInput(p), active: !p.active }));
+
+  const duplicate = (p: V2RayPlan) =>
+    run(p.id, () => api.v2ray.plans.add({ ...toInput(p), title: p.title + " (کپی)", sortOrder: p.sortOrder + 1 }));
+
+  const remove = (p: V2RayPlan) => {
+    if (!confirm("پلن «" + p.title + "» حذف شود؟")) return;
+    return run(p.id, () => api.v2ray.plans.remove(p.id));
+  };
+
+  // Reordering swaps this plan's position with its neighbour INSIDE the same server group, so a move never
+  // jumps a plan onto another server.
+  async function move(p: V2RayPlan, group: V2RayPlan[], delta: -1 | 1) {
+    const i = group.findIndex((x) => x.id === p.id);
+    const j = i + delta;
+    if (i < 0 || j < 0 || j >= group.length) return;
+    const other = group[j];
+    await run(p.id, async () => {
+      await api.v2ray.plans.update(p.id, { ...toInput(p), sortOrder: other.sortOrder });
+      await api.v2ray.plans.update(other.id, { ...toInput(other), sortOrder: p.sortOrder });
+    });
   }
 
   if (plans.length === 0) {
     return <Card className="p-12 text-center text-sm text-white/40">هنوز پلنی ساخته نشده است.</Card>;
   }
 
-  // Group by category so the many plans stay organized, mirroring the storefront.
-  const byCategory = categories.map((c) => ({ category: c, items: plans.filter((p) => p.categoryId === c.id) }));
+  const groups = panels
+    .map((panel) => ({ panel, items: plans.filter((p) => p.panelId === panel.id) }))
+    .filter((g) => g.items.length > 0);
+
+  // Plans whose panel was deleted still need somewhere to appear so they can be fixed or removed.
+  const orphans = plans.filter((p) => !panels.some((x) => x.id === p.panelId));
 
   return (
-    <div className="space-y-6">
-      {byCategory.map(({ category, items }) =>
-        items.length === 0 ? null : (
-          <div key={category.id}>
-            <p className="mb-2.5 flex items-center gap-2 text-sm font-bold text-white/80">
-              <span className="h-4 w-1 rounded-full bg-gradient-to-b from-[#ef233c] to-[#ff5a1f]" />
-              {category.name}
-            </p>
-            <div className="space-y-2.5">
-              {items.map((p) => (
-                <Card key={p.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-white">{p.title}</span>
-                      {!p.active && <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-bold text-white/45">غیرفعال</span>}
-                    </div>
-                    <p className="mt-1 text-xs text-white/45">
-                      {p.volumeGb === 0 ? "حجم نامحدود" : `${fmt(p.volumeGb)} گیگ`}
-                      {" · "}
-                      {p.durationDays === 0 ? "بدون انقضا" : `${fmt(p.durationDays)} روز`}
-                      {" · "}
-                      {p.ipLimit === 0 ? "IP نامحدود" : `${fmt(p.ipLimit)} کاربر`}
-                      {" · "}
-                      {panelLabel(p.panelId)} · {fmt(p.inboundIds.length)} اینباند
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3">
-                    <div className="text-left">
-                      {p.discountPercent > 0 && <span className="block text-[11px] text-white/35 line-through">{formatToman(p.price)}</span>}
-                      <span className="font-bold text-emerald-400">{formatToman(p.finalPrice)}</span>
-                    </div>
-                    <button onClick={() => onEdit(p)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-white/60 transition hover:bg-white/5 hover:text-white">
-                      <AdminIcon name="edit" className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => remove(p.id)} className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-rose-300/80 transition hover:bg-rose-500/10">
-                      <AdminIcon name="trash" className="h-4 w-4" />
-                    </button>
-                  </div>
-                </Card>
-              ))}
+    <div className="space-y-8">
+      {groups.map(({ panel, items }) => (
+        <section key={panel.id}>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <span className={`h-2 w-2 rounded-full ${panel.lastCheckOk ? "bg-emerald-400" : "bg-white/25"}`} />
+              <span className="text-sm font-bold text-white">{serverLabel(panel)}</span>
+              {panel.flag && (
+                <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-bold text-white/60" dir="ltr">
+                  {panel.flag}
+                </span>
+              )}
             </div>
+            <span className="text-xs text-white/40">{fmt(items.length)} پلن</span>
           </div>
-        ),
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            {items.map((p) => (
+              <PlanCard
+                key={p.id}
+                plan={p}
+                protocol={protocolOf(p)}
+                category={catName(p.categoryId)}
+                busy={busyId === p.id}
+                onEdit={() => onEdit(p)}
+                onToggle={() => toggleActive(p)}
+                onDuplicate={() => duplicate(p)}
+                onRemove={() => remove(p)}
+                onUp={() => move(p, items, -1)}
+                onDown={() => move(p, items, 1)}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+
+      {orphans.length > 0 && (
+        <section>
+          <p className="mb-3 text-sm font-bold text-amber-300">پلن‌های بدون سرور (پنل حذف شده)</p>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
+            {orphans.map((p) => (
+              <PlanCard
+                key={p.id}
+                plan={p}
+                protocol=""
+                category={catName(p.categoryId)}
+                busy={busyId === p.id}
+                onEdit={() => onEdit(p)}
+                onToggle={() => toggleActive(p)}
+                onDuplicate={() => duplicate(p)}
+                onRemove={() => remove(p)}
+              />
+            ))}
+          </div>
+        </section>
       )}
     </div>
+  );
+}
+
+function PlanCard({
+  plan,
+  protocol,
+  category,
+  busy,
+  onEdit,
+  onToggle,
+  onDuplicate,
+  onRemove,
+  onUp,
+  onDown,
+}: {
+  plan: V2RayPlan;
+  protocol: string;
+  category: string;
+  busy: boolean;
+  onEdit: () => void;
+  onToggle: () => void;
+  onDuplicate: () => void;
+  onRemove: () => void;
+  onUp?: () => void;
+  onDown?: () => void;
+}) {
+  const volume = plan.volumeGb === 0 ? "نامحدود" : fmt(plan.volumeGb) + " گیگ";
+  const duration = plan.durationDays === 0 ? "بدون انقضا" : fmt(plan.durationDays) + " روز";
+
+  return (
+    <Card className={`flex flex-col p-4 transition ${busy ? "opacity-60" : ""} ${plan.active ? "" : "opacity-70"}`}>
+      <div className="flex items-start justify-between gap-2">
+        <span
+          className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${
+            plan.active ? "bg-emerald-500/15 text-emerald-400" : "bg-white/10 text-white/45"
+          }`}
+        >
+          {plan.active ? "فعال" : "غیرفعال"}
+        </span>
+        <div className="flex min-w-0 items-start gap-1.5 text-right">
+          <span className="min-w-0">
+            <span className="block truncate text-sm font-bold text-white">{plan.title}</span>
+            {protocol && <span className="block text-xs text-white/45" dir="ltr">{protocol}</span>}
+          </span>
+          <AdminIcon name="layers" className="mt-0.5 h-4 w-4 shrink-0 text-white/35" />
+        </div>
+      </div>
+
+      <p className="mt-3 text-right text-sm text-white/70">
+        {duration} {volume}
+      </p>
+      <p className="mt-1 text-right text-[11px] text-white/35">
+        {plan.ipLimit === 0 ? "IP نامحدود" : fmt(plan.ipLimit) + " کاربر"}
+        {category && " · " + category}
+        {" · " + formatToman(plan.finalPrice)}
+      </p>
+
+      <div className="mt-4 flex items-center justify-between gap-1 border-t border-white/8 pt-3">
+        <ActionButton icon="trash" title="حذف" onClick={onRemove} disabled={busy} danger />
+        <ActionButton icon="chevron-down" title="پایین‌تر" onClick={onDown} disabled={busy || !onDown} />
+        <ActionButton icon="chevron-up" title="بالاتر" onClick={onUp} disabled={busy || !onUp} />
+        <ActionButton
+          icon="eye"
+          title={plan.active ? "غیرفعال کن" : "فعال کن"}
+          onClick={onToggle}
+          disabled={busy}
+          on={plan.active}
+        />
+        <ActionButton icon="copy" title="کپی" onClick={onDuplicate} disabled={busy} />
+        <ActionButton icon="edit" title="ویرایش" onClick={onEdit} disabled={busy} />
+      </div>
+    </Card>
+  );
+}
+
+function ActionButton({
+  icon,
+  title,
+  onClick,
+  disabled,
+  danger,
+  on,
+}: {
+  icon: string;
+  title: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  danger?: boolean;
+  on?: boolean;
+}) {
+  const tone = danger
+    ? "bg-rose-500/15 text-rose-300 enabled:hover:bg-rose-500/25"
+    : on
+      ? "bg-emerald-500/15 text-emerald-400 enabled:hover:bg-emerald-500/25"
+      : "text-white/45 enabled:hover:bg-white/8 enabled:hover:text-white";
+  return (
+    <button
+      type="button"
+      title={title}
+      aria-label={title}
+      onClick={onClick}
+      disabled={disabled}
+      className={`grid h-8 w-8 place-items-center rounded-full transition disabled:opacity-30 ${tone}`}
+    >
+      <AdminIcon name={icon} className="h-4 w-4" />
+    </button>
   );
 }
 
