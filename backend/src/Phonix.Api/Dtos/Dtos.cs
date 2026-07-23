@@ -38,7 +38,8 @@ public record PriceInput(long Price, int DiscountPercent, double? PriceUsd);
 
 public record UserDto(
     int Id, string Code, string Name, string Username, string Email, string Phone, string Avatar, UserRole Role, int Orders,
-    long TotalSpent, long Wallet, bool Verified, int VerificationLevel, bool EmailVerified, bool Blocked, string JoinedAt, string? Note);
+    long TotalSpent, long Wallet, bool Verified, int VerificationLevel, bool EmailVerified, bool Blocked, string JoinedAt, string? Note,
+    bool IsOwner);
 
 public record AuthResultDto(string Token, UserDto User);
 
@@ -65,7 +66,8 @@ public static class Mapping
 
     public static UserDto ToDto(this AppUser u) =>
         new(u.Id, u.Code, u.Name, u.Username, u.Email, u.Phone, u.Avatar, u.Role, u.Orders, u.TotalSpent, u.Wallet,
-            u.Verified, u.VerificationLevel, u.EmailVerified, u.Blocked, u.JoinedAt, u.Note);
+            u.Verified, u.VerificationLevel, u.EmailVerified, u.Blocked, u.JoinedAt, u.Note,
+            Phonix.Api.Security.OwnerAccount.IsOwner(u.Username));
 
     public static PlanDto ToDto(this SubscriptionPlan p) =>
         new(p.Id, p.Label, p.Months, p.Price, p.DiscountPercent, p.FinalPrice, p.PriceUsd);

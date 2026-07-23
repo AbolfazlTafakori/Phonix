@@ -33,7 +33,8 @@ public sealed record AdminMenuItem(
     string Route,
     UserRole MinRole = UserRole.Support,
     AdminBadge Badge = AdminBadge.None,
-    bool ComingSoon = false); // FUTURE FEATURE → rendered visible-but-disabled with a "به‌زودی" tag.
+    bool ComingSoon = false, // FUTURE FEATURE → rendered visible-but-disabled with a "به‌زودی" tag.
+    bool OwnerOnly = false); // Only the owner account sees it, even above the item's MinRole (see OwnerAccount).
 
 public sealed record AdminMenuGroup(
     string Key,
@@ -116,6 +117,7 @@ public static class AdminMenu
             new("order-bot",   "ارسال سفارشات و ربات تلگرام",     "cart",   "/admin/order-bot",   UserRole.Admin),
             new("email",    "تنظیمات ایمیل و پیامک",       "bell",     "/admin/settings/email", UserRole.Admin),
             new("settings", "تنظیمات عمومی و پیشرفته",     "settings", "/admin/settings",       UserRole.Admin),
+            new("v2ray",    "تنظیمات پنل v2ray",           "cpu",      "/admin/v2ray",          UserRole.Admin, OwnerOnly: true),
             new("cluster",  "مدیریت خوشه (HA)",            "activity", "/admin/cluster",        UserRole.Admin),
         }),
     };

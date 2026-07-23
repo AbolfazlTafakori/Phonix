@@ -27,10 +27,14 @@ public class AdminMenuController : ControllerBase
         var role = this.CurrentRole();
         var counts = _store.GetAdminBadgeCounts();
         var user = this.CurrentUserId() is int uid ? _store.GetUser(uid) : null;
+        var isOwner = OwnerAccount.IsOwner(user?.Username);
 
         // Admin sees everything; a limited Support member sees the dashboard plus only its granted sections.
+        // An owner-only item is additionally hidden from every non-owner Admin — matched server-side by its
+        // own [OwnerOnly] endpoint guard, so this is UX, not the security boundary.
         bool Allowed(AdminMenuItem item) =>
-            role == UserRole.Admin || AdminMenu.AlwaysAvailableKeys.Contains(item.Key) || (user?.Permissions.Contains(item.Key) ?? false);
+            (!item.OwnerOnly || isOwner)
+            && (role == UserRole.Admin || AdminMenu.AlwaysAvailableKeys.Contains(item.Key) || (user?.Permissions.Contains(item.Key) ?? false));
 
         return AdminMenu.Groups
             .Where(g => role.IsAtLeast(g.MinRole))

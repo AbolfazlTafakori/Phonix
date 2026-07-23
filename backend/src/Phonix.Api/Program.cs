@@ -72,6 +72,9 @@ try
     // Reading the shop's INBOUND mailbox. Stateless — it opens a connection per call — so a singleton is
     // just a cheap way to avoid rebuilding it, not shared state.
     builder.Services.AddSingleton<IMailboxService, MailboxService>();
+    // Signs in to the owner-configured Xray panels (Sanaei/3x-ui) to test connectivity and, later, provision
+    // the accounts customers buy. Stateless — a fresh cookie jar per call — so a singleton is just reuse.
+    builder.Services.AddSingleton<IV2RayPanelConnector, V2RayPanelConnector>();
     builder.Services.AddHttpClient();
     // Live USDT→Toman rate for USD-priced products: one instance serves both the background refresher and
     // the controllers that read/refresh the rate.

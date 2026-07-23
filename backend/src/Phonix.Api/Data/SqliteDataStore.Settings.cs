@@ -18,6 +18,7 @@ public sealed partial class SqliteDataStore
     private const string EmailKey = "email";
     private const string TelegramKey = "telegram";
     private const string MailboxKey = "mailbox";
+    private const string V2RayKey = "v2ray";
     private const string PlanTypesKey = "plantypes";
     private const string FavoritesKey = "favorites";
 
@@ -56,6 +57,55 @@ public sealed partial class SqliteDataStore
         if (!string.IsNullOrEmpty(incoming)) stored.Password = SensitiveField.Protect(incoming);
 
         WriteSingleton(conn, null, MailboxKey, stored);
+    }
+
+    // ── V2Ray panels ────────────────────────────────────────────────────────────────────────────────
+    public IReadOnlyList<V2RayPanel> GetV2RayPanels()
+    {
+        var s = GetSingleton<V2RaySettings>(V2RayKey);
+        foreach (var p in s.Panels) p.Password = SensitiveField.Reveal(p.Password ?? "");
+        return s.Panels;
+    }
+
+    public V2RayPanel? GetV2RayPanel(int id) => GetV2RayPanels().FirstOrDefault(p => p.Id == id);
+
+    public V2RayPanel AddV2RayPanel(V2RayPanel panel)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        if (s.NextId < 1) s.NextId = 1;
+
+        panel.Id = s.NextId++;
+        panel.CreatedAtUtc = DateTime.UtcNow.ToString("O");
+        // Password arrives in plaintext from the controller; it never sits unencrypted in the store.
+        panel.Password = string.IsNullOrEmpty(panel.Password) ? "" : SensitiveField.Protect(panel.Password);
+        s.Panels.Add(panel);
+        WriteSingleton(conn, null, V2RayKey, s);
+
+        panel.Password = SensitiveField.Reveal(panel.Password);
+        return panel;
+    }
+
+    public bool DeleteV2RayPanel(int id)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        var removed = s.Panels.RemoveAll(p => p.Id == id) > 0;
+        if (removed) WriteSingleton(conn, null, V2RayKey, s);
+        return removed;
+    }
+
+    public void RecordV2RayPanelCheck(int id, bool ok, string error, int inboundCount)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        var panel = s.Panels.FirstOrDefault(p => p.Id == id);
+        if (panel is null) return;
+        panel.LastCheckAtUtc = DateTime.UtcNow.ToString("O");
+        panel.LastCheckOk = ok;
+        panel.LastCheckError = ok ? "" : (error ?? "");
+        if (ok) panel.InboundCount = inboundCount;
+        WriteSingleton(conn, null, V2RayKey, s);
     }
 
     public TelegramSettings GetTelegramSettings() => GetSingleton<TelegramSettings>(TelegramKey);

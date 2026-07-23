@@ -279,9 +279,43 @@ export type User = {
   blocked: boolean;
   joinedAt: string;
   note: string | null;
+  // True only for the owner account (username matches PHONIX_OWNER_USERNAME). Gates owner-only areas like
+  // the V2Ray panel settings.
+  isOwner: boolean;
 };
 
 export type AuthResult = { token: string; user: User };
+
+// ── V2Ray panels (owner-only provisioning targets) ──────────────────────────────────────────────────
+export type V2RayProvider = "Sanaei" | "Pasargad" | "Marzban" | "Alireza" | "TxUi";
+
+export type V2RayProviderInfo = {
+  provider: V2RayProvider;
+  name: string;
+  available: boolean;
+};
+
+// The password is intentionally absent; `hasPassword` is all the panel is told.
+export type V2RayPanelInfo = {
+  id: number;
+  provider: V2RayProvider;
+  url: string;
+  username: string;
+  hasPassword: boolean;
+  enabled: boolean;
+  createdAtUtc: string;
+  lastCheckAtUtc: string;
+  lastCheckOk: boolean;
+  lastCheckError: string;
+  inboundCount: number;
+};
+
+export type V2RayPanelInput = {
+  provider: V2RayProvider;
+  url: string;
+  username: string;
+  password: string;
+};
 
 export type LoginResult = {
   requiresTwoFactor: boolean;

@@ -40,6 +40,9 @@ import type {
   MailConversationDetail,
   MailboxSettings,
   MailboxSettingsInput,
+  V2RayProviderInfo,
+  V2RayPanelInfo,
+  V2RayPanelInput,
   TelegramSettings,
   Transaction,
   TxStatus,
@@ -553,6 +556,15 @@ export const api = {
         request<MailboxSettings>("/mailbox/settings", { method: "PUT", body: json(body) }),
       test: () => request<{ ok: boolean }>("/mailbox/settings/test", { method: "POST" }),
     },
+  },
+  v2ray: {
+    providers: () => request<V2RayProviderInfo[]>("/v2ray/providers"),
+    panels: () => request<V2RayPanelInfo[]>("/v2ray/panels"),
+    // Verify a URL + credentials without saving (the wizard's login/test button).
+    test: (body: V2RayPanelInput) => request<{ ok: boolean; inboundCount: number }>("/v2ray/test", { method: "POST", body: json(body) }),
+    add: (body: V2RayPanelInput) => request<V2RayPanelInfo>("/v2ray/panels", { method: "POST", body: json(body) }),
+    testStored: (id: number) => request<{ ok: boolean; inboundCount: number }>(`/v2ray/panels/${id}/test`, { method: "POST" }),
+    remove: (id: number) => request<{ ok: boolean }>(`/v2ray/panels/${id}`, { method: "DELETE" }),
   },
   emailSettings: {
     get: () => request<EmailSettings>("/email-settings"),

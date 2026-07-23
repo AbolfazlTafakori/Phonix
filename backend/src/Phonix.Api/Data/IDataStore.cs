@@ -186,6 +186,15 @@ public interface IDataStore
     MailboxSettings GetMailboxSettings();
     void UpdateMailboxSettings(MailboxSettings settings);
 
+    // ── V2Ray panels (owner-configured provisioning targets) ────────────────────────────────────────
+    // Panels come back with passwords DECRYPTED, ready for the connector; the controller strips them before
+    // they reach the browser. AddV2RayPanel returns the stored panel (with its assigned id).
+    IReadOnlyList<V2RayPanel> GetV2RayPanels();
+    V2RayPanel? GetV2RayPanel(int id);
+    V2RayPanel AddV2RayPanel(V2RayPanel panel);
+    bool DeleteV2RayPanel(int id);
+    void RecordV2RayPanelCheck(int id, bool ok, string error, int inboundCount);
+
     // ── Content: hero slides ────────────────────────────────────────────────────────────────────────
     IReadOnlyList<HeroSlide> GetHeroSlides();
     HeroSlide? GetHeroSlide(int id);
