@@ -195,6 +195,18 @@ public interface IDataStore
     bool DeleteV2RayPanel(int id);
     void RecordV2RayPanelCheck(int id, bool ok, string error, int inboundCount);
 
+    // ── V2Ray sales catalogue (categories + plans) ──────────────────────────────────────────────────
+    IReadOnlyList<V2RayCategory> GetV2RayCategories();
+    V2RayCategory AddV2RayCategory(V2RayCategory category);
+    V2RayCategory? UpdateV2RayCategory(V2RayCategory category);
+    bool DeleteV2RayCategory(int id);
+
+    IReadOnlyList<V2RayPlan> GetV2RayPlans();
+    V2RayPlan? GetV2RayPlan(int id);
+    V2RayPlan AddV2RayPlan(V2RayPlan plan);
+    V2RayPlan? UpdateV2RayPlan(V2RayPlan plan);
+    bool DeleteV2RayPlan(int id);
+
     // ── Content: hero slides ────────────────────────────────────────────────────────────────────────
     IReadOnlyList<HeroSlide> GetHeroSlides();
     HeroSlide? GetHeroSlide(int id);

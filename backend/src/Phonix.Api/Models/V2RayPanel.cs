@@ -42,5 +42,11 @@ public class V2RayPanel
 public class V2RaySettings
 {
     public List<V2RayPanel> Panels { get; set; } = new();
-    public int NextId { get; set; } = 1;
+    public int NextId { get; set; } = 1;   // panel id counter (kept as-is for backward compatibility)
+
+    // The separate V2Ray sales catalogue.
+    public List<V2RayCategory> Categories { get; set; } = new();
+    public List<V2RayPlan> Plans { get; set; } = new();
+    public int NextCategoryId { get; set; } = 1;
+    public int NextPlanId { get; set; } = 1;
 }

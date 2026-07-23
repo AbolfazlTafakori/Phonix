@@ -108,6 +108,97 @@ public sealed partial class SqliteDataStore
         WriteSingleton(conn, null, V2RayKey, s);
     }
 
+    // ── V2Ray catalogue: categories ─────────────────────────────────────────────────────────────────
+    public IReadOnlyList<V2RayCategory> GetV2RayCategories() =>
+        GetSingleton<V2RaySettings>(V2RayKey).Categories.OrderBy(c => c.SortOrder).ThenBy(c => c.Id).ToList();
+
+    public V2RayCategory AddV2RayCategory(V2RayCategory category)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        if (s.NextCategoryId < 1) s.NextCategoryId = 1;
+        category.Id = s.NextCategoryId++;
+        category.CreatedAtUtc = DateTime.UtcNow.ToString("O");
+        s.Categories.Add(category);
+        WriteSingleton(conn, null, V2RayKey, s);
+        return category;
+    }
+
+    public V2RayCategory? UpdateV2RayCategory(V2RayCategory category)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        var existing = s.Categories.FirstOrDefault(c => c.Id == category.Id);
+        if (existing is null) return null;
+        existing.Name = category.Name;
+        existing.Icon = category.Icon;
+        existing.SortOrder = category.SortOrder;
+        existing.Active = category.Active;
+        WriteSingleton(conn, null, V2RayKey, s);
+        return existing;
+    }
+
+    public bool DeleteV2RayCategory(int id)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        var removed = s.Categories.RemoveAll(c => c.Id == id) > 0;
+        // Plans orphaned by a deleted category go with it — a plan with no category can't be shown or sold.
+        if (removed) s.Plans.RemoveAll(p => p.CategoryId == id);
+        if (removed) WriteSingleton(conn, null, V2RayKey, s);
+        return removed;
+    }
+
+    // ── V2Ray catalogue: plans ──────────────────────────────────────────────────────────────────────
+    public IReadOnlyList<V2RayPlan> GetV2RayPlans() =>
+        GetSingleton<V2RaySettings>(V2RayKey).Plans.OrderBy(p => p.SortOrder).ThenBy(p => p.Id).ToList();
+
+    public V2RayPlan? GetV2RayPlan(int id) =>
+        GetSingleton<V2RaySettings>(V2RayKey).Plans.FirstOrDefault(p => p.Id == id);
+
+    public V2RayPlan AddV2RayPlan(V2RayPlan plan)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        if (s.NextPlanId < 1) s.NextPlanId = 1;
+        plan.Id = s.NextPlanId++;
+        plan.CreatedAtUtc = DateTime.UtcNow.ToString("O");
+        s.Plans.Add(plan);
+        WriteSingleton(conn, null, V2RayKey, s);
+        return plan;
+    }
+
+    public V2RayPlan? UpdateV2RayPlan(V2RayPlan plan)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        var e = s.Plans.FirstOrDefault(p => p.Id == plan.Id);
+        if (e is null) return null;
+        e.CategoryId = plan.CategoryId;
+        e.Title = plan.Title;
+        e.Description = plan.Description;
+        e.PanelId = plan.PanelId;
+        e.InboundIds = plan.InboundIds;
+        e.VolumeGb = plan.VolumeGb;
+        e.DurationDays = plan.DurationDays;
+        e.IpLimit = plan.IpLimit;
+        e.Price = plan.Price;
+        e.DiscountPercent = plan.DiscountPercent;
+        e.Active = plan.Active;
+        e.SortOrder = plan.SortOrder;
+        WriteSingleton(conn, null, V2RayKey, s);
+        return e;
+    }
+
+    public bool DeleteV2RayPlan(int id)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        var removed = s.Plans.RemoveAll(p => p.Id == id) > 0;
+        if (removed) WriteSingleton(conn, null, V2RayKey, s);
+        return removed;
+    }
+
     public TelegramSettings GetTelegramSettings() => GetSingleton<TelegramSettings>(TelegramKey);
 
     public void UpdateTelegramSettings(TelegramSettings settings)

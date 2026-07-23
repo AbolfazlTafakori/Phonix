@@ -118,6 +118,7 @@ public static class AdminMenu
             new("email",    "تنظیمات ایمیل و پیامک",       "bell",     "/admin/settings/email", UserRole.Admin),
             new("settings", "تنظیمات عمومی و پیشرفته",     "settings", "/admin/settings",       UserRole.Admin),
             new("v2ray",    "تنظیمات پنل v2ray",           "cpu",      "/admin/v2ray",          UserRole.Admin, OwnerOnly: true),
+            new("v2ray-plans", "پلن‌های v2ray",            "box",      "/admin/v2ray/plans",    UserRole.Admin, OwnerOnly: true),
             new("cluster",  "مدیریت خوشه (HA)",            "activity", "/admin/cluster",        UserRole.Admin),
         }),
     };

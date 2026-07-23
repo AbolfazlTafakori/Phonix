@@ -44,6 +44,10 @@ import type {
   V2RayPanelInfo,
   V2RayPanelInput,
   V2RayInbound,
+  V2RayCategory,
+  V2RayCategoryInput,
+  V2RayPlan,
+  V2RayPlanInput,
   TelegramSettings,
   Transaction,
   TxStatus,
@@ -569,6 +573,20 @@ export const api = {
     addClient: (id: number, body: { email: string; totalGb: number; limitIp: number; durationDays: number; inboundIds: number[] }) =>
       request<{ ok: boolean; uuid: string; subId: string; inboundsAdded: number }>(`/v2ray/panels/${id}/client`, { method: "POST", body: json(body) }),
     remove: (id: number) => request<{ ok: boolean }>(`/v2ray/panels/${id}`, { method: "DELETE" }),
+
+    // Separate V2Ray sales catalogue: categories and the plans under them.
+    categories: {
+      list: () => request<V2RayCategory[]>("/v2ray/catalog/categories"),
+      add: (body: V2RayCategoryInput) => request<V2RayCategory>("/v2ray/catalog/categories", { method: "POST", body: json(body) }),
+      update: (id: number, body: V2RayCategoryInput) => request<V2RayCategory>(`/v2ray/catalog/categories/${id}`, { method: "PUT", body: json(body) }),
+      remove: (id: number) => request<{ ok: boolean }>(`/v2ray/catalog/categories/${id}`, { method: "DELETE" }),
+    },
+    plans: {
+      list: () => request<V2RayPlan[]>("/v2ray/catalog/plans"),
+      add: (body: V2RayPlanInput) => request<V2RayPlan>("/v2ray/catalog/plans", { method: "POST", body: json(body) }),
+      update: (id: number, body: V2RayPlanInput) => request<V2RayPlan>(`/v2ray/catalog/plans/${id}`, { method: "PUT", body: json(body) }),
+      remove: (id: number) => request<{ ok: boolean }>(`/v2ray/catalog/plans/${id}`, { method: "DELETE" }),
+    },
   },
   emailSettings: {
     get: () => request<EmailSettings>("/email-settings"),

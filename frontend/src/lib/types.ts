@@ -327,6 +327,55 @@ export type V2RayInbound = {
   clientCount: number;
 };
 
+// ── V2Ray sales catalogue (separate from the ordinary product catalogue) ────────────────────────────
+export type V2RayCategory = {
+  id: number;
+  name: string;
+  icon: string;
+  sortOrder: number;
+  active: boolean;
+  planCount: number;
+};
+
+export type V2RayCategoryInput = {
+  name: string;
+  icon: string;
+  sortOrder: number;
+  active: boolean;
+};
+
+export type V2RayPlan = {
+  id: number;
+  categoryId: number;
+  title: string;
+  description: string;
+  panelId: number;
+  inboundIds: number[];
+  volumeGb: number;   // 0 = unlimited
+  durationDays: number; // 0 = never expires
+  ipLimit: number;    // 0 = unlimited
+  price: number;
+  discountPercent: number;
+  finalPrice: number;
+  active: boolean;
+  sortOrder: number;
+};
+
+export type V2RayPlanInput = {
+  categoryId: number;
+  title: string;
+  description: string;
+  panelId: number;
+  inboundIds: number[];
+  volumeGb: number;
+  durationDays: number;
+  ipLimit: number;
+  price: number;
+  discountPercent: number;
+  active: boolean;
+  sortOrder: number;
+};
+
 export type LoginResult = {
   requiresTwoFactor: boolean;
   challengeToken: string | null;
