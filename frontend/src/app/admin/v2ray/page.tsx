@@ -285,6 +285,31 @@ function CreateClientForm({ panelId, onClose }: { panelId: number; onClose: () =
   const [error, setError] = useState("");
   const [result, setResult] = useState<{ uuid: string; subId: string; inboundsAdded: number } | null>(null);
 
+  // Which inbound(s) to create on — exactly what a plan will store. Loaded once when the form opens.
+  const [inbounds, setInbounds] = useState<V2RayInbound[] | null>(null);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [inboundsErr, setInboundsErr] = useState("");
+
+  useEffect(() => {
+    api.v2ray
+      .inbounds(panelId)
+      .then((list) => {
+        setInbounds(list);
+        // Pre-select every enabled inbound so a quick test works out of the box; the operator narrows it.
+        setSelected(new Set(list.filter((i) => i.enable).map((i) => i.id)));
+      })
+      .catch((e) => setInboundsErr(e instanceof Error ? e.message : "خواندن اینباندها ناموفق بود"));
+  }, [panelId]);
+
+  function toggle(id: number) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   const presets = [
     { label: "۱ ماه", days: 30 },
     { label: "۲ ماه", days: 60 },
@@ -301,6 +326,10 @@ function CreateClientForm({ panelId, onClose }: { panelId: number; onClose: () =
       setError("نام (Email) اکانت را وارد کنید.");
       return;
     }
+    if (selected.size === 0) {
+      setError("حداقل یک اینباند (لوکیشن) انتخاب کنید.");
+      return;
+    }
     setBusy(true);
     try {
       const r = await api.v2ray.addClient(panelId, {
@@ -308,6 +337,7 @@ function CreateClientForm({ panelId, onClose }: { panelId: number; onClose: () =
         totalGb: Math.max(0, Number(totalGb) || 0),
         limitIp: Math.max(0, Number(limitIp) || 0),
         durationDays: Math.max(0, Number(durationDays) || 0),
+        inboundIds: [...selected],
       });
       setResult({ uuid: r.uuid, subId: r.subId, inboundsAdded: r.inboundsAdded });
     } catch (e) {
@@ -355,6 +385,45 @@ function CreateClientForm({ panelId, onClose }: { panelId: number; onClose: () =
             {p.label}
           </button>
         ))}
+      </div>
+
+      {/* Inbound (location) selection — the account is created ONLY on the checked ones, exactly like a plan
+          would specify. Not "select all" any more. */}
+      <div className="mt-4">
+        <p className="mb-2 text-xs font-medium text-white/55">اینباند(ها) / لوکیشنی که اکانت روی آن ساخته شود</p>
+        {inboundsErr ? (
+          <p className="text-xs leading-6 text-rose-400">{inboundsErr}</p>
+        ) : inbounds === null ? (
+          <div className="flex items-center gap-2 text-xs text-white/45"><Spinner className="h-4 w-4" /> در حال خواندن اینباندها…</div>
+        ) : inbounds.length === 0 ? (
+          <p className="text-xs text-white/45">اینباندی روی این پنل نیست.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {inbounds.map((ib) => {
+              const on = selected.has(ib.id);
+              return (
+                <button
+                  key={ib.id}
+                  onClick={() => toggle(ib.id)}
+                  disabled={!ib.enable}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
+                    !ib.enable
+                      ? "cursor-not-allowed border-white/8 text-white/30"
+                      : on
+                        ? "border-transparent bg-[#3a64f2]/20 text-[#8aa6ff]"
+                        : "border-white/10 text-white/55 hover:text-white"
+                  }`}
+                >
+                  <span className={`grid h-4 w-4 place-items-center rounded border text-[10px] ${on ? "border-[#8aa6ff] bg-[#3a64f2]/40 text-white" : "border-white/25"}`}>
+                    {on ? "✓" : ""}
+                  </span>
+                  {ib.remark || `اینباند ${formatNumber(ib.id)}`}
+                  <span dir="ltr" className="text-white/35">#{ib.id}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {error && <p className="mt-3 text-xs leading-6 text-rose-400">{error}</p>}

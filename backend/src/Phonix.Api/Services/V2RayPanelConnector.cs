@@ -46,9 +46,11 @@ public interface IV2RayPanelConnector
     // connection works and as the list a service is later mapped onto.
     Task<V2RayInboundsResult> ListInboundsAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default);
 
-    // Creates the client on EVERY enabled inbound of the panel (the "select all" the operator would do by
-    // hand), all sharing one UUID and one subscription id so a single sub link covers every location.
-    Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, string url, string username, string password, V2RayNewClient client, CancellationToken ct = default);
+    // Creates the client on the SPECIFIC inbounds a plan is mapped to — the account lands only on the
+    // location(s) that plan sells, matching the order exactly. All share one UUID and one subscription id so
+    // a single sub link covers every selected location. Passing no ids falls back to every enabled inbound
+    // (the old "select all"), kept only for a quick manual test where no mapping exists yet.
+    Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, string url, string username, string password, V2RayNewClient client, IReadOnlyList<int> inboundIds, CancellationToken ct = default);
 
     // Parses and normalizes an entered panel URL, or returns null when it is not a usable http(s) URL.
     static string? NormalizeUrl(string? raw)
@@ -116,7 +118,7 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         }
     }
 
-    public async Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, string url, string username, string password, V2RayNewClient req, CancellationToken ct = default)
+    public async Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, string url, string username, string password, V2RayNewClient req, IReadOnlyList<int> inboundIds, CancellationToken ct = default)
     {
         if (provider != V2RayProvider.Sanaei)
             return V2RayClientResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
@@ -135,9 +137,24 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
             var (ok, body, status) = await GetInboundsAsync(client, baseUrl, ct);
             if (!ok) return V2RayClientResult.Fail($"خواندن اینباندها ممکن نشد (کد {status}).");
 
-            var inbounds = ReadEnabledInboundIds(body);
-            if (inbounds.Count == 0)
+            var enabled = ReadEnabledInboundIds(body);
+            if (enabled.Count == 0)
                 return V2RayClientResult.Fail("هیچ اینباند فعالی روی پنل پیدا نشد.");
+
+            // The account is created ONLY on the inbounds the plan selected. Requested ids are intersected
+            // with what the panel actually has enabled, so a stale mapping (an inbound deleted on the panel)
+            // fails loudly rather than silently landing the client somewhere it wasn't sold on.
+            List<int> inbounds;
+            if (inboundIds is { Count: > 0 })
+            {
+                inbounds = inboundIds.Where(enabled.Contains).Distinct().ToList();
+                if (inbounds.Count == 0)
+                    return V2RayClientResult.Fail("اینباندهای انتخاب‌شده روی پنل پیدا نشدند یا غیرفعال‌اند.");
+            }
+            else
+            {
+                inbounds = enabled; // no mapping given → fall back to all enabled (manual test only)
+            }
 
             // One identity shared across every inbound: the same UUID and the same subscription id, so a
             // single sub link returned to the customer covers all their locations.

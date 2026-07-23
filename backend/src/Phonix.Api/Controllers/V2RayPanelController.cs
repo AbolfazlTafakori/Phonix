@@ -16,8 +16,9 @@ public sealed record V2RayPanelDto(
 public sealed record V2RayPanelInput(V2RayProvider Provider, string Url, string Username, string Password);
 
 // Create an account on a stored panel. Email is the label the account is created under; the three limits
-// follow the panel's own "0 = unlimited" convention (0 GB, 0 IPs, 0 days = no expiry).
-public sealed record V2RayNewClientInput(string Email, long TotalGb, int LimitIp, int DurationDays);
+// follow the panel's own "0 = unlimited" convention (0 GB, 0 IPs, 0 days = no expiry). InboundIds are the
+// specific inbounds/locations to create on (a plan's mapping); empty falls back to all enabled.
+public sealed record V2RayNewClientInput(string Email, long TotalGb, int LimitIp, int DurationDays, int[]? InboundIds);
 
 // A provider offered in the "add panel" wizard, and whether its connector is actually wired up yet.
 public sealed record V2RayProviderDto(V2RayProvider Provider, string Name, bool Available);
@@ -136,6 +137,7 @@ public class V2RayPanelController : ControllerBase
         var result = await _connector.AddClientAsync(
             panel.Provider, panel.Url, panel.Username, panel.Password,
             new V2RayNewClient(input.Email.Trim(), input.TotalGb, input.LimitIp, input.DurationDays),
+            input.InboundIds ?? Array.Empty<int>(),
             ct);
 
         return result.Ok
