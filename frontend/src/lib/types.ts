@@ -372,9 +372,12 @@ export type V2RayPlan = {
   description: string;
   panelId: number;
   inboundIds: number[];
+  protocol: string;   // vless / vmess / trojan …
+  network: string;    // tcp / ws / grpc …
   volumeGb: number;   // 0 = unlimited
   durationDays: number; // 0 = never expires
   ipLimit: number;    // 0 = unlimited
+  quantity: number;   // 0 = unlimited
   price: number;
   discountPercent: number;
   finalPrice: number;
@@ -388,9 +391,12 @@ export type V2RayPlanInput = {
   description: string;
   panelId: number;
   inboundIds: number[];
+  protocol: string;
+  network: string;
   volumeGb: number;
   durationDays: number;
   ipLimit: number;
+  quantity: number;
   price: number;
   discountPercent: number;
   active: boolean;

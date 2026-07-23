@@ -11,12 +11,14 @@ public sealed record V2RayCategoryInput(string Name, string Icon, int SortOrder,
 
 public sealed record V2RayPlanDto(
     int Id, int CategoryId, string Title, string Description, int PanelId, int[] InboundIds,
-    long VolumeGb, int DurationDays, int IpLimit, long Price, int DiscountPercent, long FinalPrice,
+    string Protocol, string Network,
+    long VolumeGb, int DurationDays, int IpLimit, int Quantity, long Price, int DiscountPercent, long FinalPrice,
     bool Active, int SortOrder);
 
 public sealed record V2RayPlanInput(
     int CategoryId, string Title, string Description, int PanelId, int[] InboundIds,
-    long VolumeGb, int DurationDays, int IpLimit, long Price, int DiscountPercent, bool Active, int SortOrder);
+    string? Protocol, string? Network,
+    long VolumeGb, int DurationDays, int IpLimit, int Quantity, long Price, int DiscountPercent, bool Active, int SortOrder);
 
 // The owner-only management of the separate V2Ray sales catalogue — categories and the plans under them.
 // Kept apart from the ordinary product admin on purpose: these plans are many and panel-bound, and mixing
@@ -73,7 +75,8 @@ public class V2RayCatalogController : ControllerBase
     // ── Plans ───────────────────────────────────────────────────────────────────────────────────────
     private static V2RayPlanDto ToDto(V2RayPlan p) => new(
         p.Id, p.CategoryId, p.Title, p.Description, p.PanelId, p.InboundIds.ToArray(),
-        p.VolumeGb, p.DurationDays, p.IpLimit, p.Price, p.DiscountPercent, p.FinalPrice, p.Active, p.SortOrder);
+        p.Protocol, p.Network,
+        p.VolumeGb, p.DurationDays, p.IpLimit, p.Quantity, p.Price, p.DiscountPercent, p.FinalPrice, p.Active, p.SortOrder);
 
     [HttpGet("plans")]
     public IReadOnlyList<V2RayPlanDto> Plans() => _store.GetV2RayPlans().Select(ToDto).ToList();
@@ -117,6 +120,9 @@ public class V2RayCatalogController : ControllerBase
         plan.Description = input.Description?.Trim() ?? "";
         plan.PanelId = input.PanelId;
         plan.InboundIds = input.InboundIds.Distinct().ToList();
+        plan.Protocol = (input.Protocol ?? "").Trim();
+        plan.Network = (input.Network ?? "").Trim();
+        plan.Quantity = Math.Max(0, input.Quantity);
         plan.VolumeGb = Math.Max(0, input.VolumeGb);
         plan.DurationDays = Math.Max(0, input.DurationDays);
         plan.IpLimit = Math.Max(0, input.IpLimit);

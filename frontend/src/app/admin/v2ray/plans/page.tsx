@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
 import type { V2RayCategory, V2RayInbound, V2RayPanelInfo, V2RayPlan, V2RayPlanInput } from "@/lib/types";
 import { formatToman } from "@/lib/format";
-import { Card, PageHeader, Spinner, Toggle, inputCls } from "@/components/admin/ui";
+import { Card, Modal, PageHeader, Spinner, inputCls } from "@/components/admin/ui";
 import AdminIcon from "@/components/admin/AdminIcon";
 
 // Owner-only management of the SEPARATE V2Ray catalogue: categories and the plans under them, kept apart
@@ -252,9 +252,12 @@ function PlanList({
     description: p.description,
     panelId: p.panelId,
     inboundIds: p.inboundIds,
+    protocol: p.protocol,
+    network: p.network,
     volumeGb: p.volumeGb,
     durationDays: p.durationDays,
     ipLimit: p.ipLimit,
+    quantity: p.quantity,
     price: p.price,
     discountPercent: p.discountPercent,
     active: p.active,
@@ -475,6 +478,9 @@ function ActionButton({
   );
 }
 
+// The plan editor, laid out like the panel operators already know: a two-column grid whose reading order in
+// RTL is نام | نوع پروتکل, نوع شبکه | قیمت, روز | حجم, محدودیت آی‌پی | اینباند, تعداد | دسته‌بندی, سرورها,
+// then توضیحات across the bottom. Shown in a modal for both create and edit.
 function PlanForm({
   plan,
   categories,
@@ -494,9 +500,12 @@ function PlanForm({
     description: plan?.description ?? "",
     panelId: plan?.panelId ?? panels[0]?.id ?? 0,
     inboundIds: plan?.inboundIds ?? [],
+    protocol: plan?.protocol ?? "",
+    network: plan?.network ?? "",
     volumeGb: plan?.volumeGb ?? 0,
     durationDays: plan?.durationDays ?? 30,
     ipLimit: plan?.ipLimit ?? 0,
+    quantity: plan?.quantity ?? 0,
     price: plan?.price ?? 0,
     discountPercent: plan?.discountPercent ?? 0,
     active: plan?.active ?? true,
@@ -505,7 +514,7 @@ function PlanForm({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // The chosen panel's inbounds, loaded live so the operator picks exact locations for this plan.
+  // The chosen panel's inbounds, loaded live so the operator picks real locations rather than typing an id.
   const [inbounds, setInbounds] = useState<V2RayInbound[] | null>(null);
   const [inboundsErr, setInboundsErr] = useState("");
 
@@ -523,26 +532,22 @@ function PlanForm({
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  // Picking an inbound fills the protocol from what the panel actually serves, so the labels start out
+  // truthful; the operator can still override them.
   function toggleInbound(id: number) {
-    setForm((f) => ({
-      ...f,
-      inboundIds: f.inboundIds.includes(id) ? f.inboundIds.filter((x) => x !== id) : [...f.inboundIds, id],
-    }));
+    setForm((f) => {
+      const on = f.inboundIds.includes(id);
+      const next = on ? f.inboundIds.filter((x) => x !== id) : [...f.inboundIds, id];
+      const proto = !on && !f.protocol ? (inbounds?.find((i) => i.id === id)?.protocol ?? "") : f.protocol;
+      return { ...f, inboundIds: next, protocol: proto };
+    });
   }
-
-  const presets = [
-    { label: "۱ ماه", days: 30 },
-    { label: "۳ ماه", days: 90 },
-    { label: "۶ ماه", days: 180 },
-    { label: "۱ سال", days: 365 },
-    { label: "نامحدود", days: 0 },
-  ];
 
   async function save() {
     setError("");
-    if (!form.title.trim()) return setError("عنوان پلن را وارد کنید.");
+    if (!form.title.trim()) return setError("نام پلن را وارد کنید.");
     if (!form.categoryId) return setError("دسته‌بندی را انتخاب کنید.");
-    if (!form.panelId) return setError("پنل را انتخاب کنید.");
+    if (!form.panelId) return setError("سرور را انتخاب کنید.");
     if (form.inboundIds.length === 0) return setError("حداقل یک اینباند (لوکیشن) انتخاب کنید.");
     setBusy(true);
     try {
@@ -556,7 +561,8 @@ function PlanForm({
     }
   }
 
-  const panelHost = (p: V2RayPanelInfo) => {
+  const panelLabel = (p: V2RayPanelInfo) => {
+    if (p.name.trim()) return p.name + (p.flag ? " " + p.flag : "");
     try {
       return new URL(p.url).host;
     } catch {
@@ -564,128 +570,133 @@ function PlanForm({
     }
   };
 
+  const num = (v: number) => (v === 0 ? "" : String(v));
+
   return (
-    <Card className="p-5 sm:p-6">
-      <div className="mb-5 flex items-center justify-between">
-        <p className="font-bold text-white">{plan ? "ویرایش پلن" : "پلن جدید"}</p>
-        <button onClick={onClose} className="text-sm text-white/50 transition hover:text-white">انصراف</button>
+    <Modal open onClose={busy ? () => undefined : onClose} title={plan ? "ویرایش پلن" : "ایجاد پلن اشتراکی"} size="2xl">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="نام">
+          <input value={form.title} onChange={(e) => set("title", e.target.value)} className={inputCls} placeholder="۵ گیگ یک کاربر" />
+        </Field>
+        <Field label="نوع پروتکل">
+          <input value={form.protocol} onChange={(e) => set("protocol", e.target.value)} dir="ltr" placeholder="vless" className={inputCls + " text-left"} />
+        </Field>
+
+        <Field label="نوع شبکه">
+          <input value={form.network} onChange={(e) => set("network", e.target.value)} dir="ltr" placeholder="tcp" className={inputCls + " text-left"} />
+        </Field>
+        <Field label="قیمت (تومان)">
+          <input value={num(form.price)} onChange={(e) => set("price", Math.max(0, Number(e.target.value) || 0))} dir="ltr" inputMode="numeric" className={inputCls + " text-left"} />
+        </Field>
+
+        <Field label="روز · ۰ = بدون انقضا">
+          <input value={num(form.durationDays)} onChange={(e) => set("durationDays", Math.max(0, Number(e.target.value) || 0))} dir="ltr" inputMode="numeric" placeholder="30" className={inputCls + " text-left"} />
+        </Field>
+        <Field label="حجم (گیگ) · ۰ = نامحدود">
+          <input value={num(form.volumeGb)} onChange={(e) => set("volumeGb", Math.max(0, Number(e.target.value) || 0))} dir="ltr" inputMode="numeric" placeholder="5" className={inputCls + " text-left"} />
+        </Field>
+
+        <Field label="محدودیت آی‌پی · ۰ = نامحدود">
+          <input value={num(form.ipLimit)} onChange={(e) => set("ipLimit", Math.max(0, Number(e.target.value) || 0))} dir="ltr" inputMode="numeric" placeholder="2" className={inputCls + " text-left"} />
+        </Field>
+        <Field label="تعداد (موجودی) · ۰ = نامحدود">
+          <input value={num(form.quantity)} onChange={(e) => set("quantity", Math.max(0, Number(e.target.value) || 0))} dir="ltr" inputMode="numeric" className={inputCls + " text-left"} />
+        </Field>
+
+        <Field label="دسته‌بندی">
+          <select value={form.categoryId} onChange={(e) => set("categoryId", Number(e.target.value))} className={inputCls}>
+            {categories.map((c) => <option key={c.id} value={c.id} className="bg-[#15151f]">{c.name}</option>)}
+          </select>
+        </Field>
+        <Field label="سرور">
+          <select
+            value={form.panelId}
+            onChange={(e) => {
+              set("panelId", Number(e.target.value));
+              set("inboundIds", []);
+            }}
+            className={inputCls}
+          >
+            {panels.map((p) => <option key={p.id} value={p.id} className="bg-[#15151f]">{panelLabel(p)}</option>)}
+          </select>
+        </Field>
       </div>
 
-      <div className="space-y-4">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-white/55">عنوان پلن</span>
-            <input value={form.title} onChange={(e) => set("title", e.target.value)} className={inputCls} placeholder="مثلاً VPN یک‌ماهه ۵۰ گیگ" />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-white/55">دسته‌بندی</span>
-            <select value={form.categoryId} onChange={(e) => set("categoryId", Number(e.target.value))} className={inputCls}>
-              {categories.map((c) => <option key={c.id} value={c.id} className="bg-[#15151f]">{c.name}</option>)}
-            </select>
-          </label>
-        </div>
-
-        <label className="block">
-          <span className="mb-1.5 block text-xs font-medium text-white/55">توضیحات (اختیاری)</span>
-          <textarea value={form.description} onChange={(e) => set("description", e.target.value)} rows={2} className="w-full rounded-xl border border-white/10 bg-[#0d0d15] px-3 py-2 text-sm text-white outline-none focus:border-[#3a64f2]" />
-        </label>
-
-        <div className="grid gap-4 sm:grid-cols-3">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-white/55">حجم (گیگ) · ۰=نامحدود</span>
-            <input value={form.volumeGb} onChange={(e) => set("volumeGb", Math.max(0, Number(e.target.value) || 0))} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-white/55">مدت (روز) · ۰=نامحدود</span>
-            <input value={form.durationDays} onChange={(e) => set("durationDays", Math.max(0, Number(e.target.value) || 0))} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-white/55">محدودیت IP · ۰=نامحدود</span>
-            <input value={form.ipLimit} onChange={(e) => set("ipLimit", Math.max(0, Number(e.target.value) || 0))} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
-          </label>
-        </div>
-        <div className="flex flex-wrap gap-1.5">
-          {presets.map((p) => (
-            <button
-              key={p.label}
-              onClick={() => set("durationDays", p.days)}
-              className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold transition ${
-                form.durationDays === p.days ? "border-transparent bg-[#3a64f2]/20 text-[#8aa6ff]" : "border-white/10 text-white/55 hover:text-white"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-white/55">قیمت (تومان)</span>
-            <input value={form.price} onChange={(e) => set("price", Math.max(0, Number(e.target.value) || 0))} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-white/55">تخفیف (٪)</span>
-            <input value={form.discountPercent} onChange={(e) => set("discountPercent", Math.min(100, Math.max(0, Number(e.target.value) || 0)))} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
-          </label>
-        </div>
-
-        {/* Provisioning target: which panel + exactly which inbounds this plan creates the account on. */}
-        <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
-          <p className="mb-3 text-sm font-bold text-white">محل ساخت اکانت</p>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-white/55">پنل</span>
-            <select value={form.panelId} onChange={(e) => { set("panelId", Number(e.target.value)); set("inboundIds", []); }} className={inputCls}>
-              {panels.map((p) => <option key={p.id} value={p.id} className="bg-[#15151f]">{panelHost(p)}</option>)}
-            </select>
-          </label>
-
-          <div className="mt-3">
-            <span className="mb-2 block text-xs font-medium text-white/55">اینباند(ها) / لوکیشن این پلن</span>
-            {inboundsErr ? (
-              <p className="text-xs leading-6 text-rose-400">{inboundsErr}</p>
-            ) : inbounds === null ? (
-              <div className="flex items-center gap-2 text-xs text-white/45"><Spinner className="h-4 w-4" /> در حال خواندن اینباندها…</div>
-            ) : inbounds.length === 0 ? (
-              <p className="text-xs text-white/45">اینباندی روی این پنل نیست.</p>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {inbounds.map((ib) => {
-                  const on = form.inboundIds.includes(ib.id);
-                  return (
-                    <button
-                      key={ib.id}
-                      onClick={() => toggleInbound(ib.id)}
-                      disabled={!ib.enable}
-                      className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-bold transition ${
-                        !ib.enable ? "cursor-not-allowed border-white/8 text-white/30" : on ? "border-transparent bg-[#3a64f2]/20 text-[#8aa6ff]" : "border-white/10 text-white/55 hover:text-white"
-                      }`}
-                    >
-                      <span className={`grid h-4 w-4 place-items-center rounded border text-[10px] ${on ? "border-[#8aa6ff] bg-[#3a64f2]/40 text-white" : "border-white/25"}`}>{on ? "✓" : ""}</span>
-                      {ib.remark || `اینباند ${fmt(ib.id)}`}
-                      <span dir="ltr" className="text-white/35">#{ib.id}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+      {/* The inbound(s) this plan provisions on — WizWiz's "آیدی سطر کانکشن", but chosen from what the panel
+          actually has rather than typed from memory. */}
+      <div className="mt-4">
+        <span className="mb-2 block text-xs font-medium text-white/55">آیدی سطر کانکشن (اینباند)</span>
+        {inboundsErr ? (
+          <p className="text-xs leading-6 text-rose-400">{inboundsErr}</p>
+        ) : inbounds === null ? (
+          <div className="flex items-center gap-2 text-xs text-white/45"><Spinner className="h-4 w-4" /> در حال خواندن اینباندها…</div>
+        ) : inbounds.length === 0 ? (
+          <p className="text-xs text-white/45">اینباندی روی این سرور نیست.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {inbounds.map((ib) => {
+              const on = form.inboundIds.includes(ib.id);
+              return (
+                <button
+                  key={ib.id}
+                  type="button"
+                  onClick={() => toggleInbound(ib.id)}
+                  disabled={!ib.enable}
+                  className={
+                    "flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-bold transition " +
+                    (!ib.enable
+                      ? "cursor-not-allowed border-white/8 text-white/30"
+                      : on
+                        ? "border-transparent bg-[#3a64f2]/20 text-[#8aa6ff]"
+                        : "border-white/10 text-white/55 hover:text-white")
+                  }
+                >
+                  <span className={"grid h-4 w-4 place-items-center rounded border text-[10px] " + (on ? "border-[#8aa6ff] bg-[#3a64f2]/40 text-white" : "border-white/25")}>
+                    {on ? "✓" : ""}
+                  </span>
+                  {ib.remark || "اینباند " + fmt(ib.id)}
+                  <span dir="ltr" className="text-white/35">#{ib.id}</span>
+                </button>
+              );
+            })}
           </div>
-        </div>
-
-        <div className="flex items-center justify-between rounded-xl border border-white/8 px-4 py-3">
-          <span className="text-sm text-white/70">پلن فعال باشد</span>
-          <Toggle checked={form.active} onChange={(v) => set("active", v)} />
-        </div>
-
-        {error && <p className="text-sm leading-7 text-rose-400">{error}</p>}
-
-        <div className="flex items-center gap-2 border-t border-white/8 pt-4">
-          <button onClick={save} disabled={busy} className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-7 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60">
-            {busy && <Spinner />}
-            {plan ? "ذخیره تغییرات" : "ساخت پلن"}
-          </button>
-          <button onClick={onClose} disabled={busy} className="mr-auto text-sm text-white/45 transition hover:text-white">انصراف</button>
-        </div>
+        )}
       </div>
-    </Card>
+
+      <div className="mt-4">
+        <span className="mb-1.5 block text-xs font-medium text-white/55">توضیحات</span>
+        <textarea
+          value={form.description}
+          onChange={(e) => set("description", e.target.value)}
+          rows={3}
+          className="w-full rounded-xl border border-white/10 bg-[#0d0d15] px-3 py-2 text-sm leading-7 text-white outline-none focus:border-[#3a64f2]"
+        />
+      </div>
+
+      {error && <p className="mt-3 text-sm leading-7 text-rose-400">{error}</p>}
+
+      <div className="mt-5 flex items-center gap-2 border-t border-white/8 pt-4">
+        <button
+          onClick={save}
+          disabled={busy}
+          className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+        >
+          {busy && <Spinner />}
+          {plan ? "ذخیره" : "ایجاد"}
+        </button>
+        <button onClick={onClose} disabled={busy} className="h-11 rounded-xl border border-white/10 px-6 text-sm font-bold text-white/60 transition hover:bg-white/5 hover:text-white disabled:opacity-60">
+          لغو
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-xs font-medium text-white/55">{label}</span>
+      {children}
+    </label>
   );
 }

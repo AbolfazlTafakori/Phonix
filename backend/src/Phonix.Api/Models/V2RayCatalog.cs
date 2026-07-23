@@ -29,9 +29,16 @@ public class V2RayPlan
     public int PanelId { get; set; }
     public List<int> InboundIds { get; set; } = new();
 
+    // Shown on the plan card and in the storefront. Defaulted from the chosen inbound when the operator
+    // picks one, but editable — the panel is the source of truth for what is actually served, these are the
+    // labels the customer sees.
+    public string Protocol { get; set; } = "";   // vless / vmess / trojan …
+    public string Network { get; set; } = "";    // tcp / ws / grpc …
+
     public long VolumeGb { get; set; }     // 0 = unlimited
     public int DurationDays { get; set; }  // 0 = never expires (a month is 30 days, a year 365)
     public int IpLimit { get; set; }       // 0 = unlimited
+    public int Quantity { get; set; }      // how many of this plan may be sold; 0 = unlimited
 
     public long Price { get; set; }
     public int DiscountPercent { get; set; }

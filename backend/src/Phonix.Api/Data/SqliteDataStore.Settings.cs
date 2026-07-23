@@ -185,6 +185,9 @@ public sealed partial class SqliteDataStore
         e.Description = plan.Description;
         e.PanelId = plan.PanelId;
         e.InboundIds = plan.InboundIds;
+        e.Protocol = plan.Protocol;
+        e.Network = plan.Network;
+        e.Quantity = plan.Quantity;
         e.VolumeGb = plan.VolumeGb;
         e.DurationDays = plan.DurationDays;
         e.IpLimit = plan.IpLimit;
