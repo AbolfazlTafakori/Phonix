@@ -124,6 +124,7 @@ function PanelRow({
   const [busy, setBusy] = useState<"test" | "delete" | null>(null);
   const [msg, setMsg] = useState("");
   const [msgOk, setMsgOk] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   async function test() {
     setBusy("test");
@@ -178,6 +179,14 @@ function PanelRow({
 
         <div className="flex shrink-0 items-center gap-2">
           <button
+            onClick={() => setCreating((v) => !v)}
+            disabled={busy !== null}
+            className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3.5 text-xs font-bold text-[#8aa6ff] transition hover:bg-white/5 disabled:opacity-60"
+          >
+            <AdminIcon name="plus" className="h-4 w-4" />
+            ساخت اکانت تست
+          </button>
+          <button
             onClick={test}
             disabled={busy !== null}
             className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3.5 text-xs font-bold text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
@@ -196,7 +205,115 @@ function PanelRow({
         </div>
       </div>
       {msg && <p className={`mt-3 text-xs leading-6 ${msgOk ? "text-emerald-400" : "text-rose-400"}`}>{msg}</p>}
+
+      {creating && <CreateClientForm panelId={panel.id} onClose={() => setCreating(false)} />}
     </Card>
+  );
+}
+
+// Manually create an account on this panel — the same call order fulfilment will make. Zero means unlimited
+// for traffic, IP limit and duration (matching the panel). Duration is in days: a month is 30 days here, a
+// year 365, so the presets follow the plan rules.
+function CreateClientForm({ panelId, onClose }: { panelId: number; onClose: () => void }) {
+  const [email, setEmail] = useState("");
+  const [totalGb, setTotalGb] = useState("0");
+  const [limitIp, setLimitIp] = useState("0");
+  const [durationDays, setDurationDays] = useState("30");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<{ uuid: string; subId: string; inboundsAdded: number } | null>(null);
+
+  const presets = [
+    { label: "۱ ماه", days: 30 },
+    { label: "۲ ماه", days: 60 },
+    { label: "۳ ماه", days: 90 },
+    { label: "۶ ماه", days: 180 },
+    { label: "۱ سال", days: 365 },
+    { label: "نامحدود", days: 0 },
+  ];
+
+  async function submit() {
+    setError("");
+    setResult(null);
+    if (!email.trim()) {
+      setError("نام (Email) اکانت را وارد کنید.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await api.v2ray.addClient(panelId, {
+        email: email.trim(),
+        totalGb: Math.max(0, Number(totalGb) || 0),
+        limitIp: Math.max(0, Number(limitIp) || 0),
+        durationDays: Math.max(0, Number(durationDays) || 0),
+      });
+      setResult({ uuid: r.uuid, subId: r.subId, inboundsAdded: r.inboundsAdded });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ساخت اکانت ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm font-bold text-white">ساخت اکانت آزمایشی</p>
+        <button onClick={onClose} className="text-xs text-white/45 transition hover:text-white">بستن</button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <label className="block sm:col-span-3">
+          <span className="mb-1.5 block text-xs font-medium text-white/55">نام اکانت (Email)</span>
+          <input value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" placeholder="reza-1m" className={`${inputCls} text-left`} />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-white/55">حجم (گیگابایت) · ۰ = نامحدود</span>
+          <input value={totalGb} onChange={(e) => setTotalGb(e.target.value)} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-white/55">محدودیت IP · ۰ = نامحدود</span>
+          <input value={limitIp} onChange={(e) => setLimitIp(e.target.value)} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
+        </label>
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-white/55">مدت (روز) · خالی/۰ = نامحدود</span>
+          <input value={durationDays} onChange={(e) => setDurationDays(e.target.value)} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
+        </label>
+      </div>
+
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {presets.map((p) => (
+          <button
+            key={p.label}
+            onClick={() => setDurationDays(String(p.days))}
+            className={`rounded-lg border px-2.5 py-1 text-[11px] font-bold transition ${
+              Number(durationDays) === p.days ? "border-transparent bg-[#3a64f2]/20 text-[#8aa6ff]" : "border-white/10 text-white/55 hover:text-white"
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {error && <p className="mt-3 text-xs leading-6 text-rose-400">{error}</p>}
+
+      {result && (
+        <div className="mt-3 space-y-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/[0.06] p-3 text-xs text-emerald-300">
+          <p className="font-bold">اکانت روی {formatNumber(result.inboundsAdded)} اینباند ساخته شد.</p>
+          <p dir="ltr" className="break-all text-emerald-300/80">UUID: {result.uuid}</p>
+          <p dir="ltr" className="break-all text-emerald-300/80">subId: {result.subId}</p>
+        </div>
+      )}
+
+      <button
+        onClick={submit}
+        disabled={busy}
+        className="mt-3 flex h-10 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+      >
+        {busy && <Spinner />}
+        ساخت اکانت
+      </button>
+    </div>
   );
 }
 

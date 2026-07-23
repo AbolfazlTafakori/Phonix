@@ -15,6 +15,10 @@ public sealed record V2RayPanelDto(
 
 public sealed record V2RayPanelInput(V2RayProvider Provider, string Url, string Username, string Password);
 
+// Create an account on a stored panel. Email is the label the account is created under; the three limits
+// follow the panel's own "0 = unlimited" convention (0 GB, 0 IPs, 0 days = no expiry).
+public sealed record V2RayNewClientInput(string Email, long TotalGb, int LimitIp, int DurationDays);
+
 // A provider offered in the "add panel" wizard, and whether its connector is actually wired up yet.
 public sealed record V2RayProviderDto(V2RayProvider Provider, string Name, bool Available);
 
@@ -104,6 +108,26 @@ public class V2RayPanelController : ControllerBase
         _store.RecordV2RayPanelCheck(id, result.Ok, result.Error ?? "", result.InboundCount);
         return result.Ok
             ? Ok(new { ok = true, inboundCount = result.InboundCount })
+            : Problem(result.Error);
+    }
+
+    // Create an account on a stored panel: the shop logs in, then adds the client to every enabled inbound
+    // ("select all"), all sharing one UUID and one subscription id. This is the call order fulfilment will
+    // make; exposed to the owner now so the flow can be exercised before the purchase wiring is in place.
+    [HttpPost("panels/{id:int}/client")]
+    public async Task<IActionResult> AddClient(int id, V2RayNewClientInput input, CancellationToken ct)
+    {
+        var panel = _store.GetV2RayPanel(id);
+        if (panel is null) return NotFound();
+        if (string.IsNullOrWhiteSpace(input.Email)) return Problem("نام (Email) اکانت را وارد کنید.");
+
+        var result = await _connector.AddClientAsync(
+            panel.Provider, panel.Url, panel.Username, panel.Password,
+            new V2RayNewClient(input.Email.Trim(), input.TotalGb, input.LimitIp, input.DurationDays),
+            ct);
+
+        return result.Ok
+            ? Ok(new { ok = true, uuid = result.Uuid, subId = result.SubId, inboundsAdded = result.InboundsAdded })
             : Problem(result.Error);
     }
 

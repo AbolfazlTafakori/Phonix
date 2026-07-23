@@ -57,3 +57,42 @@ public class V2RayUrlTests
         Assert.Null(IV2RayPanelConnector.NormalizeUrl(input));
     }
 }
+
+public class V2RayClientMathTests
+{
+    [Fact]
+    public void Zero_traffic_stays_unlimited()
+    {
+        Assert.Equal(0, IV2RayPanelConnector.GbToBytes(0));
+        Assert.Equal(0, IV2RayPanelConnector.GbToBytes(-5));
+    }
+
+    [Fact]
+    public void Gb_converts_to_bytes()
+    {
+        Assert.Equal(1024L * 1024 * 1024, IV2RayPanelConnector.GbToBytes(1));
+        Assert.Equal(50L * 1024 * 1024 * 1024, IV2RayPanelConnector.GbToBytes(50));
+    }
+
+    [Fact]
+    public void Zero_or_negative_duration_never_expires()
+    {
+        Assert.Equal(0, IV2RayPanelConnector.ExpiryMsFromNow(0));
+        Assert.Equal(0, IV2RayPanelConnector.ExpiryMsFromNow(-1));
+    }
+
+    [Theory]
+    [InlineData(30)]   // one month
+    [InlineData(90)]   // three months
+    [InlineData(365)]  // one year
+    public void A_duration_becomes_a_future_expiry_of_that_many_days(int days)
+    {
+        var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var expiry = IV2RayPanelConnector.ExpiryMsFromNow(days);
+        var expected = DateTimeOffset.UtcNow.AddDays(days).ToUnixTimeMilliseconds();
+
+        Assert.True(expiry > now);
+        // Within a few seconds of "now + days" — the two AddDays calls run microseconds apart.
+        Assert.True(Math.Abs(expiry - expected) < 5000, $"expiry {expiry} not within 5s of {expected}");
+    }
+}
