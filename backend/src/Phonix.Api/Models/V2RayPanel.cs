@@ -35,8 +35,36 @@ public class V2RayPanel
     // When this is set the connector uses it and never logs in. Encrypted at rest like the password.
     public string ApiToken { get; set; } = "";
 
+    // ── Operator-facing identity ────────────────────────────────────────────────────────────────────
+    public string Name { get; set; } = "";     // e.g. "هلند تانل" — how staff refer to this server
+    public string Remark { get; set; } = "";   // e.g. "Netherlands" — the label carried into configs
+    public string Flag { get; set; } = "";     // country code, e.g. "NL", purely for the UI
+    public int Capacity { get; set; }          // max accounts this server should hold; 0 = unlimited
+
+    // ── Subscription server ─────────────────────────────────────────────────────────────────────────
+    // The panel's subscription service usually runs on its OWN domain/port/path, separate from the panel
+    // itself, and that is the URL the customer's client app is pointed at. It cannot be derived from the
+    // panel URL, so it is captured here; leaving the domain empty means "no subscription link".
+    public string SubDomain { get; set; } = "";
+    public int SubPort { get; set; }
+    public string SubPath { get; set; } = "sub";
+    public bool SubHttps { get; set; } = true;
+
     public bool Enabled { get; set; } = true;
     public string CreatedAtUtc { get; set; } = "";
+
+    // The customer-facing subscription URL for one subId, or empty when the subscription server isn't
+    // configured. Built exactly as the panel serves it: scheme://domain:port/path/subId.
+    public string SubscriptionUrl(string subId)
+    {
+        if (string.IsNullOrWhiteSpace(SubDomain) || string.IsNullOrWhiteSpace(subId)) return "";
+        var scheme = SubHttps ? "https" : "http";
+        var port = SubPort > 0 ? $":{SubPort}" : "";
+        var path = (SubPath ?? "").Trim('/');
+        return path.Length == 0
+            ? $"{scheme}://{SubDomain}{port}/{subId}"
+            : $"{scheme}://{SubDomain}{port}/{path}/{subId}";
+    }
 
     // Result of the most recent connection test, so the panel list can show a live status without re-probing
     // every server on every page load.

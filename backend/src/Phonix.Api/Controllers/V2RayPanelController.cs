@@ -12,11 +12,16 @@ namespace Phonix.Api.Controllers;
 public sealed record V2RayPanelDto(
     int Id, V2RayProvider Provider, string Url, string Username, bool HasPassword, bool Enabled,
     string CreatedAtUtc, string LastCheckAtUtc, bool LastCheckOk, string LastCheckError, int InboundCount,
-    bool HasApiToken);
+    bool HasApiToken,
+    string Name, string Remark, string Flag, int Capacity,
+    string SubDomain, int SubPort, string SubPath, bool SubHttps);
 
 // Either an API token (preferred — it skips the panel's CSRF/session handshake entirely) or a
 // username/password pair is enough to connect.
-public sealed record V2RayPanelInput(V2RayProvider Provider, string Url, string Username, string Password, string? ApiToken);
+public sealed record V2RayPanelInput(
+    V2RayProvider Provider, string Url, string Username, string Password, string? ApiToken,
+    string? Name, string? Remark, string? Flag, int Capacity,
+    string? SubDomain, int SubPort, string? SubPath, bool SubHttps);
 
 // Create an account on a stored panel. Email is the label the account is created under; the three limits
 // follow the panel's own "0 = unlimited" convention (0 GB, 0 IPs, 0 days = no expiry). InboundIds are the
@@ -49,7 +54,9 @@ public class V2RayPanelController : ControllerBase
     private static V2RayPanelDto ToDto(V2RayPanel p) => new(
         p.Id, p.Provider, p.Url, p.Username, !string.IsNullOrEmpty(p.Password), p.Enabled,
         p.CreatedAtUtc, p.LastCheckAtUtc, p.LastCheckOk, p.LastCheckError, p.InboundCount,
-        !string.IsNullOrEmpty(p.ApiToken));
+        !string.IsNullOrEmpty(p.ApiToken),
+        p.Name, p.Remark, p.Flag, p.Capacity,
+        p.SubDomain, p.SubPort, p.SubPath, p.SubHttps);
 
     private static V2RayCredentials Creds(V2RayPanel p) => new(p.Url, p.Username, p.Password, p.ApiToken);
 
@@ -98,6 +105,14 @@ public class V2RayPanelController : ControllerBase
             Username = (input.Username ?? "").Trim(),
             Password = input.Password ?? "",
             ApiToken = (input.ApiToken ?? "").Trim(),
+            Name = (input.Name ?? "").Trim(),
+            Remark = (input.Remark ?? "").Trim(),
+            Flag = (input.Flag ?? "").Trim(),
+            Capacity = Math.Max(0, input.Capacity),
+            SubDomain = (input.SubDomain ?? "").Trim(),
+            SubPort = input.SubPort,
+            SubPath = (input.SubPath ?? "sub").Trim().Trim('/'),
+            SubHttps = input.SubHttps,
             Enabled = true,
             LastCheckAtUtc = DateTime.UtcNow.ToString("O"),
             LastCheckOk = true,
@@ -149,7 +164,16 @@ public class V2RayPanelController : ControllerBase
             ct);
 
         return result.Ok
-            ? Ok(new { ok = true, uuid = result.Uuid, subId = result.SubId, inboundsAdded = result.InboundsAdded })
+            ? Ok(new
+            {
+                ok = true,
+                uuid = result.Uuid,
+                subId = result.SubId,
+                inboundsAdded = result.InboundsAdded,
+                // The link the customer's client app is actually pointed at (empty when the panel's
+                // subscription server hasn't been configured on this server).
+                subscriptionUrl = panel.SubscriptionUrl(result.SubId),
+            })
             : Problem(result.Error);
     }
 

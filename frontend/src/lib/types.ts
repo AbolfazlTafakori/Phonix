@@ -309,6 +309,14 @@ export type V2RayPanelInfo = {
   lastCheckError: string;
   inboundCount: number;
   hasApiToken: boolean;
+  name: string;
+  remark: string;
+  flag: string;
+  capacity: number;
+  subDomain: string;
+  subPort: number;
+  subPath: string;
+  subHttps: boolean;
 };
 
 export type V2RayPanelInput = {
@@ -318,6 +326,16 @@ export type V2RayPanelInput = {
   password: string;
   // Preferred: a panel API token skips the panel's CSRF/session handshake entirely.
   apiToken: string;
+  name: string;
+  remark: string;
+  flag: string;
+  capacity: number;
+  // The panel's subscription server runs on its own domain/port/path — this is the URL the customer's
+  // client app is pointed at, and it cannot be derived from the panel URL.
+  subDomain: string;
+  subPort: number;
+  subPath: string;
+  subHttps: boolean;
 };
 
 // One inbound / location as the panel reports it.

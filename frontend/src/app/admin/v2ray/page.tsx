@@ -283,7 +283,7 @@ function CreateClientForm({ panelId, onClose }: { panelId: number; onClose: () =
   const [durationDays, setDurationDays] = useState("30");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [result, setResult] = useState<{ uuid: string; subId: string; inboundsAdded: number } | null>(null);
+  const [result, setResult] = useState<{ uuid: string; subId: string; inboundsAdded: number; subscriptionUrl: string } | null>(null);
 
   // Which inbound(s) to create on — exactly what a plan will store. Loaded once when the form opens.
   const [inbounds, setInbounds] = useState<V2RayInbound[] | null>(null);
@@ -339,7 +339,7 @@ function CreateClientForm({ panelId, onClose }: { panelId: number; onClose: () =
         durationDays: Math.max(0, Number(durationDays) || 0),
         inboundIds: [...selected],
       });
-      setResult({ uuid: r.uuid, subId: r.subId, inboundsAdded: r.inboundsAdded });
+      setResult({ uuid: r.uuid, subId: r.subId, inboundsAdded: r.inboundsAdded, subscriptionUrl: r.subscriptionUrl });
     } catch (e) {
       setError(e instanceof Error ? e.message : "ساخت اکانت ناموفق بود");
     } finally {
@@ -433,6 +433,11 @@ function CreateClientForm({ panelId, onClose }: { panelId: number; onClose: () =
           <p className="font-bold">اکانت روی {formatNumber(result.inboundsAdded)} اینباند ساخته شد.</p>
           <p dir="ltr" className="break-all text-emerald-300/80">UUID: {result.uuid}</p>
           <p dir="ltr" className="break-all text-emerald-300/80">subId: {result.subId}</p>
+          {result.subscriptionUrl ? (
+            <p dir="ltr" className="break-all font-bold text-emerald-200">لینک اشتراک: {result.subscriptionUrl}</p>
+          ) : (
+            <p className="text-amber-300/80">لینک اشتراک ساخته نشد — دامنه Subscription این پنل تنظیم نشده است.</p>
+          )}
         </div>
       )}
 
@@ -472,6 +477,14 @@ function AddPanelWizard({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [apiToken, setApiToken] = useState("");
+  const [name, setName] = useState("");
+  const [remark, setRemark] = useState("");
+  const [flag, setFlag] = useState("");
+  const [capacity, setCapacity] = useState("0");
+  const [subDomain, setSubDomain] = useState("");
+  const [subPort, setSubPort] = useState("");
+  const [subPath, setSubPath] = useState("sub");
+  const [subHttps, setSubHttps] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
@@ -490,7 +503,7 @@ function AddPanelWizard({
     try {
       // The backend connects to the panel and reads its inbounds before it will save, so a successful add is
       // proof the connection actually works.
-      const panel = await api.v2ray.add({ provider, url: url.trim(), username: username.trim(), password, apiToken: apiToken.trim() });
+      const panel = await api.v2ray.add({ provider, url: url.trim(), username: username.trim(), password, apiToken: apiToken.trim(), name: name.trim(), remark: remark.trim(), flag: flag.trim(), capacity: Math.max(0, Number(capacity) || 0), subDomain: subDomain.trim(), subPort: Math.max(0, Number(subPort) || 0), subPath: subPath.trim(), subHttps });
       onAdded(panel);
     } catch (e) {
       setError(e instanceof Error ? e.message : "افزودن پنل ناموفق بود");
@@ -509,7 +522,7 @@ function AddPanelWizard({
     }
     setBusy(true);
     try {
-      const r = await api.v2ray.test({ provider, url: url.trim(), username: username.trim(), password, apiToken: apiToken.trim() });
+      const r = await api.v2ray.test({ provider, url: url.trim(), username: username.trim(), password, apiToken: apiToken.trim(), name: name.trim(), remark: remark.trim(), flag: flag.trim(), capacity: Math.max(0, Number(capacity) || 0), subDomain: subDomain.trim(), subPort: Math.max(0, Number(subPort) || 0), subPath: subPath.trim(), subHttps });
       setOkMsg(`اتصال موفق بود · ${formatNumber(r.inboundCount)} اینباند پیدا شد. حالا می‌توانید ذخیره کنید.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "اتصال ناموفق بود");
@@ -627,6 +640,52 @@ function AddPanelWizard({
                 className={`${inputCls} text-left`}
               />
             </label>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-white/55">نام سرور</span>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثلاً هلند تانل" className={inputCls} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-white/55">ریمارک (روی کانفیگ)</span>
+              <input value={remark} onChange={(e) => setRemark(e.target.value)} dir="ltr" placeholder="Netherlands" className={`${inputCls} text-left`} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-white/55">پرچم / کد کشور</span>
+              <input value={flag} onChange={(e) => setFlag(e.target.value)} dir="ltr" placeholder="NL" className={`${inputCls} text-left`} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-white/55">ظرفیت (تعداد اکانت) · ۰=نامحدود</span>
+              <input value={capacity} onChange={(e) => setCapacity(e.target.value)} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
+            </label>
+          </div>
+
+          {/* The subscription server is separate from the panel; this is the link the customer's app uses. */}
+          <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
+            <p className="mb-1 text-sm font-bold text-white">سرور Subscription</p>
+            <p className="mb-3 text-[11px] leading-5 text-white/45">
+              لینکی که به مشتری داده می‌شود از این آدرس ساخته می‌شود و معمولاً دامنه/پورت جدا از خود پنل دارد.
+              اگر خالی بماند، لینک اشتراک تولید نمی‌شود.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 block text-xs font-medium text-white/55">دامنه Subscription</span>
+                <input value={subDomain} onChange={(e) => setSubDomain(e.target.value)} dir="ltr" placeholder="sub.example.com" className={`${inputCls} text-left`} />
+              </label>
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-medium text-white/55">پورت</span>
+                <input value={subPort} onChange={(e) => setSubPort(e.target.value)} dir="ltr" inputMode="numeric" placeholder="65531" className={`${inputCls} text-left`} />
+              </label>
+              <label className="block sm:col-span-2">
+                <span className="mb-1.5 block text-xs font-medium text-white/55">مسیر (بدون /)</span>
+                <input value={subPath} onChange={(e) => setSubPath(e.target.value)} dir="ltr" placeholder="sub" className={`${inputCls} text-left`} />
+              </label>
+              <label className="flex items-center justify-between rounded-xl border border-white/8 px-3">
+                <span className="text-xs text-white/70">HTTPS</span>
+                <input type="checkbox" checked={subHttps} onChange={(e) => setSubHttps(e.target.checked)} className="h-4 w-4 accent-[#3a64f2]" />
+              </label>
+            </div>
           </div>
 
           <p className="rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 text-[11px] leading-6 text-white/45">

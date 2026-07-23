@@ -571,7 +571,7 @@ export const api = {
     testStored: (id: number) => request<{ ok: boolean; inboundCount: number }>(`/v2ray/panels/${id}/test`, { method: "POST" }),
     inbounds: (id: number) => request<V2RayInbound[]>(`/v2ray/panels/${id}/inbounds`),
     addClient: (id: number, body: { email: string; totalGb: number; limitIp: number; durationDays: number; inboundIds: number[] }) =>
-      request<{ ok: boolean; uuid: string; subId: string; inboundsAdded: number }>(`/v2ray/panels/${id}/client`, { method: "POST", body: json(body) }),
+      request<{ ok: boolean; uuid: string; subId: string; inboundsAdded: number; subscriptionUrl: string }>(`/v2ray/panels/${id}/client`, { method: "POST", body: json(body) }),
     remove: (id: number) => request<{ ok: boolean }>(`/v2ray/panels/${id}`, { method: "DELETE" }),
 
     // Separate V2Ray sales catalogue: categories and the plans under them.
