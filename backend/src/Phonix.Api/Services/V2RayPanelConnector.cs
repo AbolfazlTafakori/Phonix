@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using Phonix.Api.Models;
@@ -11,23 +12,20 @@ public sealed record V2RayTestResult(bool Ok, string? Error = null, int InboundC
     public static V2RayTestResult Fail(string error) => new(false, error);
 }
 
-// A client to create, in the shop's own terms — the connector translates these into the panel's client
-// object. Zero means "unlimited" everywhere, matching the panel's own convention: 0 traffic, 0 IPs, and 0
-// days (a blank expiry) all mean no limit.
+// A client to create, in the shop's own terms. Zero means "unlimited" everywhere, matching the panel: 0
+// traffic, 0 IPs and 0 days (a blank expiry) all mean no limit.
 public sealed record V2RayNewClient(
     string Email,        // the unique label the account is created under (the name the customer chose)
     long TotalGb,        // 0 = unlimited
     int LimitIp,         // 0 = unlimited
     int DurationDays,    // 0 = never expires; otherwise a fixed calendar expiry this many days out
-    string Flow = "");   // usually left empty; set only for inbounds that require an XTLS flow
+    string Flow = "");   // usually empty; set only for inbounds that require an XTLS flow
 
 public sealed record V2RayClientResult(bool Ok, string? Error = null, string Uuid = "", string SubId = "", int InboundsAdded = 0)
 {
     public static V2RayClientResult Fail(string error) => new(false, error);
 }
 
-// One inbound (a "location"/entry point) as the panel reports it, reduced to what an operator needs to
-// recognize and later map a service to.
 public sealed record V2RayInbound(int Id, string Remark, string Protocol, int Port, bool Enable, int ClientCount);
 
 public sealed record V2RayInboundsResult(bool Ok, string? Error = null, IReadOnlyList<V2RayInbound>? Inbounds = null)
@@ -35,24 +33,27 @@ public sealed record V2RayInboundsResult(bool Ok, string? Error = null, IReadOnl
     public static V2RayInboundsResult Fail(string error) => new(false, error);
 }
 
-// Talks to a V2Ray management panel on the shop's behalf: test connectivity, and create the account a
-// customer bought. Everything is written against the Sanaei 3x-ui fork; other providers return a clear
-// "not supported yet" so the store can list them as coming-soon without pretending they work.
+// Talks to a V2Ray management panel on the shop's behalf.
+//
+// Written against the Sanaei 3x-ui fork, v3.4.x. Two things about that version drive this design and are
+// easy to get wrong:
+//
+//   1. CSRF. Every non-safe request (POST/PUT/DELETE) must carry an X-CSRF-Token obtained from
+//      GET /csrf-token, alongside X-Requested-With: XMLHttpRequest. Without it the panel answers 403
+//      BEFORE it ever looks at the credentials — which reads exactly like a wrong password but isn't.
+//   2. The client API was reshaped. Older forks added a client per inbound via
+//      /panel/api/inbounds/addClient with a stringified `settings` blob. 3.4.x has a dedicated
+//      /panel/api/clients/add that takes the client once plus an `inboundIds` ARRAY — so one call places the
+//      account on exactly the locations a plan sells.
 public interface IV2RayPanelConnector
 {
     Task<V2RayTestResult> TestAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default);
 
-    // The panel's inbounds/locations — real data pulled after a real login, so it doubles as proof the
-    // connection works and as the list a service is later mapped onto.
     Task<V2RayInboundsResult> ListInboundsAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default);
 
-    // Creates the client on the SPECIFIC inbounds a plan is mapped to — the account lands only on the
-    // location(s) that plan sells, matching the order exactly. All share one UUID and one subscription id so
-    // a single sub link covers every selected location. Passing no ids falls back to every enabled inbound
-    // (the old "select all"), kept only for a quick manual test where no mapping exists yet.
+    // Creates the account on exactly the given inbounds in a single call.
     Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, string url, string username, string password, V2RayNewClient client, IReadOnlyList<int> inboundIds, CancellationToken ct = default);
 
-    // Parses and normalizes an entered panel URL, or returns null when it is not a usable http(s) URL.
     static string? NormalizeUrl(string? raw)
     {
         var text = (raw ?? "").Trim();
@@ -63,8 +64,8 @@ public interface IV2RayPanelConnector
         return text.TrimEnd('/');
     }
 
-    // A month is 30 days in this shop and a year is 365 (see the plan rules), so a duration in days maps
-    // straight to a fixed expiry timestamp. 0 days = no expiry (0, the panel's "unlimited").
+    // A month is 30 days in this shop and a year 365, so a duration in days maps straight to a fixed expiry.
+    // 0 days = no expiry (0, the panel's "unlimited").
     static long ExpiryMsFromNow(int durationDays) =>
         durationDays <= 0 ? 0 : DateTimeOffset.UtcNow.AddDays(durationDays).ToUnixTimeMilliseconds();
 
@@ -77,10 +78,13 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
     private readonly ILogger<V2RayPanelConnector> _logger;
     public V2RayPanelConnector(ILogger<V2RayPanelConnector> logger) => _logger = logger;
 
-    // A fresh cookie jar per attempt; certificate validation relaxed because panels are commonly served over
-    // a self-signed cert or a bare IP and this is the owner reaching their OWN server on a URL they typed.
-    private static HttpClient NewClient() =>
-        new(new HttpClientHandler
+    // A fresh cookie jar per attempt. Certificate validation is relaxed because panels are commonly served
+    // over a self-signed cert or a bare IP, and this is the owner reaching their OWN server on a URL they
+    // typed. The headers mirror what the panel's own frontend sends — a real User-Agent as well, since a
+    // proxy or WAF in front of the panel will often reject a request that has none.
+    private static HttpClient NewClient()
+    {
+        var client = new HttpClient(new HttpClientHandler
         {
             CookieContainer = new CookieContainer(),
             UseCookies = true,
@@ -89,11 +93,19 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         })
         { Timeout = TimeSpan.FromSeconds(20) };
 
+        client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("Phonix/1.0 (+panel-connector)");
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        return client;
+    }
+
+    // One authenticated session: the logged-in HttpClient plus the CSRF token its POSTs must carry.
+    private sealed record Session(HttpClient Client, string BaseUrl, string Csrf);
+
     public async Task<V2RayTestResult> TestAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default)
     {
         if (provider != V2RayProvider.Sanaei)
             return V2RayTestResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
-
         var baseUrl = IV2RayPanelConnector.NormalizeUrl(url);
         if (baseUrl is null)
             return V2RayTestResult.Fail("آدرس پنل معتبر نیست. نمونه: https://sub.example.com:8080/webpath");
@@ -103,115 +115,17 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         using var client = NewClient();
         try
         {
-            var login = await LoginAsync(client, baseUrl, username, password, ct);
-            if (login is not null) return V2RayTestResult.Fail(login);
+            var (session, error) = await OpenSessionAsync(client, baseUrl, username, password, ct);
+            if (error is not null) return V2RayTestResult.Fail(error);
 
-            var (ok, body, status) = await GetInboundsAsync(client, baseUrl, ct);
-            if (!ok)
-                return V2RayTestResult.Fail($"ورود موفق بود اما خواندن اینباندها ممکن نشد (کد {status}).");
+            var (ok, body, status) = await GetInboundsAsync(session!, ct);
+            if (!ok) return V2RayTestResult.Fail($"ورود موفق بود اما خواندن اینباندها ممکن نشد (کد {status}).");
 
-            return V2RayTestResult.Succeeded(CountInbounds(body));
+            return V2RayTestResult.Succeeded(ReadInbounds(body).Count);
         }
         catch (Exception ex)
         {
             return V2RayTestResult.Fail(FriendlyError(ex, baseUrl, ct));
-        }
-    }
-
-    public async Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, string url, string username, string password, V2RayNewClient req, IReadOnlyList<int> inboundIds, CancellationToken ct = default)
-    {
-        if (provider != V2RayProvider.Sanaei)
-            return V2RayClientResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
-
-        var baseUrl = IV2RayPanelConnector.NormalizeUrl(url);
-        if (baseUrl is null) return V2RayClientResult.Fail("آدرس پنل معتبر نیست.");
-        var email = (req.Email ?? "").Trim();
-        if (email.Length == 0) return V2RayClientResult.Fail("نام (Email) اکانت را وارد کنید.");
-
-        using var client = NewClient();
-        try
-        {
-            var login = await LoginAsync(client, baseUrl, username, password, ct);
-            if (login is not null) return V2RayClientResult.Fail(login);
-
-            var (ok, body, status) = await GetInboundsAsync(client, baseUrl, ct);
-            if (!ok) return V2RayClientResult.Fail($"خواندن اینباندها ممکن نشد (کد {status}).");
-
-            var enabled = ReadEnabledInboundIds(body);
-            if (enabled.Count == 0)
-                return V2RayClientResult.Fail("هیچ اینباند فعالی روی پنل پیدا نشد.");
-
-            // The account is created ONLY on the inbounds the plan selected. Requested ids are intersected
-            // with what the panel actually has enabled, so a stale mapping (an inbound deleted on the panel)
-            // fails loudly rather than silently landing the client somewhere it wasn't sold on.
-            List<int> inbounds;
-            if (inboundIds is { Count: > 0 })
-            {
-                inbounds = inboundIds.Where(enabled.Contains).Distinct().ToList();
-                if (inbounds.Count == 0)
-                    return V2RayClientResult.Fail("اینباندهای انتخاب‌شده روی پنل پیدا نشدند یا غیرفعال‌اند.");
-            }
-            else
-            {
-                inbounds = enabled; // no mapping given → fall back to all enabled (manual test only)
-            }
-
-            // One identity shared across every inbound: the same UUID and the same subscription id, so a
-            // single sub link returned to the customer covers all their locations.
-            var uuid = Guid.NewGuid().ToString();
-            var subId = RandomToken(16);
-            var expiry = IV2RayPanelConnector.ExpiryMsFromNow(req.DurationDays);
-            var totalBytes = IV2RayPanelConnector.GbToBytes(req.TotalGb);
-
-            var added = 0;
-            string? lastError = null;
-            foreach (var inboundId in inbounds)
-            {
-                var settings = JsonSerializer.Serialize(new
-                {
-                    clients = new[]
-                    {
-                        // Exact panel field names (note totalGB's capital GB), so a Dictionary rather than a
-                        // camelCased anonymous type.
-                        new Dictionary<string, object?>
-                        {
-                            ["id"] = uuid,
-                            ["email"] = email,
-                            ["enable"] = true,
-                            ["totalGB"] = totalBytes,
-                            ["expiryTime"] = expiry,
-                            ["limitIp"] = Math.Max(0, req.LimitIp),
-                            ["flow"] = req.Flow ?? "",
-                            ["subId"] = subId,
-                            ["tgId"] = "",
-                            ["reset"] = 0,
-                        },
-                    },
-                });
-                var payload = JsonSerializer.Serialize(new { id = inboundId, settings });
-
-                using var resp = await client.PostAsync($"{baseUrl}/panel/api/inbounds/addClient",
-                    new StringContent(payload, Encoding.UTF8, "application/json"), ct);
-                var respBody = await resp.Content.ReadAsStringAsync(ct);
-
-                // Parsed unconditionally so `msg` is always assigned (the panel returns its reason in it).
-                TryReadSuccess(respBody, out var s, out var msg);
-                if (resp.IsSuccessStatusCode && s)
-                    added++;
-                else
-                    // The most useful failure is a duplicate email — the panel rejects it, and the caller turns
-                    // that into "ask the customer for a different name".
-                    lastError = string.IsNullOrWhiteSpace(msg) ? $"افزودن روی اینباند {inboundId} ناموفق بود." : msg;
-            }
-
-            if (added == 0)
-                return V2RayClientResult.Fail(lastError ?? "ساخت اکانت روی هیچ اینباندی موفق نبود.");
-
-            return new V2RayClientResult(true, null, uuid, subId, added);
-        }
-        catch (Exception ex)
-        {
-            return V2RayClientResult.Fail(FriendlyError(ex, baseUrl, ct));
         }
     }
 
@@ -225,10 +139,10 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         using var client = NewClient();
         try
         {
-            var login = await LoginAsync(client, baseUrl, username, password, ct);
-            if (login is not null) return V2RayInboundsResult.Fail(login);
+            var (session, error) = await OpenSessionAsync(client, baseUrl, username, password, ct);
+            if (error is not null) return V2RayInboundsResult.Fail(error);
 
-            var (ok, body, status) = await GetInboundsAsync(client, baseUrl, ct);
+            var (ok, body, status) = await GetInboundsAsync(session!, ct);
             if (!ok) return V2RayInboundsResult.Fail($"خواندن اینباندها ممکن نشد (کد {status}).");
 
             return new V2RayInboundsResult(true, null, ReadInbounds(body));
@@ -239,29 +153,155 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         }
     }
 
-    // ── Panel plumbing ──────────────────────────────────────────────────────────────────────────────
-
-    // Returns null on a successful login, or a ready-to-show Persian error otherwise.
-    private static async Task<string?> LoginAsync(HttpClient client, string baseUrl, string username, string password, CancellationToken ct)
+    public async Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, string url, string username, string password, V2RayNewClient req, IReadOnlyList<int> inboundIds, CancellationToken ct = default)
     {
-        using var resp = await client.PostAsync($"{baseUrl}/login",
-            new FormUrlEncodedContent(new Dictionary<string, string> { ["username"] = username, ["password"] = password }), ct);
+        if (provider != V2RayProvider.Sanaei)
+            return V2RayClientResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
+        var baseUrl = IV2RayPanelConnector.NormalizeUrl(url);
+        if (baseUrl is null) return V2RayClientResult.Fail("آدرس پنل معتبر نیست.");
+        var email = (req.Email ?? "").Trim();
+        if (email.Length == 0) return V2RayClientResult.Fail("نام (Email) اکانت را وارد کنید.");
+
+        using var client = NewClient();
+        try
+        {
+            var (session, error) = await OpenSessionAsync(client, baseUrl, username, password, ct);
+            if (error is not null) return V2RayClientResult.Fail(error);
+
+            var (ok, body, status) = await GetInboundsAsync(session!, ct);
+            if (!ok) return V2RayClientResult.Fail($"خواندن اینباندها ممکن نشد (کد {status}).");
+
+            var enabled = ReadInbounds(body).Where(i => i.Enable).Select(i => i.Id).ToList();
+            if (enabled.Count == 0) return V2RayClientResult.Fail("هیچ اینباند فعالی روی پنل پیدا نشد.");
+
+            // Only the inbounds the plan sells. Intersected with what the panel actually has enabled, so a
+            // stale mapping (an inbound deleted on the panel) fails loudly rather than silently placing the
+            // account somewhere it wasn't sold on.
+            List<int> targets;
+            if (inboundIds is { Count: > 0 })
+            {
+                targets = inboundIds.Where(enabled.Contains).Distinct().ToList();
+                if (targets.Count == 0)
+                    return V2RayClientResult.Fail("اینباندهای انتخاب‌شده روی پنل پیدا نشدند یا غیرفعال‌اند.");
+            }
+            else
+            {
+                targets = enabled;
+            }
+
+            var uuid = Guid.NewGuid().ToString();
+            var subId = RandomToken(16);
+
+            // 3.4.x takes the client once plus the inbound ids — one call for every location.
+            var payload = JsonSerializer.Serialize(new
+            {
+                client = new Dictionary<string, object?>
+                {
+                    // Exact panel field names (note totalGB's capital GB), hence a dictionary rather than a
+                    // camelCased anonymous type.
+                    ["id"] = uuid,
+                    ["email"] = email,
+                    ["enable"] = true,
+                    ["totalGB"] = IV2RayPanelConnector.GbToBytes(req.TotalGb),
+                    ["expiryTime"] = IV2RayPanelConnector.ExpiryMsFromNow(req.DurationDays),
+                    ["limitIp"] = Math.Max(0, req.LimitIp),
+                    ["flow"] = req.Flow ?? "",
+                    ["subId"] = subId,
+                    ["tgId"] = "",
+                    ["comment"] = "",
+                },
+                inboundIds = targets,
+            });
+
+            using var resp = await PostAsync(session!, "/panel/api/clients/add",
+                () => new StringContent(payload, Encoding.UTF8, "application/json"), ct);
+            var respBody = await resp.Content.ReadAsStringAsync(ct);
+
+            TryReadSuccess(respBody, out var success, out var msg);
+            if (!resp.IsSuccessStatusCode || !success)
+                // The most useful failure is a duplicate email — the panel rejects it, and the caller turns
+                // that into "ask the customer for a different name".
+                return V2RayClientResult.Fail(string.IsNullOrWhiteSpace(msg)
+                    ? $"ساخت اکانت ناموفق بود (کد {(int)resp.StatusCode})."
+                    : msg);
+
+            return new V2RayClientResult(true, null, uuid, subId, targets.Count);
+        }
+        catch (Exception ex)
+        {
+            return V2RayClientResult.Fail(FriendlyError(ex, baseUrl, ct));
+        }
+    }
+
+    // ── Session: CSRF + login ───────────────────────────────────────────────────────────────────────
+
+    // Fetches a CSRF token, then signs in. Returns the live session, or a ready-to-show Persian error.
+    private async Task<(Session? session, string? error)> OpenSessionAsync(HttpClient client, string baseUrl, string username, string password, CancellationToken ct)
+    {
+        var csrf = await FetchCsrfAsync(client, baseUrl, ct);
+        var session = new Session(client, baseUrl, csrf ?? "");
+
+        using var resp = await PostAsync(session, "/login", () => new FormUrlEncodedContent(
+            new Dictionary<string, string> { ["username"] = username, ["password"] = password }), ct);
 
         if (resp.StatusCode == HttpStatusCode.NotFound)
-            return "مسیر ورود پنل پیدا نشد. آدرس و وب‌پس پنل را بررسی کنید.";
+            return (null, "مسیر ورود پنل پیدا نشد. آدرس و وب‌پس پنل را بررسی کنید.");
+        if (resp.StatusCode == HttpStatusCode.Forbidden)
+            return (null, "پنل درخواست ورود را رد کرد (۴۰۳). اگر پنل پشت کلادفلر/پراکسی است یا محدودیت IP دارد، دسترسی سرور را باز کنید.");
+
         var body = await resp.Content.ReadAsStringAsync(ct);
         if (!resp.IsSuccessStatusCode)
-            return $"پنل به درخواست ورود پاسخ نداد (کد {(int)resp.StatusCode}).";
+            return (null, $"پنل به درخواست ورود پاسخ نداد (کد {(int)resp.StatusCode}).");
         if (!TryReadSuccess(body, out var ok, out var msg))
-            return "پاسخ پنل قابل‌شناسایی نبود. آدرس پنل را بررسی کنید.";
+            return (null, "پاسخ پنل قابل‌شناسایی نبود. آدرس پنل را بررسی کنید.");
         if (!ok)
-            return string.IsNullOrWhiteSpace(msg) ? "نام کاربری یا گذرواژه پنل پذیرفته نشد." : msg;
+            return (null, string.IsNullOrWhiteSpace(msg) ? "نام کاربری یا گذرواژه پنل پذیرفته نشد." : msg);
+
+        // The login response rotates the token in some builds; refresh so later POSTs use a current one.
+        var after = await FetchCsrfAsync(client, baseUrl, ct);
+        return (session with { Csrf = after ?? session.Csrf }, null);
+    }
+
+    private static async Task<string?> FetchCsrfAsync(HttpClient client, string baseUrl, CancellationToken ct)
+    {
+        try
+        {
+            using var resp = await client.GetAsync($"{baseUrl}/csrf-token", ct);
+            if (!resp.IsSuccessStatusCode) return null;
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            using var doc = JsonDocument.Parse(body);
+            if (doc.RootElement.TryGetProperty("obj", out var obj) && obj.ValueKind == JsonValueKind.String)
+                return obj.GetString();
+        }
+        catch (Exception)
+        {
+            // An older build without the endpoint simply has no token; the POST then succeeds without one.
+        }
         return null;
     }
 
-    private static async Task<(bool ok, string body, int status)> GetInboundsAsync(HttpClient client, string baseUrl, CancellationToken ct)
+    // POST with the CSRF header, retrying ONCE with a freshly fetched token on a 403 — the same recovery the
+    // panel's own frontend performs when its token has expired.
+    private static async Task<HttpResponseMessage> PostAsync(Session session, string path, Func<HttpContent> content, CancellationToken ct)
     {
-        using var resp = await client.GetAsync($"{baseUrl}/panel/api/inbounds/list", ct);
+        var resp = await SendAsync(session, path, content(), session.Csrf, ct);
+        if (resp.StatusCode != HttpStatusCode.Forbidden) return resp;
+
+        resp.Dispose();
+        var fresh = await FetchCsrfAsync(session.Client, session.BaseUrl, ct);
+        return await SendAsync(session, path, content(), fresh ?? session.Csrf, ct);
+    }
+
+    private static Task<HttpResponseMessage> SendAsync(Session session, string path, HttpContent content, string csrf, CancellationToken ct)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, $"{session.BaseUrl}{path}") { Content = content };
+        if (!string.IsNullOrEmpty(csrf)) request.Headers.TryAddWithoutValidation("X-CSRF-Token", csrf);
+        return session.Client.SendAsync(request, ct);
+    }
+
+    private static async Task<(bool ok, string body, int status)> GetInboundsAsync(Session session, CancellationToken ct)
+    {
+        using var resp = await session.Client.GetAsync($"{session.BaseUrl}/panel/api/inbounds/list", ct);
         var body = await resp.Content.ReadAsStringAsync(ct);
         return (resp.IsSuccessStatusCode, body, (int)resp.StatusCode);
     }
@@ -281,8 +321,8 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
 
     // ── Response parsing ────────────────────────────────────────────────────────────────────────────
 
-    // 3x-ui wraps every reply in {"success":bool,"msg":string,"obj":…}. Parse defensively: an unrecognized
-    // shape is reported as failure, never mistaken for success.
+    // The panel wraps every reply in {"success":bool,"msg":string,"obj":…}. Parse defensively: an
+    // unrecognized shape is reported as failure, never mistaken for success.
     private static bool TryReadSuccess(string body, out bool success, out string msg)
     {
         success = false;
@@ -304,41 +344,6 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         }
     }
 
-    private static int CountInbounds(string body)
-    {
-        try
-        {
-            using var doc = JsonDocument.Parse(body);
-            if (doc.RootElement.TryGetProperty("obj", out var obj) && obj.ValueKind == JsonValueKind.Array)
-                return obj.GetArrayLength();
-        }
-        catch (JsonException) { /* fall through */ }
-        return 0;
-    }
-
-    // The ids of every inbound whose "enable" is true — the ones a "select all" would target.
-    private static List<int> ReadEnabledInboundIds(string body)
-    {
-        var ids = new List<int>();
-        try
-        {
-            using var doc = JsonDocument.Parse(body);
-            if (!doc.RootElement.TryGetProperty("obj", out var obj) || obj.ValueKind != JsonValueKind.Array)
-                return ids;
-            foreach (var el in obj.EnumerateArray())
-            {
-                var enabled = !el.TryGetProperty("enable", out var en) || en.ValueKind != JsonValueKind.False;
-                if (enabled && el.TryGetProperty("id", out var id) && id.TryGetInt32(out var n))
-                    ids.Add(n);
-            }
-        }
-        catch (JsonException) { /* return what we have */ }
-        return ids;
-    }
-
-    // Full inbound summaries for the locations view. Client count is read from the inbound's own settings
-    // (a JSON string holding a clients/peers array), best-effort — a shape we can't read reports 0 rather
-    // than failing the whole list.
     private static List<V2RayInbound> ReadInbounds(string body)
     {
         var list = new List<V2RayInbound>();
@@ -355,8 +360,7 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
                 var protocol = el.TryGetProperty("protocol", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() ?? "" : "";
                 var port = el.TryGetProperty("port", out var po) && po.TryGetInt32(out var n) ? n : 0;
                 var enable = !el.TryGetProperty("enable", out var en) || en.ValueKind != JsonValueKind.False;
-                var clientCount = CountClients(el);
-                list.Add(new V2RayInbound(id, remark, protocol, port, enable, clientCount));
+                list.Add(new V2RayInbound(id, remark, protocol, port, enable, CountClients(el)));
             }
         }
         catch (JsonException) { /* return what we have */ }
