@@ -43,6 +43,7 @@ import type {
   V2RayProviderInfo,
   V2RayPanelInfo,
   V2RayPanelInput,
+  V2RayInbound,
   TelegramSettings,
   Transaction,
   TxStatus,
@@ -564,6 +565,7 @@ export const api = {
     test: (body: V2RayPanelInput) => request<{ ok: boolean; inboundCount: number }>("/v2ray/test", { method: "POST", body: json(body) }),
     add: (body: V2RayPanelInput) => request<V2RayPanelInfo>("/v2ray/panels", { method: "POST", body: json(body) }),
     testStored: (id: number) => request<{ ok: boolean; inboundCount: number }>(`/v2ray/panels/${id}/test`, { method: "POST" }),
+    inbounds: (id: number) => request<V2RayInbound[]>(`/v2ray/panels/${id}/inbounds`),
     addClient: (id: number, body: { email: string; totalGb: number; limitIp: number; durationDays: number }) =>
       request<{ ok: boolean; uuid: string; subId: string; inboundsAdded: number }>(`/v2ray/panels/${id}/client`, { method: "POST", body: json(body) }),
     remove: (id: number) => request<{ ok: boolean }>(`/v2ray/panels/${id}`, { method: "DELETE" }),

@@ -26,12 +26,25 @@ public sealed record V2RayClientResult(bool Ok, string? Error = null, string Uui
     public static V2RayClientResult Fail(string error) => new(false, error);
 }
 
+// One inbound (a "location"/entry point) as the panel reports it, reduced to what an operator needs to
+// recognize and later map a service to.
+public sealed record V2RayInbound(int Id, string Remark, string Protocol, int Port, bool Enable, int ClientCount);
+
+public sealed record V2RayInboundsResult(bool Ok, string? Error = null, IReadOnlyList<V2RayInbound>? Inbounds = null)
+{
+    public static V2RayInboundsResult Fail(string error) => new(false, error);
+}
+
 // Talks to a V2Ray management panel on the shop's behalf: test connectivity, and create the account a
 // customer bought. Everything is written against the Sanaei 3x-ui fork; other providers return a clear
 // "not supported yet" so the store can list them as coming-soon without pretending they work.
 public interface IV2RayPanelConnector
 {
     Task<V2RayTestResult> TestAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default);
+
+    // The panel's inbounds/locations — real data pulled after a real login, so it doubles as proof the
+    // connection works and as the list a service is later mapped onto.
+    Task<V2RayInboundsResult> ListInboundsAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default);
 
     // Creates the client on EVERY enabled inbound of the panel (the "select all" the operator would do by
     // hand), all sharing one UUID and one subscription id so a single sub link covers every location.
@@ -185,6 +198,30 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         }
     }
 
+    public async Task<V2RayInboundsResult> ListInboundsAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default)
+    {
+        if (provider != V2RayProvider.Sanaei)
+            return V2RayInboundsResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
+        var baseUrl = IV2RayPanelConnector.NormalizeUrl(url);
+        if (baseUrl is null) return V2RayInboundsResult.Fail("آدرس پنل معتبر نیست.");
+
+        using var client = NewClient();
+        try
+        {
+            var login = await LoginAsync(client, baseUrl, username, password, ct);
+            if (login is not null) return V2RayInboundsResult.Fail(login);
+
+            var (ok, body, status) = await GetInboundsAsync(client, baseUrl, ct);
+            if (!ok) return V2RayInboundsResult.Fail($"خواندن اینباندها ممکن نشد (کد {status}).");
+
+            return new V2RayInboundsResult(true, null, ReadInbounds(body));
+        }
+        catch (Exception ex)
+        {
+            return V2RayInboundsResult.Fail(FriendlyError(ex, baseUrl, ct));
+        }
+    }
+
     // ── Panel plumbing ──────────────────────────────────────────────────────────────────────────────
 
     // Returns null on a successful login, or a ready-to-show Persian error otherwise.
@@ -280,6 +317,47 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         }
         catch (JsonException) { /* return what we have */ }
         return ids;
+    }
+
+    // Full inbound summaries for the locations view. Client count is read from the inbound's own settings
+    // (a JSON string holding a clients/peers array), best-effort — a shape we can't read reports 0 rather
+    // than failing the whole list.
+    private static List<V2RayInbound> ReadInbounds(string body)
+    {
+        var list = new List<V2RayInbound>();
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("obj", out var obj) || obj.ValueKind != JsonValueKind.Array)
+                return list;
+
+            foreach (var el in obj.EnumerateArray())
+            {
+                if (!el.TryGetProperty("id", out var idEl) || !idEl.TryGetInt32(out var id)) continue;
+                var remark = el.TryGetProperty("remark", out var r) && r.ValueKind == JsonValueKind.String ? r.GetString() ?? "" : "";
+                var protocol = el.TryGetProperty("protocol", out var p) && p.ValueKind == JsonValueKind.String ? p.GetString() ?? "" : "";
+                var port = el.TryGetProperty("port", out var po) && po.TryGetInt32(out var n) ? n : 0;
+                var enable = !el.TryGetProperty("enable", out var en) || en.ValueKind != JsonValueKind.False;
+                var clientCount = CountClients(el);
+                list.Add(new V2RayInbound(id, remark, protocol, port, enable, clientCount));
+            }
+        }
+        catch (JsonException) { /* return what we have */ }
+        return list;
+    }
+
+    private static int CountClients(JsonElement inbound)
+    {
+        if (!inbound.TryGetProperty("settings", out var s) || s.ValueKind != JsonValueKind.String) return 0;
+        try
+        {
+            using var settings = JsonDocument.Parse(s.GetString() ?? "{}");
+            foreach (var key in new[] { "clients", "peers" })
+                if (settings.RootElement.TryGetProperty(key, out var arr) && arr.ValueKind == JsonValueKind.Array)
+                    return arr.GetArrayLength();
+        }
+        catch (JsonException) { /* ignore */ }
+        return 0;
     }
 
     private static string RandomToken(int length)

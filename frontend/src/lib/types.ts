@@ -317,6 +317,16 @@ export type V2RayPanelInput = {
   password: string;
 };
 
+// One inbound / location as the panel reports it.
+export type V2RayInbound = {
+  id: number;
+  remark: string;
+  protocol: string;
+  port: number;
+  enable: boolean;
+  clientCount: number;
+};
+
 export type LoginResult = {
   requiresTwoFactor: boolean;
   challengeToken: string | null;

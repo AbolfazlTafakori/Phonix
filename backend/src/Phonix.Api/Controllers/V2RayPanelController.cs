@@ -97,6 +97,18 @@ public class V2RayPanelController : ControllerBase
         return Ok(ToDto(saved));
     }
 
+    // The inbounds/locations of a stored panel — a live read after a real login, so it both proves the
+    // connection and gives the operator the list a service will later be mapped onto.
+    [HttpGet("panels/{id:int}/inbounds")]
+    public async Task<IActionResult> Inbounds(int id, CancellationToken ct)
+    {
+        var panel = _store.GetV2RayPanel(id);
+        if (panel is null) return NotFound();
+
+        var result = await _connector.ListInboundsAsync(panel.Provider, panel.Url, panel.Username, panel.Password, ct);
+        return result.Ok ? Ok(result.Inbounds) : Problem(result.Error);
+    }
+
     // Re-test a stored panel and record the outcome so the list shows a fresh status.
     [HttpPost("panels/{id:int}/test")]
     public async Task<IActionResult> TestStored(int id, CancellationToken ct)

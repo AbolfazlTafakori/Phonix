@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import type { V2RayPanelInfo, V2RayProvider, V2RayProviderInfo } from "@/lib/types";
+import type { V2RayInbound, V2RayPanelInfo, V2RayProvider, V2RayProviderInfo } from "@/lib/types";
 import { Card, PageHeader, Spinner, inputCls } from "@/components/admin/ui";
 import AdminIcon from "@/components/admin/AdminIcon";
 
@@ -125,6 +125,25 @@ function PanelRow({
   const [msg, setMsg] = useState("");
   const [msgOk, setMsgOk] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [inbounds, setInbounds] = useState<V2RayInbound[] | null>(null);
+  const [inboundsBusy, setInboundsBusy] = useState(false);
+  const [inboundsErr, setInboundsErr] = useState("");
+
+  async function toggleInbounds() {
+    if (inbounds !== null) {
+      setInbounds(null);
+      return;
+    }
+    setInboundsBusy(true);
+    setInboundsErr("");
+    try {
+      setInbounds(await api.v2ray.inbounds(panel.id));
+    } catch (e) {
+      setInboundsErr(e instanceof Error ? e.message : "خواندن اینباندها ناموفق بود");
+    } finally {
+      setInboundsBusy(false);
+    }
+  }
 
   async function test() {
     setBusy("test");
@@ -179,6 +198,14 @@ function PanelRow({
 
         <div className="flex shrink-0 items-center gap-2">
           <button
+            onClick={toggleInbounds}
+            disabled={busy !== null}
+            className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3.5 text-xs font-bold text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
+          >
+            {inboundsBusy ? <Spinner className="h-4 w-4" /> : <AdminIcon name="grid" className="h-4 w-4" />}
+            {inbounds !== null ? "بستن اینباندها" : "مشاهده اینباندها"}
+          </button>
+          <button
             onClick={() => setCreating((v) => !v)}
             disabled={busy !== null}
             className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3.5 text-xs font-bold text-[#8aa6ff] transition hover:bg-white/5 disabled:opacity-60"
@@ -205,6 +232,41 @@ function PanelRow({
         </div>
       </div>
       {msg && <p className={`mt-3 text-xs leading-6 ${msgOk ? "text-emerald-400" : "text-rose-400"}`}>{msg}</p>}
+      {inboundsErr && <p className="mt-3 text-xs leading-6 text-rose-400">{inboundsErr}</p>}
+
+      {inbounds !== null && (
+        <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <p className="mb-3 text-sm font-bold text-white">اینباندها / لوکیشن‌های پنل ({formatNumber(inbounds.length)})</p>
+          {inbounds.length === 0 ? (
+            <p className="text-xs text-white/45">هیچ اینباندی روی این پنل نیست.</p>
+          ) : (
+            <ul className="divide-y divide-white/5">
+              {inbounds.map((ib) => (
+                <li key={ib.id} className="flex items-center justify-between gap-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-white">
+                      {ib.remark || `اینباند ${formatNumber(ib.id)}`}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-white/40" dir="ltr">
+                      #{ib.id} · {ib.protocol} · :{ib.port}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white/60">
+                      {formatNumber(ib.clientCount)} کاربر
+                    </span>
+                    {ib.enable ? (
+                      <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-400">فعال</span>
+                    ) : (
+                      <span className="rounded-full bg-white/10 px-2 py-0.5 text-[11px] font-bold text-white/45">غیرفعال</span>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {creating && <CreateClientForm panelId={panel.id} onClose={() => setCreating(false)} />}
     </Card>
