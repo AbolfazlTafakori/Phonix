@@ -471,6 +471,7 @@ function AddPanelWizard({
   const [url, setUrl] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [apiToken, setApiToken] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [okMsg, setOkMsg] = useState("");
@@ -481,15 +482,15 @@ function AddPanelWizard({
     if (!provider) return;
     setError("");
     setOkMsg("");
-    if (!url.trim() || !username.trim() || !password) {
-      setError("آدرس پنل، نام کاربری و گذرواژه را کامل وارد کنید.");
+    if (!url.trim() || (!apiToken.trim() && (!username.trim() || !password))) {
+      setError("آدرس پنل و سپس توکن API یا نام کاربری و گذرواژه را وارد کنید.");
       return;
     }
     setBusy(true);
     try {
-      // The backend logs into the panel and reads its inbounds before it will save, so a successful add is
+      // The backend connects to the panel and reads its inbounds before it will save, so a successful add is
       // proof the connection actually works.
-      const panel = await api.v2ray.add({ provider, url: url.trim(), username: username.trim(), password });
+      const panel = await api.v2ray.add({ provider, url: url.trim(), username: username.trim(), password, apiToken: apiToken.trim() });
       onAdded(panel);
     } catch (e) {
       setError(e instanceof Error ? e.message : "افزودن پنل ناموفق بود");
@@ -502,13 +503,13 @@ function AddPanelWizard({
     if (!provider) return;
     setError("");
     setOkMsg("");
-    if (!url.trim() || !username.trim() || !password) {
-      setError("آدرس پنل، نام کاربری و گذرواژه را کامل وارد کنید.");
+    if (!url.trim() || (!apiToken.trim() && (!username.trim() || !password))) {
+      setError("آدرس پنل و سپس توکن API یا نام کاربری و گذرواژه را وارد کنید.");
       return;
     }
     setBusy(true);
     try {
-      const r = await api.v2ray.test({ provider, url: url.trim(), username: username.trim(), password });
+      const r = await api.v2ray.test({ provider, url: url.trim(), username: username.trim(), password, apiToken: apiToken.trim() });
       setOkMsg(`اتصال موفق بود · ${formatNumber(r.inboundCount)} اینباند پیدا شد. حالا می‌توانید ذخیره کنید.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "اتصال ناموفق بود");
@@ -589,6 +590,26 @@ function AddPanelWizard({
               با http یا https، همراه پورت و وب‌پس (در صورت وجود). نمونه: <span dir="ltr">{URL_HINT}</span>
             </span>
           </label>
+
+          {/* Preferred path. A token skips the panel's CSRF/session handshake entirely, which is what the
+              username/password route has to negotiate on every call. */}
+          <label className="block rounded-xl border border-[#3a64f2]/25 bg-[#3a64f2]/[0.06] p-4">
+            <span className="mb-1.5 block text-xs font-bold text-[#8aa6ff]">توکن API پنل (روش پیشنهادی)</span>
+            <input
+              value={apiToken}
+              onChange={(e) => setApiToken(e.target.value)}
+              dir="ltr"
+              autoComplete="off"
+              placeholder="از پنل: Settings → Security → API Token"
+              className={`${inputCls} text-left`}
+            />
+            <span className="mt-1.5 block text-[11px] leading-5 text-white/45">
+              اگر توکن بدهید، نیازی به نام کاربری و گذرواژه نیست و اتصال پایدارتر است. در نسخه ۳.۴ پنل،
+              درخواست‌های دارای توکن از سد محافظ CSRF عبور می‌کنند و خطای ۴۰۳ رخ نمی‌دهد.
+            </span>
+          </label>
+
+          <p className="text-center text-[11px] text-white/35">— یا با نام کاربری و گذرواژه —</p>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">

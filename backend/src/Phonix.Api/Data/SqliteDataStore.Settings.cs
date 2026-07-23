@@ -63,7 +63,11 @@ public sealed partial class SqliteDataStore
     public IReadOnlyList<V2RayPanel> GetV2RayPanels()
     {
         var s = GetSingleton<V2RaySettings>(V2RayKey);
-        foreach (var p in s.Panels) p.Password = SensitiveField.Reveal(p.Password ?? "");
+        foreach (var p in s.Panels)
+        {
+            p.Password = SensitiveField.Reveal(p.Password ?? "");
+            p.ApiToken = SensitiveField.Reveal(p.ApiToken ?? "");
+        }
         return s.Panels;
     }
 
@@ -77,12 +81,14 @@ public sealed partial class SqliteDataStore
 
         panel.Id = s.NextId++;
         panel.CreatedAtUtc = DateTime.UtcNow.ToString("O");
-        // Password arrives in plaintext from the controller; it never sits unencrypted in the store.
+        // Credentials arrive in plaintext from the controller; they never sit unencrypted in the store.
         panel.Password = string.IsNullOrEmpty(panel.Password) ? "" : SensitiveField.Protect(panel.Password);
+        panel.ApiToken = string.IsNullOrEmpty(panel.ApiToken) ? "" : SensitiveField.Protect(panel.ApiToken);
         s.Panels.Add(panel);
         WriteSingleton(conn, null, V2RayKey, s);
 
         panel.Password = SensitiveField.Reveal(panel.Password);
+        panel.ApiToken = SensitiveField.Reveal(panel.ApiToken);
         return panel;
     }
 

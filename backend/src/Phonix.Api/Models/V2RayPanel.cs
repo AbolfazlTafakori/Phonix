@@ -28,6 +28,13 @@ public class V2RayPanel
     public string Username { get; set; } = "";
     public string Password { get; set; } = "";   // encrypted via SensitiveField; blank-on-update = keep
 
+    // PREFERRED credential. A panel API token (Settings → Security → API Token) is sent as
+    // `Authorization: Bearer …`, which the panel's CSRF middleware skips outright
+    // (`if c.GetBool("api_authed") { c.Next() }`). That avoids the whole session + CSRF handshake the
+    // username/password path needs, so it is both simpler and far less brittle for server-to-server calls.
+    // When this is set the connector uses it and never logs in. Encrypted at rest like the password.
+    public string ApiToken { get; set; } = "";
+
     public bool Enabled { get; set; } = true;
     public string CreatedAtUtc { get; set; } = "";
 

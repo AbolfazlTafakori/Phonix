@@ -11,9 +11,12 @@ namespace Phonix.Api.Controllers;
 // is stored is exposed — so no endpoint can leak it by forgetting to strip it.
 public sealed record V2RayPanelDto(
     int Id, V2RayProvider Provider, string Url, string Username, bool HasPassword, bool Enabled,
-    string CreatedAtUtc, string LastCheckAtUtc, bool LastCheckOk, string LastCheckError, int InboundCount);
+    string CreatedAtUtc, string LastCheckAtUtc, bool LastCheckOk, string LastCheckError, int InboundCount,
+    bool HasApiToken);
 
-public sealed record V2RayPanelInput(V2RayProvider Provider, string Url, string Username, string Password);
+// Either an API token (preferred — it skips the panel's CSRF/session handshake entirely) or a
+// username/password pair is enough to connect.
+public sealed record V2RayPanelInput(V2RayProvider Provider, string Url, string Username, string Password, string? ApiToken);
 
 // Create an account on a stored panel. Email is the label the account is created under; the three limits
 // follow the panel's own "0 = unlimited" convention (0 GB, 0 IPs, 0 days = no expiry). InboundIds are the
@@ -45,7 +48,10 @@ public class V2RayPanelController : ControllerBase
 
     private static V2RayPanelDto ToDto(V2RayPanel p) => new(
         p.Id, p.Provider, p.Url, p.Username, !string.IsNullOrEmpty(p.Password), p.Enabled,
-        p.CreatedAtUtc, p.LastCheckAtUtc, p.LastCheckOk, p.LastCheckError, p.InboundCount);
+        p.CreatedAtUtc, p.LastCheckAtUtc, p.LastCheckOk, p.LastCheckError, p.InboundCount,
+        !string.IsNullOrEmpty(p.ApiToken));
+
+    private static V2RayCredentials Creds(V2RayPanel p) => new(p.Url, p.Username, p.Password, p.ApiToken);
 
     [HttpGet("providers")]
     public IReadOnlyList<V2RayProviderDto> Providers() => new[]
@@ -64,7 +70,7 @@ public class V2RayPanelController : ControllerBase
     [HttpPost("test")]
     public async Task<IActionResult> Test(V2RayPanelInput input, CancellationToken ct)
     {
-        var result = await _connector.TestAsync(input.Provider, input.Url, input.Username, input.Password, ct);
+        var result = await _connector.TestAsync(input.Provider, new V2RayCredentials(input.Url, input.Username, input.Password, input.ApiToken ?? ""), ct);
         return result.Ok
             ? Ok(new { ok = true, inboundCount = result.InboundCount })
             : Problem(result.Error);
@@ -78,18 +84,20 @@ public class V2RayPanelController : ControllerBase
     {
         var url = IV2RayPanelConnector.NormalizeUrl(input.Url);
         if (url is null) return Problem("آدرس پنل معتبر نیست. نمونه: https://sub.example.com:8080/webpath");
-        if (string.IsNullOrWhiteSpace(input.Username) || string.IsNullOrWhiteSpace(input.Password))
-            return Problem("نام کاربری و گذرواژه پنل را وارد کنید.");
+        var hasToken = !string.IsNullOrWhiteSpace(input.ApiToken);
+        if (!hasToken && (string.IsNullOrWhiteSpace(input.Username) || string.IsNullOrWhiteSpace(input.Password)))
+            return Problem("توکن API یا نام کاربری و گذرواژه پنل را وارد کنید.");
 
-        var test = await _connector.TestAsync(input.Provider, url, input.Username, input.Password, ct);
+        var test = await _connector.TestAsync(input.Provider, new V2RayCredentials(url, input.Username, input.Password, input.ApiToken ?? ""), ct);
         if (!test.Ok) return Problem(test.Error);
 
         var saved = _store.AddV2RayPanel(new V2RayPanel
         {
             Provider = input.Provider,
             Url = url,
-            Username = input.Username.Trim(),
-            Password = input.Password,
+            Username = (input.Username ?? "").Trim(),
+            Password = input.Password ?? "",
+            ApiToken = (input.ApiToken ?? "").Trim(),
             Enabled = true,
             LastCheckAtUtc = DateTime.UtcNow.ToString("O"),
             LastCheckOk = true,
@@ -106,7 +114,7 @@ public class V2RayPanelController : ControllerBase
         var panel = _store.GetV2RayPanel(id);
         if (panel is null) return NotFound();
 
-        var result = await _connector.ListInboundsAsync(panel.Provider, panel.Url, panel.Username, panel.Password, ct);
+        var result = await _connector.ListInboundsAsync(panel.Provider, Creds(panel), ct);
         return result.Ok ? Ok(result.Inbounds) : Problem(result.Error);
     }
 
@@ -117,7 +125,7 @@ public class V2RayPanelController : ControllerBase
         var panel = _store.GetV2RayPanel(id);
         if (panel is null) return NotFound();
 
-        var result = await _connector.TestAsync(panel.Provider, panel.Url, panel.Username, panel.Password, ct);
+        var result = await _connector.TestAsync(panel.Provider, Creds(panel), ct);
         _store.RecordV2RayPanelCheck(id, result.Ok, result.Error ?? "", result.InboundCount);
         return result.Ok
             ? Ok(new { ok = true, inboundCount = result.InboundCount })
@@ -135,7 +143,7 @@ public class V2RayPanelController : ControllerBase
         if (string.IsNullOrWhiteSpace(input.Email)) return Problem("نام (Email) اکانت را وارد کنید.");
 
         var result = await _connector.AddClientAsync(
-            panel.Provider, panel.Url, panel.Username, panel.Password,
+            panel.Provider, Creds(panel),
             new V2RayNewClient(input.Email.Trim(), input.TotalGb, input.LimitIp, input.DurationDays),
             input.InboundIds ?? Array.Empty<int>(),
             ct);

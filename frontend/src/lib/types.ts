@@ -308,6 +308,7 @@ export type V2RayPanelInfo = {
   lastCheckOk: boolean;
   lastCheckError: string;
   inboundCount: number;
+  hasApiToken: boolean;
 };
 
 export type V2RayPanelInput = {
@@ -315,6 +316,8 @@ export type V2RayPanelInput = {
   url: string;
   username: string;
   password: string;
+  // Preferred: a panel API token skips the panel's CSRF/session handshake entirely.
+  apiToken: string;
 };
 
 // One inbound / location as the panel reports it.

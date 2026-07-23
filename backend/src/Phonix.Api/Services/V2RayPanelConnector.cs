@@ -45,14 +45,21 @@ public sealed record V2RayInboundsResult(bool Ok, string? Error = null, IReadOnl
 //      /panel/api/inbounds/addClient with a stringified `settings` blob. 3.4.x has a dedicated
 //      /panel/api/clients/add that takes the client once plus an `inboundIds` ARRAY — so one call places the
 //      account on exactly the locations a plan sells.
+// How to authenticate to a panel. A token is preferred: the panel's CSRF middleware skips token-authed
+// requests entirely, so there is no session to establish and nothing to go stale.
+public sealed record V2RayCredentials(string Url, string Username, string Password, string ApiToken = "")
+{
+    public bool UsesToken => !string.IsNullOrWhiteSpace(ApiToken);
+}
+
 public interface IV2RayPanelConnector
 {
-    Task<V2RayTestResult> TestAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default);
+    Task<V2RayTestResult> TestAsync(V2RayProvider provider, V2RayCredentials credentials, CancellationToken ct = default);
 
-    Task<V2RayInboundsResult> ListInboundsAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default);
+    Task<V2RayInboundsResult> ListInboundsAsync(V2RayProvider provider, V2RayCredentials credentials, CancellationToken ct = default);
 
     // Creates the account on exactly the given inbounds in a single call.
-    Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, string url, string username, string password, V2RayNewClient client, IReadOnlyList<int> inboundIds, CancellationToken ct = default);
+    Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, V2RayCredentials credentials, V2RayNewClient client, IReadOnlyList<int> inboundIds, CancellationToken ct = default);
 
     static string? NormalizeUrl(string? raw)
     {
@@ -102,20 +109,20 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
     // One authenticated session: the logged-in HttpClient plus the CSRF token its POSTs must carry.
     private sealed record Session(HttpClient Client, string BaseUrl, string Csrf);
 
-    public async Task<V2RayTestResult> TestAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default)
+    public async Task<V2RayTestResult> TestAsync(V2RayProvider provider, V2RayCredentials creds, CancellationToken ct = default)
     {
         if (provider != V2RayProvider.Sanaei)
             return V2RayTestResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
-        var baseUrl = IV2RayPanelConnector.NormalizeUrl(url);
+        var baseUrl = IV2RayPanelConnector.NormalizeUrl(creds.Url);
         if (baseUrl is null)
             return V2RayTestResult.Fail("آدرس پنل معتبر نیست. نمونه: https://sub.example.com:8080/webpath");
-        if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
-            return V2RayTestResult.Fail("نام کاربری و گذرواژه پنل را وارد کنید.");
+        if (!creds.UsesToken && (string.IsNullOrWhiteSpace(creds.Username) || string.IsNullOrWhiteSpace(creds.Password)))
+            return V2RayTestResult.Fail("توکن API یا نام کاربری و گذرواژه پنل را وارد کنید.");
 
         using var client = NewClient();
         try
         {
-            var (session, error) = await OpenSessionAsync(client, baseUrl, username, password, ct);
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
             if (error is not null) return V2RayTestResult.Fail(error);
 
             var (ok, body, status) = await GetInboundsAsync(session!, ct);
@@ -129,17 +136,17 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         }
     }
 
-    public async Task<V2RayInboundsResult> ListInboundsAsync(V2RayProvider provider, string url, string username, string password, CancellationToken ct = default)
+    public async Task<V2RayInboundsResult> ListInboundsAsync(V2RayProvider provider, V2RayCredentials creds, CancellationToken ct = default)
     {
         if (provider != V2RayProvider.Sanaei)
             return V2RayInboundsResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
-        var baseUrl = IV2RayPanelConnector.NormalizeUrl(url);
+        var baseUrl = IV2RayPanelConnector.NormalizeUrl(creds.Url);
         if (baseUrl is null) return V2RayInboundsResult.Fail("آدرس پنل معتبر نیست.");
 
         using var client = NewClient();
         try
         {
-            var (session, error) = await OpenSessionAsync(client, baseUrl, username, password, ct);
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
             if (error is not null) return V2RayInboundsResult.Fail(error);
 
             var (ok, body, status) = await GetInboundsAsync(session!, ct);
@@ -153,11 +160,11 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         }
     }
 
-    public async Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, string url, string username, string password, V2RayNewClient req, IReadOnlyList<int> inboundIds, CancellationToken ct = default)
+    public async Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, V2RayCredentials creds, V2RayNewClient req, IReadOnlyList<int> inboundIds, CancellationToken ct = default)
     {
         if (provider != V2RayProvider.Sanaei)
             return V2RayClientResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
-        var baseUrl = IV2RayPanelConnector.NormalizeUrl(url);
+        var baseUrl = IV2RayPanelConnector.NormalizeUrl(creds.Url);
         if (baseUrl is null) return V2RayClientResult.Fail("آدرس پنل معتبر نیست.");
         var email = (req.Email ?? "").Trim();
         if (email.Length == 0) return V2RayClientResult.Fail("نام (Email) اکانت را وارد کنید.");
@@ -165,7 +172,7 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         using var client = NewClient();
         try
         {
-            var (session, error) = await OpenSessionAsync(client, baseUrl, username, password, ct);
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
             if (error is not null) return V2RayClientResult.Fail(error);
 
             var (ok, body, status) = await GetInboundsAsync(session!, ct);
@@ -207,8 +214,11 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
                     ["limitIp"] = Math.Max(0, req.LimitIp),
                     ["flow"] = req.Flow ?? "",
                     ["subId"] = subId,
-                    ["tgId"] = "",
+                    // NUMERIC on purpose: the panel's model.Client declares TgID as int64, so sending "" here
+                    // fails JSON binding outright.
+                    ["tgId"] = 0,
                     ["comment"] = "",
+                    ["reset"] = 0,
                 },
                 inboundIds = targets,
             });
@@ -235,9 +245,18 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
 
     // ── Session: CSRF + login ───────────────────────────────────────────────────────────────────────
 
-    // Fetches a CSRF token, then signs in. Returns the live session, or a ready-to-show Persian error.
-    private async Task<(Session? session, string? error)> OpenSessionAsync(HttpClient client, string baseUrl, string username, string password, CancellationToken ct)
+    // Establishes an authenticated session. With an API token there is nothing to establish: the token goes
+    // on every request as a Bearer header, and the panel's CSRF middleware lets token-authed calls straight
+    // through. Only the username/password path needs the CSRF handshake below.
+    private async Task<(Session? session, string? error)> OpenSessionAsync(HttpClient client, string baseUrl, V2RayCredentials creds, CancellationToken ct)
     {
+        if (creds.UsesToken)
+        {
+            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", creds.ApiToken.Trim());
+            return (new Session(client, baseUrl, ""), null);
+        }
+
+        var (username, password) = (creds.Username, creds.Password);
         var csrf = await FetchCsrfAsync(client, baseUrl, ct);
         var session = new Session(client, baseUrl, csrf ?? "");
 
