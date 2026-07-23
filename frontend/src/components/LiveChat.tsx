@@ -198,7 +198,7 @@ export default function LiveChat() {
   const showTyping = open && !!conv && !!lastMsg && !lastMsg.fromAdmin && lastMsg.id > 0 && conv.adminReadUpTo >= lastMsg.id;
 
   return (
-    <div className="fixed bottom-4 right-4 z-[60] flex flex-col items-start gap-3" dir="rtl">
+    <div className="no-print fixed bottom-4 right-4 z-[60] flex flex-col items-start gap-3" dir="rtl">
       {open && (
         <div className="flex h-[28rem] max-h-[72vh] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[var(--chat-border)] bg-[var(--chat-surface)] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.45)]">
           <div className="flex items-center gap-2.5 border-b border-[var(--chat-border)] bg-gradient-to-l from-[#ff5a1f]/18 via-[#ef233c]/8 to-transparent px-4 py-3">

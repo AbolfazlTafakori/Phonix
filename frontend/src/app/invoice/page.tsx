@@ -36,6 +36,13 @@ function Row({ label, value, strong = false }: { label: ReactNode; value: ReactN
 export default function InvoicePage() {
   const [invoice, setInvoice] = useState<Invoice | null>(null);
   const [error, setError] = useState("");
+  // The moment the document was opened/printed, shown in the masthead. Set on mount (not during render) so
+  // the server and client markup match. `fa-IR-u-nu-latn` gives the Jalali date the rest of the invoice uses,
+  // but with Latin numerals so it lines up with every other figure on the page.
+  const [printedAt, setPrintedAt] = useState("");
+  useEffect(() => {
+    setPrintedAt(new Date().toLocaleString("fa-IR-u-nu-latn", { dateStyle: "short", timeStyle: "short" }));
+  }, []);
 
   useEffect(() => {
     const id = Number(new URLSearchParams(window.location.search).get("id"));
@@ -74,6 +81,17 @@ export default function InvoicePage() {
           border-top:3px solid var(--accent);box-shadow:0 1px 3px rgba(17,19,24,.10),0 8px 28px rgba(17,19,24,.07)}
         .inv-n{direction:ltr;unicode-bidi:isolate;font-family:"Segoe UI",Inter,system-ui,sans-serif;
           font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1,"lnum" 1;letter-spacing:.01em}
+
+        .inv-masthead{display:flex;justify-content:space-between;align-items:center;gap:16px;
+          margin-bottom:16px;padding:9px 13px;border:1px solid var(--rule-2);background:var(--band);
+          -webkit-print-color-adjust:exact;print-color-adjust:exact}
+        .inv-mh-brand{display:flex;flex-direction:column;text-align:right;line-height:1.35}
+        .inv-mh-fa{font-size:13.5px;font-weight:700;color:var(--ink)}
+        .inv-mh-en{font-family:"Segoe UI",Inter,system-ui,sans-serif;font-size:11px;font-weight:600;
+          letter-spacing:-.01em;color:var(--muted);direction:ltr;unicode-bidi:isolate}
+        .inv-mh-date{display:flex;flex-direction:column;text-align:left;line-height:1.35}
+        .inv-mh-date-label{font-size:10px;color:var(--muted)}
+        .inv-mh-date .inv-n{font-size:12.5px;font-weight:600}
 
         .inv-top{display:flex;justify-content:space-between;align-items:baseline;gap:20px}
         .inv-kind{font-size:16px;font-weight:700;text-align:right;letter-spacing:-.005em}
@@ -144,9 +162,14 @@ export default function InvoicePage() {
           .inv-print{position:static;display:block;width:100%;margin-bottom:10px}
         }
         @media print{
-          @page{size:A4;margin:12mm}
+          /* Zero page margin on purpose: the browser draws its OWN header/footer (date + tab title at the
+             top, page URL + "1/1" at the bottom) inside the @page margin, and there is no way to style or
+             remove them directly. With no margin there is nowhere to draw them, so they disappear and the
+             PDF is just the invoice. The real paper margin is supplied by .inv-sheet below, which also keeps
+             content clear of the printer's unprintable edge. */
+          @page{size:A4;margin:0}
           .inv-page{background:#fff;padding:0}
-          .inv-sheet{width:auto;box-shadow:none;padding:0;border-top:0}
+          .inv-sheet{width:auto;box-shadow:none;padding:12mm;border-top:0}
           .inv-print{display:none}
           .inv-page tr,.inv-close,.inv-grand{break-inside:avoid}
         }
@@ -155,6 +178,19 @@ export default function InvoicePage() {
       <button type="button" className="inv-print" onClick={() => window.print()}>چاپ / ذخیره PDF</button>
 
       <div className="inv-sheet">
+        {/* Masthead: brand on the right, print date/time on the left — a proper letterhead strip that
+            replaces the browser's own print header (removed via @page margin:0 below). */}
+        <div className="inv-masthead">
+          <div className="inv-mh-brand">
+            <span className="inv-mh-fa">فونیکس ورفای</span>
+            <span className="inv-mh-en">Phoenix Verify</span>
+          </div>
+          <div className="inv-mh-date">
+            <span className="inv-mh-date-label">تاریخ و ساعت</span>
+            <N>{printedAt}</N>
+          </div>
+        </div>
+
         <div className="inv-top">
           <div className="inv-kind">فاکتور مشتری</div>
           <div className="inv-mark">Phoenix Verify</div>

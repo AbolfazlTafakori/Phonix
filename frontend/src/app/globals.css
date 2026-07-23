@@ -420,3 +420,11 @@ html.home-dark .home-light {
   background: #2a2a3d;
   border-radius: 8px;
 }
+
+/* Floating UI must never end up in a printed page or a saved PDF. The live-chat launcher is rendered by the
+   root layout, so without this it prints on top of documents like the invoice. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}
