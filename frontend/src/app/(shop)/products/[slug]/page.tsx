@@ -275,12 +275,12 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         </div>
 
         {/* trust row — full width on mobile; on desktop it fills the second row under gallery+info */}
-        <div className="order-4 grid grid-cols-2 gap-px overflow-hidden rounded-[22px] border bg-[var(--ac-panel-bg)] sm:grid-cols-3 lg:col-start-1 lg:col-end-3 lg:row-start-2 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
-          <TrustItem icon={<Icon d={I.tag} />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
-          <TrustItem icon={<Icon d={I.shield} />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
-          <TrustItem icon={<Icon d={I.lock} />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
-          <TrustItem icon={<Icon d={I.headset} />} title="پشتیبانی ۲۴/۷" desc="همیشه پاسخگوی شما" />
-          <TrustItem icon={<Icon d={I.bolt} />} title="تحویل آنی" desc="بلافاصله پس از پرداخت" />
+        <div className="order-4 flex snap-x snap-mandatory overflow-x-auto rounded-[22px] border bg-[var(--ac-panel-bg)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-3 sm:overflow-visible lg:col-start-1 lg:col-end-3 lg:row-start-2 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+          <TrustItem icon={<Icon d={I.tag} className="h-6 w-6" />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
+          <TrustItem icon={<Icon d={I.shield} className="h-6 w-6" />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
+          <TrustItem icon={<Icon d={I.lock} className="h-6 w-6" />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
+          <TrustItem icon={<Icon d={I.headset} className="h-6 w-6" />} title="پشتیبانی ۲۴/۷" desc="همیشه پاسخگوی شما" />
+          <TrustItem icon={<Icon d={I.bolt} className="h-6 w-6" />} title="تحویل آنی" desc="بلافاصله پس از پرداخت" />
         </div>
       </div>
       </PurchaseProvider>
