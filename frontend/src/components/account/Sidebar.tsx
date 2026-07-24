@@ -154,6 +154,7 @@ export default function Sidebar() {
               >
                 <MenuIcon name={item.icon} className="h-[18px] w-[18px]" />
                 {item.label}
+                <svg viewBox="0 0 24 24" className="ms-auto h-4 w-4 opacity-50" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 6-6 6 6 6" /></svg>
               </Link>
             ) : (
               <Link
@@ -172,6 +173,7 @@ export default function Sidebar() {
               >
                 <MenuIcon name={item.icon} className="h-[18px] w-[18px]" style={{ color: "var(--ac-icon)" }} />
                 {item.label}
+                <svg viewBox="0 0 24 24" className="ms-auto h-4 w-4 opacity-40" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 6-6 6 6 6" /></svg>
               </Link>
             );
           })}
