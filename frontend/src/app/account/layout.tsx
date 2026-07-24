@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import SiteHeader from "@/components/home/SiteHeader";
 import SiteFooter from "@/components/home/SiteFooter";
-import Sidebar from "@/components/account/Sidebar";
 import AccountGuard from "@/components/account/AccountGuard";
+import AccountShell from "@/components/account/AccountShell";
 import MobileTabBar from "@/components/home/MobileTabBar";
 
 export default function AccountLayout({ children }: { children: ReactNode }) {
@@ -11,10 +11,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
       <SiteHeader />
       <div className="mx-auto w-full max-w-[1320px] flex-1 px-4 py-8 md:px-6 md:py-10">
         <AccountGuard>
-          <div className="grid gap-5 lg:grid-cols-[280px_1fr]">
-            <Sidebar />
-            <main className="min-w-0">{children}</main>
-          </div>
+          <AccountShell>{children}</AccountShell>
         </AccountGuard>
       </div>
       <SiteFooter />
