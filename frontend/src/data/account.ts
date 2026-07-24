@@ -10,6 +10,8 @@ export const accountMenu: MenuItem[] = [
   { label: "کارت‌های من", href: "/account/cards", icon: "card" },
   { label: "سفارشات من", href: "/account/orders", icon: "orders" },
   { label: "محصولات موردعلاقه", href: "/account/favorites", icon: "heart" },
+  { label: "دیدگاه‌ها و پرسش‌ها", href: "/account/comments", icon: "comment" },
+  { label: "پیام‌ها", href: "/account/messages", icon: "bell" },
   { label: "گزارش درآمد معرف", href: "/account/referral", icon: "chart" },
   { label: "دعوت دوستان", href: "/account/invite", icon: "gift" },
   { label: "تیکت پشتیبانی", href: "/account/tickets", icon: "ticket" },

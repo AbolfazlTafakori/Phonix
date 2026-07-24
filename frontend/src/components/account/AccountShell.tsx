@@ -27,18 +27,17 @@ export default function AccountShell({ children }: { children: ReactNode }) {
 
       {/* page content — always on desktop; on mobile only on a sub-page, with a back bar to the hub */}
       <main className={`min-w-0 ${isHub ? "hidden lg:block" : ""}`}>
+        {/* Back to the hub. The page supplies its own heading below, so this row is the control only. */}
         {!isHub && (
-          <div className="mb-4 flex items-center gap-2 lg:hidden">
-            <Link
-              href="/account"
-              aria-label="بازگشت"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full border transition active:scale-95"
-              style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)", color: "var(--ac-text)" }}
-            >
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
-            </Link>
-            <h1 className="text-[16px] font-black" style={{ color: "var(--ac-title)" }}>{title}</h1>
-          </div>
+          <Link
+            href="/account"
+            aria-label={`بازگشت${title ? ` از ${title}` : ""}`}
+            className="mb-3 inline-flex h-9 items-center gap-1.5 rounded-full border pl-3 pr-2 text-[13px] font-bold transition active:scale-95 lg:hidden"
+            style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)", color: "var(--ac-text)" }}
+          >
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+            بازگشت
+          </Link>
         )}
         {children}
       </main>

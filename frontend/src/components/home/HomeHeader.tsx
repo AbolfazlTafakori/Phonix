@@ -197,6 +197,13 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
       <div className="mx-auto flex h-[72px] max-w-[1840px] items-center gap-3 px-4 sm:h-[88px] sm:gap-6 sm:px-8 xl:px-16">
         {/* brand + nav (right in RTL) */}
         <div className="flex shrink-0 items-center gap-4 lg:gap-7">
+          {/* inside the account area the mobile header carries the theme toggle on this (right) side, with
+              the bell opposite it — mirroring how the marketplaces lay their profile header out */}
+          {onAccount && (
+            <div className="lg:hidden">
+              <ThemeToggle />
+            </div>
+          )}
           <Link href="/" className="hidden items-center gap-2.5 lg:flex">
             <img src={brand.logo} alt={brand.siteName} className="h-11 w-auto sm:h-14" />
             <span className="hidden text-[15px] font-extrabold leading-[1.1] text-[var(--hl-ink)] sm:inline-block sm:text-[17px]">
@@ -225,8 +232,8 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
         {/* search — inline on every screen, marketplace-style; hidden on mobile inside the account area */}
         <div className={onAccount ? "hidden flex-1 lg:block" : "flex-1"}>{searchBox()}</div>
 
-        {/* actions (left in RTL) */}
-        <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+        {/* actions (left in RTL) — pushed to the far edge when the search field is not there to fill the row */}
+        <div className={`flex shrink-0 items-center gap-2 sm:gap-4 ${onAccount ? "ms-auto lg:ms-0" : ""}`}>
           {/* notification bell — mobile only, sitting where the theme toggle is on desktop */}
           {user && (
             <div ref={bellRef} className="relative lg:hidden">

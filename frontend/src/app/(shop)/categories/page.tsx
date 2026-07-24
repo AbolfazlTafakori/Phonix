@@ -192,6 +192,9 @@ export default async function CategoriesPage() {
         ))}
       </section>
 
+      {/* Everything from here down is desktop-only: on mobile the category browser ends with the grid, so
+          the bottom navigation is reachable without scrolling past marketing sections. */}
+      <div className="hidden lg:block">
       {/* ── Popular Subcategories ── */}
       <section className="mx-auto max-w-[1840px] px-4 py-16 sm:px-8 xl:px-16">
         <div className="mb-8 flex items-start gap-2">
@@ -242,6 +245,7 @@ export default async function CategoriesPage() {
 
       {/* ── Newsletter ── */}
       <HomeNewsletter />
+      </div>
     </>
   );
 }

@@ -4,6 +4,7 @@ import SiteFooter from "@/components/home/SiteFooter";
 import AccountGuard from "@/components/account/AccountGuard";
 import AccountShell from "@/components/account/AccountShell";
 import MobileTabBar from "@/components/home/MobileTabBar";
+import FooterVisibility from "@/components/home/FooterVisibility";
 
 export default function AccountLayout({ children }: { children: ReactNode }) {
   return (
@@ -14,7 +15,7 @@ export default function AccountLayout({ children }: { children: ReactNode }) {
           <AccountShell>{children}</AccountShell>
         </AccountGuard>
       </div>
-      <SiteFooter />
+      <FooterVisibility><SiteFooter /></FooterVisibility>
       <MobileTabBar />
     </div>
   );

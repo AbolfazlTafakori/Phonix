@@ -786,6 +786,7 @@ export const api = {
   comments: {
     list: (params?: { status?: CommentStatus; productId?: number }) => request<Comment[]>(`/comments${qs(params)}`),
     forProduct: (productId: number) => request<Comment[]>(`/products/${productId}/comments`),
+    mine: () => request<Comment[]>("/comments/mine"),
     submit: (body: CommentInput) => request<Comment>("/comments", { method: "POST", body: json(body) }),
     approve: (id: number) => request<void>(`/comments/${id}/approve`, { method: "POST" }),
     reject: (id: number) => request<void>(`/comments/${id}/reject`, { method: "POST" }),

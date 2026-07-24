@@ -47,6 +47,17 @@ const paths: Record<string, React.ReactNode> = {
       <path d="M14 5v14" strokeDasharray="2 2" />
     </>
   ),
+  comment: (
+    <>
+      <path d="M21 11.5a8 8 0 0 1-8.5 8 9 9 0 0 1-3.4-.6L4 21l1.3-3.6A8 8 0 0 1 12.5 4a8 8 0 0 1 8.5 7.5Z" />
+    </>
+  ),
+  bell: (
+    <>
+      <path d="M18 8a6 6 0 1 0-12 0c0 7-2.5 8.5-2.5 8.5h17S18 15 18 8" />
+      <path d="M13.7 20a2 2 0 0 1-3.4 0" />
+    </>
+  ),
   shield: (
     <>
       <path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z" />

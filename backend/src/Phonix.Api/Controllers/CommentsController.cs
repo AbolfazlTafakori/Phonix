@@ -23,6 +23,21 @@ public class CommentsController : ControllerBase
     public IEnumerable<Comment> Get([FromQuery] CommentStatus? status, [FromQuery] int? productId) =>
         _store.GetComments(productId, status);
 
+    // The signed-in customer's own comments, for the "my reviews and questions" page. Comments carry the
+    // display name they were posted under (see Create below), so match on that same value.
+    [Authorize]
+    [HttpGet("mine")]
+    public ActionResult<IEnumerable<Comment>> Mine()
+    {
+        var userId = this.CurrentUserId();
+        var user = userId is int uid ? _store.GetUser(uid) : null;
+        if (user is null) return Unauthorized();
+        var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
+        return Ok(_store.GetComments()
+            .Where(c => !c.IsAdminReply && string.Equals(c.UserName, name, StringComparison.Ordinal))
+            .OrderByDescending(c => c.Id));
+    }
+
     [Authorize]
     [HttpPost]
     public ActionResult<Comment> Create(CommentInput input)
