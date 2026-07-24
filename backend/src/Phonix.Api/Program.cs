@@ -221,6 +221,9 @@ try
         var encrypted = sqlite.MigratePlaintextStockPasswords();
         if (encrypted > 0)
             Log.Information("Encrypted {Count} stock account password(s) that were still stored in plain text.", encrypted);
+        var reimaged = sqlite.MigrateFigmaImagesToWebp();
+        if (reimaged > 0)
+            Log.Information("Repointed {Count} record(s) from the retired /figma PNG artwork to its WebP export.", reimaged);
     }
 
     // Behind a reverse proxy (nginx/Caddy terminating TLS), trust its X-Forwarded-* so the real client IP

@@ -171,4 +171,50 @@ public sealed partial class SqliteDataStore
             WriteSingleton(conn, tx, FavoritesKey, fav);
             return added;
         });
+
+    // One-time normalization: the bundled artwork under /figma shipped as PNG and was re-exported to WebP,
+    // so stored paths that still point at the removed .png files would render as broken images. Rewrites
+    // only that bundled set — uploads keep whatever extension they were saved with. Idempotent, so restarts
+    // are no-ops, and the single asset that has no WebP counterpart is left alone.
+    private static readonly System.Text.RegularExpressions.Regex FigmaPng =
+        new(@"/figma/(?<name>[A-Za-z0-9._-]+)\.png", System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private const string FigmaPngKeep = "fbc8aad72be2cbe18085dbfec69c78dc9aa089ec";
+
+    public int MigrateFigmaImagesToWebp() =>
+        WriteTx((conn, tx) =>
+        {
+            var tables = new[] { "Products", "Categories", "HeroSlides", "HomeCategories", "Showcase", "BlogPosts" };
+            var updated = 0;
+
+            foreach (var table in tables)
+            {
+                var rows = conn.Query<(long Id, string DataJson)>($"SELECT Id, DataJson FROM {table}", transaction: tx).ToList();
+                foreach (var row in rows)
+                {
+                    var next = RewriteFigmaPng(row.DataJson);
+                    if (next == row.DataJson) continue;
+                    conn.Execute($"UPDATE {table} SET DataJson = @d WHERE Id = @id", new { d = next, id = row.Id }, tx);
+                    updated++;
+                }
+            }
+
+            var singletons = conn.Query<(string Key, string DataJson)>("SELECT Key, DataJson FROM Singletons", transaction: tx).ToList();
+            foreach (var row in singletons)
+            {
+                var next = RewriteFigmaPng(row.DataJson);
+                if (next == row.DataJson) continue;
+                conn.Execute("UPDATE Singletons SET DataJson = @d WHERE Key = @k", new { d = next, k = row.Key }, tx);
+                updated++;
+            }
+
+            return updated;
+        });
+
+    private static string RewriteFigmaPng(string json) =>
+        FigmaPng.Replace(json, m =>
+        {
+            var name = m.Groups["name"].Value;
+            return name == FigmaPngKeep ? m.Value : $"/figma/{name}.webp";
+        });
 }

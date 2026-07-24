@@ -331,4 +331,5 @@ public interface IDataStore
     void RestoreSection(BackupSection section, StoreSnapshot s);
     void RecordBackup(string section, string target, bool ok, string error);
     IReadOnlyList<BackupLogEntry> GetBackupLog();
+    int MigrateFigmaImagesToWebp();
 }
