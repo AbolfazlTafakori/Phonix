@@ -5,7 +5,7 @@ import { formatNumber, formatToman, productDisplayPrice, toFa } from "@/lib/form
 import type { Product, Comment } from "@/lib/types";
 import Stars from "@/components/Stars";
 import BestSellersCarousel, { type CarouselCard } from "@/components/home/BestSellersCarousel";
-import PurchaseCard from "@/components/product/PurchaseCard";
+import { PurchaseProvider, PlanPicker, BuyBox } from "@/components/product/purchase";
 import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
 import OpenChatButton from "@/components/product/OpenChatButton";
 import ProductGallery from "@/components/product/ProductGallery";
@@ -219,10 +219,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         )}
       </div>
 
-      {/* main grid — mobile: gallery → info → purchase stacked; desktop: purchase | info | gallery */}
-      <div className="grid items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(280px,320px)_1fr_minmax(320px,420px)]">
-        {/* gallery — first on mobile; left column, top row on desktop */}
-        <div className="order-1 lg:col-start-3 lg:row-start-1">
+      {/* main grid — mobile: gallery → info+picker → buy box stacked. On desktop the reading order runs
+          right-to-left like the marketplaces Iranian buyers already know: the product on the right, what you
+          are choosing in the middle, and the price and buttons in a sticky box on the left. */}
+      <PurchaseProvider product={product}>
+      <div className="grid items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(300px,380px)_1fr_minmax(300px,360px)]">
+        {/* gallery — first on mobile; RIGHT column on desktop */}
+        <div className="order-1 lg:col-start-1 lg:row-start-1">
           <ProductGallery image={product.image} gallery={product.gallery ?? []} name={product.name} featured={product.featured} out={out} />
         </div>
 
@@ -249,18 +252,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             {product.description.replace(/[#*_\[\]()]/g, "").slice(0, 220)}
           </p>
 
-          {/* mini benefits */}
-          <div className="mt-4 grid grid-cols-3 gap-2 sm:mt-5 sm:gap-2.5">
-            {[
-              { icon: I.headset, label: "پشتیبانی ۲۴/۷" },
-              { icon: I.shield, label: "ضمانت اصالت" },
-              { icon: I.bolt, label: "تحویل آنی" },
-            ].map((b) => (
-              <div key={b.label} className="flex flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-center sm:gap-2 sm:py-3.5" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)" }}>
-                <span style={{ color: "#F2551F" }}><Icon d={b.icon} className="h-4 w-4 sm:h-5 sm:w-5" /></span>
-                <span className="text-[10px] font-bold sm:text-[12px]" style={{ color: "var(--ac-text)" }}>{b.label}</span>
-              </div>
-            ))}
+          {/* what the buyer is actually choosing, in its own card beside the gallery */}
+          <div className="mt-4 sm:mt-5">
+            <PlanPicker />
           </div>
 
           {/* stock box */}
@@ -280,14 +274,14 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           )}
         </div>
 
-        {/* purchase card — right column on desktop, spanning both content rows so the trust row can sit
-            in the gap under the shorter gallery/info instead of below this tall card */}
-        <div className="order-3 lg:sticky lg:top-[100px] lg:col-start-1 lg:row-start-1 lg:row-span-2">
-          <PurchaseCard product={product} />
+        {/* buy box — LEFT column on desktop, sticky, spanning both content rows so the services row can sit
+            in the gap under the shorter gallery/content instead of below this tall card */}
+        <div className="order-3 lg:sticky lg:top-[100px] lg:col-start-3 lg:row-start-1 lg:row-span-2">
+          <BuyBox />
         </div>
 
         {/* trust row — full width on mobile; on desktop it fills the second row under gallery+info */}
-        <div className="order-4 grid grid-cols-2 gap-px overflow-hidden rounded-[22px] border bg-[var(--ac-panel-bg)] sm:grid-cols-3 lg:col-start-2 lg:col-end-4 lg:row-start-2 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+        <div className="order-4 grid grid-cols-2 gap-px overflow-hidden rounded-[22px] border bg-[var(--ac-panel-bg)] sm:grid-cols-3 lg:col-start-1 lg:col-end-3 lg:row-start-2 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
           <TrustItem icon={<Icon d={I.tag} />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
           <TrustItem icon={<Icon d={I.shield} />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
           <TrustItem icon={<Icon d={I.lock} />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
@@ -295,6 +289,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <TrustItem icon={<Icon d={I.bolt} />} title="تحویل آنی" desc="بلافاصله پس از پرداخت" />
         </div>
       </div>
+      </PurchaseProvider>
 
       {/* tabs */}
       <ProductTabs product={product} comments={comments} />

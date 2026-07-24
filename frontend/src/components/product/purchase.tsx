@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -9,13 +9,19 @@ import { addToCart, setQuantity, useCart } from "@/lib/cart";
 import { formatToman, toFa } from "@/lib/format";
 import type { Product, ProductPlan } from "@/lib/types";
 
-// Short descriptions shown under each account type in the selector.
+// The buying experience, split across the page rather than stacked in one card.
+//
+// The layout puts the gallery on the right, what you are choosing in the middle, and the price and the
+// buttons in a sticky box on the left — so the selectors and the CTA live in two different grid cells but
+// must share one selection. A context is what makes that possible: `PurchaseProvider` owns every piece of
+// state, `PlanPicker` renders the choices wherever the page wants them, and `BuyBox` renders the price and
+// the actions somewhere else entirely, both reading the same source of truth.
+
 const TYPE_DESC: Record<string, string> = {
   "اشتراکی": "ارزان‌تر و اقتصادی",
   "اختصاصی": "اکانت اختصاصی شما",
 };
 
-// اشتراکی → two-people (users) icon · اختصاصی → single person + plus (user-plus).
 function TYPE_ICON(type: string) {
   const priv = type.includes("اختصاصی");
   return (
@@ -37,14 +43,49 @@ function TYPE_ICON(type: string) {
   );
 }
 
-/** Sticky purchase card: plan type + duration selectors, quantity stepper, add-to-cart
- *  with rules confirmation, quick-buy, and the compare/share/favorite action row. */
-export default function PurchaseCard({ product }: { product: Product }) {
+type PurchaseValue = {
+  product: Product;
+  types: string[];
+  type: string | null;
+  selectType: (t: string) => void;
+  typedPlans: ProductPlan[];
+  selected: ProductPlan | undefined;
+  setPlanId: (id: number) => void;
+  isV2Ray: boolean;
+  typeHeading: string;
+  planHeading: string;
+  out: boolean;
+  overLevel: boolean;
+  requiredLevel: number;
+  level: number | null;
+  planRequired: boolean;
+  unitPrice: number;
+  planLabel: string;
+  inCartQty: number;
+  onAdd: (quick: boolean) => void;
+  changeQty: (next: number) => void;
+  goto: (path: string) => void;
+  fav: boolean;
+  favBusy: boolean;
+  toggleFav: () => void;
+  shared: boolean;
+  share: () => void;
+};
+
+const Ctx = createContext<PurchaseValue | null>(null);
+
+function usePurchase(): PurchaseValue {
+  const v = useContext(Ctx);
+  if (!v) throw new Error("PlanPicker/BuyBox must be rendered inside <PurchaseProvider>");
+  return v;
+}
+
+export function PurchaseProvider({ product, children }: { product: Product; children: ReactNode }) {
   const router = useRouter();
   const { user } = useAuth();
 
-  const plans = product.plans.filter((p) => p.isActive);
-  const types = [...new Set(plans.map((p) => p.type))];
+  const plans = useMemo(() => product.plans.filter((p) => p.isActive), [product.plans]);
+  const types = useMemo(() => [...new Set(plans.map((p) => p.type))], [plans]);
   const [type, setType] = useState<string | null>(types[0] ?? null);
   const typedPlans = useMemo(
     () => plans.filter((p) => p.type === type).sort((a, b) => a.months - b.months),
@@ -53,16 +94,14 @@ export default function PurchaseCard({ product }: { product: Product }) {
   const [planId, setPlanId] = useState<number | null>(typedPlans[0]?.id ?? null);
   const selected: ProductPlan | undefined = typedPlans.find((p) => p.id === planId) ?? typedPlans[0];
 
-  // Identity-level gate, mirrored here from the server rule (PlaceOrder: buyer.VerificationLevel <
-  // product.RequiredLevel) so a buyer who can't reach the level never fills a cart they can't check out.
-  // Levels: 0 = registered only (can never buy), 1 = approved bank card, 2 = approved national ID.
-  // A missing level falls back to 1, exactly like the model default and the checkout's own `?? 1`.
   // A V2Ray-linked product sells per server: the first level is the location the operator named, the second
   // its plans — so the two headings say that instead of "account type" and "duration".
   const isV2Ray = (product.v2rayCategoryId ?? 0) > 0;
   const typeHeading = isV2Ray ? "انتخاب سرور" : "انتخاب نوع اکانت";
   const planHeading = isV2Ray ? "انتخاب پلن" : "انتخاب مدت زمان";
 
+  // Identity-level gate, mirrored here from the server rule (PlaceOrder) so a buyer who can't reach the
+  // level never fills a cart they can't check out.
   const requiredLevel = product.requiredLevel ?? 1;
   const [level, setLevel] = useState<number | null>(null);
   useEffect(() => {
@@ -79,16 +118,13 @@ export default function PurchaseCard({ product }: { product: Product }) {
   // "collect info from the customer" step. The server refuses such a checkout too.
   const planRequired = plans.length > 0 && selected == null;
 
-  // The cart already keys lines by product + plan, so each duration is its own line with its own quantity.
-  // The quantity stepper is revealed only once the *selected* plan is in the cart (i.e. the user pressed
-  // «افزودن به سبد خرید» for it); before that only the add button shows.
   const { items: cartItems } = useCart();
   const inCartQty = selected
     ? cartItems.find((i) => i.productId === product.id && (i.planId ?? null) === (selected.id ?? null))?.quantity ?? 0
     : 0;
-  const displayQty = inCartQty > 0 ? inCartQty : 1;
 
   const [confirming, setConfirming] = useState(false);
+  const [pendingQuick, setPendingQuick] = useState(false);
   const [fav, setFav] = useState(false);
   const [favBusy, setFavBusy] = useState(false);
   const [shared, setShared] = useState(false);
@@ -106,18 +142,15 @@ export default function PurchaseCard({ product }: { product: Product }) {
     setPlanId(first?.id ?? null);
   }
 
-  function cartItem() {
-    return { productId: product.id, name: product.name, image: product.image, price: unitPrice, planId: selected?.id ?? null, plan: planLabel };
-  }
-
   function commit(goCheckout: boolean) {
-    addToCart(cartItem(), 1);
+    addToCart(
+      { productId: product.id, name: product.name, image: product.image, price: unitPrice, planId: selected?.id ?? null, plan: planLabel },
+      1,
+    );
     setConfirming(false);
     if (goCheckout) router.push("/checkout");
-    // Otherwise the plan is now in the cart, so the quantity stepper takes over automatically.
   }
 
-  const [pendingQuick, setPendingQuick] = useState(false);
   function onAdd(quick: boolean) {
     if (out) return;
     setPendingQuick(quick);
@@ -144,174 +177,24 @@ export default function PurchaseCard({ product }: { product: Product }) {
     } catch { /* cancelled */ }
   }
 
+  const value: PurchaseValue = {
+    product, types, type, selectType, typedPlans, selected,
+    setPlanId: (id) => setPlanId(id),
+    isV2Ray, typeHeading, planHeading,
+    out, overLevel, requiredLevel, level, planRequired,
+    unitPrice, planLabel, inCartQty,
+    onAdd,
+    changeQty: (next) => setQuantity(product.id, next, selected?.id ?? null),
+    goto: (path) => router.push(path),
+    fav, favBusy, toggleFav, shared, share,
+  };
+
   return (
-    <div
-      className="rounded-[22px] border bg-[var(--ac-panel-bg)] p-5"
-      style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
-    >
-      {/* price */}
-      <div className="flex items-end justify-between gap-2">
-        <div>
-          <p className="text-[12px]" style={{ color: "var(--ac-muted)" }}>قیمت نهایی</p>
-          <p className="mt-1 flex items-baseline gap-1.5">
-            <span className="text-[30px] font-black leading-none" style={{ color: "#F2551F" }}>{formatToman(unitPrice * displayQty).replace(" تومان", "")}</span>
-            <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>تومان</span>
-          </p>
-        </div>
-        {planLabel && <span className="rounded-full px-3 py-1 text-[11px] font-bold" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>{planLabel}</span>}
-      </div>
+    <Ctx.Provider value={value}>
+      {children}
 
-      {/* type selector: icon (left) + label/desc (right) + radio (far left) */}
-      {types.length > 0 && (
-        <div className="mt-5">
-          <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>{typeHeading}</p>
-          <div className="space-y-2.5">
-            {types.map((t) => {
-              const active = type === t;
-              return (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => selectType(t)}
-                  className="flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-right transition"
-                  style={active
-                    ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }
-                    : { borderColor: "var(--ac-panel-border)" }}
-                >
-                  {/* right group (RTL): icon first so it sits on the right, then the text */}
-                  <span className="flex items-center gap-3">
-                    <span style={{ color: active ? "#F2551F" : "var(--ac-icon)" }}>{TYPE_ICON(t)}</span>
-                    <span className="leading-tight">
-                      <span className="block text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{t}</span>
-                      <span className="mt-0.5 block text-[11px]" style={{ color: "var(--ac-muted)" }}>{TYPE_DESC[t] ?? (isV2Ray ? "لوکیشن سرویس" : "اشتراک دیجیتال")}</span>
-                    </span>
-                  </span>
-                  {/* far left: radio indicator */}
-                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border-2" style={{ borderColor: active ? "#F2551F" : "var(--ac-panel-border)" }}>
-                    {active && <span className="h-2.5 w-2.5 rounded-full" style={{ background: "#F2551F" }} />}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* duration grid: X ماهه + price + green discount pill (centered) */}
-      {typedPlans.length > 0 && (
-        <div className="mt-5">
-          <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>{planHeading}</p>
-          <div className="grid grid-cols-2 gap-2.5">
-            {typedPlans.map((p) => {
-              const active = p.id === (selected?.id ?? null);
-              return (
-                <button
-                  key={p.id}
-                  type="button"
-                  onClick={() => setPlanId(p.id)}
-                  className="flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition"
-                  style={active
-                    ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }
-                    : { borderColor: "var(--ac-panel-border)" }}
-                >
-                  <span className="text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{p.label || `${toFa(p.months)} ماهه`}</span>
-                  <span className="text-[12px] font-bold" style={{ color: "var(--ac-text)" }}>{formatToman(p.finalPrice)}</span>
-                  {/* Products that sell per user-count carry the seat count on each plan; show it in the last
-                      row (next to the discount) so the buyer sees what each price actually covers. */}
-                  {p.userCount > 0 ? (
-                    <span className="mt-0.5 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
-                      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                      {toFa(p.userCount)} کاربر
-                    </span>
-                  ) : p.discountPercent > 0 && (
-                    <span className="mt-0.5 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-black text-emerald-600">
-                      ٪{toFa(p.discountPercent)} تخفیف
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* CTAs — quantity is revealed only after the selected plan is added to the cart */}
-      {out ? (
-        <button type="button" disabled className="mt-4 h-14 w-full cursor-not-allowed rounded-xl border text-[15px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>
-          ناموجود
-        </button>
-      ) : overLevel ? (
-        /* The buyer's identity level is below what this product needs — don't let them build a cart they
-           can never check out with; send them to verification instead. */
-        <div className="mt-4 rounded-xl border p-4 text-center" style={{ borderColor: "var(--ac-btn-secondary-border)", background: "var(--ac-stat-icon-orange-bg)" }}>
-          <p className="text-[13px] font-black" style={{ color: "#F2551F" }}>برای خرید این محصول احراز هویت لازم است</p>
-          <p className="mt-1 text-[12px] leading-6" style={{ color: "var(--ac-text)" }}>
-            {/* Name the step, not just a number: level 1 is the bank card, level 2 the national ID. */}
-            این محصول به سطح {toFa(requiredLevel)} ({requiredLevel >= 2 ? "تأیید کارت ملی" : "تأیید کارت بانکی"}) نیاز دارد؛
-            سطح فعلی شما {toFa(level ?? 0)} است.
-          </p>
-          <Link
-            href={requiredLevel >= 2 && (level ?? 0) >= 1 ? "/account/kyc" : "/account/cards"}
-            className="mt-3 grid h-11 w-full place-items-center rounded-xl text-[14px] font-black text-white transition hover:brightness-105"
-            style={{ background: "var(--ac-btn)" }}
-          >
-            {/* Level 2 needs level 1 first (KycController rejects it otherwise), so send them to cards until they have it. */}
-            {requiredLevel >= 2 && (level ?? 0) >= 1 ? "احراز هویت با کارت ملی" : "ثبت و تأیید کارت بانکی"}
-          </Link>
-        </div>
-      ) : planRequired ? (
-        /* Priced per plan, but none is selectable — ordering it would charge the bare base price and skip the
-           plan's info step, so the server refuses it too. */
-        <button type="button" disabled className="mt-4 h-14 w-full cursor-not-allowed rounded-xl border text-[15px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>
-          ابتدا یک پلن انتخاب کنید
-        </button>
-      ) : inCartQty > 0 ? (
-        <div className="mt-4 space-y-2.5">
-          <div className="flex items-center justify-between rounded-xl border px-4 py-2.5" style={{ borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }}>
-            <span className="text-[13px] font-bold" style={{ color: "#F2551F" }}>تعداد {planLabel ? `(${planLabel})` : ""}</span>
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={() => setQuantity(product.id, inCartQty - 1, selected?.id ?? null)} aria-label="کاهش" className="grid h-8 w-8 place-items-center rounded-lg border text-[16px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)", background: "var(--ac-panel-bg)" }}>−</button>
-              <span className="w-6 text-center text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(inCartQty)}</span>
-              <button type="button" onClick={() => setQuantity(product.id, Math.min(99, inCartQty + 1), selected?.id ?? null)} aria-label="افزایش" className="grid h-8 w-8 place-items-center rounded-lg border text-[16px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)", background: "var(--ac-panel-bg)" }}>+</button>
-            </div>
-          </div>
-          <button type="button" onClick={() => router.push("/checkout")} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-xl text-[15px] font-black text-white shadow-[0_14px_38px_rgba(242,85,31,0.35)] transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
-            ادامه به پرداخت
-          </button>
-          <button type="button" onClick={() => router.push("/cart")} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border bg-[var(--ac-panel-bg)] text-[14px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-btn-secondary-border)", color: "var(--ac-btn-secondary-text)" }}>
-            مشاهده سبد خرید
-          </button>
-        </div>
-      ) : (
-        <div className="mt-4 space-y-2.5">
-          <button type="button" onClick={() => onAdd(false)} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-xl text-[15px] font-black text-white shadow-[0_14px_38px_rgba(242,85,31,0.35)] transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="18" cy="21" r="1" /><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L23 7H5.5" /></svg>
-            افزودن به سبد خرید
-          </button>
-          <button type="button" onClick={() => onAdd(true)} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border bg-[var(--ac-panel-bg)] text-[14px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-btn-secondary-border)", color: "var(--ac-btn-secondary-text)" }}>
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M13 2L3 14h7l-1 8 11-13h-7z" /></svg>
-            خرید سریع
-          </button>
-        </div>
-      )}
-
-      {/* action bar */}
-      <div className="mt-4 grid grid-cols-3 gap-2 border-t pt-4" style={{ borderColor: "var(--ac-divider)" }}>
-        <a href="#plan-compare" className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M8 21H3v-5M21 3l-7.5 7.5M3 21l7.5-7.5" /></svg>
-          مقایسه
-        </a>
-        <button type="button" onClick={share} className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>
-          {shared ? "کپی شد ✓" : "اشتراک‌گذاری"}
-        </button>
-        <button type="button" onClick={toggleFav} disabled={favBusy} className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)] disabled:opacity-60" style={{ color: fav ? "#FF3D2E" : "var(--ac-text)" }}>
-          <svg viewBox="0 0 24 24" className="h-5 w-5" fill={fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
-          علاقه‌مندی
-        </button>
-      </div>
-
-      {/* rules confirmation */}
+      {/* Rules confirmation lives with the provider, not either panel: it is triggered from the BuyBox but
+          belongs to the purchase as a whole, and rendering it once here keeps it out of both layouts. */}
       {confirming && (
         <div className="fixed inset-0 z-[70] grid place-items-center p-4" dir="rtl">
           <div onClick={() => setConfirming(false)} className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
@@ -345,6 +228,187 @@ export default function PurchaseCard({ product }: { product: Product }) {
           </div>
         </div>
       )}
+    </Ctx.Provider>
+  );
+}
+
+/** What you are choosing — its own card in the middle column, next to the gallery. */
+export function PlanPicker() {
+  const { types, type, selectType, typedPlans, selected, setPlanId, isV2Ray, typeHeading, planHeading } = usePurchase();
+  if (types.length === 0) return null;
+
+  return (
+    <div
+      className="rounded-[22px] border bg-[var(--ac-panel-bg)] p-4 sm:p-5"
+      style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
+    >
+      <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>{typeHeading}</p>
+      <div className="space-y-2.5">
+        {types.map((t) => {
+          const active = type === t;
+          return (
+            <button
+              key={t}
+              type="button"
+              onClick={() => selectType(t)}
+              className="flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-right transition"
+              style={active
+                ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }
+                : { borderColor: "var(--ac-panel-border)" }}
+            >
+              <span className="flex items-center gap-3">
+                <span style={{ color: active ? "#F2551F" : "var(--ac-icon)" }}>{TYPE_ICON(t)}</span>
+                <span className="leading-tight">
+                  <span className="block text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{t}</span>
+                  <span className="mt-0.5 block text-[11px]" style={{ color: "var(--ac-muted)" }}>{TYPE_DESC[t] ?? (isV2Ray ? "لوکیشن سرویس" : "اشتراک دیجیتال")}</span>
+                </span>
+              </span>
+              <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border-2" style={{ borderColor: active ? "#F2551F" : "var(--ac-panel-border)" }}>
+                {active && <span className="h-2.5 w-2.5 rounded-full" style={{ background: "#F2551F" }} />}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {typedPlans.length > 0 && (
+        <div className="mt-5">
+          <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>{planHeading}</p>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+            {typedPlans.map((p) => {
+              const active = p.id === (selected?.id ?? null);
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPlanId(p.id)}
+                  className="flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition"
+                  style={active
+                    ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }
+                    : { borderColor: "var(--ac-panel-border)" }}
+                >
+                  <span className="text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{p.label || `${toFa(p.months)} ماهه`}</span>
+                  <span className="text-[12px] font-bold" style={{ color: "var(--ac-text)" }}>{formatToman(p.finalPrice)}</span>
+                  {p.userCount > 0 ? (
+                    <span className="mt-0.5 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
+                      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                      {toFa(p.userCount)} کاربر
+                    </span>
+                  ) : p.discountPercent > 0 && (
+                    <span className="mt-0.5 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-black text-emerald-600">
+                      ٪{toFa(p.discountPercent)} تخفیف
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Price and the actions — the sticky box in the left column. */
+export function BuyBox() {
+  const {
+    product, selected, out, overLevel, requiredLevel, level, planRequired,
+    unitPrice, planLabel, inCartQty, onAdd, changeQty, goto,
+    fav, favBusy, toggleFav, shared, share,
+  } = usePurchase();
+
+  const basePrice = selected ? selected.price : product.price;
+  const discount = selected ? selected.discountPercent : product.discountPercent;
+
+  return (
+    <div
+      className="rounded-[22px] border bg-[var(--ac-panel-bg)] p-5"
+      style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
+    >
+      <div className="flex items-end justify-between gap-2">
+        <div>
+          <p className="text-[12px]" style={{ color: "var(--ac-muted)" }}>قیمت نهایی</p>
+          <p className="mt-1 text-[24px] font-black leading-none" style={{ color: "var(--ac-title)" }}>
+            {formatToman(unitPrice)}
+          </p>
+          {discount > 0 && (
+            <p className="mt-1.5 text-[12px] line-through" style={{ color: "var(--ac-muted)" }}>{formatToman(basePrice)}</p>
+          )}
+        </div>
+        {planLabel && (
+          <span className="rounded-lg px-2.5 py-1 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
+            {planLabel}
+          </span>
+        )}
+      </div>
+
+      {out ? (
+        <button type="button" disabled className="mt-4 h-14 w-full cursor-not-allowed rounded-xl border text-[15px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>
+          ناموجود
+        </button>
+      ) : overLevel ? (
+        <div className="mt-4 rounded-xl border p-4 text-center" style={{ borderColor: "var(--ac-btn-secondary-border)", background: "var(--ac-stat-icon-orange-bg)" }}>
+          <p className="text-[13px] font-black" style={{ color: "#F2551F" }}>برای خرید این محصول احراز هویت لازم است</p>
+          <p className="mt-1 text-[12px] leading-6" style={{ color: "var(--ac-text)" }}>
+            این محصول به سطح {toFa(requiredLevel)} ({requiredLevel >= 2 ? "تأیید کارت ملی" : "تأیید کارت بانکی"}) نیاز دارد؛
+            سطح فعلی شما {toFa(level ?? 0)} است.
+          </p>
+          <Link
+            href={requiredLevel >= 2 && (level ?? 0) >= 1 ? "/account/kyc" : "/account/cards"}
+            className="mt-3 grid h-11 w-full place-items-center rounded-xl text-[14px] font-black text-white transition hover:brightness-105"
+            style={{ background: "var(--ac-btn)" }}
+          >
+            {requiredLevel >= 2 && (level ?? 0) >= 1 ? "احراز هویت با کارت ملی" : "ثبت و تأیید کارت بانکی"}
+          </Link>
+        </div>
+      ) : planRequired ? (
+        <button type="button" disabled className="mt-4 h-14 w-full cursor-not-allowed rounded-xl border text-[15px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>
+          ابتدا یک پلن انتخاب کنید
+        </button>
+      ) : inCartQty > 0 ? (
+        <div className="mt-4 space-y-2.5">
+          <div className="flex items-center justify-between rounded-xl border px-4 py-2.5" style={{ borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }}>
+            <span className="text-[13px] font-bold" style={{ color: "#F2551F" }}>تعداد</span>
+            <div className="flex items-center gap-3">
+              <button type="button" onClick={() => changeQty(inCartQty - 1)} aria-label="کاهش" className="grid h-8 w-8 place-items-center rounded-lg border text-[16px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)", background: "var(--ac-panel-bg)" }}>−</button>
+              <span className="w-6 text-center text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(inCartQty)}</span>
+              <button type="button" onClick={() => changeQty(Math.min(99, inCartQty + 1))} aria-label="افزایش" className="grid h-8 w-8 place-items-center rounded-lg border text-[16px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)", background: "var(--ac-panel-bg)" }}>+</button>
+            </div>
+          </div>
+          <button type="button" onClick={() => goto("/checkout")} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-xl text-[15px] font-black text-white shadow-[0_14px_38px_rgba(242,85,31,0.35)] transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
+            ادامه به پرداخت
+          </button>
+          <button type="button" onClick={() => goto("/cart")} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border bg-[var(--ac-panel-bg)] text-[14px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-btn-secondary-border)", color: "var(--ac-btn-secondary-text)" }}>
+            مشاهده سبد خرید
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-2.5">
+          <button type="button" onClick={() => onAdd(false)} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-xl text-[15px] font-black text-white shadow-[0_14px_38px_rgba(242,85,31,0.35)] transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
+            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="18" cy="21" r="1" /><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L23 7H5.5" /></svg>
+            افزودن به سبد خرید
+          </button>
+          <button type="button" onClick={() => onAdd(true)} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border bg-[var(--ac-panel-bg)] text-[14px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-btn-secondary-border)", color: "var(--ac-btn-secondary-text)" }}>
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="currentColor"><path d="M13 2L3 14h7l-1 8 11-13h-7z" /></svg>
+            خرید سریع
+          </button>
+        </div>
+      )}
+
+      <div className="mt-4 grid grid-cols-3 gap-2 border-t pt-4" style={{ borderColor: "var(--ac-divider)" }}>
+        <a href="#plan-compare" className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M8 21H3v-5M21 3l-7.5 7.5M3 21l7.5-7.5" /></svg>
+          مقایسه
+        </a>
+        <button type="button" onClick={share} className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>
+          {shared ? "کپی شد ✓" : "اشتراک‌گذاری"}
+        </button>
+        <button type="button" onClick={toggleFav} disabled={favBusy} className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)] disabled:opacity-60" style={{ color: fav ? "#FF3D2E" : "var(--ac-text)" }}>
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill={fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
+          علاقه‌مندی
+        </button>
+      </div>
     </div>
   );
 }
