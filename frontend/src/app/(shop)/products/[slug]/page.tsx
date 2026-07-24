@@ -4,6 +4,7 @@ import { api } from "@/lib/api";
 import { formatToman, productDisplayPrice, toFa } from "@/lib/format";
 import type { Product, Comment } from "@/lib/types";
 import RelatedProducts, { type RelatedCard } from "@/components/product/RelatedProducts";
+import MobileBackButton from "@/components/product/MobileBackButton";
 import { PurchaseProvider, PlanPicker, BuyBox, MobileBuyBar } from "@/components/product/purchase";
 import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
 import OpenChatButton from "@/components/product/OpenChatButton";
@@ -243,6 +244,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
       {/* mobile title + logo + rating */}
       <div className="mb-4 lg:hidden">
+        <MobileBackButton />
         <div className="flex items-center gap-3">
           {product.logo && (
             <img loading="lazy" decoding="async" src={product.logo} alt="" className="h-10 w-10 shrink-0 rounded-xl object-contain sm:h-12 sm:w-12" />

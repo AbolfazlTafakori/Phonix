@@ -27,6 +27,16 @@ function GridIcon({ className }: { className?: string }) {
   );
 }
 
+function BoxIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 8.5 12 3 3 8.5v7L12 21l9-5.5z" />
+      <path d="M3 8.5 12 14l9-5.5" />
+      <path d="M12 14v7" />
+    </svg>
+  );
+}
+
 /**
  * The bottom tab bar for small screens — the primary way to move around on mobile, the way marketplace apps
  * do it instead of hiding everything behind a hamburger. Hidden from `lg` up (the desktop header owns
@@ -44,13 +54,14 @@ export default function MobileTabBar() {
   const tabs = [
     { key: "home", label: "خانه", href: "/", icon: HomeIcon, active: pathname === "/" },
     { key: "cats", label: "دسته‌بندی", href: "/categories", icon: GridIcon, active: pathname.startsWith("/categories") },
+    { key: "products", label: "محصولات", href: "/products", icon: BoxIcon, active: pathname.startsWith("/products") },
     { key: "cart", label: "سبد خرید", href: "/cart", icon: CartIcon, active: pathname.startsWith("/cart"), badge: count },
     { key: "me", label: "فونیکس من", href: user ? "/account" : "/login", icon: UserIcon, active: pathname.startsWith("/account") || pathname.startsWith("/login") },
   ];
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t bg-[var(--ac-panel-bg)] lg:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t bg-[var(--ac-panel-bg)] lg:hidden"
       style={{ borderColor: "var(--ac-panel-border)", boxShadow: "0 -8px 26px rgba(0,0,0,0.07)", paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       {tabs.map((t) => {
