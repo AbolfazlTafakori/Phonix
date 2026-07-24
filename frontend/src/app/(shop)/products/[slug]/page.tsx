@@ -268,8 +268,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {/* buy box — LEFT column on desktop, sticky */}
-        <div className="order-3 lg:sticky lg:top-[100px] lg:col-start-3 lg:row-start-1">
+        {/* buy box — desktop only; on mobile the price and CTA live in the sticky bottom bar so they are not
+            duplicated in the middle of the page */}
+        <div className="order-3 hidden lg:sticky lg:top-[100px] lg:col-start-3 lg:row-start-1 lg:block">
           <BuyBox />
         </div>
       </div>

@@ -319,7 +319,7 @@ export function PlanPicker() {
 export function MobileBuyBar() {
   const {
     product, selected, out, overLevel, requiredLevel, level, planRequired,
-    unitPrice, planLabel, inCartQty, onAdd, goto,
+    unitPrice, planLabel, inCartQty, onAdd, goto, fav, favBusy, toggleFav,
   } = usePurchase();
 
   const [tucked, setTucked] = useState(false);
@@ -358,8 +358,11 @@ export function MobileBuyBar() {
       className={`fixed inset-x-0 bottom-0 z-40 border-t bg-[var(--ac-panel-bg)] px-4 pt-2.5 transition-transform duration-300 lg:hidden ${tucked ? "translate-y-full" : "translate-y-0"}`}
       style={{ borderColor: "var(--ac-panel-border)", boxShadow: "0 -8px 26px rgba(0,0,0,0.09)", paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}
     >
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={toggleFav} disabled={favBusy} aria-label="افزودن به علاقه‌مندی‌ها" className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border transition active:scale-95 disabled:opacity-60" style={{ borderColor: "var(--ac-panel-border)", color: fav ? "#FF3D2E" : "var(--ac-muted)" }}>
+          <svg viewBox="0 0 24 24" className="h-[22px] w-[22px]" fill={fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
+        </button>
+        <div className="min-w-0 flex-1">
           {out ? (
             <p className="text-[14px] font-black" style={{ color: "var(--ac-muted)" }}>فعلاً موجود نیست</p>
           ) : (
