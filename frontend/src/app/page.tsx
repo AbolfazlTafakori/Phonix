@@ -13,6 +13,7 @@ import HomeBlog from "@/components/home/HomeBlog";
 import HomeFaq from "@/components/home/HomeFaq";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import HomeFooter from "@/components/home/HomeFooter";
+import MobileTabBar from "@/components/home/MobileTabBar";
 import Reveal from "@/components/Reveal";
 
 // Home content (hero, showcase, blog picks) is admin-editable, so render per request instead of
@@ -22,7 +23,7 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const [content, blogPosts] = await Promise.all([getSiteContent(), getBlogPosts()]);
   return (
-    <div className="home-light min-h-screen">
+    <div className="home-light min-h-screen pb-[60px] lg:pb-0">
       <TopBar />
       <HomeHeader brand={content.brand} searchPlaceholder="جستجو در بین هزاران محصول..." />
       <main>
@@ -39,6 +40,7 @@ export default async function Home() {
         <Reveal><HomeNewsletter /></Reveal>
       </main>
       <HomeFooter brand={content.brand} />
+      <MobileTabBar />
     </div>
   );
 }
