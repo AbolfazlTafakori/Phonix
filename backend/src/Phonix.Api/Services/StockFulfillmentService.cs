@@ -53,7 +53,11 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
             foreach (var unit in order.Units.Where(u => !u.Delivered && !u.Rejected).ToList())
             {
                 var product = _store.GetProduct(unit.ProductId);
-                if (product is null || !product.AutoDeliverStock) continue;
+                if (product is null) continue;
+                // A V2Ray unit is served by creating an account on the panel, which V2RayProvisionWorker does
+                // out of band — approval must not wait on a network hop it can't guarantee.
+                if (product.V2RayCategoryId > 0) continue;
+                if (!product.AutoDeliverStock) continue;
                 ServeUnit(order, unit, Actor);
             }
         }

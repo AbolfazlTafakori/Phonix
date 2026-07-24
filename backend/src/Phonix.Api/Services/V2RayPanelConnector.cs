@@ -28,6 +28,16 @@ public sealed record V2RayClientResult(bool Ok, string? Error = null, string Uui
 
 public sealed record V2RayInbound(int Id, string Remark, string Protocol, int Port, bool Enable, int ClientCount);
 
+// Live usage for one provisioned client, read straight off the panel. Bytes, because that is what the panel
+// counts; `Total` of 0 means unlimited and `ExpiryTimeMs` of 0 means it never expires, both matching the
+// panel's own convention. `Online` says the client has an active connection right now.
+public sealed record V2RayTraffic(
+    bool Ok, string? Error = null, long Up = 0, long Down = 0, long Total = 0,
+    long ExpiryTimeMs = 0, bool Enable = true, bool Online = false)
+{
+    public static V2RayTraffic Fail(string error) => new(false, error);
+}
+
 public sealed record V2RayInboundsResult(bool Ok, string? Error = null, IReadOnlyList<V2RayInbound>? Inbounds = null)
 {
     public static V2RayInboundsResult Fail(string error) => new(false, error);
@@ -60,6 +70,9 @@ public interface IV2RayPanelConnector
 
     // Creates the account on exactly the given inbounds in a single call.
     Task<V2RayClientResult> AddClientAsync(V2RayProvider provider, V2RayCredentials credentials, V2RayNewClient client, IReadOnlyList<int> inboundIds, CancellationToken ct = default);
+
+    // Live traffic/expiry for one client, looked up by the email it was created under.
+    Task<V2RayTraffic> GetTrafficAsync(V2RayProvider provider, V2RayCredentials credentials, string email, CancellationToken ct = default);
 
     static string? NormalizeUrl(string? raw)
     {
@@ -360,6 +373,84 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         catch (JsonException)
         {
             return false;
+        }
+    }
+
+    public async Task<V2RayTraffic> GetTrafficAsync(V2RayProvider provider, V2RayCredentials creds, string email, CancellationToken ct = default)
+    {
+        if (provider != V2RayProvider.Sanaei)
+            return V2RayTraffic.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
+        var baseUrl = IV2RayPanelConnector.NormalizeUrl(creds.Url);
+        if (baseUrl is null) return V2RayTraffic.Fail("آدرس پنل معتبر نیست.");
+        email = (email ?? "").Trim();
+        if (email.Length == 0) return V2RayTraffic.Fail("نام (Email) اکانت مشخص نیست.");
+
+        using var client = NewClient();
+        try
+        {
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
+            if (error is not null) return V2RayTraffic.Fail(error);
+
+            using var resp = await session!.Client.GetAsync(
+                $"{session.BaseUrl}/panel/api/inbounds/getClientTraffics/{Uri.EscapeDataString(email)}", ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (!resp.IsSuccessStatusCode)
+                return V2RayTraffic.Fail($"خواندن مصرف ممکن نشد (کد {(int)resp.StatusCode}).");
+
+            var traffic = ReadTraffic(body);
+            if (!traffic.Ok) return traffic;
+
+            // Whether the account is connected right now. Optional: a panel that doesn't expose it just
+            // leaves the flag false rather than failing the whole read.
+            return traffic with { Online = await IsOnlineAsync(session, email, ct) };
+        }
+        catch (Exception ex)
+        {
+            return V2RayTraffic.Fail(FriendlyError(ex, baseUrl, ct));
+        }
+    }
+
+    private static async Task<bool> IsOnlineAsync(Session session, string email, CancellationToken ct)
+    {
+        try
+        {
+            using var resp = await session.Client.PostAsync($"{session.BaseUrl}/panel/api/inbounds/onlines", null, ct);
+            if (!resp.IsSuccessStatusCode) return false;
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            if (!doc.RootElement.TryGetProperty("obj", out var obj) || obj.ValueKind != JsonValueKind.Array) return false;
+            foreach (var el in obj.EnumerateArray())
+                if (el.ValueKind == JsonValueKind.String && string.Equals(el.GetString(), email, StringComparison.Ordinal))
+                    return true;
+            return false;
+        }
+        catch (Exception) { return false; }
+    }
+
+    private static V2RayTraffic ReadTraffic(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement;
+            if (root.TryGetProperty("success", out var okEl) && okEl.ValueKind == JsonValueKind.False)
+                return V2RayTraffic.Fail("پنل اطلاعات این اکانت را برنگرداند.");
+            if (!root.TryGetProperty("obj", out var obj) || obj.ValueKind != JsonValueKind.Object)
+                return V2RayTraffic.Fail("اکانت روی پنل پیدا نشد.");
+
+            static long Num(JsonElement el, string name) =>
+                el.TryGetProperty(name, out var v) && v.TryGetInt64(out var n) ? n : 0;
+
+            return new V2RayTraffic(
+                true, null,
+                Up: Num(obj, "up"),
+                Down: Num(obj, "down"),
+                Total: Num(obj, "total"),
+                ExpiryTimeMs: Num(obj, "expiryTime"),
+                Enable: !obj.TryGetProperty("enable", out var en) || en.ValueKind != JsonValueKind.False);
+        }
+        catch (JsonException)
+        {
+            return V2RayTraffic.Fail("پاسخ پنل قابل خواندن نبود.");
         }
     }
 

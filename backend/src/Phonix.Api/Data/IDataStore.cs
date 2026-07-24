@@ -294,11 +294,14 @@ public interface IDataStore
     Order? DeliverOrder(int id, string content, string? changedBy = null);
     Order? SaveUnitDraft(int orderId, int unitId, string content, string? changedBy = null);
     (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null);
+    bool SetUnitV2Ray(int orderId, int unitId, V2RayAccount account);
+    (Order order, OrderUnit unit)? FindUnitByV2RayToken(string token);
     // Flags/clears a unit as waiting for inventory (its held seats stay Reserved until the pool can complete it).
     bool SetUnitWaitingForInventory(int orderId, int unitId, bool waiting);
     // Preparing orders that still have at least one unit waiting for inventory, oldest first — the FIFO queue
     // the pool drains when new compatible stock is added.
     IReadOnlyList<Order> GetOrdersWaitingForInventory();
+    IReadOnlyList<Order> GetOrdersAwaitingV2Ray();
     // applyPenalty: false for a cancellation the customer didn't choose (staff rejecting a receipt/order).
     OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true);
     // Rejects ONE account of an order: refunds its price after discount, returns its stock, and settles the

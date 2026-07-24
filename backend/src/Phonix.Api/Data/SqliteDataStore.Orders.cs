@@ -65,7 +65,11 @@ public sealed partial class SqliteDataStore
             foreach (var pid in itemList.Where(i => i.quantity > 0).Select(i => i.productId).Distinct())
             {
                 var pj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @pid", new { pid }, tx);
-                if (pj is not null) products[pid] = Deserialize<Product>(pj)!;
+                // A V2Ray-linked product stores no plans of its own; the row on its own therefore has an
+                // empty plan list, and the chosen plan would never be found. Project the linked category's
+                // plans in — exactly as every other read of a product does — so the plan the customer picked
+                // resolves here too.
+                if (pj is not null) products[pid] = ApplyV2RayPlans(Deserialize<Product>(pj)!);
             }
 
             var lines = new List<OrderItem>();
@@ -96,7 +100,7 @@ public sealed partial class SqliteDataStore
                 lines.Add(new OrderItem
                 {
                     ProductId = p.Id, Name = p.Name, Image = p.Image, Plan = planLabel,
-                    PlanMonths = plan?.Months, UserCount = plan?.UserCount ?? 0,
+                    PlanMonths = plan?.Months, PlanId = plan?.Id, UserCount = plan?.UserCount ?? 0,
                     UnitPrice = plan?.FinalPrice ?? p.FinalPrice, Quantity = qty,
                 });
 
@@ -110,7 +114,7 @@ public sealed partial class SqliteDataStore
                     units.Add(new OrderUnit
                     {
                         Id = units.Count + 1, ProductId = p.Id, Name = p.Name, Image = p.Image, Plan = planLabel,
-                        UserCount = plan?.UserCount ?? 0,
+                        PlanId = plan?.Id, UserCount = plan?.UserCount ?? 0,
                         UnitIndex = u + 1, CustomerInputs = ui?.Inputs ?? new(), CustomerNote = ui?.Note,
                     });
                 }
@@ -638,6 +642,42 @@ LIMIT 1;",
             return true;
         });
 
+    // Attaches (or updates) the V2Ray account provisioned for one unit. Kept separate from DeliverUnit so a
+    // failed attempt can record why without delivering anything, and so a retry that finally succeeds writes
+    // the account before the unit is marked delivered.
+    public bool SetUnitV2Ray(int orderId, int unitId, V2RayAccount account) =>
+        WriteTx((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id=@orderId", new { orderId }, tx);
+            if (oj is null) return false;
+            var o = Deserialize<Order>(oj)!;
+            var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit is null) return false;
+
+            unit.V2Ray = account;
+            UpsertOrder(conn, tx, o);
+            return true;
+        });
+
+    // The order unit a public config token belongs to, or null when the token is unknown. The token is the
+    // only key the config page has, so the lookup deliberately reveals nothing else about the order.
+    public (Order order, OrderUnit unit)? FindUnitByV2RayToken(string token)
+    {
+        if (string.IsNullOrWhiteSpace(token)) return null;
+        using var conn = OpenConnection();
+        // The token lives inside the unit JSON; SQLite filters the obvious non-matches before we deserialize.
+        var rows = conn.Query<string>(
+            "SELECT DataJson FROM Orders WHERE DataJson LIKE '%' || @token || '%'", new { token });
+        foreach (var json in rows)
+        {
+            var order = Deserialize<Order>(json)!;
+            var unit = order.Units.FirstOrDefault(u =>
+                u.V2Ray is not null && string.Equals(u.V2Ray.Token, token, StringComparison.Ordinal));
+            if (unit is not null) return (order, unit);
+        }
+        return null;
+    }
+
     public (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null) =>
         WriteTx<(Order?, bool)>((conn, tx) =>
         {
@@ -685,6 +725,19 @@ LIMIT 1;",
             UpsertOrder(conn, tx, o);
             return true;
         });
+
+    // Approved orders that still have an undelivered unit — the pool the V2Ray provisioner sweeps. The
+    // service decides which of those units are actually its own; this only narrows the scan to orders that
+    // are in play.
+    public IReadOnlyList<Order> GetOrdersAwaitingV2Ray()
+    {
+        using var conn = OpenConnection();
+        return conn.Query<string>("SELECT DataJson FROM Orders WHERE Status = @status ORDER BY Id",
+                new { status = (int)OrderStatus.Preparing })
+            .Select(j => Deserialize<Order>(j)!)
+            .Where(o => o.Units.Any(u => !u.Delivered && !u.Rejected))
+            .ToList();
+    }
 
     public IReadOnlyList<Order> GetOrdersWaitingForInventory()
     {

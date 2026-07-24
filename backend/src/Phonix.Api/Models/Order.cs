@@ -32,6 +32,10 @@ public class OrderItem
     // time-based subscription). Used by the renewal-reminder worker to compute expiry; the human-readable
     // `Plan` string above is for display only.
     public int? PlanMonths { get; set; }
+    // The plan the customer actually chose, kept as an id so fulfilment can look its terms up rather than
+    // parsing the display label. For a V2Ray-linked product this is the V2RayPlan id (see ApplyV2RayPlans),
+    // which is what provisioning needs to know which panel, inbounds and limits to create the account with.
+    public int? PlanId { get; set; }
     // How many users/seats the chosen plan covers, captured at order time (0 = the plan sells no fixed seat
     // count). For slot-fulfilled products this is how many consecutive seats one purchase claims on a shared
     // account; it's also shown as «تعداد کاربر» on the fulfillment/receipt messages.
@@ -52,6 +56,9 @@ public class OrderUnit
     public string Name { get; set; } = "";
     public string Image { get; set; } = "";
     public string? Plan { get; set; }
+    // Mirrored from the line so fulfilment can read the chosen plan's terms straight off the unit it is
+    // serving (see OrderItem.PlanId).
+    public int? PlanId { get; set; }
     public int UserCount { get; set; }     // seats the plan covers, mirrored from the line (see OrderItem.UserCount)
     public int UnitIndex { get; set; }     // 1-based position within its product line ("اکانت اول/دوم")
     // What the customer entered for THIS unit at checkout, plus their optional note.
@@ -75,6 +82,37 @@ public class OrderUnit
     public bool WaitingForInventory { get; set; }
     // Last staff member who saved a draft or delivered this unit — shown so a second admin sees who's on it.
     public string? HandledBy { get; set; }
+
+    // ── V2Ray provisioning ──────────────────────────────────────────────────────────────────────────────
+    // Set when this unit was served by creating an account on a V2Ray panel instead of pulling one from the
+    // stock pool. The panel is the source of truth for live usage; these are the handles needed to find the
+    // account again and to render the customer's config page.
+    public V2RayAccount? V2Ray { get; set; }
+}
+
+// The account created on a V2Ray panel for one order unit. `Token` is the unguessable key to the public
+// config page — the buyer may hand that link to whoever the service is for (a colleague, a family member),
+// so it is deliberately shareable and carries no account or order identifiers.
+public class V2RayAccount
+{
+    public int PanelId { get; set; }
+    public int PlanId { get; set; }
+    public string Email { get; set; } = "";   // the client's name on the panel; also the traffic lookup key
+    public string Uuid { get; set; } = "";
+    public string SubId { get; set; } = "";
+    public string SubUrl { get; set; } = "";
+    public string Token { get; set; } = "";
+    public string Protocol { get; set; } = "";
+    public string Network { get; set; } = "";
+    public long VolumeGb { get; set; }
+    public int DurationDays { get; set; }
+    public int IpLimit { get; set; }
+    public DateTime? CreatedAtUtc { get; set; }
+    public DateTime? ExpiresAtUtc { get; set; }
+    // Provisioning is retried in the background, so a panel that is briefly unreachable never blocks an
+    // approval. These record how that is going for the staff view.
+    public int Attempts { get; set; }
+    public string? LastError { get; set; }
 }
 
 public class Order

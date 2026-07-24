@@ -1014,6 +1014,43 @@ export type OrderUnit = {
   // The seat pool couldn't fully cover this unit yet; its held seats stay reserved until new stock completes it.
   waitingForInventory: boolean;
   handledBy: string | null;
+  // Present when this unit was served by provisioning a V2Ray account; `token` opens its config page.
+  v2Ray: OrderUnitV2Ray | null;
+};
+
+export type OrderUnitV2Ray = {
+  token: string;
+  uuid: string;
+  subUrl: string;
+  protocol: string;
+  network: string;
+  volumeGb: number;
+  durationDays: number;
+  ipLimit: number;
+  expiresAtUtc: string | null;
+};
+
+// One provisioned V2Ray account as the public config page sees it.
+export type V2RayConfig = {
+  name: string;
+  uuid: string;
+  server: string;
+  flag: string;
+  protocol: string;
+  network: string;
+  subUrl: string;
+  usedBytes: number;
+  upBytes: number;
+  downBytes: number;
+  totalBytes: number;
+  ipLimit: number;
+  online: boolean;
+  remainingDays: number | null;
+  expiresAtUtc: string | null;
+  createdAtUtc: string | null;
+  active: boolean;
+  // False when the panel didn't answer: the plan's own terms are shown, usage isn't live.
+  statsLive: boolean;
 };
 
 export type OrderStatusHistory = {

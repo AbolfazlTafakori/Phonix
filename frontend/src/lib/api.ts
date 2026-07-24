@@ -90,6 +90,7 @@ import type {
   DiscountResult,
   UsdRateInfo,
   PagedResult,
+  V2RayConfig,
 } from "./types";
 import { getCsrfToken } from "./token";
 
@@ -793,6 +794,10 @@ export const api = {
     reply: (id: number, body: string) => request<Comment>(`/comments/${id}/reply`, { method: "POST", body: json({ body }) }),
     setHome: (id: number, on: boolean) => request<void>(`/comments/${id}/home`, { method: "POST", body: json({ on }) }),
     remove: (id: number) => request<void>(`/comments/${id}`, { method: "DELETE" }),
+  },
+  // The public config page for one provisioned V2Ray account, addressed by its own token.
+  v2rayConfig: {
+    get: (token: string) => request<V2RayConfig>(`/v2ray/config/${encodeURIComponent(token)}`),
   },
   // Public: approved reviews the admin flagged for the home-page carousel.
   testimonials: {
