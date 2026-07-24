@@ -14,6 +14,9 @@ public class V2RayProductLinkTests
         var store = TestStore.Create();
         var category = store.AddV2RayCategory(new V2RayCategory { Name = "سرویس‌های یک‌ماهه", Active = true });
 
+        // The buyer picks a server first, so the projection needs real panels to name.
+        store.AddV2RayPanel(new V2RayPanel { Url = "https://nl.example.com:8080", Name = "هلند تانل", Flag = "NL" });
+
         store.AddV2RayPlan(new V2RayPlan
         {
             CategoryId = category.Id, Title = "۵ گیگ یک کاربر", PanelId = 1, InboundIds = new() { 1 },
@@ -51,8 +54,12 @@ public class V2RayProductLinkTests
         var product = store.GetProduct(created.Id)!;
 
         Assert.Equal(2, product.Plans.Count); // the inactive one is excluded
-        Assert.Equal("۵ گیگ یک کاربر", product.Plans[0].Type);
-        Assert.Equal("۲۰ گیگ دو کاربر", product.Plans[1].Type);
+        // First level is the SERVER under the exact name the operator gave it…
+        Assert.Equal("هلند تانل NL", product.Plans[0].Type);
+        Assert.Equal("هلند تانل NL", product.Plans[1].Type);
+        // …and the second level is that server's plans.
+        Assert.Equal("۵ گیگ یک کاربر", product.Plans[0].Label);
+        Assert.Equal("۲۰ گیگ دو کاربر", product.Plans[1].Label);
     }
 
     [Fact]
@@ -107,6 +114,26 @@ public class V2RayProductLinkTests
     }
 
     [Fact]
+    public void Two_servers_sharing_a_name_do_not_merge_into_one_option()
+    {
+        // Otherwise the plans of two different servers would sit under a single selector entry and the buyer
+        // could not tell which location they were buying.
+        var store = TestStore.Create();
+        var category = store.AddV2RayCategory(new V2RayCategory { Name = "یک‌ماهه", Active = true });
+        var a = store.AddV2RayPanel(new V2RayPanel { Url = "https://a.example.com:8080", Name = "هلند", Flag = "NL" });
+        var b = store.AddV2RayPanel(new V2RayPanel { Url = "https://b.example.com:8080", Name = "هلند", Flag = "NL" });
+
+        store.AddV2RayPlan(new V2RayPlan { CategoryId = category.Id, Title = "۵ گیگ", PanelId = a.Id, InboundIds = new() { 1 }, DurationDays = 30, Price = 1000, Active = true });
+        store.AddV2RayPlan(new V2RayPlan { CategoryId = category.Id, Title = "۵ گیگ", PanelId = b.Id, InboundIds = new() { 1 }, DurationDays = 30, Price = 2000, Active = true });
+
+        var created = store.AddProduct(new Product { Name = "V2Ray", CategoryId = 1, IsActive = true, V2RayCategoryId = category.Id, Plans = new() });
+        var types = store.GetProduct(created.Id)!.Plans.Select(p => p.Type).Distinct().ToList();
+
+        Assert.Equal(2, types.Count);
+        Assert.All(types, t => Assert.StartsWith("هلند NL", t));
+    }
+
+    [Fact]
     public void An_ordinary_product_is_left_completely_alone()
     {
         var (store, _) = SeedCatalogue();
@@ -120,5 +147,6 @@ public class V2RayProductLinkTests
 
         Assert.Single(product.Plans);
         Assert.Equal("اشتراکی", product.Plans[0].Type);
+        Assert.Equal("", product.Plans[0].Label); // keeps the "X ماهه" wording
     }
 }

@@ -47,26 +47,54 @@ ON CONFLICT(Id) DO UPDATE SET
     {
         if (product.V2RayCategoryId <= 0) return product;
 
-        product.Plans = GetV2RayPlans()
+        var plans = GetV2RayPlans()
             .Where(p => p.CategoryId == product.V2RayCategoryId && p.Active)
             .OrderBy(p => p.SortOrder).ThenBy(p => p.FinalPrice)
-            .Select(p => new ProductPlan
+            .ToList();
+
+        // The buyer picks a SERVER first, then one of that server's plans — so the storefront's first level is
+        // the server under the exact name the operator gave it ("هلند تانل NL"), not the plan name.
+        var panels = GetV2RayPanels().ToDictionary(p => p.Id, p => p);
+        string ServerName(int panelId)
+        {
+            if (!panels.TryGetValue(panelId, out var panel)) return "سرور";
+            var name = string.IsNullOrWhiteSpace(panel.Name) ? HostOf(panel.Url) : panel.Name.Trim();
+            return string.IsNullOrWhiteSpace(panel.Flag) ? name : $"{name} {panel.Flag.Trim()}";
+        }
+
+        // Two servers sharing a name would silently merge into one option and mix their plans, so a repeated
+        // name is disambiguated rather than collapsed.
+        var nameCounts = plans.Select(p => p.PanelId).Distinct()
+            .GroupBy(ServerName)
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        product.Plans = plans
+            .Select(p =>
             {
-                Id = p.Id,
-                // The V2Ray plan's own title is the label the buyer picks — volume and user count live in the
-                // name the operator wrote (e.g. «۵ گیگ یک کاربر»), which is exactly what should be shown.
-                Type = p.Title,
-                // Durations are days here; the storefront speaks months, so 30 days reads as one month.
-                Months = p.DurationDays <= 0 ? 1 : Math.Max(1, (int)Math.Round(p.DurationDays / 30.0)),
-                Price = p.Price,
-                DiscountPercent = p.DiscountPercent,
-                IsActive = true,
-                UserCount = p.IpLimit,
-                Rules = p.Description,
+                var server = ServerName(p.PanelId);
+                if (nameCounts.GetValueOrDefault(server) > 1) server = $"{server} #{p.PanelId}";
+                return new ProductPlan
+                {
+                    Id = p.Id,
+                    Type = server,
+                    Label = p.Title,
+                    // Durations are days here; the storefront speaks months, so 30 days reads as one month.
+                    Months = p.DurationDays <= 0 ? 1 : Math.Max(1, (int)Math.Round(p.DurationDays / 30.0)),
+                    Price = p.Price,
+                    DiscountPercent = p.DiscountPercent,
+                    IsActive = true,
+                    UserCount = p.IpLimit,
+                    Rules = p.Description,
+                };
             })
             .ToList();
 
         return product;
+    }
+
+    private static string HostOf(string url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : url;
     }
 
     public IReadOnlyList<Product> GetProducts(int? categoryId = null, string? search = null)

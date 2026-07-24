@@ -56,6 +56,8 @@ export type PlanInfoSettings = {
 export type ProductPlan = PlanInfoSettings & {
   id: number;
   type: string;
+  // Shown instead of the "X ماهه" derived from months. Empty for ordinary products.
+  label: string;
   months: number;
   price: number;
   priceUsd: number;
@@ -68,6 +70,8 @@ export type ProductPlan = PlanInfoSettings & {
 
 export type ProductPlanInput = PlanInfoSettings & {
   type: string;
+  // Only V2Ray-projected plans carry a label; ordinary products keep the "X ماهه" wording.
+  label?: string;
   months: number;
   price: number;
   priceUsd: number;

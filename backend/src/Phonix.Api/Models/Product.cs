@@ -42,6 +42,11 @@ public class ProductPlan
 {
     public int Id { get; set; }
     public string Type { get; set; } = "";
+    // Optional label for the plan itself, shown INSTEAD of the "X ماهه" the storefront derives from Months.
+    // Ordinary products leave it empty and keep the month wording; a V2Ray plan sets it to its own name
+    // ("۵ گیگ یک کاربر"), because there the plans of one server differ by volume and users rather than by
+    // duration — several plans can share the same 30 days and would otherwise be indistinguishable.
+    public string Label { get; set; } = "";
     public int Months { get; set; }
     public long Price { get; set; }
     // When > 0 this plan is priced in USD; its Toman Price is recomputed from the live rate (see UsdRateService).

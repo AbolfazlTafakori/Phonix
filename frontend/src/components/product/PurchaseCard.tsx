@@ -57,6 +57,12 @@ export default function PurchaseCard({ product }: { product: Product }) {
   // product.RequiredLevel) so a buyer who can't reach the level never fills a cart they can't check out.
   // Levels: 0 = registered only (can never buy), 1 = approved bank card, 2 = approved national ID.
   // A missing level falls back to 1, exactly like the model default and the checkout's own `?? 1`.
+  // A V2Ray-linked product sells per server: the first level is the location the operator named, the second
+  // its plans — so the two headings say that instead of "account type" and "duration".
+  const isV2Ray = (product.v2rayCategoryId ?? 0) > 0;
+  const typeHeading = isV2Ray ? "انتخاب سرور" : "انتخاب نوع اکانت";
+  const planHeading = isV2Ray ? "انتخاب پلن" : "انتخاب مدت زمان";
+
   const requiredLevel = product.requiredLevel ?? 1;
   const [level, setLevel] = useState<number | null>(null);
   useEffect(() => {
@@ -89,7 +95,9 @@ export default function PurchaseCard({ product }: { product: Product }) {
 
   const out = product.stock <= 0;
   const unitPrice = selected?.finalPrice ?? product.finalPrice;
-  const planLabel = selected ? `${selected.type} · ${toFa(selected.months)} ماهه` : "";
+  const planLabel = selected
+    ? `${selected.type} · ${selected.label || `${toFa(selected.months)} ماهه`}`
+    : "";
   const rules = (selected?.rules ?? "").trim();
 
   function selectType(t: string) {
@@ -156,7 +164,7 @@ export default function PurchaseCard({ product }: { product: Product }) {
       {/* type selector: icon (left) + label/desc (right) + radio (far left) */}
       {types.length > 0 && (
         <div className="mt-5">
-          <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>انتخاب نوع اکانت</p>
+          <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>{typeHeading}</p>
           <div className="space-y-2.5">
             {types.map((t) => {
               const active = type === t;
@@ -175,7 +183,7 @@ export default function PurchaseCard({ product }: { product: Product }) {
                     <span style={{ color: active ? "#F2551F" : "var(--ac-icon)" }}>{TYPE_ICON(t)}</span>
                     <span className="leading-tight">
                       <span className="block text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{t}</span>
-                      <span className="mt-0.5 block text-[11px]" style={{ color: "var(--ac-muted)" }}>{TYPE_DESC[t] ?? "اشتراک دیجیتال"}</span>
+                      <span className="mt-0.5 block text-[11px]" style={{ color: "var(--ac-muted)" }}>{TYPE_DESC[t] ?? (isV2Ray ? "لوکیشن سرویس" : "اشتراک دیجیتال")}</span>
                     </span>
                   </span>
                   {/* far left: radio indicator */}
@@ -192,7 +200,7 @@ export default function PurchaseCard({ product }: { product: Product }) {
       {/* duration grid: X ماهه + price + green discount pill (centered) */}
       {typedPlans.length > 0 && (
         <div className="mt-5">
-          <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>انتخاب مدت زمان</p>
+          <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>{planHeading}</p>
           <div className="grid grid-cols-2 gap-2.5">
             {typedPlans.map((p) => {
               const active = p.id === (selected?.id ?? null);
@@ -206,7 +214,7 @@ export default function PurchaseCard({ product }: { product: Product }) {
                     ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }
                     : { borderColor: "var(--ac-panel-border)" }}
                 >
-                  <span className="text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{toFa(p.months)} ماهه</span>
+                  <span className="text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{p.label || `${toFa(p.months)} ماهه`}</span>
                   <span className="text-[12px] font-bold" style={{ color: "var(--ac-text)" }}>{formatToman(p.finalPrice)}</span>
                   {/* Products that sell per user-count carry the seat count on each plan; show it in the last
                       row (next to the discount) so the buyer sees what each price actually covers. */}
