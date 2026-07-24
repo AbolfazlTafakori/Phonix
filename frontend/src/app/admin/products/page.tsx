@@ -25,6 +25,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   description: "",
   warning: "",
   requiredLevel: 1,
+  v2rayCategoryId: 0,
   deliveryTemplate: "",
   priceUsd: 0,
   features: [
@@ -116,6 +117,14 @@ export default function AdminProductsPage() {
 
   const set = <K extends keyof ProductInput>(key: K, value: ProductInput[K]) => setForm((f) => ({ ...f, [key]: value }));
 
+  // The V2Ray catalogue is owner-only; a non-owner simply gets nothing and the selector stays hidden.
+  useEffect(() => {
+    api.v2ray.categories
+      .list()
+      .then((list) => setV2rayCats(list.map((c) => ({ id: c.id, name: c.name }))))
+      .catch(() => setV2rayCats([]));
+  }, []);
+
   function openNew() {
     setEditingId(null);
     setImportMsg("");
@@ -133,6 +142,7 @@ export default function AdminProductsPage() {
       stock: p.stock,
       isActive: p.isActive,
       featured: p.featured,
+      v2rayCategoryId: p.v2rayCategoryId,
       image: p.image,
       logo: p.logo,
       listImage: p.listImage ?? "",
@@ -194,6 +204,7 @@ export default function AdminProductsPage() {
   const removeFaq = (i: number) => setForm((f) => ({ ...f, faq: f.faq.filter((_, idx) => idx !== i) }));
 
   // Import a product-content .md file: auto-fills the description + FAQ fields (no manual entry).
+  const [v2rayCats, setV2rayCats] = useState<{ id: number; name: string }[]>([]);
   const [importMsg, setImportMsg] = useState("");
   function importMd(file: File) {
     const reader = new FileReader();
@@ -385,6 +396,26 @@ export default function AdminProductsPage() {
             </select>
             <p className="mt-1.5 text-xs text-white/45">برای خرید این محصول، کاربر باید حداقل این سطح احراز هویت را داشته باشد. (به کاربر نمایش داده نمی‌شود)</p>
           </Field>
+
+          {v2rayCats.length > 0 && (
+            <Field label="اتصال به پلن‌های V2Ray (اختیاری)">
+              <select
+                value={form.v2rayCategoryId}
+                onChange={(e) => set("v2rayCategoryId", Number(e.target.value))}
+                className={`${inputCls} h-12`}
+              >
+                <option value={0} className="bg-[#15151f]">— محصول عادی (پلن‌های خودش) —</option>
+                {v2rayCats.map((c) => (
+                  <option key={c.id} value={c.id} className="bg-[#15151f]">{c.name}</option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-white/45">
+                اگر یک دسته‌بندی V2Ray انتخاب کنید، این محصول لوگو و توضیحات و بقیه‌ی نمایش را از همین‌جا می‌گیرد،
+                ولی پلن‌های قابل‌انتخابش از پلن‌های همان دسته خوانده می‌شود. هر پلنی که بعداً به آن دسته اضافه کنید،
+                خودکار اینجا هم می‌آید.
+              </p>
+            </Field>
+          )}
 
           <Field label="قالب پیش‌فرض تحویل (اختیاری)">
             <textarea rows={3} value={form.deliveryTemplate} onChange={(e) => set("deliveryTemplate", e.target.value)} placeholder="متن آماده‌ای که هنگام تحویل این محصول در فرم تحویل پیش‌نویس می‌شود. مثلاً: نام کاربری: ___ / رمز: ___" className={`${inputCls} h-auto py-3 font-mono`} />

@@ -101,6 +101,8 @@ export type Product = {
   features: ProductFeature[];
   faq: ProductFaq[];
   plans: ProductPlan[];
+  // When > 0 this product sells the V2Ray plans of that category instead of its own `plans` list.
+  v2rayCategoryId: number;
 };
 
 export type StockItemStatus = "Available" | "Reserved" | "Delivered" | "Disabled";
@@ -259,6 +261,7 @@ export type ProductInput = {
   features: ProductFeature[];
   faq: ProductFaq[];
   plans: ProductPlanInput[];
+  v2rayCategoryId: number;
 };
 
 export type User = {
@@ -383,6 +386,21 @@ export type V2RayPlan = {
   finalPrice: number;
   active: boolean;
   sortOrder: number;
+};
+
+// What the storefront may know about a V2Ray plan — no panel, no inbounds, no ids of the infrastructure.
+export type V2RayPublicPlan = {
+  id: number;
+  title: string;
+  description: string;
+  protocol: string;
+  network: string;
+  volumeGb: number;
+  durationDays: number;
+  ipLimit: number;
+  price: number;
+  discountPercent: number;
+  finalPrice: number;
 };
 
 export type V2RayPlanInput = {

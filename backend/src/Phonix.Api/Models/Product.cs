@@ -109,6 +109,12 @@ public class Product
     // The bare service name printed on the slot-delivery message (e.g. «VYPRVPN»), set on the stock page.
     // Empty falls back to the Latin part of the product name, upper-cased without spaces (see StockAccount).
     public string ServiceName { get; set; } = "";
+    // Links this product to the SEPARATE V2Ray catalogue: when set, the product supplies all the
+    // presentation (logo, images, description, features, FAQ) exactly like any other product, but its
+    // selectable plans come from this V2Ray category instead of its own Plans list. 0 = an ordinary product.
+    // Adding a plan to that category makes it appear here automatically — the two stay linked, not copied.
+    public int V2RayCategoryId { get; set; }
+
     public bool IsActive { get; set; } = true;
     public bool Featured { get; set; }
     public string Image { get; set; } = "";

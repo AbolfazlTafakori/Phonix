@@ -166,6 +166,9 @@ public class ProductsController : ControllerBase
         target.Description = input.Description ?? "";
         target.Warning = input.Warning ?? "";
         target.RequiredLevel = Math.Clamp(input.RequiredLevel ?? 1, 1, 2);
+        // Links the product to the V2Ray catalogue: when set, its selectable plans come from that category
+        // instead of its own Plans list (see Product.V2RayCategoryId). 0 = an ordinary product.
+        target.V2RayCategoryId = Math.Max(0, input.V2RayCategoryId ?? 0);
         target.DeliveryTemplate = input.DeliveryTemplate ?? "";
         target.Features = input.Features ?? new();
         target.Faq = (input.Faq ?? new())

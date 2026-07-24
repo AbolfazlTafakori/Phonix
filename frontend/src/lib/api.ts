@@ -48,6 +48,7 @@ import type {
   V2RayCategoryInput,
   V2RayPlan,
   V2RayPlanInput,
+  V2RayPublicPlan,
   TelegramSettings,
   Transaction,
   TxStatus,
@@ -563,6 +564,8 @@ export const api = {
     },
   },
   v2ray: {
+    // Public: the plans a storefront product shows, read by category. No auth, no infrastructure exposed.
+    publicPlans: (categoryId: number) => request<V2RayPublicPlan[]>(`/v2ray/public/plans?categoryId=${categoryId}`),
     providers: () => request<V2RayProviderInfo[]>("/v2ray/providers"),
     panels: () => request<V2RayPanelInfo[]>("/v2ray/panels"),
     // Verify a URL + credentials without saving (the wizard's login/test button).
