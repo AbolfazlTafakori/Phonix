@@ -18,10 +18,11 @@ export default function MobileBackButton() {
       type="button"
       onClick={goBack}
       aria-label="بازگشت"
-      className="mb-2 grid h-9 w-9 place-items-center rounded-full border transition active:scale-95 lg:hidden"
+      className="mb-2 inline-flex h-9 items-center gap-1.5 rounded-full border pl-3 pr-2 text-[13px] font-bold transition active:scale-95 lg:hidden"
       style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)", color: "var(--ac-text)" }}
     >
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 6 6 6-6 6" /></svg>
+      بازگشت
     </button>
   );
 }
