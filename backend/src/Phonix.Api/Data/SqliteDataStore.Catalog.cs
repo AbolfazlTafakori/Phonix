@@ -34,7 +34,39 @@ ON CONFLICT(Id) DO UPDATE SET
     {
         using var conn = OpenConnection();
         var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @id", new { id });
-        return json is null ? null : Deserialize<Product>(json);
+        return json is null ? null : ApplyV2RayPlans(Deserialize<Product>(json)!);
+    }
+
+    // A product linked to the V2Ray catalogue has NO plans of its own — its selectable plans are the plans of
+    // that category. Substituting them here, at the single point every product is read, is what makes the
+    // whole pipeline agree: the price shown on the listing, the plan selector, the cart line, the checkout
+    // validation and the order placement (SqliteDataStore.Orders looks the chosen plan up in p.Plans) all see
+    // the same list. Doing it any further up would leave one of them reading an empty plan list and rejecting
+    // the order.
+    private Product ApplyV2RayPlans(Product product)
+    {
+        if (product.V2RayCategoryId <= 0) return product;
+
+        product.Plans = GetV2RayPlans()
+            .Where(p => p.CategoryId == product.V2RayCategoryId && p.Active)
+            .OrderBy(p => p.SortOrder).ThenBy(p => p.FinalPrice)
+            .Select(p => new ProductPlan
+            {
+                Id = p.Id,
+                // The V2Ray plan's own title is the label the buyer picks — volume and user count live in the
+                // name the operator wrote (e.g. «۵ گیگ یک کاربر»), which is exactly what should be shown.
+                Type = p.Title,
+                // Durations are days here; the storefront speaks months, so 30 days reads as one month.
+                Months = p.DurationDays <= 0 ? 1 : Math.Max(1, (int)Math.Round(p.DurationDays / 30.0)),
+                Price = p.Price,
+                DiscountPercent = p.DiscountPercent,
+                IsActive = true,
+                UserCount = p.IpLimit,
+                Rules = p.Description,
+            })
+            .ToList();
+
+        return product;
     }
 
     public IReadOnlyList<Product> GetProducts(int? categoryId = null, string? search = null)
@@ -43,7 +75,7 @@ ON CONFLICT(Id) DO UPDATE SET
         var sql = "SELECT DataJson FROM Products WHERE 1=1";
         if (categoryId is not null) sql += " AND CategoryId = @categoryId";
         sql += " ORDER BY Id;";
-        var products = conn.Query<string>(sql, new { categoryId }).Select(j => Deserialize<Product>(j)!).ToList();
+        var products = conn.Query<string>(sql, new { categoryId }).Select(j => ApplyV2RayPlans(Deserialize<Product>(j)!)).ToList();
 
         if (!string.IsNullOrWhiteSpace(search))
         {

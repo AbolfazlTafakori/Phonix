@@ -175,7 +175,12 @@ public class ProductsController : ControllerBase
             .Select(f => new ProductFaq { Question = (f.Question ?? "").Trim(), Answer = (f.Answer ?? "").Trim() })
             .Where(f => f.Question.Length > 0 && f.Answer.Length > 0)
             .ToList();
-        target.Plans = (input.Plans ?? new()).Select(NormalizePlan).ToList();
+        // A V2Ray-linked product owns no plans: its list is projected from the linked category on every read
+        // (see ApplyV2RayPlans). Writing the incoming list back would persist that projection as if it were
+        // the product's own plans, and the two would then drift apart. Keep it empty instead.
+        target.Plans = target.V2RayCategoryId > 0
+            ? new()
+            : (input.Plans ?? new()).Select(NormalizePlan).ToList();
         ApplyUsdPrice(target);
         return target;
     }
