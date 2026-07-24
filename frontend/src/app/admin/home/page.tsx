@@ -86,7 +86,7 @@ function SectionsPanel() {
               </Field>
               <div className="mt-3 grid grid-cols-2 gap-3">
                 <Field label="آدرس آیکن (اختیاری)">
-                  <input value={s.icon ?? ""} onChange={(e) => setStat(i, "icon", e.target.value)} dir="ltr" className={`${inputCls} h-10 text-left`} placeholder="/figma/icon-secure.png" />
+                  <input value={s.icon ?? ""} onChange={(e) => setStat(i, "icon", e.target.value)} dir="ltr" className={`${inputCls} h-10 text-left`} placeholder="/figma/icon-secure.webp" />
                 </Field>
                 <Field label="عدد (اگر آیکن ندارد)">
                   <input value={s.value ?? ""} onChange={(e) => setStat(i, "value", e.target.value)} dir="ltr" className={`${inputCls} h-10 text-left`} placeholder="+10,000" />

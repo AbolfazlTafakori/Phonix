@@ -3,9 +3,9 @@ import Link from "next/link";
 // Full pre-designed banner images (text baked in). Ordered right-to-left to
 // match the reference: discount (right) · virtual number (middle) · gamers (left).
 const banners = [
-  { img: "/figma/banner-discount.png", href: "/products", alt: "تخفیف‌های شگفت‌انگیز — تا ۳۰٪ تخفیف ویژه" },
-  { img: "/figma/banner-number.png", href: "/products", alt: "شماره مجازی برای همه کشورها" },
-  { img: "/figma/banner-gamers.png", href: "/products", alt: "ویژه گیمرها — بهترین اکانت‌های بازی و استریم" },
+  { img: "/figma/banner-discount.webp", href: "/products", alt: "تخفیف‌های شگفت‌انگیز — تا ۳۰٪ تخفیف ویژه" },
+  { img: "/figma/banner-number.webp", href: "/products", alt: "شماره مجازی برای همه کشورها" },
+  { img: "/figma/banner-gamers.webp", href: "/products", alt: "ویژه گیمرها — بهترین اکانت‌های بازی و استریم" },
 ];
 
 export default function HomePromoBanners() {

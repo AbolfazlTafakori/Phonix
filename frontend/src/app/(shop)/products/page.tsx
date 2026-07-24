@@ -14,9 +14,9 @@ export const metadata = {
 };
 
 const heroStats = [
-  { value: "+10,000", label: "سفارش موفق", icon: "/figma/stat-orders.png" },
-  { value: "+5,000", label: "مشتری رضایت‌مند", icon: "/figma/stat-customers.png" },
-  { value: "99%", label: "تضمین کیفیت", icon: "/figma/stat-satisfaction.png" },
+  { value: "+10,000", label: "سفارش موفق", icon: "/figma/stat-orders.webp" },
+  { value: "+5,000", label: "مشتری رضایت‌مند", icon: "/figma/stat-customers.webp" },
+  { value: "99%", label: "تضمین کیفیت", icon: "/figma/stat-satisfaction.webp" },
 ];
 
 export default async function FilmsPage({ searchParams }: { searchParams: Promise<{ cat?: string; q?: string }> }) {
@@ -56,7 +56,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
 
             <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 lg:flex-row-reverse lg:items-center lg:justify-center lg:gap-10 xl:gap-16">
               <div className="hero-anim-art shrink-0">
-                <img fetchPriority="high" decoding="async" src="/figma/productpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-[430px] lg:max-w-none xl:w-[490px]" />
+                <img fetchPriority="high" decoding="async" src="/figma/productpage-hero-shield.webp" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 lg:w-[430px] lg:max-w-none xl:w-[490px]" />
               </div>
 
               <div className="hero-anim-text w-full text-center lg:w-auto lg:text-right">

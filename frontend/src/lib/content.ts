@@ -19,8 +19,8 @@ export const defaultHeroSlides: HeroSlide[] = [
     title: "اکانت نتفلیکس ۴K Ultra HD",
     description:
       "تحویل آنی روی پروفایل اختصاصی شما، با کیفیت Ultra HD و گارانتی کامل دورهٔ اشتراک. دسترسی به هزاران فیلم و سریال محبوب نتفلیکس بدون محدودیت.",
-    image: "/figma/hero-tv.png",
-    logo: "/figma/hero-netflix-n.png",
+    image: "/figma/hero-tv.webp",
+    logo: "/figma/hero-netflix-n.webp",
     eyebrow: "اکانت اوریجینال · گارانتی کامل",
     badge: "۲۰٪ تخفیف",
     priceFrom: 99000,
@@ -44,7 +44,7 @@ export const defaultHeroSlides: HeroSlide[] = [
 ];
 
 export const defaultSiteContent: SiteContent = {
-  brand: { siteName: "Phoenix Verify", logoLine1: "Phoenix", logoLine2: "Verify", logo: "/figma/logo-phoenix.png" },
+  brand: { siteName: "Phoenix Verify", logoLine1: "Phoenix", logoLine2: "Verify", logo: "/figma/logo-phoenix.webp" },
   header: {
     searchPlaceholder: "جست و جو ...",
     cartLabel: "سبد خرید",
@@ -54,8 +54,8 @@ export const defaultSiteContent: SiteContent = {
     navLinks: homeNav.map((l) => ({ label: l.label, href: l.href, hasMenu: l.hasMenu })),
   },
   stats: [
-    { value: null, label: "پرداخت امن", icon: "/figma/icon-secure.png" },
-    { value: null, label: "پشتیبانی آنلاین", icon: "/figma/icon-support.png" },
+    { value: null, label: "پرداخت امن", icon: "/figma/icon-secure.webp" },
+    { value: null, label: "پشتیبانی آنلاین", icon: "/figma/icon-support.webp" },
     { value: "+10,000", label: "خرید ثبت شده", icon: null },
   ],
   sections: { categoriesTitle: "لیست محصولات", bestSellersTitle: "محصولات پر فروش", blogTitle: "مطالب وبلاگ" },

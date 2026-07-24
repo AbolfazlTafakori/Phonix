@@ -4,10 +4,10 @@ type Step = { n: number; title: string; desc: string; icon: string };
 
 // Ordered as shown right-to-left in the reference (step 1 on the right).
 const steps: Step[] = [
-  { n: 1, title: "انتخاب محصول", desc: "محصول مورد نظر خود را انتخاب کنید", icon: "/figma/step-cart.png" },
-  { n: 2, title: "پرداخت آنلاین", desc: "پرداخت امن از طریق درگاه‌های معتبر", icon: "/figma/step-card.png" },
-  { n: 3, title: "دریافت محصول", desc: "بعد از پرداخت، بلافاصله فایل دریافت کنید", icon: "/figma/step-download.png" },
-  { n: 4, title: "استفاده و لذت خرید", desc: "از خدمات ما استفاده کنید و لذت ببرید", icon: "/figma/step-check.png" },
+  { n: 1, title: "انتخاب محصول", desc: "محصول مورد نظر خود را انتخاب کنید", icon: "/figma/step-cart.webp" },
+  { n: 2, title: "پرداخت آنلاین", desc: "پرداخت امن از طریق درگاه‌های معتبر", icon: "/figma/step-card.webp" },
+  { n: 3, title: "دریافت محصول", desc: "بعد از پرداخت، بلافاصله فایل دریافت کنید", icon: "/figma/step-download.webp" },
+  { n: 4, title: "استفاده و لذت خرید", desc: "از خدمات ما استفاده کنید و لذت ببرید", icon: "/figma/step-check.webp" },
 ];
 
 export default function HomeHowToBuy() {

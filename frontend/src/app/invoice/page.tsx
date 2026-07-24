@@ -288,7 +288,7 @@ export default function InvoicePage() {
               </p>
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="inv-seal" src="/figma/invoice-seal.png" alt="مهر فونیکس ورفای" />
+            <img className="inv-seal" src="/figma/invoice-seal.webp" alt="مهر فونیکس ورفای" />
           </div>
         </div>
 

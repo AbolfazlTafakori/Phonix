@@ -47,7 +47,7 @@ function parseBlogMd(text: string, fileName: string): Omit<BlogPostInput, "featu
     title: title || fallbackSlug,
     tag: meta.tag || "مقاله",
     excerpt: meta.excerpt || content.split("\n").find((l) => l.trim() && !l.startsWith("#"))?.slice(0, 160) || "",
-    image: meta.image || "/figma/blog-1.png",
+    image: meta.image || "/figma/blog-1.webp",
     date: meta.date || "",
     content,
   };
@@ -138,7 +138,7 @@ export default function AdminBlogPage() {
         excerpt: "",
         content: "",
         date: "",
-        image: "/figma/blog-1.png",
+        image: "/figma/blog-1.webp",
         featuredOnHome: false,
         sortOrder: posts.length + 1,
         isActive: true,

@@ -31,13 +31,13 @@ function ticketStatusBadge(s: Ticket["status"]): { text: string; bg: string; col
 }
 
 const PRODUCT_LOGOS: Record<string, string> = {
-  netflix:     "/figma/logo-netflix.png",
-  wise:        "/figma/logo-wise.png",
-  binance:     "/figma/logo-binance.png",
-  bybit:       "/figma/logo-bybit.png",
-  canva:       "/figma/logo-canva.png",
-  freelancer:  "/figma/logo-freelancer.png",
-  "apple music": "/figma/logo-applemusic.png",
+  netflix:     "/figma/logo-netflix.webp",
+  wise:        "/figma/logo-wise.webp",
+  binance:     "/figma/logo-binance.webp",
+  bybit:       "/figma/logo-bybit.webp",
+  canva:       "/figma/logo-canva.webp",
+  freelancer:  "/figma/logo-freelancer.webp",
+  "apple music": "/figma/logo-applemusic.webp",
 };
 
 function productLogo(name: string): string | null {
@@ -330,7 +330,7 @@ export default function AccountDashboard() {
           </div>
           <div className="flex justify-center">
             <img loading="lazy" decoding="async"
-              src="/figma/account-welcome.png"
+              src="/figma/account-welcome.webp"
               alt="Phoenix Verify"
               className="h-[145px] w-[215px] object-contain md:h-[165px] md:w-[240px]"
               onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
@@ -344,22 +344,22 @@ export default function AccountDashboard() {
         <StatCard
           label="سطح احراز هویت" value={`سطح ${toFa(kycLevel)}`} unit="تأیید شده"
           link="/account/kyc" linkText="مشاهده جزئیات"
-          iconBg="var(--ac-stat-icon-purple-bg)" iconSrc="/figma/icon-shield.png"
+          iconBg="var(--ac-stat-icon-purple-bg)" iconSrc="/figma/icon-shield.webp"
         />
         <StatCard
           label="تیکت‌های باز" value={toFa(openTickets)} unit="تیکت"
           link="/account/tickets" linkText="مشاهده تیکت‌ها"
-          iconBg="var(--ac-stat-icon-green-bg)" iconSrc="/figma/icon-headset.png"
+          iconBg="var(--ac-stat-icon-green-bg)" iconSrc="/figma/icon-headset.webp"
         />
         <StatCard
           label="کل سفارش‌ها" value={toFa(totalOrders)} unit="سفارش"
           link="/account/orders" linkText="مشاهده سفارش‌ها"
-          iconBg="var(--ac-stat-icon-orange-bg)" iconSrc="/figma/icon-bag.png"
+          iconBg="var(--ac-stat-icon-orange-bg)" iconSrc="/figma/icon-bag.webp"
         />
         <StatCard
           label="موجودی کیف پول" value={formatNumber(wallet)} unit="تومان"
           link="/account/wallet" linkText="مشاهده کیف پول"
-          iconBg="var(--ac-stat-icon-orange-bg)" iconSrc="/figma/icon-wallet.png"
+          iconBg="var(--ac-stat-icon-orange-bg)" iconSrc="/figma/icon-wallet.webp"
         />
       </div>
 
@@ -548,8 +548,8 @@ export default function AccountDashboard() {
           ) : (
             <div className="grid grid-cols-2 gap-2.5">
               {[
-                { name: "Netflix Premium 4K", logo: "/figma/logo-netflix.png" },
-                { name: "Spotify Premium",    logo: "/figma/logo-applemusic.png" },
+                { name: "Netflix Premium 4K", logo: "/figma/logo-netflix.webp" },
+                { name: "Spotify Premium",    logo: "/figma/logo-applemusic.webp" },
                 { name: "NordVPN 1 Year",     logo: null },
                 { name: "Google Play $25",    logo: null },
               ].slice(0, Math.min(4, favCount)).map((p, i) => (

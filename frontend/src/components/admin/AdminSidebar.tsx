@@ -153,7 +153,7 @@ function SidebarBody({ groups, onNavigate }: { groups: AdminNavGroup[]; onNaviga
   return (
     <>
       <Link href="/admin" onClick={onNavigate} className="flex h-[72px] items-center gap-2.5 border-b border-white/8 px-6">
-        <img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-9 w-auto" />
+        <img src="/figma/logo-phoenix.webp" alt="Phoenix Verify" className="h-9 w-auto" />
         <span className="font-bigshot text-[13px] leading-[1.05] text-white">
           Phoenix
           <br />

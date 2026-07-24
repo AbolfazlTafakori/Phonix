@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 const trust = [
-  { title: "تحویل آنی", sub: "در کمترین زمان", icon: "/figma/trust-delivery.png" },
-  { title: "پشتیبانی ۲۴/۷", sub: "پاسخگوی شما هستیم", icon: "/figma/trust-support.png" },
-  { title: "پرداخت امن", sub: "درگاه‌های معتبر", icon: "/figma/trust-secure.png" },
+  { title: "تحویل آنی", sub: "در کمترین زمان", icon: "/figma/trust-delivery.webp" },
+  { title: "پشتیبانی ۲۴/۷", sub: "پاسخگوی شما هستیم", icon: "/figma/trust-support.webp" },
+  { title: "پرداخت امن", sub: "درگاه‌های معتبر", icon: "/figma/trust-secure.webp" },
 ];
 
 const ChevronLeft = () => (
@@ -28,7 +28,7 @@ export default function HomeHero() {
             <div aria-hidden className="hero-aura absolute inset-[6%] rounded-full bg-[#ff5a1f]/15 blur-3xl" />
             <img
               fetchPriority="high"
-              src="/figma/hero-phoenix.png"
+              src="/figma/hero-phoenix.webp"
               alt="فونیکس وریفای"
               className="hero-float absolute inset-0 h-full w-full object-contain drop-shadow-[0_24px_50px_rgba(239,35,60,0.22)]"
             />

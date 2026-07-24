@@ -3,12 +3,12 @@ import Image from "next/image";
 type Feature = { title: string; desc: string; icon: string };
 
 const features: Feature[] = [
-  { title: "تنوع بالا", desc: "صدها محصول متنوع", icon: "/figma/why-variety.png" },
-  { title: "تحویل سریع", desc: "آنی و بدون معطلی", icon: "/figma/why-delivery.png" },
-  { title: "پشتیبانی واقعی", desc: "۲۴/۷ در کنار شما", icon: "/figma/why-support.png" },
-  { title: "امنیت بالا", desc: "حفظ اطلاعات شما", icon: "/figma/why-security.png" },
-  { title: "خدمات معتبر", desc: "از برندهای کاملاً مطمئن", icon: "/figma/why-trusted.png" },
-  { title: "قیمت منصفانه", desc: "بهترین قیمت بازار", icon: "/figma/why-price.png" },
+  { title: "تنوع بالا", desc: "صدها محصول متنوع", icon: "/figma/why-variety.webp" },
+  { title: "تحویل سریع", desc: "آنی و بدون معطلی", icon: "/figma/why-delivery.webp" },
+  { title: "پشتیبانی واقعی", desc: "۲۴/۷ در کنار شما", icon: "/figma/why-support.webp" },
+  { title: "امنیت بالا", desc: "حفظ اطلاعات شما", icon: "/figma/why-security.webp" },
+  { title: "خدمات معتبر", desc: "از برندهای کاملاً مطمئن", icon: "/figma/why-trusted.webp" },
+  { title: "قیمت منصفانه", desc: "بهترین قیمت بازار", icon: "/figma/why-price.webp" },
 ];
 
 export default function HomeWhyChoose() {

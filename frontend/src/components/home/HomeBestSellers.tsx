@@ -20,12 +20,12 @@ async function getFeatured(): Promise<Product[]> {
 }
 
 const fallback = [
-  { id: -1, name: "اکانت نتفلیکس", categoryName: "اشتراک ۱ ماهه", finalPrice: 190000, image: "/figma/prod-netflix.png", badge: "پرفروش" },
-  { id: -2, name: "اسپاتیفای پریمیوم", categoryName: "اشتراک شخصی ۱ ماهه", finalPrice: 240000, image: "/figma/prod-spotify.png", badge: "تحویل فوری" },
-  { id: -3, name: "Apple Music", categoryName: "اشتراک ۱ ماهه", finalPrice: 190000, image: "/figma/prod-applemusic.png", badge: "پرفروش" },
-  { id: -4, name: "NordVPN", categoryName: "اشتراک ۱ ماهه", finalPrice: 230000, image: "/figma/prod-canva.png", badge: "تحویل فوری" },
-  { id: -5, name: "گیفت کارت گوگل پلی", categoryName: "کارت ۱۰ دلاری", finalPrice: 620000, image: "/figma/prod-binance.png", badge: "پرفروش" },
-  { id: -6, name: "اکانت PS Plus", categoryName: "اشتراک ۱ ماهه", finalPrice: 250000, image: "/figma/prod-bybit.png", badge: "تحویل فوری" },
+  { id: -1, name: "اکانت نتفلیکس", categoryName: "اشتراک ۱ ماهه", finalPrice: 190000, image: "/figma/prod-netflix.webp", badge: "پرفروش" },
+  { id: -2, name: "اسپاتیفای پریمیوم", categoryName: "اشتراک شخصی ۱ ماهه", finalPrice: 240000, image: "/figma/prod-spotify.webp", badge: "تحویل فوری" },
+  { id: -3, name: "Apple Music", categoryName: "اشتراک ۱ ماهه", finalPrice: 190000, image: "/figma/prod-applemusic.webp", badge: "پرفروش" },
+  { id: -4, name: "NordVPN", categoryName: "اشتراک ۱ ماهه", finalPrice: 230000, image: "/figma/prod-canva.webp", badge: "تحویل فوری" },
+  { id: -5, name: "گیفت کارت گوگل پلی", categoryName: "کارت ۱۰ دلاری", finalPrice: 620000, image: "/figma/prod-binance.webp", badge: "پرفروش" },
+  { id: -6, name: "اکانت PS Plus", categoryName: "اشتراک ۱ ماهه", finalPrice: 250000, image: "/figma/prod-bybit.webp", badge: "تحویل فوری" },
 ] as unknown as (Product & { badge: string })[];
 
 export default async function HomeBestSellers() {

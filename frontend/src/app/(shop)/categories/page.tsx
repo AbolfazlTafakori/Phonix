@@ -20,43 +20,43 @@ const heroFeatures = [
 ];
 
 const categoryMeta: Record<string, { desc: string; logo: string }> = {
-  "اشتراک‌های استریم": { desc: "نتفلیکس، یوتیوب و سایر پلتفرم‌های محبوب", logo: "/figma/catpage-stream.png" },
-  "اپل موزیک و اسپاتیفای": { desc: "اشتراک‌های اپل موزیک، اسپاتیفای و پادکست‌های برتر", logo: "/figma/catpage-music.png" },
-  "فیلترشکن / VPN": { desc: "سرورهای پرسرعت و امن وی‌پی‌ان‌های معتبر", logo: "/figma/catpage-vpn.png" },
-  "گیفت کارت": { desc: "گیفت کارت‌های بین‌المللی برندهای معتبر", logo: "/figma/catpage-giftcard.png" },
-  "تایید و وریفای حساب": { desc: "تایید حساب‌های بین‌المللی سریع و مطمئن", logo: "/figma/catpage-verify.png" },
-  "شماره مجازی": { desc: "شماره مجازی از بیش از ۱۰۰ کشور دنیا", logo: "/figma/catpage-number.png" },
-  "بازی و سرگرمی": { desc: "اکانت بازی، اشتراک‌ها و محتواهای گیمینگ", logo: "/figma/catpage-game.png" },
-  "نرم‌افزارها و ابزارها": { desc: "لایسنس نرم‌افزارهای پریمیوم و ابزارهای کاربردی", logo: "/figma/catpage-software.png" },
-  "نرم‌افزارها": { desc: "لایسنس نرم‌افزارهای پریمیوم و ابزارهای کاربردی", logo: "/figma/catpage-software.png" },
-  "نتفلیکس": { desc: "اکانت و اشتراک نتفلیکس اورجینال", logo: "/figma/catpage-stream.png" },
-  "شبکه‌های اجتماعی": { desc: "خدمات شبکه‌های اجتماعی", logo: "/figma/catpage-verify.png" },
+  "اشتراک‌های استریم": { desc: "نتفلیکس، یوتیوب و سایر پلتفرم‌های محبوب", logo: "/figma/catpage-stream.webp" },
+  "اپل موزیک و اسپاتیفای": { desc: "اشتراک‌های اپل موزیک، اسپاتیفای و پادکست‌های برتر", logo: "/figma/catpage-music.webp" },
+  "فیلترشکن / VPN": { desc: "سرورهای پرسرعت و امن وی‌پی‌ان‌های معتبر", logo: "/figma/catpage-vpn.webp" },
+  "گیفت کارت": { desc: "گیفت کارت‌های بین‌المللی برندهای معتبر", logo: "/figma/catpage-giftcard.webp" },
+  "تایید و وریفای حساب": { desc: "تایید حساب‌های بین‌المللی سریع و مطمئن", logo: "/figma/catpage-verify.webp" },
+  "شماره مجازی": { desc: "شماره مجازی از بیش از ۱۰۰ کشور دنیا", logo: "/figma/catpage-number.webp" },
+  "بازی و سرگرمی": { desc: "اکانت بازی، اشتراک‌ها و محتواهای گیمینگ", logo: "/figma/catpage-game.webp" },
+  "نرم‌افزارها و ابزارها": { desc: "لایسنس نرم‌افزارهای پریمیوم و ابزارهای کاربردی", logo: "/figma/catpage-software.webp" },
+  "نرم‌افزارها": { desc: "لایسنس نرم‌افزارهای پریمیوم و ابزارهای کاربردی", logo: "/figma/catpage-software.webp" },
+  "نتفلیکس": { desc: "اکانت و اشتراک نتفلیکس اورجینال", logo: "/figma/catpage-stream.webp" },
+  "شبکه‌های اجتماعی": { desc: "خدمات شبکه‌های اجتماعی", logo: "/figma/catpage-verify.webp" },
 };
 
 const defaultMeta = { desc: "محصولات و خدمات متنوع", logo: "" };
 
 const popularSubs = [
-  { name: "Netflix", logo: "/figma/prod-netflix.png" },
-  { name: "Spotify", logo: "/figma/prod-spotify.png" },
-  { name: "Apple Music", logo: "/figma/prod-applemusic.png" },
-  { name: "YouTube Premium", logo: "/figma/cat-stream.png" },
-  { name: "Disney+", logo: "/figma/cat-stream.png" },
-  { name: "Google Play", logo: "/figma/cat-giftcard.png" },
-  { name: "Steam", logo: "/figma/cat-game.png" },
-  { name: "PlayStation", logo: "/figma/cat-game.png" },
+  { name: "Netflix", logo: "/figma/prod-netflix.webp" },
+  { name: "Spotify", logo: "/figma/prod-spotify.webp" },
+  { name: "Apple Music", logo: "/figma/prod-applemusic.webp" },
+  { name: "YouTube Premium", logo: "/figma/cat-stream.webp" },
+  { name: "Disney+", logo: "/figma/cat-stream.webp" },
+  { name: "Google Play", logo: "/figma/cat-giftcard.webp" },
+  { name: "Steam", logo: "/figma/cat-game.webp" },
+  { name: "PlayStation", logo: "/figma/cat-game.webp" },
 ];
 
 const needCards = [
-  { img: "/figma/catpage-need-finance.png", href: "/products", alt: "خدمات مالی" },
-  { img: "/figma/catpage-need-social.png", href: "/products", alt: "شبکه‌های اجتماعی" },
-  { img: "/figma/catpage-need-vpn.png", href: "/products", alt: "امنیت و VPN" },
-  { img: "/figma/catpage-need-stream.png", href: "/products", alt: "سرگرمی و استریم" },
+  { img: "/figma/catpage-need-finance.webp", href: "/products", alt: "خدمات مالی" },
+  { img: "/figma/catpage-need-social.webp", href: "/products", alt: "شبکه‌های اجتماعی" },
+  { img: "/figma/catpage-need-vpn.webp", href: "/products", alt: "امنیت و VPN" },
+  { img: "/figma/catpage-need-stream.webp", href: "/products", alt: "سرگرمی و استریم" },
 ];
 
 const banners = [
-  { img: "/figma/catpage-banner-discount.png", href: "/products", alt: "تخفیف ویژه اشتراک‌ها" },
-  { img: "/figma/catpage-banner-number.png", href: "/products", alt: "شماره مجازی برای همه کشورها" },
-  { img: "/figma/catpage-banner-gamers.png", href: "/products", alt: "ویژه گیمرها" },
+  { img: "/figma/catpage-banner-discount.webp", href: "/products", alt: "تخفیف ویژه اشتراک‌ها" },
+  { img: "/figma/catpage-banner-number.webp", href: "/products", alt: "شماره مجازی برای همه کشورها" },
+  { img: "/figma/catpage-banner-gamers.webp", href: "/products", alt: "ویژه گیمرها" },
 ];
 
 export default async function CategoriesPage() {
@@ -83,7 +83,7 @@ export default async function CategoriesPage() {
             {/* Below xl the shield reads best centered & sized; only at xl+ is there room for the
                 three-column row, where the image is capped so the middle text column never crushes. */}
             <div className="shrink-0 xl:w-[38%] xl:max-w-[520px]">
-              <img fetchPriority="high" decoding="async" src="/figma/catpage-hero-shield.png" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 xl:w-full xl:max-w-[520px] xl:-translate-x-8" />
+              <img fetchPriority="high" decoding="async" src="/figma/catpage-hero-shield.webp" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 xl:w-full xl:max-w-[520px] xl:-translate-x-8" />
             </div>
 
             <div className="flex-1 text-center xl:text-right">
@@ -113,7 +113,7 @@ export default async function CategoriesPage() {
                     </li>
                   ))}
                 </ul>
-                <img loading="lazy" decoding="async" src="/figma/catpage-hero-support.png" alt="" className="-mr-2 -mb-1 h-28 w-28 shrink-0 object-contain" />
+                <img loading="lazy" decoding="async" src="/figma/catpage-hero-support.webp" alt="" className="-mr-2 -mb-1 h-28 w-28 shrink-0 object-contain" />
               </div>
               <Link
                 href="/products"

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import AuthShell from "@/components/auth/AuthShell";
 
-const RESET_IMAGE = "/figma/auth-reset.png";
+const RESET_IMAGE = "/figma/auth-reset.webp";
 
 const gradBtn =
   "flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-[#ef233c] to-[#ff7a2e] text-[14px] font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(239,35,60,0.6)] transition hover:brightness-[1.06] disabled:cursor-not-allowed disabled:opacity-60";
@@ -65,7 +65,7 @@ export default function ResetPasswordPage() {
     <AuthShell image={RESET_IMAGE}>
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <img loading="lazy" decoding="async" src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-10 w-auto" />
+          <img loading="lazy" decoding="async" src="/figma/logo-phoenix.webp" alt="Phoenix Verify" className="h-10 w-auto" />
           <span className="text-[16px] font-extrabold leading-[1.05] text-[var(--chat-ink)]">Phoenix<br />Verify</span>
         </div>
         <span className="flex items-center gap-1.5 rounded-full border border-[var(--chat-border)] px-3 py-1.5 text-[11px] font-bold text-[var(--chat-ink-2)]">

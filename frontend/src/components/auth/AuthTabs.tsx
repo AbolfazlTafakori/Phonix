@@ -8,8 +8,8 @@ import { setCurrentUser } from "@/lib/auth";
 import { useCaptcha } from "./Captcha";
 import AuthShell from "./AuthShell";
 
-const LOGIN_IMAGE = "/figma/auth-login.png";
-const REGISTER_IMAGE = "/figma/auth-register.png";
+const LOGIN_IMAGE = "/figma/auth-login.webp";
+const REGISTER_IMAGE = "/figma/auth-register.webp";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 

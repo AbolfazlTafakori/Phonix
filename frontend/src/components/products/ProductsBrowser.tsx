@@ -363,8 +363,8 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
               {/* Promo banners row */}
               <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
                 {[
-                  { img: "/figma/catpage-banner-discount.png", alt: "تخفیف‌های داغ امروز" },
-                  { img: "/figma/catpage-banner-number.png", alt: "شماره مجازی برای همه سرویس‌ها" },
+                  { img: "/figma/catpage-banner-discount.webp", alt: "تخفیف‌های داغ امروز" },
+                  { img: "/figma/catpage-banner-number.webp", alt: "شماره مجازی برای همه سرویس‌ها" },
                 ].map((b) => (
                   <Link key={b.img} href="/products" className="group block overflow-hidden rounded-[16px]">
                     <img loading="lazy" decoding="async" src={b.img} alt={b.alt} className="aspect-[3/1] w-full scale-[1.02] object-cover transition duration-300 group-hover:scale-[1.05]" />

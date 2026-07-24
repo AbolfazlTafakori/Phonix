@@ -138,7 +138,7 @@ export default async function RootLayout({
               name: "Phoenix Verify",
               alternateName: "فونیکس وریفای",
               url: SITE_URL,
-              logo: absoluteUrl("/figma/logo-phoenix.png"),
+              logo: absoluteUrl("/figma/logo-phoenix.webp"),
               contactPoint: {
                 "@type": "ContactPoint",
                 email: "support@phoenixverify.com",

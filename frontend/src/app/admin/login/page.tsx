@@ -71,7 +71,7 @@ export default function AdminLoginPage() {
       <div className="grid min-h-screen place-items-center bg-[#0b0b12] px-5">
         <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#15151f] p-8 shadow-2xl">
           <div className="mb-6 flex flex-col items-center gap-2 text-center">
-            <img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-12 w-auto" />
+            <img src="/figma/logo-phoenix.webp" alt="Phoenix Verify" className="h-12 w-auto" />
             <h1 className="text-lg font-bold text-white">تأیید دو‌مرحله‌ای</h1>
             <p className="text-xs text-white/45">کد ۶ رقمی برنامه‌ی احرازکننده را وارد کنید</p>
           </div>
@@ -110,7 +110,7 @@ export default function AdminLoginPage() {
     <div className="grid min-h-screen place-items-center bg-[#0b0b12] px-5">
       <div className="w-full max-w-sm rounded-2xl border border-white/10 bg-[#15151f] p-8 shadow-2xl">
         <div className="mb-6 flex flex-col items-center gap-2 text-center">
-          <img src="/figma/logo-phoenix.png" alt="Phoenix Verify" className="h-12 w-auto" />
+          <img src="/figma/logo-phoenix.webp" alt="Phoenix Verify" className="h-12 w-auto" />
           <h1 className="text-lg font-bold text-white">ورود به پنل مدیریت</h1>
           <p className="text-xs text-white/45">فقط مدیران مجاز به ورود هستند</p>
         </div>

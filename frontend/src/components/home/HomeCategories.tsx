@@ -6,16 +6,16 @@ type Cat = { title: string; logo: string; href: string };
 // row 1 (R→L): VPN · گیفت کارت · استریم · موزیک · نتفلیکس
 // row 2 (R→L): شبکه‌های اجتماعی · نرم‌افزارها · بازی · شماره مجازی · وریفای
 const categories: Cat[] = [
-  { title: "فیلترشکن / VPN", logo: "/figma/cat-vpn.png", href: "/products" },
-  { title: "گیفت کارت", logo: "/figma/cat-giftcard.png", href: "/products" },
-  { title: "اکانت‌های استریم", logo: "/figma/cat-stream.png", href: "/products" },
-  { title: "اپل موزیک و اسپاتیفای", logo: "/figma/cat-music.png", href: "/products" },
-  { title: "نتفلیکس", logo: "/figma/cat-netflix.png", href: "/products" },
-  { title: "شبکه‌های اجتماعی", logo: "/figma/cat-social.png", href: "/products" },
-  { title: "نرم‌افزارها", logo: "/figma/cat-software.png", href: "/products" },
-  { title: "بازی و سرگرمی", logo: "/figma/cat-game.png", href: "/products" },
-  { title: "شماره مجازی", logo: "/figma/cat-number.png", href: "/products" },
-  { title: "تایید و وریفای حساب", logo: "/figma/cat-verify.png", href: "/products" },
+  { title: "فیلترشکن / VPN", logo: "/figma/cat-vpn.webp", href: "/products" },
+  { title: "گیفت کارت", logo: "/figma/cat-giftcard.webp", href: "/products" },
+  { title: "اکانت‌های استریم", logo: "/figma/cat-stream.webp", href: "/products" },
+  { title: "اپل موزیک و اسپاتیفای", logo: "/figma/cat-music.webp", href: "/products" },
+  { title: "نتفلیکس", logo: "/figma/cat-netflix.webp", href: "/products" },
+  { title: "شبکه‌های اجتماعی", logo: "/figma/cat-social.webp", href: "/products" },
+  { title: "نرم‌افزارها", logo: "/figma/cat-software.webp", href: "/products" },
+  { title: "بازی و سرگرمی", logo: "/figma/cat-game.webp", href: "/products" },
+  { title: "شماره مجازی", logo: "/figma/cat-number.webp", href: "/products" },
+  { title: "تایید و وریفای حساب", logo: "/figma/cat-verify.webp", href: "/products" },
 ];
 
 export default function HomeCategories() {

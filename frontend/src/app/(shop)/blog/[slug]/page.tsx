@@ -52,7 +52,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
     publisher: {
       "@type": "Organization",
       name: "Phoenix Verify",
-      logo: { "@type": "ImageObject", url: absoluteUrl("/figma/logo-phoenix.png") },
+      logo: { "@type": "ImageObject", url: absoluteUrl("/figma/logo-phoenix.webp") },
     },
     mainEntityOfPage: absoluteUrl(`/blog/${post.slug}`),
   };

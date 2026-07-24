@@ -6,10 +6,10 @@ import StatCountUp from "@/components/StatCountUp";
 type Stat = { value: string; label: string; icon: string };
 
 const stats: Stat[] = [
-  { value: "+10,000", label: "سفارش موفق", icon: "/figma/stat-orders.png" },
-  { value: "+5,000", label: "مشتری راضی", icon: "/figma/stat-customers.png" },
-  { value: "99%", label: "رضایت مشتریان", icon: "/figma/stat-satisfaction.png" },
-  { value: "پشتیبانی ۲۴/۷", label: "همیشه در کنار شما", icon: "/figma/stat-support.png" },
+  { value: "+10,000", label: "سفارش موفق", icon: "/figma/stat-orders.webp" },
+  { value: "+5,000", label: "مشتری راضی", icon: "/figma/stat-customers.webp" },
+  { value: "99%", label: "رضایت مشتریان", icon: "/figma/stat-satisfaction.webp" },
+  { value: "پشتیبانی ۲۴/۷", label: "همیشه در کنار شما", icon: "/figma/stat-support.webp" },
 ];
 
 // Sizes are fluid (clamp) so the strip scales with the viewport instead of
