@@ -5,7 +5,7 @@ import { formatNumber, formatToman, productDisplayPrice, toFa } from "@/lib/form
 import type { Product, Comment } from "@/lib/types";
 import Stars from "@/components/Stars";
 import BestSellersCarousel, { type CarouselCard } from "@/components/home/BestSellersCarousel";
-import { PurchaseProvider, PlanPicker, BuyBox } from "@/components/product/purchase";
+import { PurchaseProvider, PlanPicker, BuyBox, MobileBuyBar } from "@/components/product/purchase";
 import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
 import OpenChatButton from "@/components/product/OpenChatButton";
 import ProductGallery from "@/components/product/ProductGallery";
@@ -282,6 +282,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         <TrustItem icon={<Icon d={I.headset} className="h-6 w-6" />} title="پشتیبانی ۲۴/۷" desc="همیشه پاسخگوی شما" />
         <TrustItem icon={<Icon d={I.bolt} className="h-6 w-6" />} title="تحویل آنی" desc="بلافاصله پس از پرداخت" />
       </div>
+
+      {/* sticky price + CTA for small screens, the way marketplace apps keep buying one tap away */}
+      <MobileBuyBar />
       </PurchaseProvider>
 
       {/* tabs */}
@@ -413,6 +416,9 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
         </section>
       </Reveal>
     )}
+
+    {/* once this scrolls into view the mobile buy bar tucks away so it never sits over the footer */}
+    <div id="buy-mobile-sentinel" aria-hidden className="h-px" />
 
     {/* newsletter */}
     <Reveal><HomeNewsletter /></Reveal>

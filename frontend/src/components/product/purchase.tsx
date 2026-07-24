@@ -309,6 +309,79 @@ export function PlanPicker() {
   );
 }
 
+/**
+ * The mobile purchase bar — pinned to the bottom of the viewport below `lg`, the way marketplace apps keep
+ * the price and the primary action in reach while the shopper scrolls the gallery, tabs and reviews. It
+ * reads the same purchase state as the sticky desktop BuyBox, mirrors its states (out of stock, level gate,
+ * plan required, already in cart) and slides out of the way once the page bottom scrolls into view so it
+ * never sits over the footer.
+ */
+export function MobileBuyBar() {
+  const {
+    product, selected, out, overLevel, requiredLevel, level, planRequired,
+    unitPrice, planLabel, inCartQty, onAdd, goto,
+  } = usePurchase();
+
+  const [tucked, setTucked] = useState(false);
+  useEffect(() => {
+    const el = document.getElementById("buy-mobile-sentinel");
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    // Tuck the bar away once the footer sentinel reaches the viewport (and keep it tucked once scrolled past,
+    // when the sentinel sits above the top edge) so the bar never covers the footer. IntersectionObserver
+    // tracks layout directly, so it works regardless of which element actually scrolls the page.
+    const io = new IntersectionObserver(
+      ([e]) => setTucked(e.isIntersecting || e.boundingClientRect.top <= 0),
+      { threshold: 0 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+
+  const discount = selected ? selected.discountPercent : product.discountPercent;
+  const basePrice = selected ? selected.price : product.price;
+
+  const cta = (() => {
+    if (out) return <span className="grid h-12 place-items-center rounded-xl border px-6 text-[13px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>ناموجود</span>;
+    if (overLevel) return <button type="button" onClick={() => goto(requiredLevel >= 2 && (level ?? 0) >= 1 ? "/account/kyc" : "/account/cards")} className="grid h-12 place-items-center rounded-xl px-6 text-[13px] font-black text-white transition active:brightness-95" style={{ background: "var(--ac-btn)" }}>احراز هویت</button>;
+    if (planRequired) return <span className="grid h-12 place-items-center rounded-xl border px-5 text-[13px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>انتخاب پلن</span>;
+    if (inCartQty > 0) return <button type="button" onClick={() => goto("/checkout")} className="grid h-12 place-items-center rounded-xl px-7 text-[14px] font-black text-white shadow-[0_10px_26px_rgba(242,85,31,0.32)] transition active:brightness-95" style={{ background: "var(--ac-btn)" }}>ادامه پرداخت</button>;
+    return (
+      <button type="button" onClick={() => onAdd(false)} className="flex h-12 items-center gap-2 rounded-xl px-6 text-[14px] font-black text-white shadow-[0_10px_26px_rgba(242,85,31,0.32)] transition active:brightness-95" style={{ background: "var(--ac-btn)" }}>
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="18" cy="21" r="1" /><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L23 7H5.5" /></svg>
+        افزودن به سبد
+      </button>
+    );
+  })();
+
+  return (
+    <div
+      className={`fixed inset-x-0 bottom-0 z-40 border-t bg-[var(--ac-panel-bg)] px-4 pt-2.5 transition-transform duration-300 lg:hidden ${tucked ? "translate-y-full" : "translate-y-0"}`}
+      style={{ borderColor: "var(--ac-panel-border)", boxShadow: "0 -8px 26px rgba(0,0,0,0.09)", paddingBottom: "max(10px, env(safe-area-inset-bottom))" }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          {out ? (
+            <p className="text-[14px] font-black" style={{ color: "var(--ac-muted)" }}>فعلاً موجود نیست</p>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <p className="text-[19px] font-black leading-none" style={{ color: "var(--ac-title)" }}>{formatToman(unitPrice)}</p>
+                {discount > 0 && <span className="rounded-md px-1.5 py-0.5 text-[10px] font-black text-white" style={{ background: "#F2551F" }}>٪{toFa(discount)}</span>}
+              </div>
+              {discount > 0 ? (
+                <p className="mt-1 text-[11px] line-through leading-none" style={{ color: "var(--ac-muted)" }}>{formatToman(basePrice)}</p>
+              ) : planLabel ? (
+                <p className="mt-1 truncate text-[11px] leading-none" style={{ color: "var(--ac-muted)" }}>{planLabel}</p>
+              ) : null}
+            </>
+          )}
+        </div>
+        <div className="shrink-0">{cta}</div>
+      </div>
+    </div>
+  );
+}
+
 /** Price and the actions — the sticky box in the left column. */
 export function BuyBox() {
   const {
