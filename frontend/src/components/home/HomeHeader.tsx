@@ -26,6 +26,10 @@ const navLinks = [
 export default function HomeHeader({ brand, searchPlaceholder }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  // On mobile the bottom tab bar already carries cart + account, so the header drops them there. The one
+  // exception is the product detail page, where the sticky buy bar replaces the tab bar — the header keeps
+  // them so those actions never disappear. Desktop always shows them.
+  const onProductDetail = /^\/products\/[^/]+/.test(pathname);
   // Highlight only the FIRST nav link that matches the current route, so two links that share a
   // destination (محصولات / دسته‌بندی‌ها → /products) don't light up together. Anchors ("#") never match.
   const activeIndex = navLinks.findIndex(
@@ -157,7 +161,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
             <Link
               href="/cart"
               aria-label="سبد خرید"
-              className="relative grid h-11 w-11 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"
+              className={`relative ${onProductDetail ? "grid" : "hidden lg:grid"} h-11 w-11 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]`}
             >
               <CartIcon className="h-6 w-6" />
               {count > 0 && (
@@ -171,7 +175,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
           <Link
             href={user ? "/account" : "/login"}
             aria-label={user ? "حساب کاربری" : "ورود / ثبت‌نام"}
-            className="flex items-center gap-2 text-[16px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"
+            className={`${onProductDetail ? "flex" : "hidden lg:flex"} items-center gap-2 text-[16px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]`}
           >
             <UserIcon className="h-5 w-5" />
             <span className="hidden md:inline">{user ? "حساب کاربری" : "ورود / ثبت‌نام"}</span>
