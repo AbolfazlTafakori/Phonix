@@ -37,7 +37,6 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
   const [focused, setFocused] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const loadProducts = useCallback(() => {
@@ -113,14 +112,6 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
       <div className="mx-auto flex h-[72px] max-w-[1840px] items-center gap-3 px-4 sm:h-[88px] sm:gap-6 sm:px-8 xl:px-16">
         {/* brand + nav (right in RTL) */}
         <div className="flex shrink-0 items-center gap-4 lg:gap-7">
-          <button
-            type="button"
-            aria-label="منو"
-            onClick={() => setMenuOpen(true)}
-            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-[var(--hl-ink)] transition hover:text-[var(--hl-red)] lg:hidden"
-          >
-            <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
-          </button>
           <Link href="/" className="flex items-center gap-2.5">
             <img src={brand.logo} alt={brand.siteName} className="h-11 w-auto sm:h-14" />
             <span className="hidden text-[15px] font-extrabold leading-[1.1] text-[var(--hl-ink)] sm:inline-block sm:text-[17px]">
@@ -186,10 +177,8 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
             <span className="hidden md:inline">{user ? "حساب کاربری" : "ورود / ثبت‌نام"}</span>
           </Link>
 
-          {/* theme toggle — desktop only (mobile lives in the drawer), swapped to the far edge */}
-          <div className="hidden lg:block">
-            <ThemeToggle />
-          </div>
+          {/* theme toggle — shown on every screen now that the mobile drawer is gone */}
+          <ThemeToggle />
         </div>
       </div>
 
@@ -200,58 +189,6 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
         </div>
       )}
     </header>
-
-      {/* mobile side drawer + backdrop — rendered outside the header so it sits above every layer */}
-      <div
-        onClick={() => setMenuOpen(false)}
-        aria-hidden
-        className={`fixed inset-0 z-[60] bg-black/40 transition-opacity duration-200 lg:hidden ${menuOpen ? "opacity-100" : "pointer-events-none opacity-0"}`}
-      />
-      <aside
-        className={`fixed right-0 top-0 z-[70] flex h-dvh w-72 max-w-[82vw] flex-col bg-white shadow-2xl transition-transform duration-300 lg:hidden ${menuOpen ? "translate-x-0" : "translate-x-full"}`}
-      >
-        <div className="flex items-center justify-between border-b border-[var(--hl-border)] px-4 py-3">
-          <div className="flex items-center gap-2">
-            <img src={brand.logo} alt={brand.siteName} className="h-9 w-auto" />
-            <span className="text-[14px] font-extrabold leading-[1.1] text-[var(--hl-ink)]">{brand.logoLine1}<br />{brand.logoLine2}</span>
-          </div>
-          {/* theme toggle sits next to the close button */}
-          <div className="flex items-center gap-1">
-            <ThemeToggle />
-            <button type="button" aria-label="بستن" onClick={() => setMenuOpen(false)} className="grid h-10 w-10 place-items-center rounded-lg text-[var(--hl-ink-2)] transition hover:text-[var(--hl-red)]">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-            </button>
-          </div>
-        </div>
-        <nav className="flex-1 overflow-y-auto p-3">
-          <ul className="flex flex-col gap-1">
-            {navLinks.map((l, i) => (
-              <li key={i}>
-                <Link
-                  href={l.href}
-                  onClick={() => setMenuOpen(false)}
-                  className={`block rounded-xl px-4 py-3 text-[16px] font-bold transition ${i === activeIndex ? "bg-[#fff6f2] text-[var(--hl-red)]" : "text-[var(--hl-ink-2)] hover:bg-[#f7f8fa] hover:text-[var(--hl-ink)]"}`}
-                >
-                  {l.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </nav>
-
-        {/* Account CTA — so the drawer can start a session or reach the account without closing to hunt for the icon. */}
-        <div className="border-t border-[var(--hl-border)] p-3">
-          <Link
-            href={user ? "/account" : "/login"}
-            onClick={() => setMenuOpen(false)}
-            className="hl-cta flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-[15px] font-bold text-white"
-            style={{ background: "linear-gradient(95deg, #FF7A2E 0%, #F0392C 100%)" }}
-          >
-            <UserIcon className="h-5 w-5" />
-            {user ? "حساب کاربری من" : "ورود / ثبت‌نام"}
-          </Link>
-        </div>
-      </aside>
     </>
   );
 }
