@@ -75,9 +75,11 @@ export default function LiveChat() {
   // Highest admin message id we've already surfaced as a toast, so the same reply never pops twice.
   const notifiedRef = useRef(0);
 
-  // The launcher shows for everyone (guests included) everywhere except the admin panel; the actual
-  // conversation still needs a signed-in customer, so a guest who opens it gets a login prompt.
-  const hidden = !ready || pathname.startsWith("/admin");
+  // The launcher shows for everyone (guests included) except the admin panel and the account area — inside
+  // "my account" the floating chat is dropped (support is reached from the menu there); it stays on the rest
+  // of the site. The actual conversation still needs a signed-in customer, so a guest who opens it elsewhere
+  // gets a login prompt.
+  const hidden = !ready || pathname.startsWith("/admin") || pathname.startsWith("/account");
 
   // Other parts of the site (e.g. the product-page support card) can open the chat panel remotely.
   useEffect(() => {

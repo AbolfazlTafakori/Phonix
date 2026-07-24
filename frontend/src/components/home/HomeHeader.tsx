@@ -78,6 +78,9 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
   // exception is the product detail page, where the sticky buy bar replaces the tab bar — the header keeps
   // them so those actions never disappear. Desktop always shows them.
   const onProductDetail = /^\/products\/[^/]+/.test(pathname);
+  // Inside "my account" the hub is the menu, so — like the marketplaces — the mobile header drops the search
+  // field there (desktop keeps it).
+  const onAccount = pathname.startsWith("/account");
   // Highlight only the FIRST nav link that matches the current route, so two links that share a
   // destination (محصولات / دسته‌بندی‌ها → /products) don't light up together. Anchors ("#") never match.
   const activeIndex = navLinks.findIndex(
@@ -219,8 +222,8 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
           </nav>
         </div>
 
-        {/* search — inline on every screen, marketplace-style */}
-        <div className="flex-1">{searchBox()}</div>
+        {/* search — inline on every screen, marketplace-style; hidden on mobile inside the account area */}
+        <div className={onAccount ? "hidden flex-1 lg:block" : "flex-1"}>{searchBox()}</div>
 
         {/* actions (left in RTL) */}
         <div className="flex shrink-0 items-center gap-2 sm:gap-4">
