@@ -13,6 +13,7 @@ import HomeBlog from "@/components/home/HomeBlog";
 import HomeFaq from "@/components/home/HomeFaq";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import HomeFooter from "@/components/home/HomeFooter";
+import FooterVisibility from "@/components/home/FooterVisibility";
 import MobileTabBar from "@/components/home/MobileTabBar";
 import Reveal from "@/components/Reveal";
 
@@ -39,7 +40,7 @@ export default async function Home() {
         <Reveal><HomeFaq /></Reveal>
         <Reveal><HomeNewsletter /></Reveal>
       </main>
-      <HomeFooter brand={content.brand} />
+      <FooterVisibility><HomeFooter brand={content.brand} /></FooterVisibility>
       <MobileTabBar />
     </div>
   );
