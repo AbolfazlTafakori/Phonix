@@ -29,8 +29,8 @@ export default function ProductTabs({ product, comments }: { product: Product; c
 
   return (
     <section className="mt-10 rounded-[22px] border bg-[var(--ac-panel-bg)]" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
-      {/* tab bar */}
-      <div className="flex gap-1 overflow-x-auto border-b px-3 pt-3" style={{ borderColor: "var(--ac-divider)" }}>
+      {/* tab bar — quiet underline, no filled pills; active tab is dark with a red rule under it */}
+      <div className="flex gap-1 overflow-x-auto border-b px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:px-3" style={{ borderColor: "var(--ac-divider)" }}>
         {tabs.map((t) => {
           const on = active === t.key;
           return (
@@ -38,12 +38,11 @@ export default function ProductTabs({ product, comments }: { product: Product; c
               key={t.key}
               type="button"
               onClick={() => setActive(t.key)}
-              className="shrink-0 rounded-t-xl border-b-2 px-4 py-3 text-[13px] font-bold transition md:px-5"
-              style={on
-                ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)", color: "var(--ac-menu-active-text)" }
-                : { borderColor: "transparent", color: "var(--ac-text)" }}
+              className="relative shrink-0 px-3 py-3.5 text-[13px] font-bold transition sm:px-5 sm:text-[14px]"
+              style={{ color: on ? "var(--ac-title)" : "var(--ac-muted)" }}
             >
               {t.label}
+              <span className="absolute inset-x-2 -bottom-px h-0.5 rounded-full transition-opacity sm:inset-x-4" style={{ background: "var(--ac-btn)", opacity: on ? 1 : 0 }} />
             </button>
           );
         })}

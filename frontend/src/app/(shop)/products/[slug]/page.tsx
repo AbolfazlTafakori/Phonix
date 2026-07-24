@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 import { api } from "@/lib/api";
-import { formatNumber, formatToman, productDisplayPrice, toFa } from "@/lib/format";
+import { formatToman, productDisplayPrice, toFa } from "@/lib/format";
 import type { Product, Comment } from "@/lib/types";
-import Stars from "@/components/Stars";
-import BestSellersCarousel, { type CarouselCard } from "@/components/home/BestSellersCarousel";
+import RelatedProducts, { type RelatedCard } from "@/components/product/RelatedProducts";
 import { PurchaseProvider, PlanPicker, BuyBox, MobileBuyBar } from "@/components/product/purchase";
 import ProductTabs, { TrustItem } from "@/components/product/ProductTabs";
 import OpenChatButton from "@/components/product/OpenChatButton";
@@ -71,6 +70,46 @@ const I = {
   lock: "M5 11h14v10H5zM8 11V7a4 4 0 0 1 8 0v4",
   check: "M20 6L9 17l-5-5",
 };
+
+/** Compact rating line under the product title — a star, the average, and the review count, the way
+ *  marketplaces surface social proof right beneath the name. Falls back to a quiet prompt when there are
+ *  no ratings yet, and reads the same across every screen size. */
+function RatingLine({ avg, count, className = "" }: { avg: number; count: number; className?: string }) {
+  return (
+    <div className={`inline-flex items-center gap-1.5 text-[12px] sm:text-[13px] ${className}`} style={{ color: "var(--ac-muted)" }}>
+      <svg viewBox="0 0 24 24" className="h-[15px] w-[15px] sm:h-4 sm:w-4" fill={count > 0 ? "#ffb020" : "none"} stroke={count > 0 ? "#ffb020" : "currentColor"} strokeWidth="1.6" strokeLinejoin="round"><path d="M12 2l2.9 6 6.6.9-4.8 4.6 1.1 6.5L12 17.8 6.2 20l1.1-6.5L2.5 8.9 9 8z" /></svg>
+      {count > 0 ? (
+        <>
+          <span className="font-black" style={{ color: "var(--ac-title)" }}>{toFa(avg.toFixed(1))}</span>
+          <span className="opacity-50">·</span>
+          <span>{toFa(count)} دیدگاه</span>
+        </>
+      ) : (
+        <span>هنوز دیدگاهی ثبت نشده</span>
+      )}
+    </div>
+  );
+}
+
+/** A short "key features" box shown high on the page, next to the gallery — the quick, scannable highlights
+ *  a buyer wants before scrolling into the full spec tabs. */
+function KeyFeatures({ features }: { features: { text: string; included: boolean }[] }) {
+  const items = features.filter((f) => f.included).slice(0, 6);
+  if (items.length === 0) return null;
+  return (
+    <div className="rounded-[18px] border p-4 sm:p-5" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)" }}>
+      <p className="mb-3 text-[13px] font-black" style={{ color: "var(--ac-title)" }}>ویژگی‌های کلیدی</p>
+      <ul className="grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
+        {items.map((f) => (
+          <li key={f.text} className="flex items-start gap-2 text-[12.5px] leading-6 sm:text-[13px]" style={{ color: "var(--ac-text)" }}>
+            <svg viewBox="0 0 24 24" className="mt-1 h-[15px] w-[15px] shrink-0 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
+            <span>{f.text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
@@ -210,13 +249,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           )}
           <h1 className="text-[20px] font-black leading-snug sm:text-[24px]" style={{ color: "var(--ac-title)" }}>{product.name}</h1>
         </div>
-        {rated.length > 0 && (
-          <div className="mt-2 flex items-center gap-2">
-            <span className="text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(avg.toFixed(1))}</span>
-            <Stars value={avg} />
-            <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>({formatNumber(rated.length)} نظر)</span>
-          </div>
-        )}
+        <RatingLine avg={avg} count={rated.length} className="mt-2" />
         {product.sku && (
           <p className="mt-1.5 text-[11px] sm:text-[12px]" style={{ color: "var(--ac-muted)" }}>
             شناسه محصول: <span className="font-mono" dir="ltr">{product.sku}</span>
@@ -244,13 +277,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               {/* the page's single <h1> lives in the mobile block above; this desktop copy stays a <p> */}
               <p className="text-[26px] font-black leading-snug xl:text-[30px]" style={{ color: "var(--ac-title)" }}>{product.name}</p>
             </div>
-            {rated.length > 0 && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(avg.toFixed(1))}</span>
-                <Stars value={avg} />
-                <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>({formatNumber(rated.length)} نظر)</span>
-              </div>
-            )}
+            <RatingLine avg={avg} count={rated.length} className="mt-2" />
             {product.sku && (
               <p className="mt-1.5 text-[12px]" style={{ color: "var(--ac-muted)" }}>
                 شناسه محصول: <span className="font-mono" dir="ltr">{product.sku}</span>
@@ -261,6 +288,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <p className="mt-3 text-[13px] leading-8 line-clamp-3 sm:text-[14px]" style={{ color: "var(--ac-text)" }}>
             {product.description.replace(/[#*_\[\]()]/g, "").slice(0, 220)}
           </p>
+
+          {/* key features high on the page, before the buyer scrolls into the full spec tabs */}
+          {product.features.some((f) => f.included) && (
+            <div className="mt-4 sm:mt-5">
+              <KeyFeatures features={product.features} />
+            </div>
+          )}
 
           {/* what the buyer is actually choosing, in its own card beside the gallery */}
           <div className="mt-4 sm:mt-5">
@@ -405,12 +439,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
               مشاهده همه
             </Link>
           </div>
-          <BestSellersCarousel products={related.map((p): CarouselCard => ({
+          <RelatedProducts products={related.map((p): RelatedCard => ({
             key: String(p.id),
             name: p.name,
             categoryName: p.categoryName,
             priceLabel: formatToman(productDisplayPrice(p)),
-            badge: p.featured ? "پرفروش" : "تحویل فوری",
             image: p.image,
             href: productPath(p),
           }))} />
