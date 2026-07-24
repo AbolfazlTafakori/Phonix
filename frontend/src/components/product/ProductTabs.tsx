@@ -153,7 +153,7 @@ function ReviewCard({ comment, replies }: { comment: Comment; replies: Comment[]
 /** Small reusable trust item used by the page-level trust row. */
 export function TrustItem({ icon, title, desc }: { icon: ReactNode; title: string; desc: string }) {
   return (
-    <div className="flex shrink-0 basis-[46%] snap-start flex-col items-center gap-1.5 px-3 py-4 text-center sm:basis-auto">
+    <div className="flex flex-col items-center gap-1.5 px-3 py-5 text-center">
       <span className="opacity-90" style={{ color: "var(--ac-muted)" }}>{icon}</span>
       <p className="text-[12.5px] font-bold" style={{ color: "var(--ac-text)" }}>{title}</p>
       <p className="text-[11px] leading-5" style={{ color: "var(--ac-muted)" }}>{desc}</p>

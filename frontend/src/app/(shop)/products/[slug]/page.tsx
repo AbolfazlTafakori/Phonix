@@ -268,20 +268,19 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {/* buy box — LEFT column on desktop, sticky, spanning both content rows so the services row can sit
-            in the gap under the shorter gallery/content instead of below this tall card */}
-        <div className="order-3 lg:sticky lg:top-[100px] lg:col-start-3 lg:row-start-1 lg:row-span-2">
+        {/* buy box — LEFT column on desktop, sticky */}
+        <div className="order-3 lg:sticky lg:top-[100px] lg:col-start-3 lg:row-start-1">
           <BuyBox />
         </div>
+      </div>
 
-        {/* trust row — full width on mobile; on desktop it fills the second row under gallery+info */}
-        <div className="order-4 flex snap-x snap-mandatory overflow-x-auto rounded-[22px] border bg-[var(--ac-panel-bg)] [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:grid sm:grid-cols-3 sm:overflow-visible lg:col-start-1 lg:col-end-3 lg:row-start-2 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
-          <TrustItem icon={<Icon d={I.tag} className="h-6 w-6" />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
-          <TrustItem icon={<Icon d={I.shield} className="h-6 w-6" />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
-          <TrustItem icon={<Icon d={I.lock} className="h-6 w-6" />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
-          <TrustItem icon={<Icon d={I.headset} className="h-6 w-6" />} title="پشتیبانی ۲۴/۷" desc="همیشه پاسخگوی شما" />
-          <TrustItem icon={<Icon d={I.bolt} className="h-6 w-6" />} title="تحویل آنی" desc="بلافاصله پس از پرداخت" />
-        </div>
+      {/* trust row — full-width quiet strip below the buy area; hidden on mobile */}
+      <div className="mt-5 hidden rounded-[22px] border bg-[var(--ac-panel-bg)] sm:mt-6 sm:grid sm:grid-cols-3 lg:grid-cols-5" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
+        <TrustItem icon={<Icon d={I.tag} className="h-6 w-6" />} title="قیمت مناسب" desc="بهترین قیمت بازار" />
+        <TrustItem icon={<Icon d={I.shield} className="h-6 w-6" />} title="ضمانت اصالت" desc="اشتراک کاملاً قانونی" />
+        <TrustItem icon={<Icon d={I.lock} className="h-6 w-6" />} title="پرداخت امن" desc="درگاه مطمئن و رمزنگاری‌شده" />
+        <TrustItem icon={<Icon d={I.headset} className="h-6 w-6" />} title="پشتیبانی ۲۴/۷" desc="همیشه پاسخگوی شما" />
+        <TrustItem icon={<Icon d={I.bolt} className="h-6 w-6" />} title="تحویل آنی" desc="بلافاصله پس از پرداخت" />
       </div>
       </PurchaseProvider>
 
