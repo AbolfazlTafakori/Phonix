@@ -217,6 +217,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>({formatNumber(rated.length)} نظر)</span>
           </div>
         )}
+        {product.sku && (
+          <p className="mt-1.5 text-[11px] sm:text-[12px]" style={{ color: "var(--ac-muted)" }}>
+            شناسه محصول: <span className="font-mono" dir="ltr">{product.sku}</span>
+          </p>
+        )}
       </div>
 
       {/* main grid — mobile: gallery → info+picker → buy box stacked. On desktop the reading order runs
@@ -246,6 +251,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 <span className="text-[13px]" style={{ color: "var(--ac-muted)" }}>({formatNumber(rated.length)} نظر)</span>
               </div>
             )}
+            {product.sku && (
+              <p className="mt-1.5 text-[12px]" style={{ color: "var(--ac-muted)" }}>
+                شناسه محصول: <span className="font-mono" dir="ltr">{product.sku}</span>
+              </p>
+            )}
           </div>
 
           <p className="mt-3 text-[13px] leading-8 line-clamp-3 sm:text-[14px]" style={{ color: "var(--ac-text)" }}>
@@ -256,22 +266,6 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           <div className="mt-4 sm:mt-5">
             <PlanPicker />
           </div>
-
-          {/* stock box */}
-          <div className={`mt-3 flex items-center justify-between rounded-xl px-3 py-3 sm:mt-4 sm:px-4 sm:py-3.5 ${out ? "bg-rose-500/10" : "bg-emerald-500/10"}`}>
-            <span className={`flex items-center gap-2 text-[12px] font-black sm:text-[13px] ${out ? "text-rose-500" : "text-emerald-600"}`}>
-              <span className={`h-2 w-2 rounded-full ${out ? "bg-rose-500" : "bg-emerald-500"}`} />
-              {out ? "موجود نیست" : "موجود در انبار"}
-            </span>
-            {!out && <span className="text-[12px] font-bold text-emerald-600 sm:text-[13px]">تحویل آنی</span>}
-          </div>
-
-          {/* sku */}
-          {product.sku && (
-            <p className="mt-3 text-[11px] sm:mt-4 sm:text-[12px]" style={{ color: "var(--ac-muted)" }}>
-              شناسه محصول: <span className="font-mono" dir="ltr">{product.sku}</span>
-            </p>
-          )}
         </div>
 
         {/* buy box — LEFT column on desktop, sticky, spanning both content rows so the services row can sit
