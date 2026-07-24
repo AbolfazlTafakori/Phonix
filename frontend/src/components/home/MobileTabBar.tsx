@@ -53,8 +53,8 @@ export default function MobileTabBar() {
 
   const tabs = [
     { key: "home", label: "خانه", href: "/", icon: HomeIcon, active: pathname === "/" },
-    { key: "cats", label: "دسته‌بندی", href: "/categories", icon: GridIcon, active: pathname.startsWith("/categories") },
     { key: "products", label: "محصولات", href: "/products", icon: BoxIcon, active: pathname.startsWith("/products") },
+    { key: "cats", label: "دسته‌بندی", href: "/categories", icon: GridIcon, active: pathname.startsWith("/categories") },
     { key: "cart", label: "سبد خرید", href: "/cart", icon: CartIcon, active: pathname.startsWith("/cart"), badge: count },
     { key: "me", label: "فونیکس من", href: user ? "/account" : "/login", icon: UserIcon, active: pathname.startsWith("/account") || pathname.startsWith("/login") },
   ];
