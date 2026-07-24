@@ -12,7 +12,7 @@ export default async function SiteHeader() {
     // The .home-light custom properties still cascade to the children via inheritance.
     <div className="home-light contents">
       <TopBar />
-      <HomeHeader brand={content.brand} searchPlaceholder="جستجو در بین هزاران محصول..." />
+      <HomeHeader brand={content.brand} searchPlaceholder="جستجو در فونیکس" />
     </div>
   );
 }

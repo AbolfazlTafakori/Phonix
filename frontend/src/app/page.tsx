@@ -25,7 +25,7 @@ export default async function Home() {
   return (
     <div className="home-light min-h-screen pb-[60px] lg:pb-0">
       <TopBar />
-      <HomeHeader brand={content.brand} searchPlaceholder="جستجو در بین هزاران محصول..." />
+      <HomeHeader brand={content.brand} searchPlaceholder="جستجو در فونیکس" />
       <main>
         <HomeHero />
         <TrustStats />
