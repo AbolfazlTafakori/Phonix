@@ -182,7 +182,7 @@ export default function InvoicePage() {
             replaces the browser's own print header (removed via @page margin:0 below). */}
         <div className="inv-masthead">
           <div className="inv-mh-brand">
-            <span className="inv-mh-fa">فونیکس ورفای</span>
+            <span className="inv-mh-fa">فونیکس وریفای</span>
             <span className="inv-mh-en">Phoenix Verify</span>
           </div>
           <div className="inv-mh-date">
@@ -196,7 +196,7 @@ export default function InvoicePage() {
           <div className="inv-mark">Phoenix Verify</div>
         </div>
         <div className="inv-rule" />
-        <p className="inv-tag">فونیکس ورفای · ارائه‌دهنده اشتراک و سرویس‌های دیجیتال</p>
+        <p className="inv-tag">فونیکس وریفای · ارائه‌دهنده اشتراک و سرویس‌های دیجیتال</p>
 
         <div className="inv-meta">
           {inv.invoiceNumber && <Row label="شماره فاکتور" value={<N>{toEn(inv.invoiceNumber)}</N>} />}
@@ -211,7 +211,7 @@ export default function InvoicePage() {
           <div className="inv-party">
             <h2>مشخصات فروشنده</h2>
             <div className="inv-party-body">
-              <Row label="نام" value="فونیکس ورفای" />
+              <Row label="نام" value="فونیکس وریفای" />
               <Row label="وب‌سایت" value={<N>phoenixverify.com</N>} />
               <Row label="پشتیبانی" value={<N>support@phoenixverify.com</N>} />
             </div>
@@ -283,12 +283,12 @@ export default function InvoicePage() {
             <div>
               <p className="inv-thanks">از اعتماد و خرید شما سپاسگزاریم.</p>
               <p className="inv-terms">
-                خریدار با ثبت این سفارش، قوانین و مقررات فونیکس ورفای را مطالعه کرده و پذیرفته است.
+                خریدار با ثبت این سفارش، قوانین و مقررات فونیکس وریفای را مطالعه کرده و پذیرفته است.
                 پشتیبانی این سرویس، در چهارچوب شرایط تأییدشده توسط کاربر، بر عهده‌ی تیم پشتیبانی مجموعه می‌باشد.
               </p>
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img className="inv-seal" src="/figma/invoice-seal.webp" alt="مهر فونیکس ورفای" />
+            <img className="inv-seal" src="/figma/invoice-seal.webp" alt="مهر فونیکس وریفای" />
           </div>
         </div>
 
