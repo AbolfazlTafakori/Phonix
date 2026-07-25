@@ -143,9 +143,15 @@ export default function ConfigView({ token }: { token: string }) {
     const load = (first: boolean) => api.v2rayConfig.get(token)
       .then((c) => { if (alive) { setConfig(c); setState("ready"); } })
       .catch(() => { if (alive && first) setState("missing"); });
+
     load(true);
-    const id = setInterval(() => load(false), REFRESH_MS);
-    return () => { alive = false; clearInterval(id); };
+    // Only poll while the page is actually being looked at — a link left open in a background tab shouldn't
+    // keep asking the subscription server for numbers nobody is reading. Coming back refreshes at once.
+    const tick = () => { if (document.visibilityState === "visible") load(false); };
+    const id = setInterval(tick, REFRESH_MS);
+    const onVisible = () => { if (document.visibilityState === "visible") load(false); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { alive = false; clearInterval(id); document.removeEventListener("visibilitychange", onVisible); };
   }, [token]);
 
   if (state === "loading") {

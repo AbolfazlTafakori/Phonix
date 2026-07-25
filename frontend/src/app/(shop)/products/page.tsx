@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { productPath } from "@/lib/seo";
 import { api } from "@/lib/api";
-import { formatNumber } from "@/lib/format";
 import ProductCardImage from "@/components/ProductCardImage";
 import ProductsBrowser from "@/components/products/ProductsBrowser";
 import ProductsHeroStats from "@/components/products/ProductsHeroStats";

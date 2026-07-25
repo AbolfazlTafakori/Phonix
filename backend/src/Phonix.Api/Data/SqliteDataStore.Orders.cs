@@ -134,6 +134,10 @@ public sealed partial class SqliteDataStore
             foreach (var group in lines.GroupBy(l => l.ProductId))
             {
                 var p = products[group.Key];
+                // A V2Ray product is supplied by its panel, which provisions on demand — it has no finite
+                // counter to check, and gating on one would stop sales until an operator topped up a number
+                // that means nothing here.
+                if (p.V2RayCategoryId > 0) continue;
                 var needed = group.Sum(l => l.Quantity);
                 if (p.Stock < needed) return new PlaceOrderResult(null, $"موجودی «{p.Name}» کافی نیست.");
             }
@@ -205,7 +209,8 @@ public sealed partial class SqliteDataStore
             foreach (var line in lines)
             {
                 var p = products[line.ProductId];
-                p.Stock = Math.Max(0, p.Stock - line.Quantity);
+                // Nothing to spend for a panel-provisioned product (see the stock check above).
+                if (p.V2RayCategoryId <= 0) p.Stock = Math.Max(0, p.Stock - line.Quantity);
             }
             foreach (var p in products.Values) UpsertProduct(conn, tx, p); // persist decremented stock
 
@@ -563,6 +568,7 @@ LIMIT 1;",
                 var pj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @pid", new { pid = line.ProductId }, tx);
                 if (pj is null) continue;
                 var p = Deserialize<Product>(pj)!;
+                if (p.V2RayCategoryId > 0) continue;   // never spent a counter, so nothing to give back
                 p.Stock += OrderRules.UndeliveredQuantity(o, line);
                 UpsertProduct(conn, tx, p);
             }
@@ -782,11 +788,14 @@ LIMIT 1;",
             if (pj is not null)
             {
                 var p = Deserialize<Product>(pj)!;
-                var line = o.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
-                var unitsOfLine = Math.Max(1, o.Units.Count(u =>
-                    u.ProductId == unit.ProductId && (u.Plan ?? "") == (unit.Plan ?? "")));
-                p.Stock += Math.Max(1, (line?.Quantity ?? 1) / unitsOfLine);
-                UpsertProduct(conn, tx, p);
+                if (p.V2RayCategoryId <= 0)
+                {
+                    var line = o.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
+                    var unitsOfLine = Math.Max(1, o.Units.Count(u =>
+                        u.ProductId == unit.ProductId && (u.Plan ?? "") == (unit.Plan ?? "")));
+                    p.Stock += Math.Max(1, (line?.Quantity ?? 1) / unitsOfLine);
+                    UpsertProduct(conn, tx, p);
+                }
             }
             // Any slots still held for this unit go back into rotation (no-op for item-pool products).
             UpdateReservedSlots(conn, tx, orderId, unitId, slot =>

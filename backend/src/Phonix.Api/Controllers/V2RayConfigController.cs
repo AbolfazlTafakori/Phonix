@@ -29,6 +29,12 @@ public sealed record V2RayConfigDto(
 [AllowAnonymous]
 public class V2RayConfigController : ControllerBase
 {
+    // The page polls, and the link is meant to be shared — several people refreshing one service must not
+    // turn into a request per refresh against the subscription server. A few seconds is short enough that
+    // usage still reads as live and long enough to absorb a burst.
+    private static readonly TimeSpan CacheFor = TimeSpan.FromSeconds(10);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, (DateTime At, V2RaySubscription Sub)> Cache = new();
+
     private readonly IDataStore _store;
     private readonly IV2RayPanelConnector _connector;
 
@@ -36,6 +42,27 @@ public class V2RayConfigController : ControllerBase
     {
         _store = store;
         _connector = connector;
+    }
+
+    // One entry per service would otherwise accumulate for the life of the process, so expired entries are
+    // swept once the map grows past a shop's worth of active services.
+    private const int CacheLimit = 500;
+
+    private async Task<V2RaySubscription> ReadSubscriptionAsync(string subUrl, CancellationToken ct)
+    {
+        var now = DateTime.UtcNow;
+        if (Cache.TryGetValue(subUrl, out var hit) && now - hit.At < CacheFor) return hit.Sub;
+
+        var sub = await _connector.GetSubscriptionAsync(subUrl, ct);
+        // A failed read isn't cached: the next visitor should get a fresh attempt rather than a stuck error.
+        if (!sub.Ok) return sub;
+
+        if (Cache.Count >= CacheLimit)
+            foreach (var stale in Cache.Where(e => now - e.Value.At >= CacheFor).Select(e => e.Key).ToList())
+                Cache.TryRemove(stale, out _);
+
+        Cache[subUrl] = (now, sub);
+        return sub;
     }
 
     [HttpGet("{token}")]
@@ -53,7 +80,7 @@ public class V2RayConfigController : ControllerBase
         // with it: the plan's own terms are still worth showing, flagged as not live.
         var sub = string.IsNullOrWhiteSpace(account.SubUrl)
             ? V2RaySubscription.Fail("لینک اشتراک تنظیم نشده است.")
-            : await _connector.GetSubscriptionAsync(account.SubUrl, ct);
+            : await ReadSubscriptionAsync(account.SubUrl, ct);
 
         var totalBytes = sub.Ok && sub.Total > 0 ? sub.Total : account.VolumeGb * 1024L * 1024L * 1024L;
         var expiresAt = sub.Ok && sub.ExpireUnix > 0

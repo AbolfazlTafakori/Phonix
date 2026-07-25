@@ -56,9 +56,17 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
             return false;
         }
 
-        // One stable name per unit: a retry after a timeout that actually succeeded on the panel finds the
-        // same client instead of creating a second one.
-        var email = unit.V2Ray?.Email is { Length: > 0 } existing ? existing : BuildEmail(order, unit);
+        // The account may already exist: the panel call can succeed and the delivery that follows still fail
+        // (a crash, a lost write). Retrying the panel call then would add a SECOND client for one purchase and
+        // quietly burn a slot, so an already-provisioned unit is only re-delivered.
+        if (unit.V2Ray is { Uuid.Length: > 0 } provisioned)
+        {
+            _store.DeliverUnit(order.Id, unit.Id, DeliveryText(panel, provisioned), Actor);
+            _logger.LogInformation("Re-delivered the existing V2Ray account for order {Code} unit {Unit}.", order.Code, unit.Id);
+            return true;
+        }
+
+        var email = BuildEmail(order, unit);
 
         var result = await _connector.AddClientAsync(
             panel.Provider,
@@ -82,6 +90,8 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
             Uuid = result.Uuid,
             SubId = result.SubId,
             SubUrl = panel.SubscriptionUrl(result.SubId),
+            // A token already handed out (a failed earlier attempt that still recorded one) is kept, so a link
+            // the buyer may already hold never goes dead.
             Token = unit.V2Ray?.Token is { Length: > 0 } t ? t : NewToken(),
             Protocol = plan.Protocol,
             Network = plan.Network,

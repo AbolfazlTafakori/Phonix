@@ -7,7 +7,7 @@ import { accountMenu } from "@/data/account";
 import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/useMe";
 import { api } from "@/lib/api";
-import { formatToman, formatNumber } from "@/lib/format";
+import { formatNumber } from "@/lib/format";
 import MenuIcon from "./MenuIcon";
 
 function KycBadge({ level }: { level: number }) {
@@ -65,7 +65,6 @@ export default function Sidebar() {
   const avatar = me?.avatar || "";
   const level = me?.verificationLevel ?? 0;
   const wallet = me?.wallet ?? 0;
-  const initials = (name || username || "ک").charAt(0);
 
   function handleLogout() {
     logout();

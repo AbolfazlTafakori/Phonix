@@ -192,8 +192,10 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
     }
   }
 
+  // Mirrors `busy` for the Google callback, which fires outside React and would otherwise close over a stale
+  // value. Written in an effect rather than during render, where a ref write is not safe to repeat.
   const busyRef = useRef(false);
-  busyRef.current = busy;
+  useEffect(() => { busyRef.current = busy; }, [busy]);
 
   // Google Identity Services — renders the official button when a client id is configured.
   const googleBox = useRef<HTMLDivElement>(null);

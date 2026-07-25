@@ -25,7 +25,7 @@ public class V2RayProvisioningTests
 
         var product = store.AddProduct(new Product
         {
-            Name = "خرید اشتراک V2Ray", CategoryId = 1, IsActive = true, Stock = 100,
+            Name = "خرید اشتراک V2Ray", CategoryId = 1, IsActive = true,
             V2RayCategoryId = category.Id, Plans = new(),
         });
 
@@ -98,5 +98,19 @@ public class V2RayProvisioningTests
         Assert.Equal(20, unit.V2Ray.VolumeGb);
         Assert.Equal(2, unit.V2Ray.IpLimit);
         Assert.Equal(expiry, unit.V2Ray.ExpiresAtUtc!.Value, TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
+    public void A_v2ray_product_sells_without_a_stock_counter()
+    {
+        var (store, productId, planId) = Seed();
+        // Deliberately zero: the panel provisions on demand, so there is no inventory to keep topped up.
+        Assert.Equal(0, store.GetProduct(productId)!.Stock);
+
+        var first = store.PlaceOrder(store.GetUser(5)!, new[] { (productId, 1, (int?)planId) }, "wallet", fromWallet: true);
+        Assert.Null(first.Error);
+
+        // …and it does not quietly count down, which would stop sales after the first buyer.
+        Assert.Equal(0, store.GetProduct(productId)!.Stock);
     }
 }
