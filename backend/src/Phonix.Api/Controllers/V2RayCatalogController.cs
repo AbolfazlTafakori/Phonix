@@ -13,7 +13,9 @@ public sealed record V2RayPlanDto(
     int Id, int CategoryId, string Title, string Description, int PanelId, int[] InboundIds,
     string Protocol, string Network,
     long VolumeGb, int DurationDays, int IpLimit, int Quantity, long Price, int DiscountPercent, long FinalPrice,
-    bool Active, int SortOrder);
+    bool Active, int SortOrder,
+    // How much of the cap is used. Sold is meaningless while Quantity is 0 (no cap).
+    int Sold, bool SoldOut);
 
 public sealed record V2RayPlanInput(
     int CategoryId, string Title, string Description, int PanelId, int[] InboundIds,
@@ -76,7 +78,8 @@ public class V2RayCatalogController : ControllerBase
     private static V2RayPlanDto ToDto(V2RayPlan p) => new(
         p.Id, p.CategoryId, p.Title, p.Description, p.PanelId, p.InboundIds.ToArray(),
         p.Protocol, p.Network,
-        p.VolumeGb, p.DurationDays, p.IpLimit, p.Quantity, p.Price, p.DiscountPercent, p.FinalPrice, p.Active, p.SortOrder);
+        p.VolumeGb, p.DurationDays, p.IpLimit, p.Quantity, p.Price, p.DiscountPercent, p.FinalPrice, p.Active, p.SortOrder,
+        p.Sold, p.SoldOut);
 
     [HttpGet("plans")]
     public IReadOnlyList<V2RayPlanDto> Plans() => _store.GetV2RayPlans().Select(ToDto).ToList();

@@ -39,6 +39,13 @@ public class V2RayPlan
     public int DurationDays { get; set; }  // 0 = never expires (a month is 30 days, a year 365)
     public int IpLimit { get; set; }       // 0 = unlimited
     public int Quantity { get; set; }      // how many of this plan may be sold; 0 = unlimited
+    // How many have actually been sold against that cap. Counted at purchase and given back when an order is
+    // cancelled or an account rejected before delivery, so the cap tracks live commitments rather than
+    // all-time sales. Meaningless while Quantity is 0.
+    public int Sold { get; set; }
+
+    // A capped plan that has run out. The storefront stops offering it and placement refuses it.
+    public bool SoldOut => Quantity > 0 && Sold >= Quantity;
 
     public long Price { get; set; }
     public int DiscountPercent { get; set; }

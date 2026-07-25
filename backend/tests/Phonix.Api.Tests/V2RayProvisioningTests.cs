@@ -10,7 +10,7 @@ namespace Phonix.Api.Tests;
 // unit. Both are easy to break from unrelated changes, so they are pinned here.
 public class V2RayProvisioningTests
 {
-    private static (IDataStore store, int productId, int planId) Seed()
+    private static (IDataStore store, int productId, int planId) Seed(int quantityCap = 0)
     {
         var store = TestStore.Create();
         var category = store.AddV2RayCategory(new V2RayCategory { Name = "سرویس‌های ماهانه", Active = true });
@@ -21,6 +21,7 @@ public class V2RayProvisioningTests
             CategoryId = category.Id, Title = "۲۰ گیگ دو کاربر", PanelId = 1, InboundIds = new() { 1 },
             Protocol = "vless", Network = "ws",
             VolumeGb = 20, DurationDays = 30, IpLimit = 2, Price = 300_000, Active = true,
+            Quantity = quantityCap,
         });
 
         var product = store.AddProduct(new Product
@@ -112,5 +113,75 @@ public class V2RayProvisioningTests
 
         // …and it does not quietly count down, which would stop sales after the first buyer.
         Assert.Equal(0, store.GetProduct(productId)!.Stock);
+    }
+
+    [Fact]
+    public void A_capped_plan_stops_selling_once_it_runs_out()
+    {
+        var (store, productId, planId) = Seed(quantityCap: 2);
+        var buyer = store.GetUser(5)!;
+
+        Assert.Null(store.PlaceOrder(buyer, new[] { (productId, 2, (int?)planId) }, "wallet", fromWallet: true).Error);
+
+        // The cap is the whole supply for this plan, so the next buyer is refused rather than oversold.
+        var over = store.PlaceOrder(buyer, new[] { (productId, 1, (int?)planId) }, "wallet", fromWallet: true);
+        Assert.NotNull(over.Error);
+        Assert.Contains("ظرفیت", over.Error);
+    }
+
+    [Fact]
+    public void A_sold_out_plan_disappears_from_the_storefront()
+    {
+        var (store, productId, planId) = Seed(quantityCap: 1);
+        Assert.Single(store.GetProduct(productId)!.Plans, p => p.IsActive);
+
+        Assert.Null(store.PlaceOrder(store.GetUser(5)!, new[] { (productId, 1, (int?)planId) }, "wallet", fromWallet: true).Error);
+
+        // The picker only offers active plans, so a full one is no longer selectable. It is still carried in
+        // the list (inactive) so a stale checkout can be told it filled up rather than "not found".
+        Assert.DoesNotContain(store.GetProduct(productId)!.Plans, p => p.IsActive);
+    }
+
+    [Fact]
+    public void Cancelling_an_undelivered_order_gives_the_plan_its_place_back()
+    {
+        var (store, productId, planId) = Seed(quantityCap: 1);
+        var order = store.PlaceOrder(store.GetUser(5)!, new[] { (productId, 1, (int?)planId) }, "wallet", fromWallet: true).Order!;
+        Assert.DoesNotContain(store.GetProduct(productId)!.Plans, p => p.IsActive);   // sold out
+
+        store.CancelOrder(order.Id, "admin", "test");
+
+        // A refunded sale must not hold a place forever.
+        Assert.Equal(0, store.GetV2RayPlan(planId)!.Sold);
+        Assert.Single(store.GetProduct(productId)!.Plans, p => p.IsActive);
+    }
+
+    [Fact]
+    public void An_uncapped_plan_is_never_limited()
+    {
+        var (store, productId, planId) = Seed();   // Quantity = 0 → unlimited
+        var buyer = store.GetUser(5)!;
+
+        for (var i = 0; i < 3; i++)
+            Assert.Null(store.PlaceOrder(buyer, new[] { (productId, 1, (int?)planId) }, "wallet", fromWallet: true).Error);
+
+        Assert.Single(store.GetProduct(productId)!.Plans, p => p.IsActive);
+    }
+
+    [Fact]
+    public void Editing_a_plan_does_not_reset_what_it_has_already_sold()
+    {
+        var (store, productId, planId) = Seed(quantityCap: 2);
+        Assert.Null(store.PlaceOrder(store.GetUser(5)!, new[] { (productId, 1, (int?)planId) }, "wallet", fromWallet: true).Error);
+        Assert.Equal(1, store.GetV2RayPlan(planId)!.Sold);
+
+        // The admin form posts the plan's editable fields; the sold tally is not one of them and must survive,
+        // or a price tweak would silently hand out the whole cap again.
+        var edited = store.GetV2RayPlan(planId)!;
+        edited.Price = 350_000;
+        store.UpdateV2RayPlan(edited);
+
+        Assert.Equal(1, store.GetV2RayPlan(planId)!.Sold);
+        Assert.Equal(350_000, store.GetV2RayPlan(planId)!.Price);
     }
 }

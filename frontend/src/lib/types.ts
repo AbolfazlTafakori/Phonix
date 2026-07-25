@@ -384,12 +384,15 @@ export type V2RayPlan = {
   volumeGb: number;   // 0 = unlimited
   durationDays: number; // 0 = never expires
   ipLimit: number;    // 0 = unlimited
-  quantity: number;   // 0 = unlimited
+  quantity: number;   // sales cap; 0 = unlimited
   price: number;
   discountPercent: number;
   finalPrice: number;
   active: boolean;
   sortOrder: number;
+  // How much of the cap is taken. Meaningless while quantity is 0.
+  sold: number;
+  soldOut: boolean;
 };
 
 // What the storefront may know about a V2Ray plan — no panel, no inbounds, no ids of the infrastructure.

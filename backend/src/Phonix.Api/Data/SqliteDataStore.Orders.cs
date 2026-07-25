@@ -83,6 +83,12 @@ public sealed partial class SqliteDataStore
                 ProductPlan? plan = null;
                 if (planId is int pid)
                 {
+                    // A capped V2Ray plan that filled up is carried through as inactive, so say so plainly
+                    // rather than letting the generic "not found" below explain a checkout that was valid
+                    // when the page was opened.
+                    if (p.V2RayCategoryId > 0 && GetV2RayPlan(pid) is { SoldOut: true } full)
+                        return new PlaceOrderResult(null, $"ظرفیت فروش «{full.Title}» تکمیل شده است.");
+
                     // a referenced plan must exist and be active; otherwise reject the line rather than
                     // silently charging the base price.
                     plan = p.Plans.FirstOrDefault(x => x.Id == pid && x.IsActive);
@@ -140,6 +146,26 @@ public sealed partial class SqliteDataStore
                 if (p.V2RayCategoryId > 0) continue;
                 var needed = group.Sum(l => l.Quantity);
                 if (p.Stock < needed) return new PlaceOrderResult(null, $"موجودی «{p.Name}» کافی نیست.");
+            }
+
+            // What a V2Ray plan limits instead is how many of IT may be sold (V2RayPlan.Quantity; 0 = no
+            // limit). Checked and incremented in this same transaction, so the last place can't be taken twice.
+            var v2rayDemand = lines
+                .Where(l => products[l.ProductId].V2RayCategoryId > 0 && l.PlanId is int)
+                .GroupBy(l => l.PlanId!.Value)
+                .ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+
+            V2RaySettings? v2ray = null;
+            if (v2rayDemand.Count > 0)
+            {
+                v2ray = ReadSingleton<V2RaySettings>(conn, tx, V2RayKey);
+                foreach (var (planId, wanted) in v2rayDemand)
+                {
+                    var vp = v2ray.Plans.FirstOrDefault(x => x.Id == planId);
+                    if (vp is null || vp.Quantity <= 0) continue;
+                    if (vp.Sold + wanted > vp.Quantity)
+                        return new PlaceOrderResult(null, $"ظرفیت فروش «{vp.Title}» تکمیل شده است.");
+                }
             }
 
             var subtotal = lines.Sum(l => l.LineTotal);
@@ -213,6 +239,16 @@ public sealed partial class SqliteDataStore
                 if (p.V2RayCategoryId <= 0) p.Stock = Math.Max(0, p.Stock - line.Quantity);
             }
             foreach (var p in products.Values) UpsertProduct(conn, tx, p); // persist decremented stock
+
+            if (v2ray is not null)
+            {
+                foreach (var (planId, wanted) in v2rayDemand)
+                {
+                    var vp = v2ray.Plans.FirstOrDefault(x => x.Id == planId);
+                    if (vp is not null && vp.Quantity > 0) vp.Sold += wanted;
+                }
+                WriteSingleton(conn, tx, V2RayKey, v2ray);
+            }
 
             if (walletUsed > 0)
             {
@@ -572,6 +608,10 @@ LIMIT 1;",
                 p.Stock += OrderRules.UndeliveredQuantity(o, line);
                 UpsertProduct(conn, tx, p);
             }
+            // A capped V2Ray plan gets its places back for whatever was not delivered.
+            ReleaseV2RayPlanSlots(conn, tx, o.Units
+                .Where(u => !u.Delivered && u.PlanId is int)
+                .Select(u => (u.PlanId!.Value, 1)));
             // Put back any seats still merely reserved for an undelivered unit (no-op for the item pool).
             foreach (var u in o.Units.Where(u => !u.Delivered))
                 UpdateReservedSlots(conn, tx, o.Id, u.Id, slot =>
@@ -735,6 +775,27 @@ LIMIT 1;",
     // Approved orders that still have an undelivered unit — the pool the V2Ray provisioner sweeps. The
     // service decides which of those units are actually its own; this only narrows the scan to orders that
     // are in play.
+    // Hands sold slots back to a capped V2Ray plan. Called when a purchase stops being a live commitment —
+    // an order cancelled, or an account rejected before it was delivered — so a cap tracks what is actually
+    // out there rather than counting a refunded sale forever. Never drops below zero.
+    private void ReleaseV2RayPlanSlots(SqliteConnection conn, SqliteTransaction tx, IEnumerable<(int planId, int count)> released)
+    {
+        var wanted = released.Where(r => r.count > 0).GroupBy(r => r.planId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.count));
+        if (wanted.Count == 0) return;
+
+        var settings = ReadSingleton<V2RaySettings>(conn, tx, V2RayKey);
+        var touched = false;
+        foreach (var (planId, count) in wanted)
+        {
+            var plan = settings.Plans.FirstOrDefault(x => x.Id == planId);
+            if (plan is null || plan.Quantity <= 0) continue;
+            plan.Sold = Math.Max(0, plan.Sold - count);
+            touched = true;
+        }
+        if (touched) WriteSingleton(conn, tx, V2RayKey, settings);
+    }
+
     public IReadOnlyList<Order> GetOrdersAwaitingV2Ray()
     {
         using var conn = OpenConnection();
@@ -795,6 +856,10 @@ LIMIT 1;",
                         u.ProductId == unit.ProductId && (u.Plan ?? "") == (unit.Plan ?? "")));
                     p.Stock += Math.Max(1, (line?.Quantity ?? 1) / unitsOfLine);
                     UpsertProduct(conn, tx, p);
+                }
+                else if (unit.PlanId is int rejectedPlan)
+                {
+                    ReleaseV2RayPlanSlots(conn, tx, new[] { (rejectedPlan, 1) });
                 }
             }
             // Any slots still held for this unit go back into rotation (no-op for item-pool products).

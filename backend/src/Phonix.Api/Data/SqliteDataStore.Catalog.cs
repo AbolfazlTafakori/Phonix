@@ -47,6 +47,10 @@ ON CONFLICT(Id) DO UPDATE SET
     {
         if (product.V2RayCategoryId <= 0) return product;
 
+        // A sold-out plan is KEPT here and marked inactive below rather than dropped. The storefront shows
+        // only active plans, so it disappears from the picker either way — but order placement resolves the
+        // chosen plan through this same list, and removing it outright would leave a stale checkout failing
+        // with "no product found" instead of saying the plan is full.
         var plans = GetV2RayPlans()
             .Where(p => p.CategoryId == product.V2RayCategoryId && p.Active)
             .OrderBy(p => p.SortOrder).ThenBy(p => p.FinalPrice)
@@ -82,7 +86,7 @@ ON CONFLICT(Id) DO UPDATE SET
                     Months = p.DurationDays <= 0 ? 1 : Math.Max(1, (int)Math.Round(p.DurationDays / 30.0)),
                     Price = p.Price,
                     DiscountPercent = p.DiscountPercent,
-                    IsActive = true,
+                    IsActive = !p.SoldOut,
                     UserCount = p.IpLimit,
                     Rules = p.Description,
                 };

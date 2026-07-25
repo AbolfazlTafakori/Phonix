@@ -426,6 +426,14 @@ function PlanCard({
         {" · " + formatToman(plan.finalPrice)}
       </p>
 
+      {/* How much of the sales cap is gone. Only meaningful for a capped plan, and called out once it is
+          full, since a sold-out plan stops appearing in the storefront. */}
+      {plan.quantity > 0 && (
+        <p className={`mt-1 text-right text-[11px] font-bold ${plan.soldOut ? "text-rose-400" : "text-white/45"}`}>
+          {plan.soldOut ? "ظرفیت تکمیل شد" : `فروخته‌شده: ${fmt(plan.sold)} از ${fmt(plan.quantity)}`}
+        </p>
+      )}
+
       <div className="mt-4 flex items-center justify-between gap-1 border-t border-white/8 pt-3">
         <ActionButton icon="trash" title="حذف" onClick={onRemove} disabled={busy} danger />
         <ActionButton icon="chevron-down" title="پایین‌تر" onClick={onDown} disabled={busy || !onDown} />

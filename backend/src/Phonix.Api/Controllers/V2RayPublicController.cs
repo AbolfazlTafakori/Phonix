@@ -31,7 +31,7 @@ public class V2RayPublicController : ControllerBase
         if (category is null || !category.Active) return Array.Empty<V2RayPublicPlanDto>();
 
         return _store.GetV2RayPlans()
-            .Where(p => p.CategoryId == categoryId && p.Active)
+            .Where(p => p.CategoryId == categoryId && p.Active && !p.SoldOut)
             .OrderBy(p => p.SortOrder).ThenBy(p => p.FinalPrice)
             .Select(p => new V2RayPublicPlanDto(
                 p.Id, p.Title, p.Description, p.Protocol, p.Network,
