@@ -11,7 +11,7 @@ const quick = [
   { label: "درباره ما", href: "#about" },
   { label: "تماس با ما", href: "#" },
   { label: "وبلاگ", href: "/blog" },
-  { label: "قوانین و مقررات", href: "#" },
+  { label: "قوانین و مقررات", href: "/terms" },
 ];
 const access = [
   { label: "محصولات", href: "/products" },

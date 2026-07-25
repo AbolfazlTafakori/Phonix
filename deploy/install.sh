@@ -439,8 +439,44 @@ EOF
 provision_ssl() {
     heading "Issuing SSL certificate"
     certbot --nginx -d "$DOMAIN" --non-interactive --agree-tos -m "$LE_EMAIL" --redirect
+    enable_http2
     systemctl reload nginx
     ok "HTTPS enabled"
+}
+
+# Certbot writes the TLS server block itself, and it leaves the connection on HTTP/1.1 — every asset then
+# queues on one connection at a time, which is exactly what a page of many small files suffers from. nginx
+# 1.25.1 replaced the old `listen ... http2` parameter with a standalone directive, so add whichever the
+# installed version understands, and only once.
+enable_http2() {
+    local site="$NGINX_SITE"
+    [ -f "$site" ] || return 0
+    grep -q "http2" "$site" && return 0
+    grep -q "listen .*443" "$site" || return 0
+
+    # Keep the exact file certbot produced. If the edit doesn't validate, put it back verbatim rather than
+    # trying to undo the change with another expression — a half-removed directive would break TLS entirely.
+    cp -f "$site" "$site.pre-http2"
+
+    local version
+    version=$(nginx -v 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    if printf '%s\n1.25.1\n' "$version" | sort -V -C; then
+        # older than 1.25.1 → the listen parameter is the only form available
+        sed -i -E 's/(listen[[:space:]]+(\[::\]:)?443[[:space:]]+ssl)([;[:space:]])/\1 http2\3/' "$site"
+    else
+        # 1.25.1+ → its own directive, on the line after the first TLS listener. Appending a whole line (not
+        # editing inside one) keeps `listen … ssl ipv6only=on;` intact.
+        awk '!added && /listen[[:space:]].*443.*ssl/ { print; print "    http2 on;"; added=1; next } { print }' \
+            "$site" > "$site.http2" && mv "$site.http2" "$site"
+    fi
+
+    if nginx -t >/dev/null 2>&1; then
+        rm -f "$site.pre-http2"
+        ok "HTTP/2 enabled"
+    else
+        mv -f "$site.pre-http2" "$site"
+        warn "HTTP/2 could not be enabled; kept the working configuration"
+    fi
 }
 
 configure_firewall() {
