@@ -1030,6 +1030,14 @@ export type OrderUnitV2Ray = {
   expiresAtUtc: string | null;
 };
 
+// One share URI served by the subscription link.
+export type V2RayConfigLine = {
+  uri: string;
+  remark: string;
+  protocol: string;
+  network: string;
+};
+
 // One provisioned V2Ray account as the public config page sees it.
 export type V2RayConfig = {
   name: string;
@@ -1039,6 +1047,7 @@ export type V2RayConfig = {
   protocol: string;
   network: string;
   subUrl: string;
+  subId: string;
   usedBytes: number;
   upBytes: number;
   downBytes: number;
@@ -1049,8 +1058,9 @@ export type V2RayConfig = {
   expiresAtUtc: string | null;
   createdAtUtc: string | null;
   active: boolean;
-  // False when the panel didn't answer: the plan's own terms are shown, usage isn't live.
+  // False when the subscription link didn't answer: the plan's own terms are shown, usage isn't live.
   statsLive: boolean;
+  configs: V2RayConfigLine[];
 };
 
 export type OrderStatusHistory = {

@@ -10,13 +10,16 @@ namespace Phonix.Api.Controllers;
 // What the config page shows. Everything here is about ONE account: no order code, no customer, no panel
 // address or credential — the buyer may pass this link to whoever the service is actually for, so it must
 // carry nothing about the purchase or the infrastructure behind it.
+public sealed record V2RayConfigLineDto(string Uri, string Remark, string Protocol, string Network);
+
 public sealed record V2RayConfigDto(
     string Name, string Uuid, string Server, string Flag, string Protocol, string Network,
-    string SubUrl,
+    string SubUrl, string SubId,
     long UsedBytes, long UpBytes, long DownBytes, long TotalBytes,
     int IpLimit, bool Online,
     int? RemainingDays, DateTime? ExpiresAtUtc, DateTime? CreatedAtUtc,
-    bool Active, bool StatsLive);
+    bool Active, bool StatsLive,
+    IReadOnlyList<V2RayConfigLineDto> Configs);
 
 // The customer-facing view of one provisioned V2Ray account, addressed only by its unguessable token.
 // Anonymous on purpose: the buyer often provisions for someone else (a colleague, a family member) and needs
@@ -45,22 +48,24 @@ public class V2RayConfigController : ControllerBase
         var panel = _store.GetV2RayPanel(account.PanelId);
         var server = panel is null || string.IsNullOrWhiteSpace(panel.Name) ? "سرور" : panel.Name.Trim();
 
-        // Live usage, when the panel answers. A panel that is down must not take the whole page down with
-        // it — the plan's own terms are still worth showing, flagged as not live.
-        var traffic = panel is null
-            ? V2RayTraffic.Fail("سرور در دسترس نیست.")
-            : await _connector.GetTrafficAsync(
-                panel.Provider,
-                new V2RayCredentials(panel.Url, panel.Username, SensitiveField.Reveal(panel.Password), SensitiveField.Reveal(panel.ApiToken)),
-                account.Email, ct);
+        // The subscription link is the source of truth the customer's own app polls — usage to the byte AND
+        // the config list — with no panel login. A link that is briefly down must not take the whole page
+        // with it: the plan's own terms are still worth showing, flagged as not live.
+        var sub = string.IsNullOrWhiteSpace(account.SubUrl)
+            ? V2RaySubscription.Fail("لینک اشتراک تنظیم نشده است.")
+            : await _connector.GetSubscriptionAsync(account.SubUrl, ct);
 
-        var totalBytes = traffic.Ok && traffic.Total > 0 ? traffic.Total : account.VolumeGb * 1024L * 1024L * 1024L;
-        var expiresAt = traffic.Ok && traffic.ExpiryTimeMs > 0
-            ? DateTimeOffset.FromUnixTimeMilliseconds(traffic.ExpiryTimeMs).UtcDateTime
+        var totalBytes = sub.Ok && sub.Total > 0 ? sub.Total : account.VolumeGb * 1024L * 1024L * 1024L;
+        var expiresAt = sub.Ok && sub.ExpireUnix > 0
+            ? DateTimeOffset.FromUnixTimeSeconds(sub.ExpireUnix).UtcDateTime
             : account.ExpiresAtUtc;
         var remainingDays = expiresAt is DateTime e
             ? Math.Max(0, (int)Math.Ceiling((e - DateTime.UtcNow).TotalDays))
             : (int?)null;
+
+        var configs = (sub.Configs ?? Array.Empty<V2RayConfigLine>())
+            .Select(c => new V2RayConfigLineDto(c.Uri, c.Remark, c.Protocol, c.Network))
+            .ToList();
 
         return Ok(new V2RayConfigDto(
             Name: account.Email,
@@ -70,16 +75,18 @@ public class V2RayConfigController : ControllerBase
             Protocol: account.Protocol,
             Network: account.Network,
             SubUrl: account.SubUrl,
-            UsedBytes: traffic.Up + traffic.Down,
-            UpBytes: traffic.Up,
-            DownBytes: traffic.Down,
+            SubId: account.SubId,
+            UsedBytes: sub.Up + sub.Down,
+            UpBytes: sub.Up,
+            DownBytes: sub.Down,
             TotalBytes: totalBytes,
             IpLimit: account.IpLimit,
-            Online: traffic.Online,
+            Online: false,
             RemainingDays: remainingDays,
             ExpiresAtUtc: expiresAt,
             CreatedAtUtc: account.CreatedAtUtc,
-            Active: traffic.Ok ? traffic.Enable : true,
-            StatsLive: traffic.Ok));
+            Active: true,
+            StatsLive: sub.Ok,
+            Configs: configs));
     }
 }

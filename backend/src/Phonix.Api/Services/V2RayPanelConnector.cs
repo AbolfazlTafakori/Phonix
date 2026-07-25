@@ -38,6 +38,20 @@ public sealed record V2RayTraffic(
     public static V2RayTraffic Fail(string error) => new(false, error);
 }
 
+// One config line served by a subscription link: the raw share URI plus the bits worth showing next to it.
+public sealed record V2RayConfigLine(string Uri, string Remark, string Protocol, string Network);
+
+// What a subscription link returns — read straight from the same endpoint the customer's app polls, so the
+// usage matches the client to the byte and needs no panel login. `Total` 0 means unlimited, `ExpireUnix` 0
+// means it never expires — the panel's own convention, carried in the Subscription-Userinfo header.
+public sealed record V2RaySubscription(
+    bool Ok, string? Error = null,
+    long Up = 0, long Down = 0, long Total = 0, long ExpireUnix = 0,
+    IReadOnlyList<V2RayConfigLine>? Configs = null)
+{
+    public static V2RaySubscription Fail(string error) => new(false, error);
+}
+
 public sealed record V2RayInboundsResult(bool Ok, string? Error = null, IReadOnlyList<V2RayInbound>? Inbounds = null)
 {
     public static V2RayInboundsResult Fail(string error) => new(false, error);
@@ -73,6 +87,10 @@ public interface IV2RayPanelConnector
 
     // Live traffic/expiry for one client, looked up by the email it was created under.
     Task<V2RayTraffic> GetTrafficAsync(V2RayProvider provider, V2RayCredentials credentials, string email, CancellationToken ct = default);
+
+    // Reads a subscription URL the way the customer's own app does: the usage header plus the config list.
+    // No panel login — the link itself is the source of truth.
+    Task<V2RaySubscription> GetSubscriptionAsync(string subUrl, CancellationToken ct = default);
 
     static string? NormalizeUrl(string? raw)
     {
@@ -408,6 +426,91 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         {
             return V2RayTraffic.Fail(FriendlyError(ex, baseUrl, ct));
         }
+    }
+
+    public async Task<V2RaySubscription> GetSubscriptionAsync(string subUrl, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(subUrl) || !Uri.TryCreate(subUrl, UriKind.Absolute, out _))
+            return V2RaySubscription.Fail("لینک اشتراک معتبر نیست.");
+
+        using var client = NewClient();
+        try
+        {
+            using var resp = await client.GetAsync(subUrl, ct);
+            if (!resp.IsSuccessStatusCode)
+                return V2RaySubscription.Fail($"دریافت اطلاعات اشتراک ممکن نشد (کد {(int)resp.StatusCode}).");
+
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            var (up, down, total, expire) = ReadUserInfo(resp);
+            return new V2RaySubscription(true, null, up, down, total, expire, ParseConfigs(body));
+        }
+        catch (Exception ex)
+        {
+            return V2RaySubscription.Fail(FriendlyError(ex, subUrl, ct));
+        }
+    }
+
+    // The panel reports usage in a single header: "upload=..; download=..; total=..; expire=..".
+    private static (long up, long down, long total, long expire) ReadUserInfo(HttpResponseMessage resp)
+    {
+        if (!resp.Headers.TryGetValues("Subscription-Userinfo", out var values))
+            return (0, 0, 0, 0);
+        long up = 0, down = 0, total = 0, expire = 0;
+        foreach (var part in string.Join(';', values).Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var kv = part.Split('=', 2);
+            if (kv.Length != 2 || !long.TryParse(kv[1].Trim(), out var n)) continue;
+            switch (kv[0].Trim().ToLowerInvariant())
+            {
+                case "upload": up = n; break;
+                case "download": down = n; break;
+                case "total": total = n; break;
+                case "expire": expire = n; break;
+            }
+        }
+        return (up, down, total, expire);
+    }
+
+    // The body is base64 of newline-separated share URIs (vless://…#remark). Decode, then pull the label,
+    // protocol and transport off each so the page can list them the way the panel's own sub page does.
+    private static List<V2RayConfigLine> ParseConfigs(string body)
+    {
+        var list = new List<V2RayConfigLine>();
+        var text = TryBase64(body.Trim()) ?? body;
+        foreach (var raw in text.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var uri = raw.Trim();
+            var scheme = uri.IndexOf("://", StringComparison.Ordinal);
+            if (scheme <= 0) continue;
+            var protocol = uri[..scheme];
+
+            var hash = uri.IndexOf('#', StringComparison.Ordinal);
+            var remark = hash >= 0 ? Uri.UnescapeDataString(uri[(hash + 1)..]) : "";
+
+            var network = "";
+            var typeIdx = uri.IndexOf("type=", StringComparison.OrdinalIgnoreCase);
+            if (typeIdx >= 0)
+            {
+                var rest = uri[(typeIdx + 5)..];
+                var end = rest.IndexOfAny(new[] { '&', '#' });
+                network = (end >= 0 ? rest[..end] : rest).Trim();
+            }
+
+            list.Add(new V2RayConfigLine(uri, remark, protocol, network));
+        }
+        return list;
+    }
+
+    // Sub bodies are standard base64, sometimes without padding. Returns null when the text isn't base64 at
+    // all (some panels serve the URIs in plain text), so the caller falls back to the raw body.
+    private static string? TryBase64(string s)
+    {
+        s = s.Replace("\r", "").Replace("\n", "");
+        if (s.Length == 0) return null;
+        var pad = s.Length % 4;
+        if (pad > 0) s = s.PadRight(s.Length + (4 - pad), '=');
+        try { return System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(s)); }
+        catch (FormatException) { return null; }
     }
 
     private static async Task<bool> IsOnlineAsync(Session session, string email, CancellationToken ct)
