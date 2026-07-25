@@ -62,3 +62,49 @@ export function plainExcerpt(text: string, max = 160): string {
   const plain = text.replace(/[#*_\[\]()`>]/g, "").replace(/\s+/g, " ").trim();
   return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain;
 }
+
+// A search result shows roughly 120–160 characters, and an admin-written product description is often a
+// single short sentence — which wastes most of that space. This tops a short one up from what the product
+// actually offers, so the sentence stays true and, because it is built from that product's own plans and
+// price, differs from every other product's rather than reading as the same boilerplate everywhere.
+const META_MIN = 120;
+const META_MAX = 158;
+
+type MetaProduct = {
+  name: string;
+  description: string;
+  categoryName?: string;
+  finalPrice?: number;
+  plans?: { isActive: boolean; months: number; finalPrice: number }[];
+};
+
+export function productMetaDescription(product: MetaProduct): string {
+  const base = plainExcerpt(product.description, META_MAX);
+  if (base.length >= META_MIN) return base;
+
+  const active = (product.plans ?? []).filter((p) => p.isActive);
+  const prices = active.map((p) => p.finalPrice).filter((n) => n > 0);
+  const cheapest = prices.length > 0 ? Math.min(...prices) : (product.finalPrice ?? 0);
+
+  // Built as one sentence rather than a joined list, so a product with a single plan doesn't read
+  // "با از ۱۸۰,۰۰۰ تومان" — each clause is only added when it has something to say.
+  const plans = active.length > 1 ? ` در ${toFaDigits(active.length)} پلن` : "";
+  const price = cheapest > 0 ? ` از ${toFaDigits(cheapest.toLocaleString("en-US"))} تومان` : "";
+
+  // Whatever the description already promises isn't promised again a few words later.
+  const assurances = ["تحویل آنی", "پرداخت امن", "پشتیبانی ۲۴ ساعته"]
+    .filter((phrase) => !base.includes(phrase));
+  const tail = assurances.length > 0 ? ` با ${assurances.join("، ")}` : "";
+
+  // With no description of its own there is no lead to write, and repeating the name twice would only
+  // burn the space the sentence is trying to fill.
+  const lead = base.length > 0 ? `${base.replace(/[.،]\s*$/, "")}. ` : "";
+
+  const composed = `${lead}${productTitle(product.name)}${plans}${price}${tail}.`;
+  return composed.length > META_MAX ? `${composed.slice(0, META_MAX - 1)}…` : composed;
+}
+
+// Persian digits for numerals embedded in a description, matching how prices read on the page itself.
+function toFaDigits(value: string | number): string {
+  return String(value).replace(/[0-9]/g, (d) => "۰۱۲۳۴۵۶۷۸۹"[Number(d)]);
+}

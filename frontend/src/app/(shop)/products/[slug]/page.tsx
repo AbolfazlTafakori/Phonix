@@ -11,7 +11,7 @@ import OpenChatButton from "@/components/product/OpenChatButton";
 import ProductGallery from "@/components/product/ProductGallery";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import Reveal from "@/components/Reveal";
-import { absoluteUrl, jsonLdScript, latinBrand, plainExcerpt, productPath, productSlug, productTitle } from "@/lib/seo";
+import { absoluteUrl, jsonLdScript, latinBrand, plainExcerpt, productMetaDescription, productPath, productSlug, productTitle } from "@/lib/seo";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +33,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   try {
     const product = await findProduct(slug);
     if (!product) return { title: "جزئیات محصول" };
-    const description = plainExcerpt(product.description);
+    const description = productMetaDescription(product);
     const canonical = productPath(product);
     const title = productTitle(product.name);
     return {
