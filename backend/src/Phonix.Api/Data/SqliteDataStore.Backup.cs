@@ -84,6 +84,8 @@ public sealed partial class SqliteDataStore
             PaymentSettings = GetPaymentSettings(),
             EmailSettings = GetEmailSettings(),
             TelegramSettings = GetTelegramSettings(),
+            MailboxSettings = GetMailboxSettings(),
+            V2Ray = GetSingleton<V2RaySettings>(V2RayKey),
             Seq = new StoreSnapshot.SeqState
             {
                 Category = MaxId(conn, "Categories"),
@@ -191,6 +193,9 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
             WriteSingleton(conn, tx, AdvancedKey, s.AdvancedSettings);
             WriteSingleton(conn, tx, EmailKey, s.EmailSettings);
             WriteSingleton(conn, tx, TelegramKey, s.TelegramSettings);
+            // Absent in an older backup → keep what is configured now (see StoreSnapshot).
+            if (s.MailboxSettings is not null) WriteSingleton(conn, tx, MailboxKey, s.MailboxSettings);
+            if (s.V2Ray is not null) WriteSingleton(conn, tx, V2RayKey, s.V2Ray);
             WriteSingleton(conn, tx, PlanTypesKey, s.PlanTypes);
             WriteSingleton(conn, tx, FavoritesKey, s.Favorites);
             return null;
@@ -249,6 +254,16 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
                 s.EmailSettings = GetEmailSettings();
                 s.TelegramSettings = GetTelegramSettings();
                 s.AdvancedSettings = GetAdvancedSettings();
+                break;
+            // The panels and the catalogue that sells them. A customer's provisioned account is part of the
+            // order that bought it, so it is backed up with Commerce rather than here.
+            case BackupSection.V2Ray:
+                s.V2Ray = GetSingleton<V2RaySettings>(V2RayKey);
+                break;
+            // Both halves of email: the outgoing sender and the support mailbox that is read back.
+            case BackupSection.Mail:
+                s.EmailSettings = GetEmailSettings();
+                s.MailboxSettings = GetMailboxSettings();
                 break;
         }
         return JsonSerializer.Serialize(s, SnapshotJson);
@@ -335,6 +350,13 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
                     WriteSingleton(conn, tx, EmailKey, s.EmailSettings);
                     WriteSingleton(conn, tx, TelegramKey, s.TelegramSettings);
                     WriteSingleton(conn, tx, AdvancedKey, s.AdvancedSettings);
+                    break;
+                case BackupSection.V2Ray:
+                    if (s.V2Ray is not null) WriteSingleton(conn, tx, V2RayKey, s.V2Ray);
+                    break;
+                case BackupSection.Mail:
+                    WriteSingleton(conn, tx, EmailKey, s.EmailSettings);
+                    if (s.MailboxSettings is not null) WriteSingleton(conn, tx, MailboxKey, s.MailboxSettings);
                     break;
             }
             return null;

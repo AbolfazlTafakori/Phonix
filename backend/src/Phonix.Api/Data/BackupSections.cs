@@ -10,6 +10,8 @@ public enum BackupSection
     Commerce,  // orders, transactions, payment methods, payment settings
     Support,   // tickets, comments, notifications, live-chat conversations
     System,    // email, telegram and advanced settings
+    V2Ray,     // V2Ray panels and the sales catalogue (categories + plans)
+    Mail,      // outgoing (SMTP) and mailbox (IMAP) settings
 }
 
 public static class BackupSections
@@ -23,5 +25,7 @@ public static class BackupSections
         (BackupSection.Commerce, "مالی و سفارش‌ها"),
         (BackupSection.Support, "پشتیبانی و ارتباطات"),
         (BackupSection.System, "تنظیمات سیستم"),
+        (BackupSection.V2Ray, "سرورها و پلن‌های V2Ray"),
+        (BackupSection.Mail, "ایمیل و صندوق پیام"),
     };
 }

@@ -40,6 +40,17 @@ public class StoreSnapshot
     public PaymentSettings PaymentSettings { get; set; } = new();
     public EmailSettings EmailSettings { get; set; } = new();
     public TelegramSettings TelegramSettings { get; set; } = new();
+    // The mailbox (IMAP/SMTP) the panel reads support mail from — separate from EmailSettings, which is the
+    // outgoing sender used for transactional mail.
+    //
+    // These two are NULLABLE on purpose. A backup taken before they were captured has no such field, and
+    // restoring it must not silently wipe panel credentials or mailbox settings that the operator still
+    // depends on. Null therefore means "this snapshot says nothing about it — leave it alone", while a
+    // present-but-empty value is a real, restorable cleared state.
+    public MailboxSettings? MailboxSettings { get; set; }
+    // Panels and the V2Ray sales catalogue. The accounts provisioned for customers are NOT here: they live on
+    // the order units that sold them, and travel with the Commerce section.
+    public V2RaySettings? V2Ray { get; set; }
 
     public SeqState Seq { get; set; } = new();
 
