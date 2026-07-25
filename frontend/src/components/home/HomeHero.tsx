@@ -21,10 +21,13 @@ export default function HomeHero() {
         <div className="absolute -left-32 top-20 h-[440px] w-[440px] rounded-full bg-[#ef233c]/10 blur-[130px]" />
       </div>
 
-      <div className="mx-auto grid max-w-[1840px] grid-cols-1 items-center gap-6 px-4 py-7 sm:gap-8 sm:px-8 sm:py-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-10 lg:py-16 lg:pl-2 lg:pr-44">
+      {/* The right inset and the vertical rhythm both grow with the screen. A laptop is short as well as
+          narrow, so holding the widescreen padding there would push the call to action toward the fold and
+          leave the illustration nothing to occupy. */}
+      <div className="mx-auto grid max-w-[1840px] grid-cols-1 items-center gap-6 px-4 py-7 sm:gap-8 sm:px-8 sm:py-14 lg:grid-cols-[0.9fr_1.1fr] lg:gap-8 lg:py-12 lg:pl-2 lg:pr-8 xl:gap-10 xl:py-14 xl:pr-24 2xl:py-16 2xl:pr-44">
         {/* illustration (right in RTL) — trimmed on phones so the headline surfaces sooner */}
         <div className="hero-anim-art relative order-1 flex items-center justify-center">
-          <div className="relative aspect-[4/3] w-full max-w-[280px] sm:max-w-[520px] lg:max-w-[640px]">
+          <div className="relative aspect-[4/3] w-full max-w-[280px] sm:max-w-[520px] lg:max-w-[420px] xl:max-w-[540px] 2xl:max-w-[640px]">
             <div aria-hidden className="hero-aura absolute inset-[6%] rounded-full bg-[#ff5a1f]/15 blur-3xl" />
             <img
               fetchPriority="high"
@@ -37,9 +40,12 @@ export default function HomeHero() {
 
         {/* text (left in RTL) */}
         <div className="hero-anim-text order-2 text-center lg:text-right">
-          <h1 className="text-[28px] font-black leading-[1.3] text-[var(--hl-ink)] sm:text-[38px] lg:text-[48px] lg:leading-[1.25]">
-            <span className="block lg:whitespace-nowrap">فروشگاه محصولات دیجیتال</span>
-            <span className="block lg:whitespace-nowrap">و خدمات مجازی <span className="hl-grad-text">فونیکس وریفای</span></span>
+          {/* Keeping each line unbroken is what makes the headline read as two clean lines — but it also sets
+              the column's minimum width, and on a laptop that minimum was swallowing the illustration's share
+              of the grid. So the lines only refuse to wrap from the width where both actually fit. */}
+          <h1 className="text-[28px] font-black leading-[1.3] text-[var(--hl-ink)] sm:text-[38px] lg:leading-[1.25] xl:text-[44px] 2xl:text-[48px]">
+            <span className="block xl:whitespace-nowrap">فروشگاه محصولات دیجیتال</span>
+            <span className="block xl:whitespace-nowrap">و خدمات مجازی <span className="hl-grad-text">فونیکس وریفای</span></span>
           </h1>
           <p className="mx-auto mt-5 max-w-[620px] text-[15px] leading-[1.9] text-[var(--hl-ink-2)] sm:mt-6 sm:text-[17px] lg:mx-0">
             مرجع خرید امن، سریع و مطمئن انواع اکانت و اشتراک، گیفت کارت، خدمات وریفای، شماره مجازی و نرم‌افزارهای اورجینال با پشتیبانی واقعی ۲۴ ساعته.

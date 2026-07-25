@@ -59,7 +59,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
               </div>
 
               <div className="hero-anim-text w-full text-center lg:w-auto lg:text-right">
-                <h1 className="text-[30px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[42px] xl:text-[52px]">
+                <h1 className="text-[30px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[42px] xl:text-[46px] 2xl:text-[52px]">
                   محصولات فونیکس وریفای
                 </h1>
                 <p className="mx-auto mt-3 max-w-xl text-[16px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[20px] sm:leading-9 lg:mx-0">
