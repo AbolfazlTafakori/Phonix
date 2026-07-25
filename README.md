@@ -10,7 +10,7 @@ Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-190%20passing-3fb950)](#)
+[![Tests](https://img.shields.io/badge/tests-257%20passing-3fb950)](#)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](#-license)
 
 </div>
@@ -19,11 +19,11 @@ Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
 
 ## About
 
-Phoenix Store is a complete, self-hosted shop for **digital goods** — subscription accounts, gift codes, licences and verification services — covering everything from the storefront a customer browses to the back office the team fulfils orders from.
+Phoenix Store is a complete, self-hosted shop for **digital goods** — subscription accounts, gift codes, licences, verification services and V2Ray subscriptions — covering everything from the storefront a customer browses to the back office the team fulfils orders from.
 
-What makes selling digital goods different from selling physical ones is that the product *is* a credential. So the platform is built around that: inventory is a pool of ready-to-deliver accounts rather than a warehouse count, a paid order can fulfil itself the moment payment clears, one shared subscription is sold as numbered seats to several buyers at once, and every credential is encrypted at rest and revealed one at a time behind an audited endpoint.
+What makes selling digital goods different from selling physical ones is that the product *is* a credential. So the platform is built around that: inventory is a pool of ready-to-deliver accounts rather than a warehouse count, a paid order can fulfil itself the moment payment clears, one shared subscription is sold as numbered seats to several buyers at once, and every credential is encrypted at rest and revealed one at a time behind an audited endpoint. Where there is no pool to draw from — a V2Ray plan, say — the account is created on its panel at the moment of sale instead.
 
-It ships as a **right-to-left Persian storefront** with a full admin panel: catalogue and plans, a wallet and manual receipt approval, discount codes, tiered identity verification, support tickets and live chat, a blog with SEO output, and Telegram bots that put receipt approval and order dispatch in a group chat.
+It ships as a **right-to-left Persian storefront** with a full admin panel: catalogue and plans, a wallet and manual receipt approval, discount codes, tiered identity verification, support tickets and live chat, a blog with SEO output, and Telegram bots that put receipt approval and order dispatch in a group chat. On a phone the storefront behaves like an app rather than a shrunken desktop site — bottom tab navigation, a sticky buy bar on a product, and an account area where each section opens as its own screen.
 
 Operationally it is deliberately small: one binary and one SQLite file. There is no database server to run, no cache to warm and no message broker to babysit. A bare Ubuntu VPS becomes a working shop with a single interactive command, updates are zero-downtime with automatic rollback, and an optional second server can mirror the first for business continuity.
 
@@ -51,6 +51,15 @@ Two constraints shaped the design throughout — **every privileged action is tr
 - Drafts, per-unit delivery with optional templated email, and automatic order completion when the last unit ships.
 - **16-digit invoice numbers** minted exactly at completion — an undelivered order never has an invoice.
 - Customers browse deliveries per product from their dashboard: each order shows its product logos, and each logo opens only that service's delivered accounts.
+
+### 🛰️ V2Ray Services — Provisioned on Demand
+A second kind of inventory: instead of handing out a credential from a pool, the shop creates the account on a panel at the moment it is sold. Panels, their inbounds and the sellable plans live in their own catalogue, and an ordinary product links to it — so the whole product presentation (logo, gallery, description, FAQ) is reused and only the plan list differs.
+
+- **Provisioned automatically on approval**, exactly like pool auto-delivery — the customer waits for nobody.
+- **Never blocks an approval**: the panel is a network hop, so provisioning happens out of band and retries until it succeeds. A server that is briefly unreachable can't fail an order that has already been paid for.
+- **Per-plan sales cap** claimed inside the order transaction, so two buyers can't take the last place; a cancelled order or a rejected account gives its place back.
+- **A live status page per account** — the buyer opens it from the order, and may hand the link to whoever the service is actually for. Usage, remaining volume and days are read from the subscription link itself, the same source the customer's own app polls, so the numbers agree to the byte without a panel login.
+- Subscription link and every config listed separately, each with its own copy button and a scannable QR.
 
 ### 🛡️ Zero-Trust Security Architecture
 - **Triple-verify database restore** — a restore requires *all three*: the backup file, the `PHONIX_BACKUP_KEY` secret, **and** a valid TOTP 2FA code. No single compromised factor is sufficient.
@@ -98,7 +107,7 @@ Optional two-server clustering for **business continuity** (a datacenter or conn
 `ecommerce` · `digital-goods` · `subscription-management` · `storefront` · `admin-dashboard`
 `dotnet` · `aspnetcore` · `csharp` · `nextjs` · `react` · `typescript` · `tailwindcss`
 `sqlite` · `self-hosted` · `high-availability` · `zero-trust` · `two-factor-authentication` · `kyc`
-`telegram-bot` · `rtl` · `persian`
+`telegram-bot` · `rtl` · `persian` · `v2ray` · `xray` · `3x-ui`
 
 ---
 
