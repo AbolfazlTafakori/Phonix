@@ -169,6 +169,8 @@ export default function ConfigView({ token }: { token: string }) {
     );
   }
 
+  // Defensive: this page is a public link, so a response missing the list must degrade rather than blank out.
+  const configs = config.configs ?? [];
   const unlimited = config.totalBytes <= 0;
   const usedRatio = unlimited ? 0 : Math.min(1, config.usedBytes / config.totalBytes);
   const remaining = unlimited ? 0 : Math.max(0, config.totalBytes - config.usedBytes);
@@ -236,15 +238,15 @@ export default function ConfigView({ token }: { token: string }) {
       )}
 
       {/* configs */}
-      {config.configs.length > 0 && (
+      {configs.length > 0 && (
         <div className="mt-5">
           <SectionTitle>کانفیگ‌ها</SectionTitle>
           <div className="mb-2 flex items-center gap-2 rounded-2xl border p-3.5" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)" }}>
             <span className="min-w-0 flex-1 text-[12px] font-black" style={{ color: "var(--ac-title)" }}>کپی همه‌ی کانفیگ‌ها</span>
-            <CopyBtn value={config.configs.map((c) => c.uri).join("\n")} label="کپی همه" />
+            <CopyBtn value={configs.map((c) => c.uri).join("\n")} label="کپی همه" />
           </div>
           <div className="space-y-2">
-            {config.configs.map((line, i) => (
+            {configs.map((line, i) => (
               <ConfigRow key={`${line.uri}-${i}`} line={line} onQr={() => setQr({ value: line.uri, title: line.remark || "کانفیگ" })} />
             ))}
           </div>
