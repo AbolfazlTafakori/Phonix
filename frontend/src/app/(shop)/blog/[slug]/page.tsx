@@ -69,7 +69,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       </nav>
 
       <div className="overflow-hidden rounded-3xl border border-[var(--hl-border)]">
-        <img loading="lazy" decoding="async" src={post.image} alt={post.title} className="h-64 w-full object-cover sm:h-80" />
+        <img loading="lazy" decoding="async" src={post.image || undefined} alt={post.title} className="h-64 w-full object-cover sm:h-80" />
       </div>
 
       <div className="mt-6 flex items-center gap-3 text-sm text-[var(--hl-ink-2)]">

@@ -28,7 +28,7 @@ export default async function BlogPage() {
                 href={`/blog/${post.slug}`}
                 className="block overflow-hidden rounded-2xl border border-[var(--hl-border)] hl-card transition duration-300 hover:-translate-y-1 hover:border-[var(--hl-red)]/40 hover:shadow-[0_20px_44px_-24px_rgba(239,35,60,0.3)]"
               >
-                <img loading="lazy" decoding="async" src={post.image} alt={post.title} className="h-48 w-full object-cover" />
+                <img loading="lazy" decoding="async" src={post.image || undefined} alt={post.title} className="h-48 w-full object-cover" />
                 <div className="p-6 text-right">
                   <span className="inline-block rounded-full bg-[var(--hl-red)]/10 px-3 py-1 font-archivo text-xs font-bold text-[var(--hl-red)]">{post.tag}</span>
                   <h3 className="mt-3 text-lg font-bold leading-8 text-[var(--hl-ink)]">{post.title}</h3>

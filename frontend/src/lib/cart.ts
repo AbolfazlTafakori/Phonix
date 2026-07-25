@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import { getCurrentUser, AUTH_EVENT } from "./auth";
 
 export type CartItem = {
@@ -75,23 +75,50 @@ export function clearCart() {
   save([]);
 }
 
-export function useCart() {
-  const [items, setItems] = useState<CartItem[]>([]);
-  const [ready, setReady] = useState(false);
+// The basket is localStorage, an external store, so it is read through React's own API for that instead of
+// being copied into state by an effect. Both the key and the stored text are cached: the snapshot must return
+// the SAME array while nothing has changed, or every render would look like a change and loop.
+const EMPTY: CartItem[] = [];
+let cachedKey = "";
+let cachedRaw: string | null = null;
+let cachedItems: CartItem[] = EMPTY;
 
-  useEffect(() => {
-    const sync = () => setItems(getCart());
-    sync();
-    setReady(true);
-    window.addEventListener(EVENT, sync);
-    window.addEventListener(AUTH_EVENT, sync); // switch baskets when the account changes
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener(EVENT, sync);
-      window.removeEventListener(AUTH_EVENT, sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, []);
+function cartSnapshot(): CartItem[] {
+  try {
+    migrateLegacy();
+    const key = cartKey();
+    const raw = localStorage.getItem(key);
+    if (key !== cachedKey || raw !== cachedRaw) {
+      cachedKey = key;
+      cachedRaw = raw;
+      cachedItems = raw ? (JSON.parse(raw) as CartItem[]) : EMPTY;
+    }
+    return cachedItems;
+  } catch {
+    return EMPTY;
+  }
+}
+
+function subscribeCart(onChange: () => void): () => void {
+  window.addEventListener(EVENT, onChange);
+  window.addEventListener(AUTH_EVENT, onChange); // switch baskets when the account changes
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(EVENT, onChange);
+    window.removeEventListener(AUTH_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
+// The server has no basket, so it renders empty and not-yet-ready; React swaps in the real one after
+// hydration. `ready` is what stops the cart page flashing "empty" before it has been read.
+const serverItems = () => EMPTY;
+const serverReady = () => false;
+const clientReady = () => true;
+
+export function useCart() {
+  const items = useSyncExternalStore(subscribeCart, cartSnapshot, serverItems);
+  const ready = useSyncExternalStore(subscribeCart, clientReady, serverReady);
 
   const count = items.reduce((s, i) => s + i.quantity, 0);
   const total = items.reduce((s, i) => s + i.price * i.quantity, 0);

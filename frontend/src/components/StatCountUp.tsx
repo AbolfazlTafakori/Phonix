@@ -26,7 +26,8 @@ export default function StatCountUp({ value, animate }: { value: string; animate
     if (!parsed || !animate) return;
     let frame: number;
     const start = performance.now();
-    setDisplay(`${parsed.prefix}0${parsed.suffix}`);
+    // The zero state is just the first frame of the animation, so let the loop render it rather than
+    // setting it here and forcing an extra pass before the count even begins.
     const tick = (now: number) => {
       const progress = Math.min(1, (now - start) / DURATION_MS);
       const eased = 1 - Math.pow(1 - progress, 3); // ease-out cubic

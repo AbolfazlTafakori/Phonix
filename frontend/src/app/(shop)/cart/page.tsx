@@ -23,7 +23,7 @@ export default function CartPage() {
           <div className="space-y-3">
             {items.map((i) => (
               <div key={`${i.productId}:${i.planId ?? ""}`} className="hl-card flex flex-wrap items-center gap-3 rounded-2xl p-4 sm:gap-4">
-                <img loading="lazy" decoding="async" src={i.image} alt={i.name} className="h-14 w-14 shrink-0 rounded-lg object-cover sm:h-16 sm:w-16" />
+                <img loading="lazy" decoding="async" src={i.image || undefined} alt={i.name} className="h-14 w-14 shrink-0 rounded-lg object-cover sm:h-16 sm:w-16" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-bold text-[var(--hl-ink)]">{i.name}</p>
                   {i.plan && <p className="text-xs text-[var(--hl-muted)]">{i.plan}</p>}
