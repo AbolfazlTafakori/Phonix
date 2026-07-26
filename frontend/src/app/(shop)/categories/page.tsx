@@ -79,16 +79,18 @@ export default async function CategoriesPage() {
             <span className="font-medium text-[var(--hl-ink)]">دسته‌بندی‌ها</span>
           </nav>
 
-          <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 xl:flex-row-reverse xl:items-center xl:gap-10">
+          <div className="flex flex-col items-center gap-7 pb-10 pt-2 sm:pt-4 xl:flex-row-reverse xl:items-center xl:gap-8 2xl:gap-10">
             {/* Below xl the shield reads best centered & sized; only at xl+ is there room for the
-                three-column row, where the image is capped so the middle text column never crushes. */}
-            <div className="shrink-0 xl:w-[38%] xl:max-w-[520px]">
-              <img fetchPriority="high" decoding="async" src="/figma/catpage-hero-shield.webp" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 xl:w-full xl:max-w-[520px] xl:-translate-x-8" />
+                three-column row. The shares step up with the screen: three columns first fit at 1280, and
+                at that width the shield and the card have to give the middle column enough room to set its
+                heading on one line — they only take their full size once there is space for all three. */}
+            <div className="shrink-0 xl:w-[30%] xl:max-w-[420px] 2xl:w-[38%] 2xl:max-w-[520px]">
+              <img fetchPriority="high" decoding="async" src="/figma/catpage-hero-shield.webp" alt="" className="mx-auto h-auto w-56 max-w-full object-contain sm:w-72 xl:w-full xl:max-w-[420px] xl:-translate-x-4 2xl:max-w-[520px] 2xl:-translate-x-8" />
             </div>
 
             <div className="flex-1 text-center xl:text-right">
-              <p className="text-[26px] font-black text-[var(--hl-red)] sm:text-[34px] xl:text-[40px]">دسته‌بندی</p>
-              <h1 className="mt-1 text-[22px] font-extrabold leading-[1.5] text-[var(--hl-ink)] sm:text-[30px] xl:text-[36px]">
+              <p className="text-[26px] font-black text-[var(--hl-red)] sm:text-[34px] xl:text-[36px] 2xl:text-[40px]">دسته‌بندی</p>
+              <h1 className="mt-1 text-[22px] font-extrabold leading-[1.5] text-[var(--hl-ink)] sm:text-[30px] xl:text-[32px] 2xl:text-[36px]">
                 خدمات و محصولات فونیکس وریفای
               </h1>
               <p className="mx-auto mt-3 max-w-md text-[14px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[16px] sm:leading-8 xl:mx-0">
@@ -100,7 +102,7 @@ export default async function CategoriesPage() {
 
             {/* The feature card only reads well in the desktop three-column row; below xl it stacked awkwardly
                 under the text, so it is shown at xl+ only and the hero stays shield + heading on phone/tablet. */}
-            <div className="hidden shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[var(--hl-tint)] p-6 shadow-sm xl:block xl:w-[300px]">
+            <div className="hidden shrink-0 rounded-[22px] border border-[var(--hl-border)] bg-[var(--hl-tint)] p-5 shadow-sm xl:block xl:w-[260px] 2xl:w-[300px] 2xl:p-6">
               <h3 className="text-center text-[20px] font-black leading-[1.6] text-[var(--hl-ink)]">دسترسی آسان به<br /><span className="text-[24px]">خدمات دیجیتال</span></h3>
               <div className="mt-6 flex items-end gap-1">
                 <ul className="flex-1 space-y-6">
