@@ -234,8 +234,12 @@ SELECT last_insert_rowid();",
             {
                 var owner = new AppUser
                 {
+                    // No Email here — the bootstrap only collects a username/password from env vars, so there
+                    // is no address to have verified. EmailVerified must stay false (its default) until the
+                    // owner actually adds and confirms one; force-setting it true here previously claimed a
+                    // verification that never happened, for an address that didn't even exist.
                     Name = username, Username = username, Password = PasswordHasher.Hash(password), Role = UserRole.Admin,
-                    SecurityStamp = SecurityStamp.New(), EmailVerified = true, Verified = true, VerificationLevel = 2, JoinedAt = Today(),
+                    SecurityStamp = SecurityStamp.New(), Verified = true, VerificationLevel = 2, JoinedAt = Today(),
                 };
                 var id = (int)conn.ExecuteScalar<long>(@"
 INSERT INTO Users (Username, Email, Phone, Role, Blocked, ReferredBy, VerificationLevel, DataJson)
@@ -253,6 +257,10 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
                 if (owner.Role != UserRole.Admin) { owner.Role = UserRole.Admin; changed = true; }
                 if (owner.Blocked) { owner.Blocked = false; changed = true; }
                 if (!PasswordHasher.Verify(password, owner.Password)) { owner.Password = PasswordHasher.Hash(password); owner.SecurityStamp = SecurityStamp.New(); changed = true; }
+                // Repairs an owner created before the fix above: EmailVerified=true with no Email at all is
+                // never a legitimate state, so any install that already booted with the old bootstrap gets
+                // corrected here too, not just fresh installs going forward.
+                if (string.IsNullOrWhiteSpace(owner.Email) && owner.EmailVerified) { owner.EmailVerified = false; changed = true; }
                 if (changed) UpsertUser(conn, tx, owner);
             }
             return null;

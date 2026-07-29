@@ -168,7 +168,10 @@ export default function AdminSettingsPage() {
           <h3 className="mb-5 text-lg font-bold text-white">ایمیل حساب</h3>
           {emailSentTo ? (
             <p className="text-sm leading-7 text-white/60">
-              یک لینک تأیید به <b dir="ltr" className="text-white">{emailSentTo}</b> ارسال شد. تا زمانی که آن را تأیید نکنید، ایمیل فعلی ({me?.email}) بدون تغییر می‌ماند.
+              یک لینک تأیید به <b dir="ltr" className="text-white">{emailSentTo}</b> ارسال شد.{" "}
+              {me?.email
+                ? <>تا زمانی که آن را تأیید نکنید، ایمیل فعلی ({me.email}) بدون تغییر می‌ماند.</>
+                : <>پس از تأیید، این نشانی به‌عنوان ایمیل حساب شما ثبت می‌شود.</>}
             </p>
           ) : changingEmail ? (
             <div className="grid gap-5">
@@ -186,9 +189,24 @@ export default function AdminSettingsPage() {
                 <button onClick={() => { setChangingEmail(false); setEmailError(""); setNewEmail(""); setEmailPassword(""); }} className="h-11 rounded-xl border border-white/10 px-6 text-sm font-bold text-white/70 transition hover:bg-white/5">انصراف</button>
               </div>
             </div>
+          ) : !me?.email ? (
+            // No badge on an empty address — a "verified" pill next to nothing (the owner-bootstrap bug this
+            // was pinned against) is worse than no pill at all.
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-400">ایمیلی ثبت نشده</span>
+                <span className="text-xs text-white/45">برای دریافت اعلان‌های امنیتی لازم است.</span>
+              </div>
+              <button onClick={() => setChangingEmail(true)} className="text-sm font-bold text-[#3a64f2] hover:text-[#6b8bff]">افزودن ایمیل</button>
+            </div>
           ) : (
             <div className="flex items-center justify-between">
-              <span dir="ltr" className="text-sm font-medium text-white">{me?.email || "—"}</span>
+              <div className="flex items-center gap-2">
+                <span className={`rounded-md px-2 py-0.5 text-xs font-bold ${me.emailVerified ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
+                  {me.emailVerified ? "تأییدشده" : "تأیید نشده"}
+                </span>
+                <span dir="ltr" className="text-sm font-medium text-white">{me.email}</span>
+              </div>
               <button onClick={() => setChangingEmail(true)} className="text-sm font-bold text-[#3a64f2] hover:text-[#6b8bff]">تغییر ایمیل</button>
             </div>
           )}

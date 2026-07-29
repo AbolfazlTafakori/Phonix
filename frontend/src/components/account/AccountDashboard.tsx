@@ -279,8 +279,26 @@ function ChangeEmailRow({ email, emailVerified }: { email: string; emailVerified
   if (sentTo) {
     return (
       <p className="text-[12px] leading-6" style={{ color: "var(--ac-muted)" }}>
-        یک لینک تأیید به <b dir="ltr" style={{ color: "var(--ac-title)" }}>{sentTo}</b> ارسال شد. تا زمانی که آن را تأیید نکنید، ایمیل فعلی شما ({email}) بدون تغییر می‌ماند.
+        یک لینک تأیید به <b dir="ltr" style={{ color: "var(--ac-title)" }}>{sentTo}</b> ارسال شد.{" "}
+        {email
+          ? <>تا زمانی که آن را تأیید نکنید، ایمیل فعلی شما ({email}) بدون تغییر می‌ماند.</>
+          : <>پس از تأیید، این نشانی به‌عنوان ایمیل حساب شما ثبت می‌شود.</>}
       </p>
+    );
+  }
+
+  // No address at all is its own state, never a "verified" badge on nothing — a stray backend bug once let
+  // EmailVerified be true with an empty Email (the owner bootstrap; fixed separately), and even without that,
+  // showing a green "تأییدشده" next to "—" would be actively misleading. This always takes priority.
+  if (!open && !email) {
+    return (
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="rounded-md px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 text-amber-600">ایمیلی ثبت نشده</span>
+          <span className="text-[12px]" style={{ color: "var(--ac-muted)" }}>برای دریافت اعلان‌های امنیتی و سفارش‌ها لازم است.</span>
+        </div>
+        <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "#F2551F" }}>افزودن ایمیل</button>
+      </div>
     );
   }
 
@@ -292,7 +310,7 @@ function ChangeEmailRow({ email, emailVerified }: { email: string; emailVerified
           <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${emailVerified ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"}`}>
             {emailVerified ? "تأییدشده" : "تأیید نشده"}
           </span>
-          <span dir="ltr" className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{email || "—"}</span>
+          <span dir="ltr" className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{email}</span>
           <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "#F2551F" }}>تغییر</button>
         </div>
       </div>
