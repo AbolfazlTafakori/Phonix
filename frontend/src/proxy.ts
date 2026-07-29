@@ -17,8 +17,45 @@ async function maintenanceOn(): Promise<boolean> {
   return cache.on;
 }
 
+// Per-request nonce so script-src can drop 'unsafe-inline'/'unsafe-eval': without this, CSP was allowing ANY
+// inline <script> to run, which is the one thing that actually matters against script injection — a future
+// XSS bug (or a compromised third-party snippet) would otherwise execute freely even with a CSP header
+// present. 'strict-dynamic' lets a nonce'd script's own dynamically-inserted children (Next's chunk loader,
+// GTM's own loader) run too, without maintaining a host allowlist for every one of them. Applied to every
+// response this proxy returns — including /admin, which renders the whole staff panel — not just the public
+// storefront's maintenance-gated pages.
+function withCsp(response: NextResponse, nonce: string): NextResponse {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5228";
+  const isDev = process.env.NODE_ENV !== "production";
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,
+    // Inline `style={{...}}` props are used throughout this app's components — CSP gates those the same as
+    // <style> tags, and nonce-ing every element's style attribute individually isn't practical. Kept as
+    // 'unsafe-inline' deliberately: this only weakens CSS-injection defense, not script execution, which is
+    // the part that actually matters for stealing session/2FA input.
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    `connect-src 'self' ${apiUrl} https://www.google-analytics.com https://www.googletagmanager.com`,
+    "font-src 'self' data:",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+  ].join("; ");
+  response.headers.set("Content-Security-Policy", csp);
+  return response;
+}
+
 export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // The nonce travels to Server Components via this request header (read back with next/headers in
+  // layout.tsx to stamp onto the <Script> tags there) — there's no other way to thread a per-request value
+  // into RSC.
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-nonce", nonce);
+  const forwarded = { request: { headers: requestHeaders } };
 
   // admin, api, the maintenance page itself, and static files always pass through
   if (
@@ -27,16 +64,16 @@ export async function proxy(req: NextRequest) {
     pathname.startsWith("/maintenance") ||
     pathname.includes(".")
   ) {
-    return NextResponse.next();
+    return withCsp(NextResponse.next(forwarded), nonce);
   }
 
   if (await maintenanceOn()) {
     const url = req.nextUrl.clone();
     url.pathname = "/maintenance";
-    return NextResponse.rewrite(url);
+    return withCsp(NextResponse.rewrite(url, forwarded), nonce);
   }
 
-  return NextResponse.next();
+  return withCsp(NextResponse.next(forwarded), nonce);
 }
 
 export const config = {

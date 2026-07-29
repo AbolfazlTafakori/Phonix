@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import Script from "next/script";
 import { getAdvancedSettings } from "@/lib/content";
 import { SITE_URL, absoluteUrl } from "@/lib/seo";
@@ -111,6 +112,9 @@ export default async function RootLayout({
   // GA/GTM ids are alphanumeric + dash; strip anything else so the value can never
   // break out of the inline script string below.
   const analyticsId = s.analyticsId.replace(/[^A-Za-z0-9-]/g, "");
+  // Stamped by middleware.ts onto every script below — CSP's script-src only trusts a nonce'd or 'self'-hosted
+  // script now (no more 'unsafe-inline'), so every <Script> here needs this to still run.
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="fa"
@@ -168,7 +172,7 @@ export default async function RootLayout({
         {/* Theme boot: 'phonix-theme' is 'system' (default) | 'light' | 'dark'. In system mode the OS/browser
             preference wins and keeps winning — the matchMedia listener re-applies it if the OS flips while the
             page is open. Runs before paint so there is no flash of the wrong theme. */}
-        <Script id="phonix-theme-init" strategy="beforeInteractive">
+        <Script id="phonix-theme-init" strategy="beforeInteractive" nonce={nonce}>
           {`(function(){try{var mq=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');function mode(){try{return localStorage.getItem('phonix-theme')||'system';}catch(e){return 'system';}}function apply(){var m=mode();var dark=m==='dark'||(m==='system'&&!!(mq&&mq.matches));document.documentElement.classList.toggle('home-dark',dark);}apply();window.__phonixApplyTheme=apply;if(mq){var h=function(){if(mode()==='system')apply();};mq.addEventListener?mq.addEventListener('change',h):mq.addListener(h);}}catch(e){}})();`}
         </Script>
         {children}
@@ -177,10 +181,11 @@ export default async function RootLayout({
 
         {analyticsId && (
           <>
-            <Script src={`https://www.googletagmanager.com/gtag/js?id=${analyticsId}`} strategy="afterInteractive" />
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${analyticsId}`} strategy="afterInteractive" nonce={nonce} />
             <Script
               id="ga-init"
               strategy="afterInteractive"
+              nonce={nonce}
               dangerouslySetInnerHTML={{
                 __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${analyticsId}');`,
               }}
@@ -192,6 +197,7 @@ export default async function RootLayout({
           <Script
             id="custom-script"
             strategy="afterInteractive"
+            nonce={nonce}
             dangerouslySetInnerHTML={{ __html: s.customHeadScript.replace(/<\/?script[^>]*>/gi, "") }}
           />
         )}
