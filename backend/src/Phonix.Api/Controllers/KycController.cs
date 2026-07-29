@@ -43,7 +43,9 @@ public class KycController : ControllerBase
     public IActionResult Download(string id)
     {
         if (_files.OwnerOf(id) is not int ownerId) return BadRequest("شناسه فایل نامعتبر است.");
-        if (!this.OwnsOrStaff(ownerId)) return Forbid();
+        // Staff need the KYC section specifically — a national ID card and a selfie are not something every
+        // Support account should be able to pull up just for holding some unrelated permission.
+        if (!this.OwnsOrSectionStaff(_store, ownerId, "kyc")) return Forbid();
         var stored = _files.Open("kyc", id);
         if (stored is null) return NotFound();
         return File(stored.Content, stored.ContentType);
@@ -57,7 +59,8 @@ public class KycController : ControllerBase
     [HttpGet("user/{userId:int}")]
     public ActionResult<KycRequest?> GetForUser(int userId)
     {
-        if (!this.OwnsOrStaff(userId)) return Forbid();
+        // Carries the full name, national id and birth date — same tier as the images above.
+        if (!this.OwnsOrSectionStaff(_store, userId, "kyc")) return Forbid();
         return _store.GetKycForUser(userId);
     }
 
@@ -74,6 +77,12 @@ public class KycController : ControllerBase
             return BadRequest("نام کامل و کد ملی الزامی است.");
         if (!InputValidation.IsValidNationalId(input.NationalId))
             return BadRequest("کد ملی واردشده معتبر نیست.");
+        // The images are submitted as ids the client got back from Upload above, and the id encodes its
+        // owner — so accept only ids this user actually uploaded. Otherwise the submission is a way to
+        // attach someone else's stored document to your own KYC record (and to have it re-served to you
+        // through the download endpoint, which authorizes on the id's owner, not on the record).
+        if (_files.OwnerOf(input.CardImage) != userId || _files.OwnerOf(input.SelfieImage) != userId)
+            return BadRequest("تصاویر بارگذاری‌شده معتبر نیستند. دوباره بارگذاری کنید.");
         return _store.SubmitKyc(new KycRequest
         {
             UserId = userId,

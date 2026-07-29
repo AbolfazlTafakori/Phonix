@@ -23,6 +23,11 @@ public record CancelOrderInput(string? Reason);
 [ApiController]
 [Route("api/orders")]
 [Authorize]
+// A checkout body is a handful of cart lines plus their per-account inputs. The framework default is 30 MB,
+// which let a signed-in customer post an arbitrarily large Items array and make the server build, validate
+// and hold the whole thing in one write transaction. 512 KB is far past any real cart (see MaxOrderLines for
+// the matching semantic cap) while bounding what one request can spend.
+[RequestSizeLimit(512 * 1024)]
 public class OrdersController : ControllerBase
 {
     private readonly IDataStore _store;
@@ -31,9 +36,12 @@ public class OrdersController : ControllerBase
     private readonly ITelegramOrderService _orderBot;
     private readonly IStockFulfillmentService _stock;
     private readonly IUserMailer _mailer;
+    private readonly IFileStorageService _files;
     public OrdersController(IDataStore store, IEmailSender email, ITelegramReceiptService receiptBot,
-        ITelegramOrderService orderBot, IStockFulfillmentService stock, IUserMailer mailer)
+        ITelegramOrderService orderBot, IStockFulfillmentService stock, IUserMailer mailer,
+        IFileStorageService files)
     {
+        _files = files;
         _store = store;
         _email = email;
         _receiptBot = receiptBot;
@@ -138,11 +146,19 @@ public class OrdersController : ControllerBase
         return clone;
     }
 
+    // A real cart is a few lines. Each one costs a product lookup, per-unit input validation (up to 100 units
+    // apiece) and a slot in the single write transaction that places the order, so an unbounded list is work
+    // an authenticated caller can force cheaply — and the byte-level RequestSizeLimit above doesn't express
+    // the actual limit, which is semantic.
+    private const int MaxOrderLines = 50;
+
     [HttpPost]
     public ActionResult<Order> Place(PlaceOrderInput input)
     {
         if (input.Items is null || input.Items.Count == 0)
             return BadRequest("سبد خرید خالی است.");
+        if (input.Items.Count > MaxOrderLines)
+            return BadRequest($"تعداد اقلام سبد خرید نمی‌تواند بیش از {MaxOrderLines} مورد باشد.");
 
         // the order is always placed for the authenticated user, never a client-supplied id.
         var userId = this.CurrentUserId();
@@ -154,6 +170,11 @@ public class OrdersController : ControllerBase
         // the future; the store enforces presence, here we enforce validity (the client cannot be trusted).
         if (!string.IsNullOrWhiteSpace(input.PaymentDate) && !JalaliDate.IsValidAndNotFuture(input.PaymentDate))
             return BadRequest("تاریخ پرداخت نامعتبر است یا از امروز جلوتر است.");
+
+        // The remainder's receipt arrives as an id from /transactions/upload-receipt, and that id encodes its
+        // uploader — so an order can only cite a receipt this buyer actually uploaded, not one they named.
+        if (!string.IsNullOrWhiteSpace(input.ReceiptUrl) && _files.OwnerOf(input.ReceiptUrl.Trim()) != user.Id)
+            return BadRequest("رسید بارگذاری‌شده معتبر نیست. دوباره بارگذاری کنید.");
 
         // Validate and capture any per-plan customer inputs (e.g. account email/password) before placing the
         // order. Required fields are enforced here so the client can't skip them; sensitive values are

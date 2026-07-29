@@ -9,6 +9,12 @@ const securityHeaders = [
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+  // The API sets HSTS for /api when PHONIX_FORCE_HTTPS is on, but Next serves everything else — the
+  // storefront, the whole admin panel, and the login form the session cookie is issued from. Without it here
+  // a first visit over http:// (a typed domain, an old bookmark, a hostile network answering :80) is
+  // strippable, and the browser has no standing instruction to refuse. Two years with subdomains, and
+  // preload-eligible. Browsers ignore this header on plain http, so local development is unaffected.
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
 ];
 
 const nextConfig: NextConfig = {

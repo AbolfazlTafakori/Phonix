@@ -393,6 +393,10 @@ server {
 
     client_max_body_size 50m;
 
+    # Don't advertise the exact nginx build in every response and error page — it is free targeting
+    # information for anyone matching a version against a published advisory.
+    server_tokens off;
+
     location /api/ {
         proxy_pass http://127.0.0.1:$API_PORT;
         proxy_http_version 1.1;

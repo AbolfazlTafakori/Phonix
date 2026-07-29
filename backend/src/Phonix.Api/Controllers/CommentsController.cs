@@ -34,7 +34,11 @@ public class CommentsController : ControllerBase
         if (user is null) return Unauthorized();
         var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
         return Ok(_store.GetComments()
-            .Where(c => !c.IsAdminReply && string.Equals(c.UserName, name, StringComparison.Ordinal))
+            .Where(c => !c.IsAdminReply && (c.UserId is int owner
+                // Prefer the id. The name match survives only for rows written before UserId existed, and
+                // only when the row genuinely has no id — so it can no longer be reached by renaming.
+                ? owner == user.Id
+                : string.Equals(c.UserName, name, StringComparison.Ordinal)))
             .OrderByDescending(c => c.Id));
     }
 
@@ -49,6 +53,7 @@ public class CommentsController : ControllerBase
         var comment = _store.AddComment(new Comment
         {
             ProductId = input.ProductId,
+            UserId = user.Id,
             UserName = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name,
             Body = input.Body,
             Rating = Math.Clamp(input.Rating, 0, 5),

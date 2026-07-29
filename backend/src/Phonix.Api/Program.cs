@@ -102,6 +102,9 @@ try
     builder.Services.AddMemoryCache();
     builder.Services.AddSingleton<IpBanService>();
     builder.Services.AddSingleton<ICaptchaService, CaptchaService>();
+    // Makes each TOTP code single-use and locks an ACCOUNT out after repeated wrong codes — neither of which
+    // RFC 6238 or the per-IP rate limiter provides. Same memory-cache trust model as the IP bans above.
+    builder.Services.AddSingleton<ITwoFactorGuard, TwoFactorGuard>();
     // Identity images (KYC docs, selfies, card photos) are stored outside the web root and only ever
     // streamed back through the authenticated, ownership-checked KYC/Cards download endpoints.
     builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();

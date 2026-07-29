@@ -332,16 +332,22 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
 
         // They may edit customers — that is what the section is for.
         await RegisterAsync("victim", "victim@example.com", "pass1234");
+        var victimId = await CurrentIdAsync(await LoginTokenAsync("victim", "pass1234", admin: false));
         Assert.Equal(HttpStatusCode.OK,
+            (await _client.SendAsync(Authed(HttpMethod.Put, $"/api/users/{victimId}", staff, new { note = "ok" }))).StatusCode);
+
+        // A STAFF row is out of scope entirely, whatever the field: an account's email is its password-reset
+        // channel, so being able to write one is being able to become it. Even their own staff row — the
+        // self-service path for that is /api/account/me, which cannot touch role, block state or email.
+        Assert.Equal(HttpStatusCode.Forbidden,
             (await _client.SendAsync(Authed(HttpMethod.Put, $"/api/users/{created!.Id}", staff, new { note = "ok" }))).StatusCode);
 
-        // But handing themselves Admin through this endpoint is refused, and the role never changes.
+        // And handing themselves Admin through this endpoint is refused, and the role never changes.
         var escalate = await _client.SendAsync(Authed(HttpMethod.Put, $"/api/users/{created.Id}", staff, new { role = "Admin" }));
         Assert.Equal(HttpStatusCode.Forbidden, escalate.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await _client.SendAsync(Authed(HttpMethod.Get, "/api/staff", staff))).StatusCode);
 
         // Promoting someone else is refused too.
-        var victimId = await CurrentIdAsync(await LoginTokenAsync("victim", "pass1234", admin: false));
         Assert.Equal(HttpStatusCode.Forbidden,
             (await _client.SendAsync(Authed(HttpMethod.Put, $"/api/users/{victimId}", staff, new { role = "Admin" }))).StatusCode);
 
@@ -561,6 +567,21 @@ public class CaptchaTests : IClassFixture<CaptchaAppFactory>
 
         // A made-up captcha id is likewise rejected.
         var res2 = await _client.PostAsJsonAsync("/api/auth/login", new { identifier = "reza", password = "1234", captchaId = "deadbeef", captchaText = "ABCDE" });
+        Assert.Equal(HttpStatusCode.BadRequest, res2.StatusCode);
+    }
+
+    // /auth/forgot is anonymous and makes the shop's own mail server send to an address the caller names.
+    // Login and register were gated on the CAPTCHA; this one was not, which left it usable as a mail bomb
+    // aimed at a victim — sent from the domain the shop's order mail depends on for its deliverability.
+    [Fact]
+    public async Task Password_reset_is_rejected_without_a_valid_captcha()
+    {
+        var res = await _client.PostAsJsonAsync("/api/auth/forgot", new { email = "reza@example.com" });
+        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
+        Assert.Contains("کد امنیتی", await res.Content.ReadAsStringAsync());
+
+        var res2 = await _client.PostAsJsonAsync("/api/auth/forgot",
+            new { email = "reza@example.com", captchaId = "deadbeef", captchaText = "ABCDE" });
         Assert.Equal(HttpStatusCode.BadRequest, res2.StatusCode);
     }
 }

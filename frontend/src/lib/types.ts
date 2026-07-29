@@ -803,16 +803,22 @@ export type PaymentMethod = {
 
 export type PaymentMethodInput = Omit<PaymentMethod, "id">;
 
+// The SMTP password is never sent to the browser — only whether one is stored. Same shape as
+// MailboxSettings below, and for the same reason: a live credential has no business sitting in page memory
+// and the devtools network log just so a form can render dots into a disabled input.
 export type EmailSettings = {
   enabled: boolean;
   host: string;
   port: number;
   username: string;
-  password: string;
   fromEmail: string;
   fromName: string;
   useSsl: boolean;
+  hasPassword: boolean;
 };
+
+// Blank/omitted password means "keep the stored one".
+export type EmailSettingsInput = Omit<EmailSettings, "hasPassword"> & { password?: string };
 
 // ── Admin mailbox (inbound IMAP) ──────────────────────────────────────────────────────────────────
 // Mirrors the records in Services/IMailboxService.cs. `uid` is the IMAP UID and is only unique WITHIN a
@@ -929,30 +935,41 @@ export type MailboxSettings = {
 
 export type MailboxSettingsInput = Omit<MailboxSettings, "hasPassword"> & { password?: string };
 
+// Bot tokens are never sent to the browser — a token IS the bot, and these bots can read the backup chat
+// (the whole database), the receipts chat (customers' bank receipts) and press the approve buttons in the
+// orders group. Only whether one is stored is exposed; chat ids stay visible, being addresses not secrets.
 export type PaymentSettings = {
   telegramEnabled: boolean;
-  telegramBotToken: string;
   telegramChatId: string;
   requireReceipt: boolean;
   autoApproveUnder: number;
+  hasTelegramBotToken: boolean;
 };
+
+export type PaymentSettingsInput = Omit<PaymentSettings, "hasTelegramBotToken"> & { telegramBotToken?: string };
 
 export type TelegramSettings = {
   backupEnabled: boolean;
   alertsEnabled: boolean;
   receiptBotEnabled: boolean;
-  botToken: string;
-  chatId: string;
-  receiptBotToken: string;
-  receiptChatId: string;
   // A third independent bot + chat: the orders group, where each purchased account is posted for fulfillment.
   orderBotEnabled: boolean;
-  orderBotToken: string;
+  chatId: string;
+  receiptChatId: string;
   orderChatId: string;
   intervalHours: number;
   lastBackupAtUtc: string | null;
   lastBackupError: string;
+  hasBotToken: boolean;
+  hasReceiptBotToken: boolean;
+  hasOrderBotToken: boolean;
 };
+
+// Blank/omitted tokens mean "keep the stored ones".
+export type TelegramSettingsInput = Omit<
+  TelegramSettings,
+  "hasBotToken" | "hasReceiptBotToken" | "hasOrderBotToken" | "lastBackupAtUtc" | "lastBackupError"
+> & { botToken?: string; receiptBotToken?: string; orderBotToken?: string };
 
 export type CommentStatus = "Pending" | "Approved" | "Rejected";
 

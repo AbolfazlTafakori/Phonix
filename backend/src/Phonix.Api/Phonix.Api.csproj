@@ -8,7 +8,11 @@
 
   <ItemGroup>
     <PackageReference Include="Dapper" Version="2.1.35" />
-    <PackageReference Include="HtmlSanitizer" Version="9.0.892" />
+    <!-- 9.0.892 resolved AngleSharp 0.17.1, which carries GHSA-pgww-w46g-26qg. AngleSharp is the HTML PARSER
+         behind MailHtmlSanitizer, so a parser-differential bug there is exactly the class of flaw that walks
+         markup past an allowlist — and the content it parses is arbitrary inbound email rendered for an admin.
+         9.1.973 resolves AngleSharp 1.6.0 / AngleSharp.Css 1.0.0. -->
+    <PackageReference Include="HtmlSanitizer" Version="9.1.973" />
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.6" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />

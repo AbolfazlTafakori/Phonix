@@ -715,7 +715,13 @@ LIMIT 1;",
     // only key the config page has, so the lookup deliberately reveals nothing else about the order.
     public (Order order, OrderUnit unit)? FindUnitByV2RayToken(string token)
     {
-        if (string.IsNullOrWhiteSpace(token)) return null;
+        // The caller is an ANONYMOUS request putting a raw path segment into a LIKE pattern, where '%' and
+        // '_' are wildcards — not literals. A token of "%" matches every order row, so the query degrades to
+        // a full table scan plus a deserialize of every order in the shop, and the time that takes leaks
+        // whether a guessed prefix exists at all. Tokens are exactly 32 lowercase hex characters
+        // (V2RayFulfillmentService.NewToken), so anything else is refused before it reaches SQLite: no
+        // wildcard can survive the check, and an unknown token costs one indexed miss instead of a scan.
+        if (!IsV2RayToken(token)) return null;
         using var conn = OpenConnection();
         // The token lives inside the unit JSON; SQLite filters the obvious non-matches before we deserialize.
         var rows = conn.Query<string>(
@@ -729,6 +735,10 @@ LIMIT 1;",
         }
         return null;
     }
+
+    // The exact shape V2RayFulfillmentService.NewToken produces: 16 random bytes as lowercase hex.
+    private static bool IsV2RayToken(string? token) =>
+        token is { Length: 32 } && token.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
 
     public (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null) =>
         WriteTx<(Order?, bool)>((conn, tx) =>

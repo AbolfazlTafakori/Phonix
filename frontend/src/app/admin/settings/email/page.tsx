@@ -11,6 +11,9 @@ export default function EmailSettingsPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Held apart from `data` because the server never sends it back: it is write-only from here on. An empty
+  // box means "keep whatever is stored", which is also why it is cleared again after every save.
+  const [password, setPassword] = useState("");
 
   const [testTo, setTestTo] = useState("");
   const [testing, setTesting] = useState(false);
@@ -37,7 +40,8 @@ export default function EmailSettingsPage() {
     setSaving(true);
     setSaved(false);
     try {
-      setData(await api.emailSettings.update(data));
+      setData(await api.emailSettings.update({ ...data, password: password || undefined }));
+      setPassword("");
       setSaved(true);
     } finally {
       setSaving(false);
@@ -107,7 +111,19 @@ export default function EmailSettingsPage() {
                 <input value={data.username} onChange={(e) => set("username", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="info@yourdomain.com" />
               </Field>
               <Field label="گذرواژه SMTP">
-                <input type="password" value={data.password} onChange={(e) => set("password", e.target.value)} dir="ltr" className={`${inputCls} text-left`} />
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  dir="ltr"
+                  className={`${inputCls} text-left`}
+                  placeholder={data.hasPassword ? "ذخیره‌شده — برای تغییر، گذرواژه جدید را وارد کنید" : "گذرواژه SMTP"}
+                />
+                <p className="mt-1.5 text-xs text-white/45">
+                  {data.hasPassword
+                    ? "گذرواژه ذخیره شده و هرگز به مرورگر بازگردانده نمی‌شود. خالی بگذارید تا همان باقی بماند."
+                    : "هنوز گذرواژه‌ای ذخیره نشده است."}
+                </p>
               </Field>
               <label className="flex cursor-pointer items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
                 <span className="text-sm text-white/80">استفاده از SSL/TLS</span>

@@ -39,6 +39,16 @@ public class PaymentMethodsController : ControllerBase
     public IActionResult Delete(int id) => _store.DeletePaymentMethod(id) ? NoContent() : NotFound();
 }
 
+// Same treatment as EmailSettingsDto/TelegramSettingsDto: the bot token is absent BY TYPE, only its presence
+// is reported, and a blank one on update means "keep what is stored".
+public sealed record PaymentSettingsDto(
+    bool TelegramEnabled, string TelegramChatId, bool RequireReceipt, long AutoApproveUnder,
+    bool HasTelegramBotToken);
+
+public sealed record PaymentSettingsInput(
+    bool TelegramEnabled, string? TelegramBotToken, string? TelegramChatId,
+    bool RequireReceipt, long AutoApproveUnder);
+
 [ApiController]
 [Route("api/payment-settings")]
 [Authorize(Roles = AuthExtensions.StaffRoles)]
@@ -48,14 +58,28 @@ public class PaymentSettingsController : ControllerBase
     private readonly IDataStore _store;
     public PaymentSettingsController(IDataStore store) => _store = store;
 
+    private static PaymentSettingsDto ToDto(PaymentSettings s) => new(
+        s.TelegramEnabled, s.TelegramChatId, s.RequireReceipt, s.AutoApproveUnder,
+        HasTelegramBotToken: !string.IsNullOrEmpty(s.TelegramBotToken));
+
     [HttpGet]
-    public PaymentSettings Get() => _store.GetPaymentSettings();
+    public PaymentSettingsDto Get() => ToDto(_store.GetPaymentSettings());
 
     [HttpPut]
-    public PaymentSettings Update(PaymentSettings input)
+    public PaymentSettingsDto Update(PaymentSettingsInput input)
     {
-        _store.UpdatePaymentSettings(input);
-        return _store.GetPaymentSettings();
+        var current = _store.GetPaymentSettings();
+        _store.UpdatePaymentSettings(new PaymentSettings
+        {
+            TelegramEnabled = input.TelegramEnabled,
+            TelegramBotToken = string.IsNullOrWhiteSpace(input.TelegramBotToken)
+                ? current.TelegramBotToken
+                : input.TelegramBotToken.Trim(),
+            TelegramChatId = (input.TelegramChatId ?? "").Trim(),
+            RequireReceipt = input.RequireReceipt,
+            AutoApproveUnder = input.AutoApproveUnder,
+        });
+        return ToDto(_store.GetPaymentSettings());
     }
 }
 
@@ -104,7 +128,9 @@ public class TransactionsController : ControllerBase
     public IActionResult Receipt(string id)
     {
         if (_files.OwnerOf(id) is not int ownerId) return BadRequest("شناسه فایل نامعتبر است.");
-        if (!this.OwnsOrStaff(ownerId)) return Forbid();
+        // A receipt is a photo of a bank transfer — account numbers, names, amounts. The sections that
+        // legitimately look at one are the money sections and the receipt-approval queue; nothing else.
+        if (!this.OwnsOrSectionStaff(_store, ownerId, "transactions", "orders", "orders-receipts")) return Forbid();
         var stored = _files.Open("receipts", id);
         if (stored is null) return NotFound();
         return File(stored.Content, stored.ContentType);
@@ -160,6 +186,10 @@ public class TransactionsController : ControllerBase
         var receipt = string.IsNullOrWhiteSpace(input.ReceiptUrl) ? null : input.ReceiptUrl.Trim();
         if (_store.GetPaymentSettings().RequireReceipt && receipt is null)
             return BadRequest("بارگذاری رسید واریز الزامی است.");
+        // The receipt is submitted as an id from UploadReceipt, and the id encodes its uploader — so a
+        // deposit can only be filed against a receipt this user actually uploaded, never someone else's.
+        if (receipt is not null && _files.OwnerOf(receipt) != user.Id)
+            return BadRequest("رسید بارگذاری‌شده معتبر نیست. دوباره بارگذاری کنید.");
 
         var tx = new Transaction
         {

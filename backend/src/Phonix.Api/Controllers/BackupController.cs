@@ -10,6 +10,22 @@ using Phonix.Api.Services;
 
 namespace Phonix.Api.Controllers;
 
+// What the panel is told about the three Telegram bots. Every token is absent BY TYPE; only whether one is
+// stored is exposed. Chat ids stay visible — they are addresses, not credentials, and the form needs them.
+public sealed record TelegramSettingsDto(
+    bool BackupEnabled, bool AlertsEnabled, bool ReceiptBotEnabled, bool OrderBotEnabled,
+    string ChatId, string ReceiptChatId, string OrderChatId, int IntervalHours,
+    DateTime? LastBackupAtUtc, string LastBackupError,
+    bool HasBotToken, bool HasReceiptBotToken, bool HasOrderBotToken);
+
+// Incoming settings. Each token is optional: empty means "leave the stored one alone".
+public sealed record TelegramSettingsInput(
+    bool BackupEnabled, bool AlertsEnabled, bool ReceiptBotEnabled, bool OrderBotEnabled,
+    string? BotToken, string? ChatId,
+    string? ReceiptBotToken, string? ReceiptChatId,
+    string? OrderBotToken, string? OrderChatId,
+    int IntervalHours);
+
 [ApiController]
 [Route("api/backup")]
 [Authorize(Roles = nameof(UserRole.Admin))] // restore is destructive — admins only, not support staff
@@ -21,12 +37,14 @@ public class BackupController : ControllerBase
     private readonly ITelegramReceiptService _receiptBot;
     private readonly ITelegramOrderService _orderBot;
     private readonly IFileStorageService _files;
+    private readonly ITwoFactorGuard _twoFactorGuard;
     private readonly ILogger<BackupController> _logger;
 
     public BackupController(IDataStore store, ITelegramBackupSender telegram, ITelegramAlertSender alerts,
         ITelegramReceiptService receiptBot, ITelegramOrderService orderBot,
-        IFileStorageService files, ILogger<BackupController> logger)
+        IFileStorageService files, ITwoFactorGuard twoFactorGuard, ILogger<BackupController> logger)
     {
+        _twoFactorGuard = twoFactorGuard;
         _store = store;
         _telegram = telegram;
         _alerts = alerts;
@@ -47,12 +65,23 @@ public class BackupController : ControllerBase
         return File(zip, "application/zip", $"phonix-media-public-{stamp}.zip");
     }
 
-    [HttpGet("media/sensitive")]
-    public IActionResult MediaSensitive()
+    // Every customer's national ID card, selfie, bank-card photo and deposit receipt, in one response.
+    // Pushing that same archive to Telegram already required three factors (admin + fresh 2FA + the server's
+    // backup key) precisely because it moves the documents off the server — but downloading it did not, so a
+    // single stolen admin cookie was the whole cost of the same exfiltration. Now they match. POST rather
+    // than GET because the gate needs a body, and because a bulk export of identity documents is not a
+    // navigation.
+    [HttpPost("media/sensitive")]
+    [Consumes("multipart/form-data")]
+    public IActionResult MediaSensitive([FromForm] string? backupKey, [FromForm] string? twoFactorCode)
     {
+        var deny = CheckRestoreAuth(backupKey, twoFactorCode, out var username, out var ip);
+        if (deny is not null) return deny;
+
         var zip = _files.ArchiveSensitiveMedia();
         var stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
-        _store.RecordBackup("مدارک حساس", "دانلود", true, "");
+        _store.RecordBackup("مدارک حساس", "دانلود", true, $"by {username}");
+        _logger.LogWarning("[SRV] SENSITIVE MEDIA EXPORT by Admin {User}, IP {IP}, {Time}", username, ip, DateTime.UtcNow.ToString("o"));
         if (BackupCrypto.IsEnabled)
             return File(BackupCrypto.EncryptBytes(zip), "application/octet-stream", $"phonix-media-sensitive-{stamp}.phxbak");
         return File(zip, "application/zip", $"phonix-media-sensitive-{stamp}.zip");
@@ -100,13 +129,20 @@ public class BackupController : ControllerBase
 
     // ── Full manual backup: everything (data + all media) in one encrypted file ──
 
-    [HttpGet("full")]
-    public IActionResult ExportFull()
+    // The whole database plus every uploaded file — a superset of the sensitive media archive above, so it
+    // carries the same three-factor gate for the same reason.
+    [HttpPost("full")]
+    [Consumes("multipart/form-data")]
+    public IActionResult ExportFull([FromForm] string? backupKey, [FromForm] string? twoFactorCode)
     {
+        var deny = CheckRestoreAuth(backupKey, twoFactorCode, out var username, out var ip);
+        if (deny is not null) return deny;
+
         var json = _store.SerializeSnapshot();
         var zip = _files.ArchiveFull(json);
         var stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
-        _store.RecordBackup("کامل (داده + رسانه)", "دانلود", true, "");
+        _store.RecordBackup("کامل (داده + رسانه)", "دانلود", true, $"by {username}");
+        _logger.LogWarning("[SRV] FULL EXPORT by Admin {User}, IP {IP}, {Time}", username, ip, DateTime.UtcNow.ToString("o"));
         if (BackupCrypto.IsEnabled)
             return File(BackupCrypto.EncryptBytes(zip), "application/octet-stream", $"phonix-full-{stamp}.phxbak");
         return File(zip, "application/zip", $"phonix-full-{stamp}.zip");
@@ -367,7 +403,11 @@ public class BackupController : ControllerBase
 
         if (user is null || user.Role != UserRole.Admin)
             return Deny("not an admin", Unauthorized("نشست نامعتبر است."));
-        if (!user.TwoFactorEnabled || string.IsNullOrWhiteSpace(twoFactorCode) || !TotpService.Verify(user.TwoFactorSecret, twoFactorCode))
+        // Single-use + per-account lockout, same as the login path: this gate stands in front of restoring the
+        // whole database and of exporting every customer's identity documents, so a code observed once must
+        // not still open it a minute later.
+        if (!user.TwoFactorEnabled || string.IsNullOrWhiteSpace(twoFactorCode)
+            || _twoFactorGuard.Verify(user.Id, user.TwoFactorSecret, twoFactorCode) != TwoFactorResult.Ok)
             return Deny("invalid 2FA", Unauthorized("کد تأیید دو‌مرحله‌ای نادرست است."));
         var configuredKey = Environment.GetEnvironmentVariable("PHONIX_BACKUP_KEY");
         if (string.IsNullOrWhiteSpace(configuredKey) || string.IsNullOrWhiteSpace(backupKey)
@@ -376,19 +416,55 @@ public class BackupController : ControllerBase
         return null;
     }
 
+    // A Telegram bot token IS the bot: anyone holding it can read the backup chat (every section of the
+    // database), read the receipts chat (customers' bank receipts), and press the approve buttons in the
+    // orders group. Handing all three back to the browser on every page load was the same mistake the SMTP
+    // password made, one tier more dangerous — so, like MailboxSettingsDto and V2RayPanelDto, they are absent
+    // BY TYPE and only their presence is reported.
+    private static TelegramSettingsDto ToDto(TelegramSettings s) => new(
+        s.BackupEnabled, s.AlertsEnabled, s.ReceiptBotEnabled, s.OrderBotEnabled,
+        s.ChatId, s.ReceiptChatId, s.OrderChatId, s.IntervalHours,
+        s.LastBackupAtUtc, s.LastBackupError,
+        HasBotToken: !string.IsNullOrEmpty(s.BotToken),
+        HasReceiptBotToken: !string.IsNullOrEmpty(s.ReceiptBotToken),
+        HasOrderBotToken: !string.IsNullOrEmpty(s.OrderBotToken));
+
     [HttpGet("telegram")]
-    public TelegramSettings GetTelegram() => _store.GetTelegramSettings();
+    public TelegramSettingsDto GetTelegram() => ToDto(_store.GetTelegramSettings());
 
     [HttpPut("telegram")]
-    public ActionResult<TelegramSettings> UpdateTelegram(TelegramSettings settings)
+    public ActionResult<TelegramSettingsDto> UpdateTelegram(TelegramSettingsInput input)
     {
+        var current = _store.GetTelegramSettings();
+        // Blank means "keep the stored token": the client is never given one, so it cannot echo one back.
+        var botToken = string.IsNullOrWhiteSpace(input.BotToken) ? current.BotToken : input.BotToken.Trim();
+        var receiptToken = string.IsNullOrWhiteSpace(input.ReceiptBotToken) ? current.ReceiptBotToken : input.ReceiptBotToken.Trim();
+        var orderToken = string.IsNullOrWhiteSpace(input.OrderBotToken) ? current.OrderBotToken : input.OrderBotToken.Trim();
+
         // The receipt and order bots each long-poll getUpdates. Telegram only allows ONE getUpdates consumer
         // per token, so sharing a token makes the two pollers fight and silently kills one of them (409
         // Conflict) — the bot simply stops responding to taps. Refuse the save instead of shipping that.
-        if (DuplicateToken(settings.BotToken, settings.ReceiptBotToken, settings.OrderBotToken) is string clash)
+        if (DuplicateToken(botToken, receiptToken, orderToken) is string clash)
             return BadRequest(clash);
-        _store.UpdateTelegramSettings(settings);
-        return _store.GetTelegramSettings();
+
+        _store.UpdateTelegramSettings(new TelegramSettings
+        {
+            BackupEnabled = input.BackupEnabled,
+            AlertsEnabled = input.AlertsEnabled,
+            ReceiptBotEnabled = input.ReceiptBotEnabled,
+            OrderBotEnabled = input.OrderBotEnabled,
+            BotToken = botToken,
+            ChatId = (input.ChatId ?? "").Trim(),
+            ReceiptBotToken = receiptToken,
+            ReceiptChatId = (input.ReceiptChatId ?? "").Trim(),
+            OrderBotToken = orderToken,
+            OrderChatId = (input.OrderChatId ?? "").Trim(),
+            IntervalHours = input.IntervalHours,
+            // Runtime status is written by the backup worker, never by the form.
+            LastBackupAtUtc = current.LastBackupAtUtc,
+            LastBackupError = current.LastBackupError,
+        });
+        return ToDto(_store.GetTelegramSettings());
     }
 
     // Sends a real test message with the saved settings and reports Telegram's own error. Every other send is

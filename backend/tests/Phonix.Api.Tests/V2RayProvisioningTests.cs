@@ -56,10 +56,13 @@ public class V2RayProvisioningTests
 
         var first = order.Units[0];
         var second = order.Units[1];
-        store.SetUnitV2Ray(order.Id, first.Id, new V2RayAccount { Token = "aaaa1111", Uuid = "uuid-1", Email = "e1" });
-        store.SetUnitV2Ray(order.Id, second.Id, new V2RayAccount { Token = "bbbb2222", Uuid = "uuid-2", Email = "e2" });
+        // Real tokens are exactly what NewToken() mints — 16 random bytes as 32 lowercase hex characters —
+        // and the lookup now refuses anything else, since an unvalidated token reaches a LIKE pattern where
+        // '%' would match every order in the shop.
+        store.SetUnitV2Ray(order.Id, first.Id, new V2RayAccount { Token = new string('a', 32), Uuid = "uuid-1", Email = "e1" });
+        store.SetUnitV2Ray(order.Id, second.Id, new V2RayAccount { Token = new string('b', 32), Uuid = "uuid-2", Email = "e2" });
 
-        var found = store.FindUnitByV2RayToken("bbbb2222");
+        var found = store.FindUnitByV2RayToken(new string('b', 32));
 
         Assert.NotNull(found);
         Assert.Equal(second.Id, found!.Value.unit.Id);
@@ -71,11 +74,19 @@ public class V2RayProvisioningTests
     {
         var (store, productId, planId) = Seed();
         var order = store.PlaceOrder(store.GetUser(5)!, new[] { (productId, 1, (int?)planId) }, "wallet", fromWallet: true).Order!;
-        store.SetUnitV2Ray(order.Id, order.Units[0].Id, new V2RayAccount { Token = "aaaa1111" });
+        store.SetUnitV2Ray(order.Id, order.Units[0].Id, new V2RayAccount { Token = new string('a', 32) });
 
         // The config page is reachable by token alone, so a wrong one must reveal nothing at all.
-        Assert.Null(store.FindUnitByV2RayToken("cccc3333"));
+        Assert.Null(store.FindUnitByV2RayToken(new string('c', 32)));
         Assert.Null(store.FindUnitByV2RayToken(""));
+        // Anything that isn't a real token shape is refused before it reaches SQLite — in particular the LIKE
+        // wildcards, which would otherwise match every order row and scan the whole table on an ANONYMOUS
+        // endpoint. A bare "%" must not resolve to the account that does exist.
+        Assert.Null(store.FindUnitByV2RayToken("%"));
+        Assert.Null(store.FindUnitByV2RayToken(new string('%', 32)));
+        Assert.Null(store.FindUnitByV2RayToken("a".PadRight(32, '_')));
+        Assert.Null(store.FindUnitByV2RayToken(new string('a', 31)));
+        Assert.Null(store.FindUnitByV2RayToken(new string('A', 32)));
     }
 
     [Fact]

@@ -8,12 +8,20 @@ import AdminIcon from "@/components/admin/AdminIcon";
 
 type Note = { ok: boolean; text: string } | null;
 
+// The four operations that move customer data off the server, and therefore all pass the same three-factor
+// gate (admin session + the server's backup key + a fresh 2FA code) instead of riding on the session alone.
+type SecureAction = "site" | "documents" | "download:sensitive" | "download:full";
+
 export default function BackupPage() {
   const [tg, setTg] = useState<TelegramSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  // Write-only. This bot receives every section of the database, so its token is the most valuable of the
+  // three — the server never sends it back, and an empty box means "keep the stored one".
+  const [botToken, setBotToken] = useState("");
 
-  const [downloading, setDownloading] = useState(false);
+  // No local busy flag: the button now just opens the security gate, and the modal owns the pending state
+  // for the download it performs.
   const [downloadNote, setDownloadNote] = useState<Note>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -44,7 +52,10 @@ export default function BackupPage() {
   const pendingTarget = useRef<RTarget | null>(null);
 
   // gated media → telegram send (same backup-key + 2FA gate as a restore)
-  const [mediaSend, setMediaSend] = useState<"site" | "documents" | null>(null);
+  // One three-factor gate, four uses: sending either media archive to Telegram, and downloading either of the
+  // two exports that contain customers' identity documents. All four move that data off the server, so all
+  // four re-authenticate with the backup key + a fresh 2FA code rather than riding on the session cookie.
+  const [mediaSend, setMediaSend] = useState<SecureAction | null>(null);
   const [mediaSending, setMediaSending] = useState(false);
   const [mediaKey, setMediaKey] = useState("");
   const [mediaOtp, setMediaOtp] = useState("");
@@ -102,15 +113,20 @@ export default function BackupPage() {
     }
   }
 
-  async function downloadMedia(kind: "public" | "sensitive") {
-    setBusyKey(`media:${kind}`);
+  function saveBlob(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // Site imagery only — banners and product photos, nothing personal — so this stays a one-click download.
+  async function downloadPublicMedia() {
+    setBusyKey("media:public");
     setSecNote(null);
     try {
-      const { blob, filename } = await api.backup.downloadMedia(kind);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
-      URL.revokeObjectURL(url);
+      const { blob, filename } = await api.backup.downloadPublicMedia();
+      saveBlob(blob, filename);
       await loadSections();
     } catch (e) {
       setSecNote({ ok: false, text: e instanceof Error ? e.message : "دانلود ناموفق بود." });
@@ -119,7 +135,7 @@ export default function BackupPage() {
     }
   }
 
-  function openMediaSend(kind: "site" | "documents") {
+  function openMediaSend(kind: SecureAction) {
     setMediaSend(kind);
     setMediaKey("");
     setMediaOtp("");
@@ -135,12 +151,19 @@ export default function BackupPage() {
     setMediaSending(true);
     setMediaNote(null);
     try {
-      await api.backup.sendMedia(mediaSend, mediaKey.trim(), mediaOtp.trim());
+      if (mediaSend === "download:sensitive" || mediaSend === "download:full") {
+        const what = mediaSend === "download:full" ? "full" : "media/sensitive";
+        const { blob, filename } = await api.backup.exportGuarded(what, mediaKey.trim(), mediaOtp.trim());
+        saveBlob(blob, filename);
+        setSecNote({ ok: true, text: "فایل دانلود شد." });
+      } else {
+        await api.backup.sendMedia(mediaSend, mediaKey.trim(), mediaOtp.trim());
+        setSecNote({ ok: true, text: "فایل‌های رسانه به تلگرام ارسال شد (در صورت حجم بالا، چند بخش)." });
+      }
       setMediaSend(null);
-      setSecNote({ ok: true, text: "فایل‌های رسانه به تلگرام ارسال شد (در صورت حجم بالا، چند بخش)." });
       await loadSections();
     } catch (e) {
-      setMediaNote({ ok: false, text: e instanceof Error ? e.message : "ارسال ناموفق بود." });
+      setMediaNote({ ok: false, text: e instanceof Error ? e.message : "عملیات ناموفق بود." });
     } finally {
       setMediaSending(false);
     }
@@ -178,25 +201,11 @@ export default function BackupPage() {
   const setField = <K extends keyof TelegramSettings>(key: K, value: TelegramSettings[K]) =>
     setTg((d) => (d ? { ...d, [key]: value } : d));
 
-  async function downloadBackup() {
-    setDownloading(true);
+  // The full backup contains the whole database and every uploaded file, identity documents included, so it
+  // goes through the same confirmation gate as sending them to Telegram rather than downloading on one click.
+  function downloadBackup() {
     setDownloadNote(null);
-    try {
-      const { blob, filename } = await api.backup.downloadFull();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      setDownloadNote({ ok: true, text: "نسخه پشتیبان کامل (داده + رسانه) دانلود شد." });
-    } catch (e) {
-      setDownloadNote({ ok: false, text: e instanceof Error ? e.message : "دانلود ناموفق بود." });
-    } finally {
-      setDownloading(false);
-    }
+    openMediaSend("download:full");
   }
 
   function openRestore() {
@@ -243,7 +252,8 @@ export default function BackupPage() {
     setSavedTg(false);
     setTgNote(null);
     try {
-      setTg(await api.backup.telegram.update(tg));
+      setTg(await api.backup.telegram.update({ ...tg, botToken: botToken || undefined }));
+      setBotToken("");
       setSavedTg(true);
     } catch (e) {
       setTgNote({ ok: false, text: e instanceof Error ? e.message : "ذخیره ناموفق بود." });
@@ -301,8 +311,8 @@ export default function BackupPage() {
                 <h3 className="text-lg font-bold text-white">دانلود پشتیبان کامل</h3>
               </div>
               <p className="mb-4 flex-1 text-sm leading-7 text-white/55">یک فایلِ کامل از <b className="text-white/80">همه‌چیز</b> — همهٔ داده‌ها (محصولات، کاربران، سفارش‌ها، تنظیمات...) به‌علاوهٔ <b className="text-white/80">همهٔ فایل‌های تصویری و مدارک</b> — در یک فایلِ رمزنگاری‌شده.</p>
-              <button onClick={downloadBackup} disabled={downloading} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-emerald-500 px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">
-                {downloading ? <Spinner /> : "دانلود فایل پشتیبان کامل"}
+              <button onClick={downloadBackup} className="flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-l from-emerald-600 to-emerald-500 px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">
+                دانلود فایل پشتیبان کامل
               </button>
               {downloadNote && <p className={`mt-3 text-sm ${downloadNote.ok ? "text-emerald-400" : "text-rose-400"}`}>{downloadNote.text}</p>}
             </Card>
@@ -370,7 +380,7 @@ export default function BackupPage() {
                 <div className="flex flex-col gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-3">
                   <span className="text-sm font-bold text-white/85">رسانهٔ سایت (بنرها/عکس محصولات)</span>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => downloadMedia("public")} disabled={busyKey === "media:public"} className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-xs font-bold text-white/80 transition hover:bg-white/5 disabled:opacity-50">
+                    <button onClick={downloadPublicMedia} disabled={busyKey === "media:public"} className="flex h-9 items-center gap-1.5 rounded-lg border border-white/10 px-3 text-xs font-bold text-white/80 transition hover:bg-white/5 disabled:opacity-50">
                       {busyKey === "media:public" ? <Spinner /> : "دانلود"}
                     </button>
                     <button onClick={() => openMediaSend("site")} className="flex h-9 items-center gap-1.5 rounded-lg border border-[#3a64f2]/40 bg-[#3a64f2]/10 px-3 text-xs font-bold text-[#9db4ff] transition hover:bg-[#3a64f2]/20">
@@ -382,7 +392,7 @@ export default function BackupPage() {
                 <div className="flex flex-col gap-2 rounded-xl border border-rose-500/20 bg-rose-500/[0.04] p-3">
                   <span className="text-sm font-bold text-rose-200/90">🔒 مدارک کاربران (KYC/کارت/رسید)</span>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => downloadMedia("sensitive")} disabled={busyKey === "media:sensitive"} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">
+                    <button onClick={() => openMediaSend("download:sensitive")} disabled={busyKey === "media:sensitive"} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20 disabled:opacity-50">
                       {busyKey === "media:sensitive" ? <Spinner /> : "دانلود"}
                     </button>
                     <button onClick={() => openMediaSend("documents")} className="flex h-9 items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/20">
@@ -412,7 +422,14 @@ export default function BackupPage() {
               </div>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <Field label="توکن بات (از BotFather)">
-                  <input value={tg.botToken} onChange={(e) => setField("botToken", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="123456:ABC-DEF..." />
+                  <input
+                    type="password"
+                    value={botToken}
+                    onChange={(e) => setBotToken(e.target.value)}
+                    dir="ltr"
+                    className={`${inputCls} text-left`}
+                    placeholder={tg.hasBotToken ? "ذخیره‌شده — خالی بگذارید تا تغییر نکند" : "123456:ABC-DEF..."}
+                  />
                 </Field>
                 <Field label="فاصله‌ی زمانی هر بکاپ (ساعت)">
                   <input type="number" dir="ltr" min={1} value={tg.intervalHours} onChange={(e) => setField("intervalHours", Math.max(1, Number(e.target.value)))} className={`${inputCls} text-left`} />
@@ -541,12 +558,21 @@ export default function BackupPage() {
         </div>
       </Modal>
 
-      <Modal open={mediaSend !== null} onClose={() => !mediaSending && setMediaSend(null)} title="تأیید امنیتی ارسال به تلگرام">
+      <Modal
+        open={mediaSend !== null}
+        onClose={() => !mediaSending && setMediaSend(null)}
+        title={mediaSend?.startsWith("download:") ? "تأیید امنیتی دانلود" : "تأیید امنیتی ارسال به تلگرام"}
+      >
         <div className="space-y-4">
           <p className="rounded-xl border border-rose-500/20 bg-rose-500/5 p-3 text-sm leading-7 text-amber-300/85">
             ⚠ {mediaSend === "documents"
               ? "این کار آرشیو رمزنگاری‌شدهٔ مدارک کاربران (KYC/کارت/رسید) را به چت تلگرامِ تعیین‌شده می‌فرستد."
-              : "این کار آرشیو فایل‌های رسانهٔ سایت (بنرها/عکس محصولات) را به چت تلگرامِ تعیین‌شده می‌فرستد."} برای ادامه، کلید پشتیبان سرور و کد دو‌مرحله‌ای فعلی خود را وارد کنید.
+              : mediaSend === "site"
+                ? "این کار آرشیو فایل‌های رسانهٔ سایت (بنرها/عکس محصولات) را به چت تلگرامِ تعیین‌شده می‌فرستد."
+                : mediaSend === "download:sensitive"
+                  ? "این کار مدارک هویتی همهٔ کاربران (KYC/کارت/رسید) را یکجا از سرور خارج می‌کند."
+                  : "این کار کل پایگاه داده به‌همراه تمام فایل‌های بارگذاری‌شده — شامل مدارک هویتی کاربران — را یکجا از سرور خارج می‌کند."}
+            {" "}برای ادامه، کلید پشتیبان سرور و کد دو‌مرحله‌ای فعلی خود را وارد کنید.
           </p>
           <Field label="کلید پشتیبان (PHONIX_BACKUP_KEY)">
             <input
@@ -584,7 +610,7 @@ export default function BackupPage() {
               disabled={mediaSending || !mediaKey.trim() || mediaOtp.length !== 6}
               className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-40"
             >
-              {mediaSending ? <Spinner /> : "تأیید و ارسال"}
+              {mediaSending ? <Spinner /> : mediaSend?.startsWith("download:") ? "تأیید و دانلود" : "تأیید و ارسال"}
             </button>
           </div>
         </div>

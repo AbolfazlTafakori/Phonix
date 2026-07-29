@@ -27,6 +27,18 @@ public static class OwnerAccount
             && !string.IsNullOrWhiteSpace(username)
             && string.Equals(owner, username.Trim(), StringComparison.OrdinalIgnoreCase);
     }
+
+    // Ownership is decided by USERNAME (IsOwner above), so the configured name is an authority handle, not a
+    // display detail: whoever holds it holds every owner-only section. Nothing may take it and the owner may
+    // not walk away from it, otherwise a rename frees the name for the next account that asks for it — and
+    // that account silently inherits the payment/V2Ray infrastructure the owner gate exists to protect.
+    // Reserved even when the owner row does not exist yet (a Standby before its first snapshot), which is
+    // exactly when the name would otherwise be unclaimed.
+    public static bool IsReservedUsername(string? candidate, string? currentUsername = null)
+    {
+        if (!IsOwner(candidate)) return false;
+        return !IsOwner(currentUsername); // the owner keeping their own name is not a claim
+    }
 }
 
 // Gates an endpoint to the owner account only. Layered ON TOP of [Authorize(Roles = "Admin")]: a normal

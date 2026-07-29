@@ -181,6 +181,8 @@ function PaymentSettingsCard({ settings, setSettings }: { settings: PaymentSetti
   const [draft, setDraft] = useState<PaymentSettings>(settings);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  // Write-only: the token is never sent back to the browser, so an empty box means "keep the stored one".
+  const [botToken, setBotToken] = useState("");
 
   const set = <K extends keyof PaymentSettings>(key: K, value: PaymentSettings[K]) => setDraft((p) => ({ ...p, [key]: value }));
 
@@ -188,9 +190,10 @@ function PaymentSettingsCard({ settings, setSettings }: { settings: PaymentSetti
     setSaving(true);
     setSaved(false);
     try {
-      const u = await api.paymentSettings.update(draft);
+      const u = await api.paymentSettings.update({ ...draft, telegramBotToken: botToken || undefined });
       setSettings(u);
       setDraft(u);
+      setBotToken("");
       setSaved(true);
     } finally {
       setSaving(false);
@@ -209,7 +212,14 @@ function PaymentSettingsCard({ settings, setSettings }: { settings: PaymentSetti
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <Field label="توکن ربات (Bot Token)">
-          <input value={draft.telegramBotToken} onChange={(e) => set("telegramBotToken", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="123456:ABC-DEF..." />
+          <input
+            type="password"
+            value={botToken}
+            onChange={(e) => setBotToken(e.target.value)}
+            dir="ltr"
+            className={`${inputCls} text-left`}
+            placeholder={draft.hasTelegramBotToken ? "ذخیره‌شده — خالی بگذارید تا تغییر نکند" : "123456:ABC-DEF..."}
+          />
         </Field>
         <Field label="شناسه چت ادمین (Chat ID)">
           <input value={draft.telegramChatId} onChange={(e) => set("telegramChatId", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="-1001234567890" />

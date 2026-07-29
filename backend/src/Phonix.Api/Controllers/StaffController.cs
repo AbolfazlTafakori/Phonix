@@ -30,6 +30,15 @@ public class StaffController : ControllerBase
     private static StaffDto ToDto(AppUser u) =>
         new(u.Id, u.Code, u.Name, u.Username, u.Email, u.Role, u.Blocked, u.TwoFactorEnabled, u.Permissions);
 
+    // Every action below acts on another staff account, and the owner is a staff account — so without this,
+    // a second Admin could reset the owner's password, clear the owner's 2FA, demote/block them, or delete
+    // them outright, and inherit the owner-only sections (payment infrastructure, V2Ray panel credentials)
+    // that exist precisely to sit ABOVE the Admin role. The owner is off-limits to everyone but the owner.
+    private ActionResult? GuardOwner(AppUser target) =>
+        OwnerAccount.IsOwner(target.Username) && this.CurrentUserId() != target.Id
+            ? StatusCode(403, "حساب مالک مجموعه توسط مدیران دیگر قابل تغییر نیست.")
+            : null;
+
     private static List<string> CleanPermissions(IEnumerable<string>? requested) =>
         (requested ?? Enumerable.Empty<string>())
             .Where(AdminMenu.AssignableKeys.Contains)
@@ -63,6 +72,7 @@ public class StaffController : ControllerBase
     {
         var target = _store.GetUser(id);
         if (target is null || target.Role == UserRole.Customer) return NotFound();
+        if (GuardOwner(target) is { } denied) return denied;
         // An admin can't strip their own admin role or block themselves and get locked out of the panel.
         var isSelf = this.CurrentUserId() == id;
         if (isSelf && ((input.Role is UserRole r && r != UserRole.Admin) || input.Blocked == true))
@@ -88,6 +98,7 @@ public class StaffController : ControllerBase
     {
         var target = _store.GetUser(id);
         if (target is null || target.Role == UserRole.Customer) return NotFound();
+        if (GuardOwner(target) is { } denied) return denied;
         if (PasswordPolicy.Validate(input.Password) is string error) return BadRequest(error);
         _store.UpdateUser(id, u => u.Password = PasswordHasher.Hash(input.Password));
         // Rotating the stamp signs the staff member out everywhere so the new password takes hold immediately.
@@ -105,6 +116,7 @@ public class StaffController : ControllerBase
         var target = _store.GetUser(id);
         if (target is null || target.Role == UserRole.Customer) return NotFound();
         if (this.CurrentUserId() == id) return BadRequest("برای حساب خودتان از صفحه‌ی امنیت استفاده کنید.");
+        if (GuardOwner(target) is { } denied) return denied;
         _store.SetTwoFactorEnabled(id, false);
         return NoContent();
     }
@@ -115,6 +127,8 @@ public class StaffController : ControllerBase
         var target = _store.GetUser(id);
         if (target is null || target.Role == UserRole.Customer) return NotFound();
         if (this.CurrentUserId() == id) return BadRequest("نمی‌توانید حساب خودتان را حذف کنید.");
+        if (OwnerAccount.IsOwner(target.Username))
+            return StatusCode(403, "حساب مالک مجموعه قابل حذف نیست.");
         return _store.DeleteUser(id) ? NoContent() : NotFound();
     }
 }

@@ -27,6 +27,25 @@ public class UsersController : ControllerBase
         _files = files;
     }
 
+    // This controller edits ACCOUNTS, and an account's email is the reset-password channel — so writing to one
+    // is equivalent to being able to log in as it. That makes "who may be written to here" a privilege
+    // boundary, not a data-scope question:
+    //   • A Support member holding the routine "users" section could otherwise repoint an Admin's email at an
+    //     inbox they control, press "forgot password", and come back as that Admin. Blocking or deleting the
+    //     Admin outright was equally available. So staff accounts are Admin-only territory.
+    //   • The owner is above Admin (OwnerAccount): payment infrastructure and the V2Ray panel credentials are
+    //     gated to it alone. A second Admin editing the owner's row is the same takeover one rung higher, so
+    //     nobody but the owner may write to the owner.
+    // Returns a deny result, or null when the caller may proceed.
+    private ActionResult? GuardTarget(AppUser target)
+    {
+        if (target.Role != UserRole.Customer && this.CurrentRole() != UserRole.Admin)
+            return StatusCode(403, "ویرایش حساب‌های کارکنان فقط توسط مدیر امکان‌پذیر است.");
+        if (OwnerAccount.IsOwner(target.Username) && this.CurrentUserId() != target.Id)
+            return StatusCode(403, "حساب مالک مجموعه فقط توسط خود او قابل ویرایش است.");
+        return null;
+    }
+
     [AdminPermission("users")]
     [HttpGet]
     public IEnumerable<UserDto> Get([FromQuery] string? search, [FromQuery] UserRole? role, [FromQuery] bool? blocked) =>
@@ -50,6 +69,8 @@ public class UsersController : ControllerBase
     [HttpPut("{id:int}")]
     public ActionResult<UserDto> Update(int id, UserUpdateInput input)
     {
+        if (_store.GetUser(id) is not { } target) return NotFound();
+        if (GuardTarget(target) is { } denied) return denied;
         // Roles are the panel's privilege boundary and belong to the Admin-only StaffController. Without this
         // guard a Support member holding "users" could hand themselves Admin from here — the role is re-read
         // from the store on every request, so the promotion would take effect on their very next call.
@@ -109,8 +130,15 @@ public class UsersController : ControllerBase
     [HttpDelete("{id:int}")]
     public IActionResult Delete(int id)
     {
+        if (_store.GetUser(id) is not { } target) return NotFound();
+        if (GuardTarget(target) is { } denied) return denied;
+        // The owner is the account every owner-only section is keyed to, so deleting it is not a recoverable
+        // mistake — it frees the configured username for whoever asks next. Refused for everyone, self
+        // included; an owner handover is a redeploy with a new PHONIX_OWNER_USERNAME, not a delete button.
+        if (OwnerAccount.IsOwner(target.Username))
+            return StatusCode(403, "حساب مالک مجموعه قابل حذف نیست.");
         // Read the avatar before removing the account so the orphaned file can be cleaned up afterwards.
-        var avatar = _store.GetUser(id)?.Avatar;
+        var avatar = target.Avatar;
         if (!_store.DeleteUser(id)) return NotFound();
         // fire-and-forget, owner-guarded, best-effort: account deletion must not wait on (or fail from) disk I/O.
         if (!string.IsNullOrEmpty(avatar))

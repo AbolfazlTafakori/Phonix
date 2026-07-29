@@ -113,6 +113,24 @@ public sealed partial class LocalFileStorageService : IFileStorageService
             bytes = buffer.ToArray();
         }
 
+        // Decode the HEADER first. Compression ratio is unbounded for every format accepted here: a ~6 MB PNG
+        // of one flat colour legitimately describes 30000×30000 pixels, and SKBitmap.Decode would allocate
+        // that whole surface (~3.6 GB at 4 bytes/px) BEFORE the clamp below ever runs. The size cap on the
+        // upload therefore bounds the file, not the memory — which is the part an attacker actually spends.
+        // Reading dimensions off the codec costs nothing and lets an image bomb be refused unallocated.
+        // The budget is generous: 50 MP is well past any phone camera, and anything under it decodes to at
+        // most ~200 MB, which is then immediately downscaled to maxEdge.
+        const long maxPixels = 50_000_000;
+        using (var codecStream = new MemoryStream(bytes, writable: false))
+        using (var codec = SKCodec.Create(codecStream))
+        {
+            if (codec is null) throw new InvalidDataException("Unsupported or corrupt image.");
+            var info = codec.Info;
+            if (info.Width <= 0 || info.Height <= 0) throw new InvalidDataException("Unsupported or corrupt image.");
+            if ((long)info.Width * info.Height > maxPixels)
+                throw new InvalidDataException("Image dimensions exceed the allowed budget.");
+        }
+
         using var decoded = SKBitmap.Decode(bytes)
             ?? throw new InvalidDataException("Unsupported or corrupt image.");
 

@@ -198,6 +198,13 @@ SELECT last_insert_rowid();",
                 return "نام کاربری فقط می‌تواند شامل حروف و اعداد انگلیسی باشد (بدون فاصله و خط تیره).";
             var taken = conn.ExecuteScalar<long>("SELECT COUNT(1) FROM Users WHERE Id <> @userId AND Username = @u COLLATE NOCASE", new { userId, u }, tx) > 0;
             if (taken) return "این نام کاربری قبلاً گرفته شده است.";
+            // The owner is identified BY USERNAME, so the configured name is a privilege handle. Taking it
+            // would inherit every owner-only section; the owner leaving it would free it for the next account
+            // that asks. Both are refused here, on the one path every rename goes through.
+            if (OwnerAccount.IsReservedUsername(u, user.Username))
+                return "این نام کاربری در دسترس نیست.";
+            if (OwnerAccount.IsOwner(user.Username))
+                return "نام کاربری حساب مالک مجموعه قابل تغییر نیست.";
             user.Username = u;
             UpsertUser(conn, tx, user);
             return null;

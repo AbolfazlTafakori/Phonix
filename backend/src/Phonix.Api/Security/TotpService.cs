@@ -23,8 +23,18 @@ public static class TotpService
 
     // Validates a code against the secret, accepting the adjacent steps so a small clock skew or a code
     // entered right on a boundary still passes. Comparison is constant-time per candidate.
-    public static bool Verify(string secret, string code, int window = 1)
+    public static bool Verify(string secret, string code, int window = 1) =>
+        TryVerify(secret, code, out _, window);
+
+    // Same check, but reports WHICH time step matched. A TOTP code is valid for its whole step (and, with the
+    // skew window, for ~90 seconds either side), so on its own it is replayable inside that window — a code
+    // shoulder-surfed, phished, or read out of a proxy log can be submitted again by someone else while it is
+    // still live. Callers that gate real privilege (panel login, disabling 2FA, restoring a backup) burn the
+    // step through ITwoFactorGuard so each code works exactly once; the step number is what makes that
+    // possible without storing the code itself.
+    public static bool TryVerify(string secret, string code, out long matchedStep, int window = 1)
     {
+        matchedStep = 0;
         if (string.IsNullOrWhiteSpace(secret) || string.IsNullOrWhiteSpace(code)) return false;
         var normalized = new string(code.Where(char.IsDigit).ToArray());
         if (normalized.Length != Digits) return false;
@@ -36,7 +46,11 @@ public static class TotpService
         var step = DateTimeOffset.UtcNow.ToUnixTimeSeconds() / PeriodSeconds;
         for (var offset = -window; offset <= window; offset++)
         {
-            if (FixedTimeEquals(Compute(key, step + offset), normalized)) return true;
+            if (FixedTimeEquals(Compute(key, step + offset), normalized))
+            {
+                matchedStep = step + offset;
+                return true;
+            }
         }
         return false;
     }

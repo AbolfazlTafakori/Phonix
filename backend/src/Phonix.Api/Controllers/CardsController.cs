@@ -43,7 +43,9 @@ public class CardsController : ControllerBase
     public IActionResult Download(string id)
     {
         if (_files.OwnerOf(id) is not int ownerId) return BadRequest("شناسه فایل نامعتبر است.");
-        if (!this.OwnsOrStaff(ownerId)) return Forbid();
+        // Staff need the cards section specifically: a photo of someone's bank card is not general-purpose
+        // support material.
+        if (!this.OwnsOrSectionStaff(_store, ownerId, "cards")) return Forbid();
         var stored = _files.Open("cards", id);
         if (stored is null) return NotFound();
         return File(stored.Content, stored.ContentType);
@@ -57,7 +59,7 @@ public class CardsController : ControllerBase
     [HttpGet("user/{userId:int}")]
     public ActionResult<IEnumerable<BankCard>> ForUser(int userId)
     {
-        if (!this.OwnsOrStaff(userId)) return Forbid();
+        if (!this.OwnsOrSectionStaff(_store, userId, "cards")) return Forbid();
         return Ok(_store.GetUserCards(userId));
     }
 
@@ -67,6 +69,9 @@ public class CardsController : ControllerBase
     public ActionResult<BankCard> Add(AddCardInput input)
     {
         if (this.CurrentUserId() is not int userId) return Unauthorized();
+        // Same rule as KYC: the photo must be one this user uploaded, not any id they happen to name.
+        if (_files.OwnerOf(input.CardImage ?? "") != userId)
+            return BadRequest("تصویر کارت نامعتبر است. دوباره بارگذاری کنید.");
         var result = _store.AddCard(userId, input.CardNumber ?? "", input.HolderName ?? "", input.CardImage ?? "");
         if (result.Error is not null) return BadRequest(result.Error);
         return result.Card!;

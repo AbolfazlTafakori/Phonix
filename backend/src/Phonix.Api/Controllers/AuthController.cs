@@ -17,7 +17,7 @@ public record LoginInput(string Identifier, string Password, string? CaptchaId, 
 public record GoogleLoginInput(string Credential);
 // What the admin shell reads to confirm the current session may use the panel (admin-scoped staff).
 public record AdminContextDto(int Id, string Name, string Username, UserRole Role);
-public record ForgotInput(string Email);
+public record ForgotInput(string Email, string? CaptchaId = null, string? CaptchaText = null);
 public record TokenInput(string Token);
 public record ResetPasswordInput(string Token, string NewPassword);
 public record TwoFactorVerifyInput(string Token, string Code);
@@ -37,6 +37,7 @@ public class AuthController : ControllerBase
     private readonly IEmailSender _email;
     private readonly ISessionProtector _sessions;
     private readonly ITwoFactorChallenge _twoFactor;
+    private readonly ITwoFactorGuard _twoFactorGuard;
     private readonly ITelegramAlertSender _alerts;
     private readonly ICaptchaService _captcha;
     private readonly IMemoryCache _cache;
@@ -44,7 +45,8 @@ public class AuthController : ControllerBase
     private readonly IUserMailer _mailer;
     private readonly ILogger<AuthController> _logger;
     public AuthController(IDataStore store, IEmailSender email, ISessionProtector sessions,
-        ITwoFactorChallenge twoFactor, ITelegramAlertSender alerts, ICaptchaService captcha,
+        ITwoFactorChallenge twoFactor, ITwoFactorGuard twoFactorGuard, ITelegramAlertSender alerts,
+        ICaptchaService captcha,
         IMemoryCache cache, IHttpClientFactory httpFactory, IUserMailer mailer, ILogger<AuthController> logger)
     {
         _store = store;
@@ -52,6 +54,7 @@ public class AuthController : ControllerBase
         _mailer = mailer;
         _sessions = sessions;
         _twoFactor = twoFactor;
+        _twoFactorGuard = twoFactorGuard;
         _alerts = alerts;
         _captcha = captcha;
         _cache = cache;
@@ -147,6 +150,11 @@ public class AuthController : ControllerBase
             return BadRequest(passwordError);
         if (_store.UsernameExists(input.Username.Trim()))
             return Conflict("این نام کاربری قبلاً استفاده شده است.");
+        // The owner is identified by username, so signing up under it would inherit the owner-only sections
+        // the moment that account was ever made staff. Reserved even while the owner row doesn't exist yet
+        // (a Standby before its first snapshot) — that is exactly when the name would otherwise be free.
+        if (OwnerAccount.IsReservedUsername(input.Username.Trim()))
+            return Conflict("این نام کاربری قبلاً استفاده شده است.");
         if (_store.EmailExists(input.Email.Trim()))
             return Conflict("این ایمیل قبلاً ثبت شده است.");
 
@@ -155,9 +163,15 @@ public class AuthController : ControllerBase
         if (!string.IsNullOrWhiteSpace(input.ReferralCode))
             referredBy = _store.GetUserByUsername(input.ReferralCode.Trim())?.Id;
 
+        // The display name is free text that ends up in the panel, in order emails and in Telegram messages;
+        // it is a label, not a document, so it gets the same ceiling the profile editor applies.
+        const int maxNameLength = 80;
+        var name = input.Name.Trim();
+        if (name.Length > maxNameLength) name = name[..maxNameLength];
+
         var user = _store.RegisterUser(new AppUser
         {
-            Name = input.Name.Trim(),
+            Name = name,
             Username = input.Username.Trim(),
             Password = PasswordHasher.Hash(input.Password),
             Email = input.Email.Trim(),
@@ -188,6 +202,14 @@ public class AuthController : ControllerBase
     [HttpPost("forgot")]
     public async Task<IActionResult> Forgot(ForgotInput input)
     {
+        // The CAPTCHA is not about the reset itself (the token still has to reach the real inbox) — it is
+        // about who pays for the attempt. Without it this endpoint is a free, unauthenticated way to make the
+        // shop's mail server send to an address of the caller's choosing, repeatedly: a mail bomb aimed at a
+        // victim, sent from a domain whose reputation the shop depends on for its own order mail. Login and
+        // register already gate on it; this was the one anonymous path that sends mail and did not.
+        // Deliberately checked BEFORE the lookup, so it also fronts the account-existence timing difference.
+        if (CaptchaRequired && !_captcha.Validate(input.CaptchaId, input.CaptchaText))
+            return BadRequest("کد امنیتی تصویر نادرست است. دوباره تلاش کنید.");
         // generic response either way: never reveal whether an email exists.
         var user = _store.FindByLogin(input.Email?.Trim() ?? "");
         if (user is not null && !string.IsNullOrWhiteSpace(user.Email))
@@ -306,7 +328,10 @@ public class AuthController : ControllerBase
         if (baseName.Length < UsernamePolicy.MinLength) baseName = baseName.PadRight(UsernamePolicy.MinLength, '0');
         var candidate = baseName;
         var suffix = 0;
-        while (_store.UsernameExists(candidate)) candidate = baseName + ++suffix;
+        // Same reservation as Register: a Google signup whose email local-part happens to equal the owner
+        // username must be given a suffixed name, never the owner's handle.
+        while (_store.UsernameExists(candidate) || OwnerAccount.IsReservedUsername(candidate))
+            candidate = baseName + ++suffix;
         return candidate;
     }
 
@@ -395,12 +420,27 @@ public class AuthController : ControllerBase
             return Unauthorized("نشست تأیید دو‌مرحله‌ای نامعتبر یا منقضی شده است. دوباره وارد شوید.");
         var user = _store.GetUser(userId);
         if (user is null || user.Blocked) return Unauthorized("نشست نامعتبر است.");
-        if (!user.TwoFactorEnabled || !TotpService.Verify(user.TwoFactorSecret, input.Code ?? ""))
+        if (!user.TwoFactorEnabled)
+            return Unauthorized("کد تأیید نادرست است.");
+
+        // The guard, not TotpService, decides — it also burns the code's time step (so a captured code can't
+        // be replayed while it is still live) and counts failures against THIS ACCOUNT, which the per-IP
+        // limiter cannot do for an attacker spread across many addresses.
+        var check = _twoFactorGuard.Verify(user.Id, user.TwoFactorSecret, input.Code);
+        if (check != TwoFactorResult.Ok)
         {
-            _logger.LogWarning("Failed 2FA for {Username} (#{UserId}) from {ClientIp}",
-                user.Username, user.Id, ClientIp);
+            _logger.LogWarning("Failed 2FA ({Reason}) for {Username} (#{UserId}) from {ClientIp}",
+                check, user.Username, user.Id, ClientIp);
             NoteAuthFailure("2fa", user.Username);
             await TarpitAsync();
+            if (check == TwoFactorResult.LockedOut)
+            {
+                // Worth telling the owner: repeated wrong codes against a staff account that already passed
+                // the password step means the password itself is known to someone.
+                _ = _alerts.SendAlertAsync(
+                    $"⛔️ قفل موقت ورود دومرحله‌ای\nکاربر: {user.Username}\nIP: {ClientIp}");
+                return StatusCode(429, "به دلیل تلاش‌های ناموفق، ورود دومرحله‌ای این حساب موقتاً قفل شده است. چند دقیقه بعد دوباره تلاش کنید.");
+            }
             return Unauthorized("کد تأیید نادرست است.");
         }
         // The second factor is only ever requested during an admin-panel login, so a verified challenge

@@ -41,6 +41,18 @@ function withCsp(response: NextResponse, nonce: string): NextResponse {
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    // <object>/<embed> can execute in the page's origin, and default-src 'self' would still permit a
+    // self-hosted one — which uploaded media makes reachable. Nothing here uses plugins, so: none.
+    "object-src 'none'",
+    // This app embeds no iframes at all EXCEPT the sandboxed one the admin mailbox renders untrusted mail
+    // into, which is a srcdoc frame and needs no source permission. Anything else framing itself in is
+    // injection, so only same-origin is allowed and workers are pinned to 'self' rather than inheriting
+    // the looser script-src (where 'strict-dynamic' would otherwise carry over).
+    "frame-src 'self'",
+    "worker-src 'self' blob:",
+    // Any absolute http:// URL that survives in content gets fetched over TLS instead of silently
+    // downgrading the connection.
+    "upgrade-insecure-requests",
   ].join("; ");
   response.headers.set("Content-Security-Policy", csp);
   return response;

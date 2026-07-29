@@ -17,7 +17,12 @@ public class TwoFactorController : ControllerBase
     private const string Issuer = "Phoenix Verify";
 
     private readonly IDataStore _store;
-    public TwoFactorController(IDataStore store) => _store = store;
+    private readonly ITwoFactorGuard _guard;
+    public TwoFactorController(IDataStore store, ITwoFactorGuard guard)
+    {
+        _store = store;
+        _guard = guard;
+    }
 
     [HttpGet("status")]
     public ActionResult<TwoFactorStatusDto> Status()
@@ -56,8 +61,10 @@ public class TwoFactorController : ControllerBase
         if (user is null) return Unauthorized();
         if (string.IsNullOrWhiteSpace(user.TwoFactorSecret))
             return BadRequest("ابتدا فرایند راه‌اندازی را آغاز کنید.");
-        if (!TotpService.Verify(user.TwoFactorSecret, input.Code ?? ""))
-            return BadRequest("کد واردشده نادرست است.");
+        if (_guard.Verify(id, user.TwoFactorSecret, input.Code) is var check && check != TwoFactorResult.Ok)
+            return check == TwoFactorResult.LockedOut
+                ? StatusCode(429, "تلاش‌های ناموفق زیاد بوده است. چند دقیقه بعد دوباره تلاش کنید.")
+                : BadRequest("کد واردشده نادرست است.");
         _store.SetTwoFactorEnabled(id, true);
         return NoContent();
     }
@@ -69,8 +76,12 @@ public class TwoFactorController : ControllerBase
         var user = _store.GetUser(id);
         if (user is null) return Unauthorized();
         if (!user.TwoFactorEnabled) return NoContent();
-        if (!TotpService.Verify(user.TwoFactorSecret, input.Code ?? ""))
-            return BadRequest("برای غیرفعال‌سازی، کد فعلی را وارد کنید.");
+        // Turning the second factor OFF is the single most valuable thing a hijacked session can do, so this
+        // gets the same single-use + lockout treatment as logging in with it.
+        if (_guard.Verify(id, user.TwoFactorSecret, input.Code) is var check && check != TwoFactorResult.Ok)
+            return check == TwoFactorResult.LockedOut
+                ? StatusCode(429, "تلاش‌های ناموفق زیاد بوده است. چند دقیقه بعد دوباره تلاش کنید.")
+                : BadRequest("برای غیرفعال‌سازی، کد فعلی را وارد کنید.");
         _store.SetTwoFactorEnabled(id, false);
         return NoContent();
     }

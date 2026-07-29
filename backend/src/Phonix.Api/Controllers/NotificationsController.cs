@@ -53,7 +53,17 @@ public class NotificationsController : ControllerBase
         var body = (input.Body ?? "").Trim();
         if (title.Length == 0) return BadRequest("عنوان پیام الزامی است.");
         if (input.UserId is int uid && _store.GetUser(uid) is null) return BadRequest("کاربر یافت نشد.");
+        // The link is rendered as an href in the customer's notification bell. A notification can be
+        // BROADCAST to every user, so a "javascript:" or "data:" value here would be a stored injection
+        // shipped to the whole customer base by anyone holding the notifications section. The nonce-based
+        // CSP already refuses to execute those, but a defence that depends on one header holding is not a
+        // defence — this is meant to be an in-app destination, so only an in-app path is accepted.
         var link = string.IsNullOrWhiteSpace(input.Link) ? null : input.Link.Trim();
+        if (link is not null && !link.StartsWith('/'))
+            return BadRequest("لینک باید یک مسیر داخلی سایت باشد (با / شروع شود).");
+        // "//evil.example" is protocol-relative: it starts with '/' but leaves the site entirely.
+        if (link is not null && link.StartsWith("//", StringComparison.Ordinal))
+            return BadRequest("لینک باید یک مسیر داخلی سایت باشد (با / شروع شود).");
         return _store.AddNotification(input.UserId, title, body, link);
     }
 

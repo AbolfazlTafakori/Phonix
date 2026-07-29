@@ -17,6 +17,9 @@ export default function OrderBotPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [note, setNote] = useState<Note>(null);
+  // Write-only. A bot token IS the bot — whoever holds it can read this group and press its approve buttons —
+  // so the server never sends it back; an empty box means "keep the stored one".
+  const [token, setToken] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -38,7 +41,8 @@ export default function OrderBotPage() {
     setSaving(true);
     setNote(null);
     try {
-      setTg(await api.backup.telegram.update(tg));
+      setTg(await api.backup.telegram.update({ ...tg, orderBotToken: token || undefined }));
+      setToken("");
       setNote({ ok: true, text: "تنظیمات ذخیره شد." });
     } catch (e) {
       setNote({ ok: false, text: e instanceof Error ? e.message : "ذخیره ناموفق بود." });
@@ -85,7 +89,14 @@ export default function OrderBotPage() {
           {tg.orderBotEnabled && (
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Field label="توکن بات سفارشات (از BotFather)">
-                <input value={tg.orderBotToken} onChange={(e) => setField("orderBotToken", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="123456:ABC-DEF..." />
+                <input
+                  type="password"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  dir="ltr"
+                  className={`${inputCls} text-left`}
+                  placeholder={tg.hasOrderBotToken ? "ذخیره‌شده — خالی بگذارید تا تغییر نکند" : "123456:ABC-DEF..."}
+                />
               </Field>
               <Field label="شناسهٔ عددی گروه سفارشات (Chat ID)">
                 <input value={tg.orderChatId} onChange={(e) => setField("orderChatId", e.target.value.replace(/[^\d-]/g, ""))} dir="ltr" className={`${inputCls} text-left`} placeholder="-1001234567890" />

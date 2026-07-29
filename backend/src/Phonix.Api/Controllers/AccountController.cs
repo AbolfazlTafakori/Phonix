@@ -15,8 +15,33 @@ public record ReferralReportDto(long TotalEarned, int ReferredCount, IReadOnlyLi
 [ApiController]
 [Route("api/account")]
 [Authorize]
+// Every action here is a small JSON object; nothing uploads. Bounds what one request can make the server
+// parse and persist, the same way AuthController does.
+[RequestSizeLimit(16 * 1024)]
 public class AccountController : ControllerBase
 {
+    // Free-text profile fields go straight into the store and are then rendered back in the panel, in order
+    // emails and in Telegram messages. Without a ceiling, a customer can write a megabyte into their own
+    // display name and have it re-serialized on every read of every row that copies it. These are display
+    // values, not documents.
+    private const int MaxNameLength = 80;
+    private const int MaxPhoneLength = 20;
+
+    private static string Clamp(string value, int max)
+    {
+        var trimmed = value.Trim();
+        return trimmed.Length > max ? trimmed[..max] : trimmed;
+    }
+
+    // What UploadController hands back ("/api/upload/{id}"), plus the pre-protected-storage "/uploads/..."
+    // values still stored on older accounts, plus empty (clearing the picture). Everything else — an absolute
+    // URL to any host, a data: URI — is refused.
+    private static bool IsOwnUploadUrl(string? value) =>
+        string.IsNullOrEmpty(value)
+        || value.StartsWith("/api/upload/", StringComparison.Ordinal)
+        || value.StartsWith("/uploads/", StringComparison.Ordinal)
+        || value.StartsWith("/figma/", StringComparison.Ordinal);
+
     private readonly IDataStore _store;
     private readonly ISessionProtector _sessions;
     private readonly Services.IFileStorageService _files;
@@ -53,10 +78,16 @@ public class AccountController : ControllerBase
         // Capture the avatar being replaced so its now-orphaned file can be cleaned up after the update.
         var oldAvatar = _store.GetUser(id)?.Avatar;
         var newAvatar = input.Avatar?.Trim();
+        // The avatar is a client-supplied string that is then rendered as an <img src> to STAFF, in the user
+        // list and on every order. An arbitrary absolute URL there is a beacon: it reports the panel's IP and
+        // user-agent to whoever chose the URL, every time a staff member scrolls past that customer. Only the
+        // shop's own upload path (or nothing) is accepted.
+        if (input.Avatar is not null && !IsOwnUploadUrl(newAvatar))
+            return BadRequest("تصویر پروفایل نامعتبر است.");
         var ok = _store.UpdateUser(id, u =>
         {
-            if (input.Name is not null) u.Name = input.Name.Trim();
-            if (input.Phone is not null) u.Phone = input.Phone.Trim();
+            if (input.Name is not null) u.Name = Clamp(input.Name, MaxNameLength);
+            if (input.Phone is not null) u.Phone = Clamp(input.Phone, MaxPhoneLength);
             if (input.Avatar is not null) u.Avatar = newAvatar!;
         });
         if (!ok) return Unauthorized();

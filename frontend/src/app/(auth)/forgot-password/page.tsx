@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import AuthShell from "@/components/auth/AuthShell";
+import { useCaptcha } from "@/components/auth/Captcha";
 
 const RESET_IMAGE = "/figma/auth-reset.webp";
 
@@ -20,15 +21,27 @@ export default function ForgotPasswordPage() {
   const [identifier, setIdentifier] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
+  const captcha = useCaptcha();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
+    setError("");
     try {
-      await api.auth.forgot(identifier.trim());
+      await api.auth.forgot(identifier.trim(), captcha.id, captcha.text);
       setSent(true);
-    } catch {
-      setSent(true);
+    } catch (err) {
+      // The response is deliberately identical whether or not the account exists, so the only failure worth
+      // showing the user is a wrong CAPTCHA — anything else still gets the neutral "sent" screen, keeping
+      // this endpoint useless as an account-existence oracle.
+      const message = err instanceof Error ? err.message : "";
+      if (message.includes("کد امنیتی")) {
+        setError(message);
+        captcha.refresh(); // the challenge is single-use — spent whether right or wrong
+      } else {
+        setSent(true);
+      }
     } finally {
       setBusy(false);
     }
@@ -68,7 +81,39 @@ export default function ForgotPasswordPage() {
               <input value={identifier} onChange={(e) => setIdentifier(e.target.value)} dir="ltr" autoComplete="off" placeholder="ایمیل یا شماره موبایل" className="flex-1 bg-transparent text-left text-[13.5px] text-[var(--chat-ink)] outline-none placeholder:text-[var(--chat-muted)]" />
             </div>
 
-            <button type="submit" disabled={busy} className={`mt-1 ${gradBtn}`}>
+            <div className="flex items-center gap-2.5">
+              <div className="grid h-12 w-[150px] shrink-0 place-items-center overflow-hidden rounded-xl border border-[var(--chat-border)] bg-[#e9e9f2]">
+                {captcha.loading || !captcha.image ? (
+                  <span className="text-[11px] text-black/40">…</span>
+                ) : (
+                  // A server-rendered SVG data: URI, not a file next/image could optimize.
+                  <img src={captcha.image} alt="کد امنیتی" className="h-full w-full object-cover" />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={captcha.refresh}
+                title="تصویر جدید"
+                aria-label="دریافت تصویر جدید"
+                className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border border-[var(--chat-border)] text-[var(--chat-ink-2)] transition hover:bg-[#ff5a1f]/10"
+              >
+                ↻
+              </button>
+              <input
+                value={captcha.text}
+                onChange={(e) => captcha.setText(e.target.value)}
+                dir="ltr"
+                autoComplete="off"
+                placeholder="کد داخل تصویر"
+                className="h-12 flex-1 rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface)] px-3.5 text-center text-[13.5px] tracking-[0.3em] text-[var(--chat-ink)] outline-none transition placeholder:tracking-normal placeholder:text-[var(--chat-muted)] focus:border-[#ff7a2e] focus:ring-2 focus:ring-[#ff7a2e]/15"
+              />
+            </div>
+
+            {error && (
+              <p role="alert" className="text-[12px] leading-6 text-[#ef233c]">{error}</p>
+            )}
+
+            <button type="submit" disabled={busy || !captcha.text.trim()} className={`mt-1 ${gradBtn}`}>
               {busy ? "در حال ارسال..." : "ارسال لینک بازیابی"}
               {!busy && <Chevron />}
             </button>

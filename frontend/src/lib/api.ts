@@ -32,7 +32,9 @@ import type {
   PaymentMethod,
   PaymentMethodInput,
   PaymentSettings,
+  PaymentSettingsInput,
   EmailSettings,
+  EmailSettingsInput,
   MailFolder,
   MailPage,
   MailMessage,
@@ -50,6 +52,7 @@ import type {
   V2RayPlanInput,
   V2RayPublicPlan,
   TelegramSettings,
+  TelegramSettingsInput,
   Transaction,
   TxStatus,
   BankCard,
@@ -503,7 +506,7 @@ export const api = {
   },
   paymentSettings: {
     get: () => request<PaymentSettings>("/payment-settings"),
-    update: (body: PaymentSettings) => request<PaymentSettings>("/payment-settings", { method: "PUT", body: json(body) }),
+    update: (body: PaymentSettingsInput) => request<PaymentSettings>("/payment-settings", { method: "PUT", body: json(body) }),
   },
   mailbox: {
     folders: () => request<MailFolder[]>("/mailbox/folders"),
@@ -600,7 +603,7 @@ export const api = {
   },
   emailSettings: {
     get: () => request<EmailSettings>("/email-settings"),
-    update: (body: EmailSettings) => request<EmailSettings>("/email-settings", { method: "PUT", body: json(body) }),
+    update: (body: EmailSettingsInput) => request<EmailSettings>("/email-settings", { method: "PUT", body: json(body) }),
     test: (to: string) => request<{ ok: boolean }>("/email-settings/test", { method: "POST", body: json({ to }) }),
   },
   backup: {
@@ -686,19 +689,39 @@ export const api = {
       }
       return (await res.json()) as { ok: boolean };
     },
-    downloadMedia: async (kind: "public" | "sensitive"): Promise<{ blob: Blob; filename: string }> => {
-      const res = await fetch(`${BASE}/api/backup/media/${kind}`, { credentials: "include", cache: "no-store" });
+    // Public site imagery — no personal data, so a plain download.
+    downloadPublicMedia: async (): Promise<{ blob: Blob; filename: string }> => {
+      const res = await fetch(`${BASE}/api/backup/media/public`, { credentials: "include", cache: "no-store" });
       if (!res.ok) throw new Error(`خطا در دانلود رسانه (${res.status})`);
       const match = (res.headers.get("Content-Disposition") ?? "").match(/filename\*?="?([^";]+)"?/i);
-      return { blob: await res.blob(), filename: match?.[1] ?? `phonix-media-${kind}.zip` };
+      return { blob: await res.blob(), filename: match?.[1] ?? "phonix-media-public.zip" };
+    },
+    // Bulk exports of customers' identity documents (and the full backup, which contains them) re-authenticate
+    // with the server's backup key and a fresh 2FA code — the same three factors sending them to Telegram
+    // already needed. Otherwise one stolen admin cookie is the entire cost of exfiltrating every ID card,
+    // selfie, bank-card photo and receipt in the shop.
+    exportGuarded: async (
+      what: "media/sensitive" | "full",
+      backupKey: string,
+      twoFactorCode: string,
+    ): Promise<{ blob: Blob; filename: string }> => {
+      const csrf = getCsrfToken();
+      const fd = new FormData();
+      fd.append("backupKey", backupKey);
+      fd.append("twoFactorCode", twoFactorCode);
+      const res = await fetch(`${BASE}/api/backup/${what}`, {
+        method: "POST", credentials: "include", cache: "no-store",
+        headers: { ...(csrf ? { "X-CSRF-Token": csrf } : {}) }, body: fd,
+      });
+      if (!res.ok) {
+        let msg = `خطا در دانلود (${res.status})`;
+        try { const t = await res.text(); if (t) msg = t.replace(/^"|"$/g, ""); } catch { /* ignore */ }
+        throw new Error(msg);
+      }
+      const match = (res.headers.get("Content-Disposition") ?? "").match(/filename\*?="?([^";]+)"?/i);
+      return { blob: await res.blob(), filename: match?.[1] ?? "phonix-backup.zip" };
     },
     // full manual backup — everything (data + all media) in one file
-    downloadFull: async (): Promise<{ blob: Blob; filename: string }> => {
-      const res = await fetch(`${BASE}/api/backup/full`, { credentials: "include", cache: "no-store" });
-      if (!res.ok) throw new Error(`خطا در دانلود پشتیبان کامل (${res.status})`);
-      const match = (res.headers.get("Content-Disposition") ?? "").match(/filename\*?="?([^";]+)"?/i);
-      return { blob: await res.blob(), filename: match?.[1] ?? "phonix-full.phxbak" };
-    },
     restoreUpload: async (path: string, file: File, backupKey: string, twoFactorCode: string): Promise<{ ok: boolean }> => {
       const csrf = getCsrfToken();
       const fd = new FormData();
@@ -718,7 +741,7 @@ export const api = {
     },
     telegram: {
       get: () => request<TelegramSettings>("/backup/telegram"),
-      update: (body: TelegramSettings) => request<TelegramSettings>("/backup/telegram", { method: "PUT", body: json(body) }),
+      update: (body: TelegramSettingsInput) => request<TelegramSettings>("/backup/telegram", { method: "PUT", body: json(body) }),
       test: () => request<{ ok: boolean }>("/backup/telegram/test", { method: "POST" }),
       testAlert: () => request<{ ok: boolean }>("/backup/telegram/test-alert", { method: "POST" }),
     },
@@ -779,7 +802,10 @@ export const api = {
       disable: (code: string) => request<void>("/auth/2fa/disable", { method: "POST", body: json({ code }) }),
     },
     logout: () => request<void>("/auth/logout", { method: "POST" }),
-    forgot: (email: string) => request<{ ok: boolean }>("/auth/forgot", { method: "POST", body: json({ email }) }),
+    // CAPTCHA-gated like login/register: this is an anonymous endpoint that makes the shop's mail server
+    // send to an address the caller chooses, so it is a mail-bomb lever without one.
+    forgot: (email: string, captchaId?: string, captchaText?: string) =>
+      request<{ ok: boolean }>("/auth/forgot", { method: "POST", body: json({ email, captchaId, captchaText }) }),
     verifyEmail: (token: string) => request<{ ok: boolean }>("/auth/verify-email", { method: "POST", body: json({ token }) }),
     resendVerification: () => request<{ ok: boolean }>("/auth/resend-verification", { method: "POST" }),
     resetPassword: (token: string, newPassword: string) =>

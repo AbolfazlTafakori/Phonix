@@ -16,6 +16,9 @@ export default function ReceiptBotPage() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [note, setNote] = useState<Note>(null);
+  // Write-only. A bot token IS the bot — whoever holds it can read this chat and press its approve buttons —
+  // so the server never sends it back; an empty box means "keep the stored one".
+  const [token, setToken] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -37,7 +40,8 @@ export default function ReceiptBotPage() {
     setSaving(true);
     setNote(null);
     try {
-      setTg(await api.backup.telegram.update(tg));
+      setTg(await api.backup.telegram.update({ ...tg, receiptBotToken: token || undefined }));
+      setToken("");
       setNote({ ok: true, text: "تنظیمات ذخیره شد." });
     } catch (e) {
       setNote({ ok: false, text: e instanceof Error ? e.message : "ذخیره ناموفق بود." });
@@ -84,7 +88,14 @@ export default function ReceiptBotPage() {
           {tg.receiptBotEnabled && (
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
               <Field label="توکن بات رسید (از BotFather)">
-                <input value={tg.receiptBotToken} onChange={(e) => setField("receiptBotToken", e.target.value)} dir="ltr" className={`${inputCls} text-left`} placeholder="123456:ABC-DEF..." />
+                <input
+                  type="password"
+                  value={token}
+                  onChange={(e) => setToken(e.target.value)}
+                  dir="ltr"
+                  className={`${inputCls} text-left`}
+                  placeholder={tg.hasReceiptBotToken ? "ذخیره‌شده — خالی بگذارید تا تغییر نکند" : "123456:ABC-DEF..."}
+                />
               </Field>
               <Field label="شناسهٔ عددی چت رسید (Chat ID)">
                 <input value={tg.receiptChatId} onChange={(e) => setField("receiptChatId", e.target.value.replace(/[^\d-]/g, ""))} dir="ltr" className={`${inputCls} text-left`} placeholder="-1001234567890" />
