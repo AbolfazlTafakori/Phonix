@@ -5,7 +5,7 @@ export type MenuItem = {
 };
 
 export const accountMenu: MenuItem[] = [
-  { label: "پروفایل من", href: "/account", icon: "user" },
+  { label: "پروفایل من", href: "/account/profile", icon: "user" },
   { label: "کیف پول", href: "/account/wallet", icon: "wallet" },
   { label: "کارت‌های من", href: "/account/cards", icon: "card" },
   { label: "سفارشات من", href: "/account/orders", icon: "orders" },
