@@ -30,13 +30,15 @@ public static class OrderRules
         return net + Share(order.VatAmount) + Share(order.FeeAmount);
     }
 
-    // What is still owed back to stock for a line: the portion of its quantity whose accounts were never
-    // handed over. A delivered account keeps its stock spent.
+    // What is still owed back to stock for a line: the portion of its quantity that is still genuinely
+    // outstanding. A delivered account keeps its stock spent; a REJECTED account already had its stock (or
+    // V2Ray slot) restored at the moment it was rejected (see RejectUnit) — counting it here too would
+    // restore the same seat's stock twice.
     public static long UndeliveredQuantity(Order order, OrderItem line)
     {
         var lineUnits = order.Units.Where(u => u.ProductId == line.ProductId && (u.Plan ?? "") == (line.Plan ?? "")).ToList();
         if (lineUnits.Count == 0) return line.Quantity;
-        return (long)line.Quantity * lineUnits.Count(u => !u.Delivered) / lineUnits.Count;
+        return (long)line.Quantity * lineUnits.Count(u => !u.Delivered && !u.Rejected) / lineUnits.Count;
     }
 
     // The order-level delivery text, stitched from every delivered account in order. A single-account order

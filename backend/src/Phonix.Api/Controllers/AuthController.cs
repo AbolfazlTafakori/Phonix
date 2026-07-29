@@ -27,6 +27,10 @@ public record LoginResultDto(bool RequiresTwoFactor, string? ChallengeToken, str
 [ApiController]
 [Route("api/auth")]
 [EnableRateLimiting("auth")]
+// Every action here is plain JSON with no file uploads — a few hundred bytes in the worst case (register's
+// name/username/email/password). 16 KB is generous headroom while still bounding how much oversized-body
+// parsing/hashing work an unauthenticated caller can force per request.
+[RequestSizeLimit(16 * 1024)]
 public class AuthController : ControllerBase
 {
     private readonly IDataStore _store;
@@ -370,8 +374,14 @@ public class AuthController : ControllerBase
         }
         else if (!user.EmailVerified)
         {
-            // A verified Google email is proof enough to mark the linked account verified.
-            _store.UpdateUser(user.Id, u => u.EmailVerified = true);
+            // An unverified account's email was never proven to belong to whoever registered it — anyone can
+            // type someone else's address at signup. Silently logging the real owner into that account here
+            // would hand them (and only appear to hand them) a squatted account the original registrant's
+            // password still opens. Refuse the merge and point at password reset instead: it mails a fresh
+            // token to this same, now Google-confirmed, address and rotates the security stamp, so the real
+            // owner reclaims the account and locks out whoever squatted the email — without ever trusting an
+            // unverified local record as identity proof.
+            return Conflict("این ایمیل قبلاً با یک حساب تأییدنشده ثبت شده است. برای ورود، ابتدا از گزینه «فراموشی گذرواژه» استفاده کنید.");
         }
 
         var session = IssueSession(user, adminScope: false);

@@ -157,6 +157,20 @@ try
                     PermitLimit = authPermitLimit,
                     QueueLimit = 0,
                 }));
+        // Discount-code preview never consumes a code and returns its exact amount, so it doubles as a free
+        // oracle for enumerating active promo codes by brute force. The 300/min global limiter above still
+        // applies on top of this, but budgets that across the whole API; this gives the one truly
+        // guessable-secret endpoint its own tighter ceiling. Partitioned by IP (not user id) because the rate
+        // limiter middleware runs before authentication in the pipeline, so no user claim is available yet.
+        options.AddPolicy("discount-validate", context =>
+            RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    Window = TimeSpan.FromMinutes(1),
+                    PermitLimit = 20,
+                    QueueLimit = 0,
+                }));
     });
 
     const string frontendCors = "frontend";

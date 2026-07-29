@@ -33,7 +33,13 @@ public class EmailSender : IEmailSender
         var settings = _store.GetEmailSettings();
         if (!settings.Enabled || string.IsNullOrWhiteSpace(settings.Host))
         {
-            _logger.LogInformation("EMAIL (SMTP not configured, not sent) → {To} | {Subject}\n{Body}", to, subject, body);
+            // Deliberately NOT logging `body` here: many of these are password-reset/email-change links —
+            // single-use secrets. Application logs are readable by any Admin via the log-download feature,
+            // and get copied into backups/external aggregators, so writing the full body would turn "SMTP
+            // isn't configured yet" (a common fresh-install or misconfiguration state, not attacker-controlled)
+            // into a token-harvesting channel. to/subject alone (already what the success/failure paths below
+            // log) is enough for an operator to notice mail isn't going out.
+            _logger.LogInformation("EMAIL (SMTP not configured, not sent) → {To} | {Subject}", to, subject);
             _log.Record(to, subject, success: false, error: "SMTP پیکربندی نشده است.");
             return false;
         }

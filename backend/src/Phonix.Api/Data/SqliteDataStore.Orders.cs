@@ -608,22 +608,28 @@ LIMIT 1;",
                 p.Stock += OrderRules.UndeliveredQuantity(o, line);
                 UpsertProduct(conn, tx, p);
             }
-            // A capped V2Ray plan gets its places back for whatever was not delivered.
+            // A capped V2Ray plan gets its places back for whatever is still outstanding. A REJECTED unit's
+            // slot was already released by RejectUnit — including it here would free the same slot twice,
+            // letting the plan oversell past its real cap.
             ReleaseV2RayPlanSlots(conn, tx, o.Units
-                .Where(u => !u.Delivered && u.PlanId is int)
+                .Where(u => !u.Delivered && !u.Rejected && u.PlanId is int)
                 .Select(u => (u.PlanId!.Value, 1)));
-            // Put back any seats still merely reserved for an undelivered unit (no-op for the item pool).
-            foreach (var u in o.Units.Where(u => !u.Delivered))
+            // Put back any seats still merely reserved for a still-outstanding unit (no-op for the item pool).
+            // A rejected unit's reservation was already released by RejectUnit.
+            foreach (var u in o.Units.Where(u => !u.Delivered && !u.Rejected))
                 UpdateReservedSlots(conn, tx, o.Id, u.Id, slot =>
                 {
                     slot.Status = StockItemStatus.Available; slot.OrderId = null; slot.UnitId = null;
                 });
 
-            // The buyer keeps whatever was already delivered, so its value is NOT refundable.
-            var deliveredValue = o.Units.Where(u => u.Delivered).Sum(u => UnitRefundAmount(o, u));
+            // The buyer keeps whatever was already delivered, so its value is NOT refundable. A REJECTED
+            // unit was already refunded at the moment it was rejected — RefundedAmount is that payout's own
+            // ledger entry, so it must be excluded here too, or the same money goes out twice.
+            var settledValue = o.Units.Where(u => u.Delivered).Sum(u => UnitRefundAmount(o, u))
+                + o.Units.Where(u => u.Rejected).Sum(u => u.RefundedAmount);
             // refund what was actually collected (full total once Preparing, else the wallet portion) MINUS the
-            // value of the accounts already delivered.
-            var collected = Math.Max(0, (o.Status == OrderStatus.Preparing ? o.Total : o.WalletPaid) - deliveredValue);
+            // value already settled (delivered, kept by the buyer — or rejected, already refunded).
+            var collected = Math.Max(0, (o.Status == OrderStatus.Preparing ? o.Total : o.WalletPaid) - settledValue);
             if (collected > 0)
             {
                 var buyer = LoadUser(conn, tx, o.UserId);
@@ -918,6 +924,12 @@ LIMIT 1;",
             EnsureInvoiceNumber(conn, tx, o);
             AppendOrderHistory(o, from, OrderStatus.Completed, changedBy, "تعیین تکلیف همه‌ی اکانت‌ها");
             Notify(conn, tx, o.UserId, OrderNotices.Ready(o));
+            // This is a genuine first-time transition into Completed (the guard above already refused a
+            // second call once o.Status is Completed), so it needs the same referral credit every other
+            // completion path (SetOrderStatus, DeliverOrder, DeliverUnit) already gives — this one was
+            // missing it, silently under-paying the referrer whenever an order finishes via a rejection
+            // settling its last outstanding unit rather than a delivery.
+            CreditReferralTx(conn, tx, o, ReadSingleton<PricingSettings>(conn, tx, PricingKey));
         }
     }
 

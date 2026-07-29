@@ -14,4 +14,7 @@ public static class TxTypes
     // a card-to-card payment for an order's gateway remainder; pending until staff verify the receipt,
     // and approving it advances the linked order to preparing (it does NOT credit the wallet).
     public const string OrderPayment = "پرداخت سفارش";
+    // a staff-initiated manual wallet correction outside the normal top-up/refund/withdraw flows (no
+    // receipt, no linked order) — always recorded so an adjustment is traceable to who made it and why.
+    public const string AdminAdjustment = "اصلاح دستی مدیر";
 }

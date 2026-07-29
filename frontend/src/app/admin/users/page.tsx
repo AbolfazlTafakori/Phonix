@@ -241,6 +241,7 @@ function UserDrawer({
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
   const [walletAmount, setWalletAmount] = useState(0);
+  const [walletReason, setWalletReason] = useState("");
   const [walletBusy, setWalletBusy] = useState(false);
 
   useEffect(() => {
@@ -255,6 +256,7 @@ function UserDrawer({
         note: user.note ?? "",
       });
       setWalletAmount(0);
+      setWalletReason("");
     } else {
       setDraft(null);
     }
@@ -274,11 +276,12 @@ function UserDrawer({
   }
 
   async function adjust(sign: 1 | -1) {
-    if (!user || walletAmount <= 0) return;
+    if (!user || walletAmount <= 0 || !walletReason.trim()) return;
     setWalletBusy(true);
     try {
-      onApply(await api.users.adjustWallet(user.id, { amount: sign * walletAmount }));
+      onApply(await api.users.adjustWallet(user.id, { amount: sign * walletAmount, reason: walletReason.trim() }));
       setWalletAmount(0);
+      setWalletReason("");
     } finally {
       setWalletBusy(false);
     }
@@ -376,19 +379,26 @@ function UserDrawer({
               />
               <button
                 onClick={() => adjust(1)}
-                disabled={walletBusy || walletAmount <= 0}
+                disabled={walletBusy || walletAmount <= 0 || !walletReason.trim()}
                 className="grid h-10 w-20 place-items-center rounded-xl bg-emerald-500/15 text-sm font-bold text-emerald-400 transition hover:bg-emerald-500/25 disabled:opacity-40"
               >
                 {walletBusy ? <Spinner /> : "شارژ"}
               </button>
               <button
                 onClick={() => adjust(-1)}
-                disabled={walletBusy || walletAmount <= 0}
+                disabled={walletBusy || walletAmount <= 0 || !walletReason.trim()}
                 className="grid h-10 w-20 place-items-center rounded-xl bg-rose-500/15 text-sm font-bold text-rose-400 transition hover:bg-rose-500/25 disabled:opacity-40"
               >
                 کسر
               </button>
             </div>
+            {/* Mandatory — the backend now records every manual adjustment against a reason so it's auditable. */}
+            <input
+              value={walletReason}
+              onChange={(e) => setWalletReason(e.target.value)}
+              placeholder="دلیل اصلاح موجودی (الزامی)"
+              className={`${inputCls} mt-2 h-10 w-full`}
+            />
           </div>
 
           <label>

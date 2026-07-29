@@ -352,6 +352,50 @@ public class ApiIntegrationTests : IClassFixture<PhonixAppFactory>
         Assert.Equal(HttpStatusCode.NoContent, (await _client.SendAsync(Authed(HttpMethod.Delete, $"/api/staff/{created.Id}", admin))).StatusCode);
     }
 
+    // Regression: AdjustWallet used to inherit UsersController's class-level [AdminPermission("users")], so
+    // any Support account with the routine "users" permission (customer profile management — no money
+    // access implied) could mint or drain wallet balance with no receipt or audit trail. It now requires the
+    // same "transactions" permission every other money-moving endpoint in this codebase already requires.
+    [Fact]
+    public async Task Wallet_adjustment_requires_the_transactions_permission_not_just_users()
+    {
+        var admin = await LoginTokenAsync("reza", "1234");
+
+        await RegisterAsync("usermgr2", "usermgr2@example.com", "test1234");
+        var create = await _client.SendAsync(Authed(HttpMethod.Post, "/api/staff", admin, new
+        {
+            username = "usermgr2", role = "Support", permissions = new[] { "users" },
+        }));
+        Assert.Equal(HttpStatusCode.OK, create.StatusCode);
+        var created = await create.Content.ReadFromJsonAsync<CreatedStaff>();
+        var staff = await LoginTokenAsync("usermgr2", "test1234");
+
+        var victimId = await RegisterAsync("walletvictim", "walletvictim@example.com", "pass1234");
+
+        // "users" alone must not reach the wallet endpoint at all.
+        var denied = await _client.SendAsync(Authed(HttpMethod.Post, $"/api/users/{victimId}/wallet", staff,
+            new { amount = 500_000_000, reason = "test" }));
+        Assert.Equal(HttpStatusCode.Forbidden, denied.StatusCode);
+
+        // Re-grant with "transactions" instead: the endpoint opens up, but a reason is still mandatory —
+        // every manual adjustment must be attributable.
+        await _client.SendAsync(Authed(HttpMethod.Put, $"/api/staff/{created!.Id}", admin, new
+        {
+            role = "Support", permissions = new[] { "transactions" },
+        }));
+        var financeStaff = await LoginTokenAsync("usermgr2", "test1234");
+
+        var noReason = await _client.SendAsync(Authed(HttpMethod.Post, $"/api/users/{victimId}/wallet", financeStaff,
+            new { amount = 10_000 }));
+        Assert.Equal(HttpStatusCode.BadRequest, noReason.StatusCode);
+
+        var allowed = await _client.SendAsync(Authed(HttpMethod.Post, $"/api/users/{victimId}/wallet", financeStaff,
+            new { amount = 10_000, reason = "correction" }));
+        Assert.Equal(HttpStatusCode.OK, allowed.StatusCode);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await _client.SendAsync(Authed(HttpMethod.Delete, $"/api/staff/{created.Id}", admin))).StatusCode);
+    }
+
     [Fact]
     public async Task Email_must_be_unique_across_accounts()
     {

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Phonix.Api.Data;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
@@ -49,7 +50,10 @@ public class DiscountController : ControllerBase
     [HttpDelete("{id:int}")]
     public IActionResult Delete(int id) => _store.DeleteDiscountCode(id) ? NoContent() : NotFound();
 
-    // any signed-in customer can preview a code against their cart subtotal (does not consume it).
+    // any signed-in customer can preview a code against their cart subtotal (does not consume it). Rate
+    // limited on its own — see the policy comment in Program.cs — since a preview that names the exact
+    // discount amount is otherwise a free oracle for brute-forcing active promo codes.
+    [EnableRateLimiting("discount-validate")]
     [HttpPost("validate")]
     public ActionResult<DiscountResultDto> Validate(DiscountValidateInput input)
     {
