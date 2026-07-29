@@ -45,7 +45,6 @@ export default function AdminSettingsPage() {
   const [loading, setLoading] = useState(true);
 
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState("");
@@ -57,13 +56,22 @@ export default function AdminSettingsPage() {
   const [pwMsg, setPwMsg] = useState("");
   const [pwError, setPwError] = useState("");
 
+  // Change email is its own flow (not part of saveProfile): the address never changes on this save, only
+  // once the new inbox confirms it via /account/confirm-email-change — same reasoning as the customer
+  // account panel, and arguably more important here since this is a staff/admin account.
+  const [changingEmail, setChangingEmail] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailError, setEmailError] = useState("");
+  const [emailSentTo, setEmailSentTo] = useState("");
+
   useEffect(() => {
     api.account
       .me()
       .then((u) => {
         setMe(u);
         setName(u.name);
-        setEmail(u.email);
         setPhone(u.phone);
       })
       .catch(() => {})
@@ -74,11 +82,27 @@ export default function AdminSettingsPage() {
     setSavingProfile(true);
     setProfileMsg("");
     try {
-      const updated = await api.account.updateMe({ name, email, phone });
+      const updated = await api.account.updateMe({ name, phone });
       setMe(updated);
       setProfileMsg("اطلاعات ذخیره شد.");
     } finally {
       setSavingProfile(false);
+    }
+  }
+
+  async function submitEmailChange() {
+    setSavingEmail(true);
+    setEmailError("");
+    try {
+      await api.account.changeEmail({ currentPassword: emailPassword, newEmail });
+      setEmailSentTo(newEmail);
+      setChangingEmail(false);
+      setNewEmail("");
+      setEmailPassword("");
+    } catch (e) {
+      setEmailError(e instanceof Error ? e.message : "درخواست تغییر ایمیل ناموفق بود.");
+    } finally {
+      setSavingEmail(false);
     }
   }
 
@@ -128,9 +152,6 @@ export default function AdminSettingsPage() {
             <Field label="نام کاربری">
               <input value={me?.username ?? ""} dir="ltr" disabled className={`${inputCls} text-left opacity-60`} />
             </Field>
-            <Field label="ایمیل">
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} dir="ltr" className={`${inputCls} text-left`} />
-            </Field>
             <Field label="شماره تماس">
               <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} dir="ltr" className={`${inputCls} text-left`} />
             </Field>
@@ -141,6 +162,36 @@ export default function AdminSettingsPage() {
             </button>
             {profileMsg && <span className="text-sm font-medium text-emerald-400">{profileMsg}</span>}
           </div>
+        </Card>
+
+        <Card className="p-6">
+          <h3 className="mb-5 text-lg font-bold text-white">ایمیل حساب</h3>
+          {emailSentTo ? (
+            <p className="text-sm leading-7 text-white/60">
+              یک لینک تأیید به <b dir="ltr" className="text-white">{emailSentTo}</b> ارسال شد. تا زمانی که آن را تأیید نکنید، ایمیل فعلی ({me?.email}) بدون تغییر می‌ماند.
+            </p>
+          ) : changingEmail ? (
+            <div className="grid gap-5">
+              <Field label="ایمیل جدید">
+                <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} dir="ltr" className={`${inputCls} text-left`} />
+              </Field>
+              <Field label="گذرواژه فعلی">
+                <input type="password" value={emailPassword} onChange={(e) => setEmailPassword(e.target.value)} className={inputCls} />
+              </Field>
+              {emailError && <p className="text-sm text-rose-400">{emailError}</p>}
+              <div className="flex items-center gap-3">
+                <button onClick={submitEmailChange} disabled={savingEmail || !newEmail || !emailPassword} className="flex h-11 items-center rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60">
+                  {savingEmail ? <Spinner /> : "ارسال لینک تأیید"}
+                </button>
+                <button onClick={() => { setChangingEmail(false); setEmailError(""); setNewEmail(""); setEmailPassword(""); }} className="h-11 rounded-xl border border-white/10 px-6 text-sm font-bold text-white/70 transition hover:bg-white/5">انصراف</button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <span dir="ltr" className="text-sm font-medium text-white">{me?.email || "—"}</span>
+              <button onClick={() => setChangingEmail(true)} className="text-sm font-bold text-[#3a64f2] hover:text-[#6b8bff]">تغییر ایمیل</button>
+            </div>
+          )}
         </Card>
 
         <Card className="p-6">

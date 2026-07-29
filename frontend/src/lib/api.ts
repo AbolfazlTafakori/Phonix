@@ -298,12 +298,18 @@ export const api = {
   },
   account: {
     me: () => request<User>("/account/me"),
-    updateMe: (body: { name?: string; email?: string; phone?: string; username?: string; avatar?: string }) =>
+    // Email is deliberately not here — the address never changes on this call, only after the new inbox
+    // confirms it. See changeEmail/confirmEmailChange.
+    updateMe: (body: { name?: string; phone?: string; username?: string; avatar?: string }) =>
       request<User>("/account/me", { method: "PUT", body: json(body) }),
     transactions: () => request<Transaction[]>("/account/transactions"),
     referrals: () => request<ReferralReport>("/account/referrals"),
     changePassword: (body: { currentPassword: string; newPassword: string }) =>
       request<void>("/account/password", { method: "PUT", body: json(body) }),
+    changeEmail: (body: { currentPassword: string; newEmail: string }) =>
+      request<{ ok: boolean }>("/account/change-email", { method: "POST", body: json(body) }),
+    confirmEmailChange: (token: string) =>
+      request<{ ok: boolean }>("/account/confirm-email-change", { method: "POST", body: json({ token }) }),
   },
   // Public image upload (avatars, site/admin imagery). Goes through the authenticated, CSRF-protected
   // backend endpoint and returns an absolute URL usable directly as an <img src>.

@@ -311,6 +311,22 @@ CREATE TABLE IF NOT EXISTS SyncRowVersion (
     PRIMARY KEY (EntityTable, EntityId)
 );
 
+-- Single-use links (email verify, password reset, ...): was an in-memory ConcurrentDictionary, which meant
+-- every restart/redeploy silently invalidated every outstanding email link, even ones minted seconds earlier.
+-- Row-per-token here so a link survives exactly as long as its own ExpiresAt says, restarts included. Not part
+-- of any backup/restore snapshot (like SyncOutbox below) — these are short-lived one-time secrets, not
+-- business data to restore.
+-- Data carries an optional payload (e.g. the pending new address for a change-email token) that the
+-- purpose alone can't express; verify/reset tokens leave it NULL.
+CREATE TABLE IF NOT EXISTS Tokens (
+    Token     TEXT PRIMARY KEY,
+    UserId    INTEGER NOT NULL,
+    Purpose   TEXT NOT NULL,
+    ExpiresAt TEXT NOT NULL,
+    Data      TEXT NULL
+);
+CREATE INDEX IF NOT EXISTS IX_Tokens_ExpiresAt ON Tokens(ExpiresAt);
+
 -- Dead-letter queue for cluster sync: a remote outbox entry that threw while being applied is parked here
 -- (keyed by its origin OutboxId) INSTEAD of blocking the cursor forever. The sync loop retries these on a
 -- back-off up to a cap; a permanently poisonous event is left visible with its error for an operator to see.

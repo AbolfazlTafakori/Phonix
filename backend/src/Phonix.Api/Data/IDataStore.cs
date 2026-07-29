@@ -126,8 +126,10 @@ public interface IDataStore
     string RotateSecurityStamp(int userId);
     bool SetTwoFactorSecret(int userId, string secret);
     bool SetTwoFactorEnabled(int userId, bool enabled);
-    string CreateToken(int userId, string purpose, TimeSpan lifetime);
+    string CreateToken(int userId, string purpose, TimeSpan lifetime, string? data = null);
     int? ConsumeToken(string? token, string purpose);
+    // Like ConsumeToken, but also hands back the payload a purpose like "change-email" stashed at creation.
+    (int UserId, string? Data)? ConsumeTokenWithData(string? token, string purpose);
 
     // ── Admin sidebar badges ────────────────────────────────────────────────────────────────────────
     AdminBadgeCounts GetAdminBadgeCounts();

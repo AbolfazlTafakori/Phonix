@@ -157,17 +157,18 @@ function Ico({ paths, stroke = "currentColor", className = "" }: { paths: string
 
 // ─── main ────────────────────────────────────────────────────────────────────
 
-// Account details card: shows username / email / phone and lets the user edit them inline (uses the
-// existing PUT /account/me). Brought back from the previous theme, placed above the completion card.
+// Account details card: shows username / phone and lets the user edit them inline (uses the existing
+// PUT /account/me). Email is deliberately separate (ChangeEmailRow below) — it never changes on this save,
+// only after the new address confirms it.
 type ProfileFields = { name: string; username: string; email: string; phone: string; emailVerified?: boolean };
 function AccountInfoCard({ me, onSaved }: { me: ProfileFields | null; onSaved: () => Promise<void> }) {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving]   = useState(false);
   const [err, setErr]         = useState("");
-  const [form, setForm]       = useState({ name: "", username: "", email: "", phone: "" });
+  const [form, setForm]       = useState({ name: "", username: "", phone: "" });
 
   useEffect(() => {
-    if (me && !editing) setForm({ name: me.name, username: me.username, email: me.email, phone: me.phone });
+    if (me && !editing) setForm({ name: me.name, username: me.username, phone: me.phone });
   }, [me, editing]);
 
   async function save() {
@@ -186,17 +187,9 @@ function AccountInfoCard({ me, onSaved }: { me: ProfileFields | null; onSaved: (
   const inputCls = "h-10 w-full rounded-lg border px-3 text-[13px] outline-none";
   const inputStyle = { borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-title)" } as React.CSSProperties;
 
-  const rows: { label: string; key: keyof typeof form; value: string; ltr?: boolean; badge?: React.ReactNode }[] = [
+  const rows: { label: string; key: keyof typeof form; value: string; ltr?: boolean }[] = [
     { label: "نام و نام خانوادگی", key: "name", value: me?.name || "—" },
     { label: "نام کاربری", key: "username", value: me?.username ? `@${me.username}` : "—", ltr: true },
-    {
-      label: "ایمیل", key: "email", value: me?.email || "—", ltr: true,
-      badge: me?.email ? (
-        <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${me.emailVerified ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"}`}>
-          {me.emailVerified ? "تأییدشده" : "تأیید نشده"}
-        </span>
-      ) : null,
-    },
     { label: "شماره تماس", key: "phone", value: me?.phone || "—", ltr: true },
   ];
 
@@ -217,10 +210,10 @@ function AccountInfoCard({ me, onSaved }: { me: ProfileFields | null; onSaved: (
 
         {editing ? (
           <div className="grid gap-3 sm:grid-cols-2">
-            {(["name", "username", "email", "phone"] as const).map((k) => (
+            {(["name", "username", "phone"] as const).map((k) => (
               <label key={k} className="block">
                 <span className="mb-1 block text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>
-                  {k === "name" ? "نام و نام خانوادگی" : k === "username" ? "نام کاربری" : k === "email" ? "ایمیل" : "شماره تماس"}
+                  {k === "name" ? "نام و نام خانوادگی" : k === "username" ? "نام کاربری" : "شماره تماس"}
                 </span>
                 <input value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} dir={k === "name" ? "rtl" : "ltr"} className={inputCls} style={inputStyle} />
               </label>
@@ -239,15 +232,91 @@ function AccountInfoCard({ me, onSaved }: { me: ProfileFields | null; onSaved: (
               <div key={r.label} className="flex items-center justify-between gap-3 border-b pb-2.5" style={{ borderColor: "var(--ac-divider)" }}>
                 <span className="text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>{r.label}</span>
                 <span className="flex items-center gap-2 truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>
-                  {r.badge}
                   <span dir={r.ltr ? "ltr" : "rtl"} className="truncate">{r.value}</span>
                 </span>
               </div>
             ))}
           </div>
         )}
+
+        <div className="mt-3.5 border-t pt-3.5" style={{ borderColor: "var(--ac-divider)" }}>
+          <ChangeEmailRow email={me?.email || ""} emailVerified={me?.emailVerified ?? false} />
+        </div>
       </div>
     </Card>
+  );
+}
+
+// Email row: shows the current (confirmed) address and, on request, a small form that starts the
+// change-email flow. Saving here never updates what's displayed — the address only becomes current once the
+// new inbox confirms it (POST /account/confirm-email-change), so this always shows a "check your inbox"
+// message rather than optimistically swapping the displayed email.
+function ChangeEmailRow({ email, emailVerified }: { email: string; emailVerified: boolean }) {
+  const [open, setOpen]       = useState(false);
+  const [saving, setSaving]   = useState(false);
+  const [err, setErr]         = useState("");
+  const [sentTo, setSentTo]   = useState("");
+  const [newEmail, setNewEmail]         = useState("");
+  const [currentPassword, setPassword]  = useState("");
+
+  const inputCls = "h-10 w-full rounded-lg border px-3 text-[13px] outline-none";
+  const inputStyle = { borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-title)" } as React.CSSProperties;
+
+  async function submit() {
+    setSaving(true); setErr("");
+    try {
+      await api.account.changeEmail({ currentPassword, newEmail });
+      setSentTo(newEmail);
+      setOpen(false);
+      setNewEmail(""); setPassword("");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "درخواست تغییر ایمیل ناموفق بود.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (sentTo) {
+    return (
+      <p className="text-[12px] leading-6" style={{ color: "var(--ac-muted)" }}>
+        یک لینک تأیید به <b dir="ltr" style={{ color: "var(--ac-title)" }}>{sentTo}</b> ارسال شد. تا زمانی که آن را تأیید نکنید، ایمیل فعلی شما ({email}) بدون تغییر می‌ماند.
+      </p>
+    );
+  }
+
+  if (!open) {
+    return (
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>ایمیل</span>
+        <div className="flex items-center gap-2">
+          <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${emailVerified ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"}`}>
+            {emailVerified ? "تأییدشده" : "تأیید نشده"}
+          </span>
+          <span dir="ltr" className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{email || "—"}</span>
+          <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "#F2551F" }}>تغییر</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2">
+      <label className="block">
+        <span className="mb-1 block text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>ایمیل جدید</span>
+        <input value={newEmail} onChange={(e) => setNewEmail(e.target.value)} dir="ltr" className={inputCls} style={inputStyle} />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>گذرواژه فعلی</span>
+        <input value={currentPassword} onChange={(e) => setPassword(e.target.value)} type="password" dir="ltr" className={inputCls} style={inputStyle} />
+      </label>
+      {err && <p className="text-[12px] font-bold text-rose-500 sm:col-span-2">{err}</p>}
+      <div className="flex gap-2 sm:col-span-2">
+        <button onClick={submit} disabled={saving || !newEmail || !currentPassword} className="flex h-10 items-center gap-2 rounded-lg px-6 text-[13px] font-bold text-white transition hover:brightness-105 disabled:opacity-60" style={{ background: "var(--ac-btn)" }}>
+          {saving ? "در حال ارسال…" : "ارسال لینک تأیید"}
+        </button>
+        <button onClick={() => { setOpen(false); setErr(""); setNewEmail(""); setPassword(""); }} className="h-10 rounded-lg border px-6 text-[13px] font-bold" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)" }}>انصراف</button>
+      </div>
+    </div>
   );
 }
 

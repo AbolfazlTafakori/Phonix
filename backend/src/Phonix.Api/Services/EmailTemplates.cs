@@ -144,6 +144,36 @@ public static class EmailTemplates
         return (text, html);
     }
 
+    // Sent to the NEW address when a signed-in user asks to change their account email. Clicking it is the
+    // proof of ownership, so — unlike VerifyEmail — a successful click both applies the change and marks it
+    // verified in one step.
+    public static (string text, string html) ConfirmEmailChange(string link)
+    {
+        var text = $"درخواستی برای تغییر ایمیل حساب {Brand} به این نشانی دریافت شد. برای تأیید این نشانی را باز کنید (تا ۱ ساعت معتبر است):\n{link}\n\nاگر شما این درخواست را نداده‌اید، این ایمیل را نادیده بگیرید؛ ایمیل حساب شما تغییر نمی‌کند.";
+        var html = Shell("تأیید ایمیل جدید",
+            "درخواستی برای تغییر ایمیل حساب شما به این نشانی دریافت شد.",
+            "<p style=\"margin:0;\">درخواستی برای تغییر ایمیل حساب <b>فونیکس وریفای</b> به این نشانی دریافت کردیم. برای اعمال این تغییر روی دکمه‌ی زیر بزنید.</p>"
+            + Button("تأیید ایمیل جدید", link)
+            + LinkFallback(link)
+            + Note("این لینک تا <b>۱ ساعت</b> معتبر است. اگر شما این درخواست را نداده‌اید، نگران نباشید — کافی است این ایمیل را نادیده بگیرید و ایمیل حساب شما بدون تغییر می‌ماند."));
+        return (text, html);
+    }
+
+    // Sent to the OLD address the moment a change is requested (not after it's confirmed) — a hijacked
+    // session changing the email is exactly the case where the real owner may never see the new inbox, so the
+    // tripwire has to fire on the account they still control. Mirrors PasswordChanged's shape.
+    public static (string text, string html) EmailChangeRequested(string newEmailMasked, string passwordUrl)
+    {
+        var text = $"درخواستی برای تغییر ایمیل حساب {Brand} شما به «{newEmailMasked}» ثبت شد.\n\nاگر این درخواست را خودتان داده‌اید، کافی است نشانی جدید را طبق ایمیلی که برایش ارسال شد تأیید کنید — تا آن زمان ایمیل فعلی شما تغییری نمی‌کند.\n\nاگر شما این کار را نکرده‌اید، حساب شما ممکن است در معرض خطر باشد. همین حالا گذرواژه‌ی خود را تغییر دهید و با پشتیبانی تماس بگیرید:\n{passwordUrl}";
+        var html = Shell("درخواست تغییر ایمیل حساب شما ثبت شد 🔒",
+            $"درخواست تغییر ایمیل به {newEmailMasked} ثبت شد.",
+            $"<p style=\"margin:0;\">درخواستی برای تغییر ایمیل حساب <b>فونیکس وریفای</b> شما به <b dir=\"ltr\" style=\"unicode-bidi:embed;\">{WebUtility.HtmlEncode(newEmailMasked)}</b> ثبت شد. تا زمانی که نشانی جدید تأیید نشود، ایمیل فعلی شما بدون تغییر می‌ماند.</p>"
+            + WarnNote("<b style=\"color:" + Accent + ";\">این کار را شما انجام نداده‌اید؟</b><br>ممکن است حساب شما در معرض خطر باشد. برای محافظت از حساب، همین حالا گذرواژه‌ی خود را تغییر دهید و با پشتیبانی تماس بگیرید.")
+            + Button("تغییر گذرواژه", passwordUrl)
+            + LinkFallback(passwordUrl));
+        return (text, html);
+    }
+
     public static (string text, string html) OrderDelivered(string orderCode, string accountUrl, string? customMessage)
     {
         var message = string.IsNullOrWhiteSpace(customMessage)

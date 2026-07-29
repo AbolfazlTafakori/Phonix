@@ -260,7 +260,6 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
     }
 
     // ── Staff / auth / 2FA / tokens ─────────────────────────────────────────────────────────────────────
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, (int UserId, string Purpose, DateTime ExpiresAt)> _tokens = new();
 
     public StaffResult PromoteToStaff(string username, UserRole role, IEnumerable<string> permissions) =>
         WriteTx<StaffResult>((conn, tx) =>
@@ -294,18 +293,41 @@ VALUES (@Username,@Email,@Phone,@Role,@Blocked,@ReferredBy,@VerificationLevel,@D
     public bool SetTwoFactorEnabled(int userId, bool enabled) =>
         UpdateUser(userId, u => { u.TwoFactorEnabled = enabled; if (!enabled) u.TwoFactorSecret = ""; });
 
-    public string CreateToken(int userId, string purpose, TimeSpan lifetime)
+    public string CreateToken(int userId, string purpose, TimeSpan lifetime, string? data = null)
     {
         var token = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
-        _tokens[token] = (userId, purpose, DateTime.UtcNow + lifetime);
-        return token;
+        var now = NowIso();
+        var expiresAt = DateTime.UtcNow.Add(lifetime).ToString("o");
+        return WriteTx((conn, tx) =>
+        {
+            // Opportunistic sweep instead of a dedicated background worker: tokens are single-use and this
+            // table only ever grows by the trickle of verify/reset requests, so piggybacking the cleanup on
+            // every new token keeps it from accumulating stale rows.
+            conn.Execute("DELETE FROM Tokens WHERE ExpiresAt <= @now", new { now }, tx);
+            conn.Execute("INSERT INTO Tokens (Token, UserId, Purpose, ExpiresAt, Data) VALUES (@token, @userId, @purpose, @expiresAt, @data)",
+                new { token, userId, purpose, expiresAt, data }, tx);
+            return token;
+        });
     }
 
-    public int? ConsumeToken(string? token, string purpose)
+    // UserId is long, not int: Dapper's record materialization matches the reader's column type (SQLite
+    // INTEGER round-trips as Int64) exactly against the constructor signature, so an int parameter here fails.
+    private record TokenRow(long UserId, string Purpose, string ExpiresAt, string? Data);
+
+    public int? ConsumeToken(string? token, string purpose) => ConsumeTokenWithData(token, purpose)?.UserId;
+
+    public (int UserId, string? Data)? ConsumeTokenWithData(string? token, string purpose)
     {
         if (string.IsNullOrWhiteSpace(token)) return null;
-        if (!_tokens.TryRemove(token, out var entry)) return null;
-        if (entry.Purpose != purpose || entry.ExpiresAt <= DateTime.UtcNow) return null;
-        return entry.UserId;
+        return WriteTx<(int, string?)?>((conn, tx) =>
+        {
+            var row = conn.QueryFirstOrDefault<TokenRow>(
+                "SELECT UserId, Purpose, ExpiresAt, Data FROM Tokens WHERE Token = @token", new { token }, tx);
+            if (row is null) return null;
+            // One-time use: delete on read regardless of outcome, so a leaked/reused link can never be replayed.
+            conn.Execute("DELETE FROM Tokens WHERE Token = @token", new { token }, tx);
+            if (row.Purpose != purpose || string.CompareOrdinal(row.ExpiresAt, NowIso()) <= 0) return null;
+            return ((int)row.UserId, row.Data);
+        });
     }
 }
