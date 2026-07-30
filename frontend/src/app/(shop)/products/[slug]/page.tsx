@@ -98,9 +98,13 @@ function KeyFeatures({ features }: { features: { text: string; included: boolean
   const items = features.filter((f) => f.included).slice(0, 6);
   if (items.length === 0) return null;
   return (
-    <div className="rounded-[18px] border p-4 sm:p-5" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)" }}>
+    <div className="@container rounded-[18px] border p-4 sm:p-5" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)" }}>
       <p className="mb-3 text-[13px] font-black" style={{ color: "var(--ac-title)" }}>ویژگی‌های کلیدی</p>
-      <ul className="grid gap-x-5 gap-y-2.5 sm:grid-cols-2">
+      {/* Runs up to four across and wraps, rather than stacking in two long columns. The count follows this
+          panel's width, not the viewport's: the panel is wide on a phone (one-column page), narrows as the
+          middle of the desktop three-column layout, then widens again — so a viewport breakpoint would give
+          the narrowest case the most columns. */}
+      <ul className="grid gap-x-5 gap-y-2.5 @[300px]:grid-cols-2 @[480px]:grid-cols-3 @[640px]:grid-cols-4">
         {items.map((f) => (
           <li key={f.text} className="flex items-start gap-2 text-[12.5px] leading-6 sm:text-[13px]" style={{ color: "var(--ac-text)" }}>
             <svg viewBox="0 0 24 24" className="mt-1 h-[15px] w-[15px] shrink-0 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>

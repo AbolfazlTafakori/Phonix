@@ -243,7 +243,11 @@ export function PlanPicker() {
       style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
     >
       <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>{typeHeading}</p>
-      <div className="space-y-2.5">
+      {/* Side by side up to four, wrapping after that, rather than one full-width row each. As with the plan
+          cards the count follows this panel's width instead of the viewport's, and `auto-rows-fr` keeps a
+          wrapped row the same height as the one above it. */}
+      <div className="@container">
+      <div className="grid auto-rows-fr gap-2.5 @[380px]:grid-cols-2 @[620px]:grid-cols-3 @[820px]:grid-cols-4">
         {types.map((t) => {
           const active = type === t;
           return (
@@ -251,7 +255,7 @@ export function PlanPicker() {
               key={t}
               type="button"
               onClick={() => selectType(t)}
-              className="flex w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-right transition"
+              className="flex h-full w-full items-center justify-between gap-3 rounded-xl border px-3.5 py-3 text-right transition"
               style={active
                 ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }
                 : { borderColor: "var(--ac-panel-border)" }}
@@ -269,6 +273,7 @@ export function PlanPicker() {
             </button>
           );
         })}
+      </div>
       </div>
 
       {typedPlans.length > 0 && (
