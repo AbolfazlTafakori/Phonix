@@ -98,13 +98,11 @@ function KeyFeatures({ features }: { features: { text: string; included: boolean
   const items = features.filter((f) => f.included).slice(0, 6);
   if (items.length === 0) return null;
   return (
-    <div className="@container rounded-[18px] border p-4 sm:p-5" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)" }}>
+    <div className="rounded-[18px] border p-4 sm:p-5" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)" }}>
       <p className="mb-3 text-[13px] font-black" style={{ color: "var(--ac-title)" }}>ویژگی‌های کلیدی</p>
-      {/* Runs up to four across and wraps, rather than stacking in two long columns. The count follows this
-          panel's width, not the viewport's: the panel is wide on a phone (one-column page), narrows as the
-          middle of the desktop three-column layout, then widens again — so a viewport breakpoint would give
-          the narrowest case the most columns. */}
-      <ul className="grid gap-x-5 gap-y-2.5 @[300px]:grid-cols-2 @[480px]:grid-cols-3 @[640px]:grid-cols-4">
+      {/* One per line: this card sits under the price box in a narrow column, where columns would leave
+          each feature only a few words wide. */}
+      <ul className="flex flex-col gap-2.5">
         {items.map((f) => (
           <li key={f.text} className="flex items-start gap-2 text-[12.5px] leading-6 sm:text-[13px]" style={{ color: "var(--ac-text)" }}>
             <svg viewBox="0 0 24 24" className="mt-1 h-[15px] w-[15px] shrink-0 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6L9 17l-5-5" /></svg>
@@ -295,23 +293,25 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             {product.description.replace(/[#*_\[\]()]/g, "").slice(0, 220)}
           </p>
 
-          {/* key features high on the page, before the buyer scrolls into the full spec tabs */}
-          {product.features.some((f) => f.included) && (
-            <div className="mt-4 sm:mt-5">
-              <KeyFeatures features={product.features} />
-            </div>
-          )}
-
           {/* what the buyer is actually choosing, in its own card beside the gallery */}
           <div className="mt-4 sm:mt-5">
             <PlanPicker />
           </div>
         </div>
 
-        {/* buy box — desktop only; on mobile the price and CTA live in the sticky bottom bar so they are not
-            duplicated in the middle of the page */}
-        <div className="order-3 hidden lg:sticky lg:top-[100px] lg:col-start-3 lg:row-start-1 lg:block">
-          <BuyBox />
+        {/* The buying column. The column itself is always rendered so the key features below it survive on a
+            phone; only the price card is dropped there, where the sticky bottom bar already carries the price
+            and the CTA. */}
+        <div className="order-3 lg:sticky lg:top-[100px] lg:col-start-3 lg:row-start-1">
+          <div className="hidden lg:block">
+            <BuyBox />
+          </div>
+
+          {product.features.some((f) => f.included) && (
+            <div className="lg:mt-4">
+              <KeyFeatures features={product.features} />
+            </div>
+          )}
         </div>
       </div>
 
