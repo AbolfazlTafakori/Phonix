@@ -172,9 +172,20 @@ export default async function RootLayout({
         {/* Theme boot: 'phonix-theme' is 'system' (default) | 'light' | 'dark'. In system mode the OS/browser
             preference wins and keeps winning — the matchMedia listener re-applies it if the OS flips while the
             page is open. Runs before paint so there is no flash of the wrong theme. */}
-        <Script id="phonix-theme-init" strategy="beforeInteractive" nonce={nonce}>
-          {`(function(){try{var mq=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');function mode(){try{return localStorage.getItem('phonix-theme')||'system';}catch(e){return 'system';}}function apply(){var m=mode();var dark=m==='dark'||(m==='system'&&!!(mq&&mq.matches));document.documentElement.classList.toggle('home-dark',dark);}apply();window.__phonixApplyTheme=apply;if(mq){var h=function(){if(mode()==='system')apply();};mq.addEventListener?mq.addEventListener('change',h):mq.addListener(h);}}catch(e){}})();`}
-        </Script>
+        {/* A plain tag rather than next/script: with `beforeInteractive` this ended up only in the RSC
+            payload and was injected after hydration, so it never actually ran before paint — the very thing
+            it exists to do. Written straight into the HTML it runs while the document is still parsing.
+            `suppressHydrationWarning` is required because a browser hides a nonce once it has parsed the tag
+            (the attribute reads back empty), so React would otherwise compare its own nonce against "" and
+            report a hydration mismatch on every page. */}
+        <script
+          id="phonix-theme-init"
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var mq=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');function mode(){try{return localStorage.getItem('phonix-theme')||'system';}catch(e){return 'system';}}function apply(){var m=mode();var dark=m==='dark'||(m==='system'&&!!(mq&&mq.matches));document.documentElement.classList.toggle('home-dark',dark);}apply();window.__phonixApplyTheme=apply;if(mq){var h=function(){if(mode()==='system')apply();};mq.addEventListener?mq.addEventListener('change',h):mq.addListener(h);}}catch(e){}})();`,
+          }}
+        />
         {children}
 
         <LiveChat />
