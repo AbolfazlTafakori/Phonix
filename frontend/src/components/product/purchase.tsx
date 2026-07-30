@@ -274,7 +274,15 @@ export function PlanPicker() {
       {typedPlans.length > 0 && (
         <div className="mt-5">
           <p className="mb-2.5 text-right text-[13px] font-bold" style={{ color: "var(--ac-text)" }}>{planHeading}</p>
-          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+          {/* Four across once there is room, wrapping after that — three left a fifth plan sitting alone
+              under two, which reads as a broken row rather than a deliberate one.
+              The column count follows THIS PANEL's width, not the viewport's: the panel is wide on a phone
+              (one column page), narrows to ~350px as the middle of the desktop three-column layout, then
+              grows again on a large screen. A viewport breakpoint would therefore hand four columns to the
+              narrowest case and squeeze each card to about 70px. `auto-rows-fr` keeps every row the same
+              height so a plan carrying a badge doesn't make its row taller than the rest. */}
+          <div className="@container">
+          <div className="grid auto-rows-fr grid-cols-2 gap-2.5 @[420px]:grid-cols-3 @[560px]:grid-cols-4">
             {typedPlans.map((p) => {
               const active = p.id === (selected?.id ?? null);
               return (
@@ -282,26 +290,31 @@ export function PlanPicker() {
                   key={p.id}
                   type="button"
                   onClick={() => setPlanId(p.id)}
-                  className="flex flex-col items-center gap-1 rounded-xl border px-2 py-3 text-center transition"
+                  className="flex h-full flex-col items-center justify-center gap-1 rounded-xl border px-2 py-3 text-center transition"
                   style={active
                     ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }
                     : { borderColor: "var(--ac-panel-border)" }}
                 >
                   <span className="text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{p.label || `${toFa(p.months)} ماهه`}</span>
                   <span className="text-[12px] font-bold" style={{ color: "var(--ac-text)" }}>{formatToman(p.finalPrice)}</span>
-                  {p.userCount > 0 ? (
-                    <span className="mt-0.5 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
-                      <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
-                      {toFa(p.userCount)} کاربر
-                    </span>
-                  ) : p.discountPercent > 0 && (
-                    <span className="mt-0.5 rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-black text-emerald-600">
-                      ٪{toFa(p.discountPercent)} تخفیف
-                    </span>
-                  )}
+                  {/* The badge line is always laid out, even when a plan has neither a seat count nor a
+                      discount — otherwise cards in the same row would sit at different heights. */}
+                  <span className="mt-0.5 flex h-[19px] items-center">
+                    {p.userCount > 0 ? (
+                      <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
+                        <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                        {toFa(p.userCount)} کاربر
+                      </span>
+                    ) : p.discountPercent > 0 ? (
+                      <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-[10px] font-black text-emerald-600">
+                        ٪{toFa(p.discountPercent)} تخفیف
+                      </span>
+                    ) : null}
+                  </span>
                 </button>
               );
             })}
+          </div>
           </div>
         </div>
       )}
@@ -401,15 +414,18 @@ export function BuyBox() {
       className="rounded-[22px] border bg-[var(--ac-panel-bg)] p-5"
       style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
     >
-      <div className="flex items-end justify-between gap-2">
+      {/* The struck-through original only exists for a discounted plan, so the row reserves its line either
+          way — otherwise the whole box, and the buttons under it, would shift as the buyer moves between
+          plans. */}
+      <div className="flex min-h-[74px] items-end justify-between gap-2">
         <div>
           <p className="text-[12px]" style={{ color: "var(--ac-muted)" }}>قیمت نهایی</p>
           <p className="mt-1 text-[24px] font-black leading-none" style={{ color: "var(--ac-title)" }}>
             {formatToman(unitPrice)}
           </p>
-          {discount > 0 && (
-            <p className="mt-1.5 text-[12px] line-through" style={{ color: "var(--ac-muted)" }}>{formatToman(basePrice)}</p>
-          )}
+          <p className="mt-1.5 h-[18px] text-[12px] line-through" style={{ color: "var(--ac-muted)" }}>
+            {discount > 0 ? formatToman(basePrice) : " "}
+          </p>
         </div>
         {planLabel && (
           <span className="rounded-lg px-2.5 py-1 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
