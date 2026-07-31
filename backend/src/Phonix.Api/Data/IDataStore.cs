@@ -194,6 +194,7 @@ public interface IDataStore
     IReadOnlyList<V2RayPanel> GetV2RayPanels();
     V2RayPanel? GetV2RayPanel(int id);
     V2RayPanel AddV2RayPanel(V2RayPanel panel);
+    V2RayPanel? UpdateV2RayPanel(int id, V2RayPanel panel);
     bool DeleteV2RayPanel(int id);
     void RecordV2RayPanelCheck(int id, bool ok, string error, int inboundCount);
 

@@ -125,6 +125,7 @@ function PanelRow({
   const [msg, setMsg] = useState("");
   const [msgOk, setMsgOk] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [inbounds, setInbounds] = useState<V2RayInbound[] | null>(null);
   const [inboundsBusy, setInboundsBusy] = useState(false);
   const [inboundsErr, setInboundsErr] = useState("");
@@ -214,6 +215,14 @@ function PanelRow({
             ساخت اکانت تست
           </button>
           <button
+            onClick={() => setEditing((v) => !v)}
+            disabled={busy !== null}
+            className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3.5 text-xs font-bold text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
+          >
+            <AdminIcon name="edit" className="h-4 w-4" />
+            ویرایش
+          </button>
+          <button
             onClick={test}
             disabled={busy !== null}
             className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3.5 text-xs font-bold text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
@@ -269,7 +278,190 @@ function PanelRow({
       )}
 
       {creating && <CreateClientForm panelId={panel.id} onClose={() => setCreating(false)} />}
+
+      {editing && (
+        <EditPanelForm
+          panel={panel}
+          providers={providers}
+          onClose={() => setEditing(false)}
+          onSaved={(next) => {
+            onChange(next);
+            setEditing(false);
+          }}
+        />
+      )}
     </Card>
+  );
+}
+
+// Edit an already-saved panel. Same verify-before-save rule as adding one: the backend re-tests the
+// connection before persisting. Password/apiToken fields start blank — they're never sent to the browser —
+// so leaving them empty on save keeps the stored credential; typing a new value replaces it.
+function EditPanelForm({
+  panel,
+  providers,
+  onClose,
+  onSaved,
+}: {
+  panel: V2RayPanelInfo;
+  providers: V2RayProviderInfo[];
+  onClose: () => void;
+  onSaved: (panel: V2RayPanelInfo) => void;
+}) {
+  const [url, setUrl] = useState(panel.url);
+  const [username, setUsername] = useState(panel.username);
+  const [password, setPassword] = useState("");
+  const [apiToken, setApiToken] = useState("");
+  const [name, setName] = useState(panel.name);
+  const [remark, setRemark] = useState(panel.remark);
+  const [flag, setFlag] = useState(panel.flag);
+  const [capacity, setCapacity] = useState(String(panel.capacity));
+  const [subDomain, setSubDomain] = useState(panel.subDomain);
+  const [subPort, setSubPort] = useState(panel.subPort ? String(panel.subPort) : "");
+  const [subPath, setSubPath] = useState(panel.subPath || "sub");
+  const [subHttps, setSubHttps] = useState(panel.subHttps);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  async function save() {
+    setError("");
+    if (!url.trim()) {
+      setError("آدرس پنل را وارد کنید.");
+      return;
+    }
+    if (!apiToken.trim() && !panel.hasApiToken && (!username.trim() || (!password && !panel.hasPassword))) {
+      setError("توکن API یا نام کاربری و گذرواژه پنل را وارد کنید.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const updated = await api.v2ray.update(panel.id, {
+        provider: panel.provider,
+        url: url.trim(),
+        username: username.trim(),
+        password,
+        apiToken: apiToken.trim(),
+        name: name.trim(),
+        remark: remark.trim(),
+        flag: flag.trim(),
+        capacity: Math.max(0, Number(capacity) || 0),
+        subDomain: subDomain.trim(),
+        subPort: Math.max(0, Number(subPort) || 0),
+        subPath: subPath.trim(),
+        subHttps,
+      });
+      onSaved(updated);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ویرایش ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-sm font-bold text-white">ویرایش پنل {providerName(providers, panel.provider)}</p>
+        <button onClick={onClose} className="text-xs text-white/45 transition hover:text-white">بستن</button>
+      </div>
+
+      <div className="space-y-4">
+        <label className="block">
+          <span className="mb-1.5 block text-xs font-medium text-white/55">آدرس کامل پنل (URL)</span>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} dir="ltr" placeholder={URL_HINT} className={`${inputCls} text-left`} />
+        </label>
+
+        <label className="block rounded-xl border border-[#3a64f2]/25 bg-[#3a64f2]/[0.06] p-4">
+          <span className="mb-1.5 block text-xs font-bold text-[#8aa6ff]">توکن API پنل</span>
+          <input
+            value={apiToken}
+            onChange={(e) => setApiToken(e.target.value)}
+            dir="ltr"
+            autoComplete="off"
+            placeholder={panel.hasApiToken ? "برای تغییر، توکن جدید را وارد کنید" : "از پنل: Settings → Security → API Token"}
+            className={`${inputCls} text-left`}
+          />
+        </label>
+
+        <p className="text-center text-[11px] text-white/35">— یا با نام کاربری و گذرواژه —</p>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-white/55">نام کاربری پنل</span>
+            <input value={username} onChange={(e) => setUsername(e.target.value)} dir="ltr" autoComplete="off" className={`${inputCls} text-left`} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-white/55">گذرواژه پنل</span>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              dir="ltr"
+              autoComplete="new-password"
+              placeholder={panel.hasPassword ? "برای تغییر، گذرواژه جدید را وارد کنید" : ""}
+              className={`${inputCls} text-left`}
+            />
+          </label>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-white/55">نام سرور</span>
+            <input value={name} onChange={(e) => setName(e.target.value)} placeholder="مثلاً هلند تانل" className={inputCls} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-white/55">ریمارک (روی کانفیگ)</span>
+            <input value={remark} onChange={(e) => setRemark(e.target.value)} dir="ltr" placeholder="Netherlands" className={`${inputCls} text-left`} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-white/55">پرچم / کد کشور</span>
+            <input value={flag} onChange={(e) => setFlag(e.target.value)} dir="ltr" placeholder="NL" className={`${inputCls} text-left`} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-medium text-white/55">ظرفیت (تعداد اکانت) · ۰=نامحدود</span>
+            <input value={capacity} onChange={(e) => setCapacity(e.target.value)} dir="ltr" inputMode="numeric" className={`${inputCls} text-left`} />
+          </label>
+        </div>
+
+        <div className="rounded-xl border border-white/8 bg-white/[0.02] p-4">
+          <p className="mb-1 text-sm font-bold text-white">سرور Subscription</p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            <label className="block sm:col-span-2">
+              <span className="mb-1.5 block text-xs font-medium text-white/55">دامنه Subscription</span>
+              <input value={subDomain} onChange={(e) => setSubDomain(e.target.value)} dir="ltr" placeholder="sub.example.com" className={`${inputCls} text-left`} />
+            </label>
+            <label className="block">
+              <span className="mb-1.5 block text-xs font-medium text-white/55">پورت</span>
+              <input value={subPort} onChange={(e) => setSubPort(e.target.value)} dir="ltr" inputMode="numeric" placeholder="65531" className={`${inputCls} text-left`} />
+            </label>
+            <label className="block sm:col-span-2">
+              <span className="mb-1.5 block text-xs font-medium text-white/55">مسیر (بدون /)</span>
+              <input value={subPath} onChange={(e) => setSubPath(e.target.value)} dir="ltr" placeholder="sub" className={`${inputCls} text-left`} />
+            </label>
+            <label className="flex items-center justify-between rounded-xl border border-white/8 px-3">
+              <span className="text-xs text-white/70">HTTPS</span>
+              <input type="checkbox" checked={subHttps} onChange={(e) => setSubHttps(e.target.checked)} className="h-4 w-4 accent-[#3a64f2]" />
+            </label>
+          </div>
+        </div>
+
+        {error && <p className="text-sm leading-7 text-rose-400">{error}</p>}
+
+        <div className="flex items-center gap-2 border-t border-white/8 pt-4">
+          <button
+            onClick={save}
+            disabled={busy}
+            className="flex h-10 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+          >
+            {busy && <Spinner />}
+            ذخیره تغییرات
+          </button>
+          <button onClick={onClose} disabled={busy} className="text-sm text-white/45 transition hover:text-white disabled:opacity-60">
+            انصراف
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

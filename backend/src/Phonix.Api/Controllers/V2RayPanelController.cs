@@ -177,6 +177,48 @@ public class V2RayPanelController : ControllerBase
             : Problem(result.Error);
     }
 
+    // Edit a stored panel. Same verify-before-save rule as Add: a changed URL/credential that can't reach the
+    // panel is a configuration mistake, so the update is re-tested before it's persisted. Password/apiToken
+    // are never sent back to the browser, so a blank field here means "keep the stored value", not "clear it".
+    [HttpPut("panels/{id:int}")]
+    public async Task<IActionResult> Update(int id, V2RayPanelInput input, CancellationToken ct)
+    {
+        var existing = _store.GetV2RayPanel(id);
+        if (existing is null) return NotFound();
+
+        var url = IV2RayPanelConnector.NormalizeUrl(input.Url);
+        if (url is null) return Problem("آدرس پنل معتبر نیست. نمونه: https://sub.example.com:8080/webpath");
+
+        var password = string.IsNullOrEmpty(input.Password) ? existing.Password : input.Password;
+        var apiToken = string.IsNullOrWhiteSpace(input.ApiToken) ? existing.ApiToken : input.ApiToken;
+        if (string.IsNullOrWhiteSpace(apiToken) && (string.IsNullOrWhiteSpace(input.Username) || string.IsNullOrEmpty(password)))
+            return Problem("توکن API یا نام کاربری و گذرواژه پنل را وارد کنید.");
+
+        var test = await _connector.TestAsync(input.Provider, new V2RayCredentials(url, input.Username, password, apiToken ?? ""), ct);
+        if (!test.Ok) return Problem(test.Error);
+
+        var updated = _store.UpdateV2RayPanel(id, new V2RayPanel
+        {
+            Provider = input.Provider,
+            Url = url,
+            Username = (input.Username ?? "").Trim(),
+            Password = password ?? "",
+            ApiToken = apiToken ?? "",
+            Name = (input.Name ?? "").Trim(),
+            Remark = (input.Remark ?? "").Trim(),
+            Flag = (input.Flag ?? "").Trim(),
+            Capacity = Math.Max(0, input.Capacity),
+            SubDomain = (input.SubDomain ?? "").Trim(),
+            SubPort = input.SubPort,
+            SubPath = (input.SubPath ?? "sub").Trim().Trim('/'),
+            SubHttps = input.SubHttps,
+            LastCheckAtUtc = DateTime.UtcNow.ToString("O"),
+            LastCheckOk = true,
+            InboundCount = test.InboundCount,
+        });
+        return updated is null ? NotFound() : Ok(ToDto(updated));
+    }
+
     [HttpDelete("panels/{id:int}")]
     public IActionResult Delete(int id) =>
         _store.DeleteV2RayPanel(id) ? Ok(new { ok = true }) : NotFound();

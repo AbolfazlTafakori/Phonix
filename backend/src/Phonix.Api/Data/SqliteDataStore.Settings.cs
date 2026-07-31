@@ -92,6 +92,41 @@ public sealed partial class SqliteDataStore
         return panel;
     }
 
+    // Same "blank means unchanged" convention as UpdateMailboxSettings: the browser never receives the
+    // stored password/token back, so an empty field on save must not wipe out a credential the operator
+    // didn't intend to touch.
+    public V2RayPanel? UpdateV2RayPanel(int id, V2RayPanel panel)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        var existing = s.Panels.FirstOrDefault(p => p.Id == id);
+        if (existing is null) return null;
+
+        existing.Provider = panel.Provider;
+        existing.Url = panel.Url;
+        existing.Username = panel.Username;
+        existing.Password = string.IsNullOrEmpty(panel.Password) ? "" : SensitiveField.Protect(panel.Password);
+        existing.ApiToken = string.IsNullOrEmpty(panel.ApiToken) ? "" : SensitiveField.Protect(panel.ApiToken);
+        existing.Name = panel.Name;
+        existing.Remark = panel.Remark;
+        existing.Flag = panel.Flag;
+        existing.Capacity = panel.Capacity;
+        existing.SubDomain = panel.SubDomain;
+        existing.SubPort = panel.SubPort;
+        existing.SubPath = panel.SubPath;
+        existing.SubHttps = panel.SubHttps;
+        existing.LastCheckAtUtc = panel.LastCheckAtUtc;
+        existing.LastCheckOk = panel.LastCheckOk;
+        existing.LastCheckError = "";
+        existing.InboundCount = panel.InboundCount;
+
+        WriteSingleton(conn, null, V2RayKey, s);
+
+        existing.Password = SensitiveField.Reveal(existing.Password);
+        existing.ApiToken = SensitiveField.Reveal(existing.ApiToken);
+        return existing;
+    }
+
     public bool DeleteV2RayPanel(int id)
     {
         using var conn = OpenConnection();

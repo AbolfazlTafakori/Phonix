@@ -581,6 +581,7 @@ export const api = {
     // Verify a URL + credentials without saving (the wizard's login/test button).
     test: (body: V2RayPanelInput) => request<{ ok: boolean; inboundCount: number }>("/v2ray/test", { method: "POST", body: json(body) }),
     add: (body: V2RayPanelInput) => request<V2RayPanelInfo>("/v2ray/panels", { method: "POST", body: json(body) }),
+    update: (id: number, body: V2RayPanelInput) => request<V2RayPanelInfo>(`/v2ray/panels/${id}`, { method: "PUT", body: json(body) }),
     testStored: (id: number) => request<{ ok: boolean; inboundCount: number }>(`/v2ray/panels/${id}/test`, { method: "POST" }),
     inbounds: (id: number) => request<V2RayInbound[]>(`/v2ray/panels/${id}/inbounds`),
     addClient: (id: number, body: { email: string; totalGb: number; limitIp: number; durationDays: number; inboundIds: number[] }) =>
