@@ -416,24 +416,24 @@ export function BuyBox() {
 
   return (
     <div
-      className="rounded-[22px] border bg-[var(--ac-panel-bg)] p-5"
+      className="rounded-[24px] border bg-[var(--ac-panel-bg)] p-6"
       style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
     >
       {/* The struck-through original only exists for a discounted plan, so the row reserves its line either
           way — otherwise the whole box, and the buttons under it, would shift as the buyer moves between
           plans. */}
-      <div className="flex min-h-[74px] items-end justify-between gap-2">
+      <div className="flex min-h-[78px] items-end justify-between gap-2">
         <div>
           <p className="text-[12px]" style={{ color: "var(--ac-muted)" }}>قیمت نهایی</p>
-          <p className="mt-1 text-[24px] font-black leading-none" style={{ color: "var(--ac-title)" }}>
+          <p className="mt-1.5 text-[27px] font-black leading-none" style={{ color: "var(--ac-title)" }}>
             {formatToman(unitPrice)}
           </p>
-          <p className="mt-1.5 h-[18px] text-[12px] line-through" style={{ color: "var(--ac-muted)" }}>
+          <p className="mt-2 h-[18px] text-[12px] line-through" style={{ color: "var(--ac-muted)" }}>
             {discount > 0 ? formatToman(basePrice) : " "}
           </p>
         </div>
         {planLabel && (
-          <span className="rounded-lg px-2.5 py-1 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "var(--hl-orange-text)" }}>
+          <span className="rounded-lg px-2.5 py-1.5 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "var(--hl-orange-text)" }}>
             {planLabel}
           </span>
         )}
@@ -463,7 +463,7 @@ export function BuyBox() {
           ابتدا یک پلن انتخاب کنید
         </button>
       ) : inCartQty > 0 ? (
-        <div className="mt-4 space-y-2.5">
+        <div className="mt-5 space-y-3">
           <div className="flex items-center justify-between rounded-xl border px-4 py-2.5" style={{ borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }}>
             <span className="text-[13px] font-bold" style={{ color: "var(--hl-orange-text)" }}>تعداد</span>
             <div className="flex items-center gap-3">
@@ -480,7 +480,7 @@ export function BuyBox() {
           </button>
         </div>
       ) : (
-        <div className="mt-4 space-y-2.5">
+        <div className="mt-5 space-y-3">
           <button type="button" onClick={() => onAdd(false)} className="flex h-14 w-full items-center justify-center gap-2.5 rounded-xl text-[15px] font-black text-white shadow-[0_14px_38px_rgba(242,85,31,0.35)] transition hover:brightness-105" style={{ background: "var(--ac-btn)" }}>
             <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1" /><circle cx="18" cy="21" r="1" /><path d="M2 3h3l2.4 12.4a2 2 0 0 0 2 1.6h8.2a2 2 0 0 0 2-1.6L23 7H5.5" /></svg>
             افزودن به سبد خرید
@@ -492,16 +492,16 @@ export function BuyBox() {
         </div>
       )}
 
-      <div className="mt-4 grid grid-cols-3 gap-2 border-t pt-4" style={{ borderColor: "var(--ac-divider)" }}>
-        <a href="#plan-compare" className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
+      <div className="mt-5 grid grid-cols-3 gap-2 border-t pt-5" style={{ borderColor: "var(--ac-divider)" }}>
+        <a href="#plan-compare" className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M8 21H3v-5M21 3l-7.5 7.5M3 21l7.5-7.5" /></svg>
           مقایسه
         </a>
-        <button type="button" onClick={share} className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
+        <button type="button" onClick={share} className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4" /></svg>
           {shared ? "کپی شد ✓" : "اشتراک‌گذاری"}
         </button>
-        <button type="button" onClick={toggleFav} disabled={favBusy} className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)] disabled:opacity-60" style={{ color: fav ? "#FF3D2E" : "var(--ac-text)" }}>
+        <button type="button" onClick={toggleFav} disabled={favBusy} className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)] disabled:opacity-60" style={{ color: fav ? "#FF3D2E" : "var(--ac-text)" }}>
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill={fav ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z" /></svg>
           علاقه‌مندی
         </button>
