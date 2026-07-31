@@ -187,7 +187,8 @@ function PanelRow({
             </span>
             <StatusPill ok={panel.lastCheckOk} hasChecked={Boolean(panel.lastCheckAtUtc)} />
           </div>
-          <p dir="ltr" className="mt-2 break-all text-right text-sm font-bold text-white">{panel.url}</p>
+          <p className="mt-2 truncate text-sm font-bold text-white">{panel.name || providerName(providers, panel.provider)}</p>
+          <p dir="ltr" className="mt-0.5 break-all text-right text-xs text-white/40">{panel.url}</p>
           <p className="mt-1 text-xs text-white/45">
             کاربر: <span dir="ltr">{panel.username}</span>
             {panel.lastCheckOk && ` · ${formatNumber(panel.inboundCount)} اینباند`}
@@ -197,7 +198,7 @@ function PanelRow({
           )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
           <button
             onClick={toggleInbounds}
             disabled={busy !== null}
@@ -215,20 +216,20 @@ function PanelRow({
             ساخت اکانت تست
           </button>
           <button
-            onClick={() => setEditing((v) => !v)}
-            disabled={busy !== null}
-            className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3.5 text-xs font-bold text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
-          >
-            <AdminIcon name="edit" className="h-4 w-4" />
-            ویرایش
-          </button>
-          <button
             onClick={test}
             disabled={busy !== null}
             className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3.5 text-xs font-bold text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
           >
             {busy === "test" ? <Spinner className="h-4 w-4" /> : <AdminIcon name="refresh" className="h-4 w-4" />}
             تست اتصال
+          </button>
+          <button
+            onClick={() => setEditing((v) => !v)}
+            disabled={busy !== null}
+            className="flex h-9 items-center gap-2 rounded-lg border border-white/10 px-3.5 text-xs font-bold text-white/70 transition hover:bg-white/5 hover:text-white disabled:opacity-60"
+          >
+            <AdminIcon name="edit" className="h-4 w-4" />
+            ویرایش
           </button>
           <button
             onClick={remove}
