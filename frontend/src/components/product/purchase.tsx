@@ -439,6 +439,19 @@ export function BuyBox() {
         )}
       </div>
 
+      {/* Delivery + refund guarantee — the two facts a buyer checks right before hitting the CTA, called
+          out the same way a marketplace box surfaces them between the price and the button. */}
+      <div className="mt-4 space-y-2 border-t pt-4" style={{ borderColor: "var(--ac-divider)" }}>
+        <div className="flex items-center gap-2 text-[12.5px] font-bold" style={{ color: "var(--ac-text)" }}>
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h7l-1 8 11-13h-7z" /></svg>
+          تحویل آنی، بلافاصله پس از پرداخت
+        </div>
+        <div className="flex items-center gap-2 text-[12.5px] font-bold" style={{ color: "var(--ac-text)" }}>
+          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] shrink-0 text-emerald-500" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z" /></svg>
+          گارانتی اصالت و بازگشت وجه
+        </div>
+      </div>
+
       {out ? (
         <button type="button" disabled className="mt-4 h-14 w-full cursor-not-allowed rounded-xl border text-[15px] font-black" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-menu-hover)", color: "var(--ac-muted)" }}>
           ناموجود
