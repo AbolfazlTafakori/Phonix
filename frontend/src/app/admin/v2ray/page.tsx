@@ -312,6 +312,11 @@ function EditPanelForm({
   const [username, setUsername] = useState(panel.username);
   const [password, setPassword] = useState("");
   const [apiToken, setApiToken] = useState("");
+  // Credentials are never sent to the browser, so the form starts masked (proving one is stored) instead of
+  // an empty box the operator might mistake for "no credential saved". Flipping the toggle switches to a
+  // real input for typing a replacement value.
+  const [changeToken, setChangeToken] = useState(!panel.hasApiToken);
+  const [changePassword, setChangePassword] = useState(!panel.hasPassword);
   const [name, setName] = useState(panel.name);
   const [remark, setRemark] = useState(panel.remark);
   const [flag, setFlag] = useState(panel.flag);
@@ -371,17 +376,35 @@ function EditPanelForm({
           <input value={url} onChange={(e) => setUrl(e.target.value)} dir="ltr" placeholder={URL_HINT} className={`${inputCls} text-left`} />
         </label>
 
-        <label className="block rounded-xl border border-[#3a64f2]/25 bg-[#3a64f2]/[0.06] p-4">
-          <span className="mb-1.5 block text-xs font-bold text-[#8aa6ff]">توکن API پنل</span>
-          <input
-            value={apiToken}
-            onChange={(e) => setApiToken(e.target.value)}
-            dir="ltr"
-            autoComplete="off"
-            placeholder={panel.hasApiToken ? "برای تغییر، توکن جدید را وارد کنید" : "از پنل: Settings → Security → API Token"}
-            className={`${inputCls} text-left`}
-          />
-        </label>
+        <div className="rounded-xl border border-[#3a64f2]/25 bg-[#3a64f2]/[0.06] p-4">
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-xs font-bold text-[#8aa6ff]">توکن API پنل</span>
+            {panel.hasApiToken && (
+              <button
+                type="button"
+                onClick={() => {
+                  setChangeToken((v) => !v);
+                  setApiToken("");
+                }}
+                className="text-[11px] font-bold text-[#8aa6ff] transition hover:text-white"
+              >
+                {changeToken ? "انصراف از تغییر" : "تغییر توکن"}
+              </button>
+            )}
+          </div>
+          {changeToken ? (
+            <input
+              value={apiToken}
+              onChange={(e) => setApiToken(e.target.value)}
+              dir="ltr"
+              autoComplete="off"
+              placeholder="از پنل: Settings → Security → API Token"
+              className={`${inputCls} text-left`}
+            />
+          ) : (
+            <input value="••••••••••••" disabled dir="ltr" className={`${inputCls} text-left text-white/40`} />
+          )}
+        </div>
 
         <p className="text-center text-[11px] text-white/35">— یا با نام کاربری و گذرواژه —</p>
 
@@ -390,18 +413,35 @@ function EditPanelForm({
             <span className="mb-1.5 block text-xs font-medium text-white/55">نام کاربری پنل</span>
             <input value={username} onChange={(e) => setUsername(e.target.value)} dir="ltr" autoComplete="off" className={`${inputCls} text-left`} />
           </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-white/55">گذرواژه پنل</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              dir="ltr"
-              autoComplete="new-password"
-              placeholder={panel.hasPassword ? "برای تغییر، گذرواژه جدید را وارد کنید" : ""}
-              className={`${inputCls} text-left`}
-            />
-          </label>
+          <div className="block">
+            <div className="mb-1.5 flex items-center justify-between">
+              <span className="text-xs font-medium text-white/55">گذرواژه پنل</span>
+              {panel.hasPassword && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setChangePassword((v) => !v);
+                    setPassword("");
+                  }}
+                  className="text-[11px] font-bold text-[#8aa6ff] transition hover:text-white"
+                >
+                  {changePassword ? "انصراف از تغییر" : "تغییر گذرواژه"}
+                </button>
+              )}
+            </div>
+            {changePassword ? (
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                dir="ltr"
+                autoComplete="new-password"
+                className={`${inputCls} text-left`}
+              />
+            ) : (
+              <input value="••••••••••••" disabled dir="ltr" className={`${inputCls} text-left text-white/40`} />
+            )}
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
