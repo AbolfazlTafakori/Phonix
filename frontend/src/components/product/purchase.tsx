@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
@@ -78,6 +78,47 @@ function usePurchase(): PurchaseValue {
   const v = useContext(Ctx);
   if (!v) throw new Error("PlanPicker/BuyBox must be rendered inside <PurchaseProvider>");
   return v;
+}
+
+// BuyBox's height should match the gallery next to it specifically — NOT the plan picker in the middle
+// column, which can run much taller once a service has many plans. CSS alone can't make two non-adjacent
+// grid columns share a height while a third sibling in the same row is excluded, so the gallery reports its
+// rendered height here and BuyBox reads it back as an explicit min-height.
+const GalleryHeightCtx = createContext<{ height: number | null; setHeight: (h: number) => void } | null>(null);
+
+export function useSyncGalleryHeight(ref: RefObject<HTMLElement | null>) {
+  const ctx = useContext(GalleryHeightCtx);
+  useEffect(() => {
+    if (!ctx || !ref.current) return;
+    const el = ref.current;
+    // Measure once immediately — a ResizeObserver's first callback is async and can lag a frame or two
+    // behind, which is enough to flash the box at its unstyled height on first paint.
+    if (el.offsetHeight) ctx.setHeight(el.offsetHeight);
+    const ro = new ResizeObserver((entries) => {
+      const h = entries[0]?.contentRect.height;
+      if (h) ctx.setHeight(h);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ctx, ref]);
+}
+
+function useGalleryHeight(): number | null {
+  return useContext(GalleryHeightCtx)?.height ?? null;
+}
+
+// True only at the lg breakpoint and up — the columns are only side-by-side there, so matching the
+// gallery's height is meaningless (and unwanted) on the stacked mobile layout.
+function useIsDesktopColumns(): boolean {
+  const [isDesktop, setIsDesktop] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsDesktop(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isDesktop;
 }
 
 export function PurchaseProvider({ product, children }: { product: Product; children: ReactNode }) {
@@ -189,8 +230,12 @@ export function PurchaseProvider({ product, children }: { product: Product; chil
     fav, favBusy, toggleFav, shared, share,
   };
 
+  const [galleryHeight, setGalleryHeight] = useState<number | null>(null);
+  const galleryHeightValue = useMemo(() => ({ height: galleryHeight, setHeight: setGalleryHeight }), [galleryHeight]);
+
   return (
     <Ctx.Provider value={value}>
+    <GalleryHeightCtx.Provider value={galleryHeightValue}>
       {children}
 
       {/* Rules confirmation lives with the provider, not either panel: it is triggered from the BuyBox but
@@ -228,6 +273,7 @@ export function PurchaseProvider({ product, children }: { product: Product; chil
           </div>
         </div>
       )}
+    </GalleryHeightCtx.Provider>
     </Ctx.Provider>
   );
 }
@@ -414,10 +460,17 @@ export function BuyBox() {
   const basePrice = selected ? selected.price : product.price;
   const discount = selected ? selected.discountPercent : product.discountPercent;
 
+  const galleryHeight = useGalleryHeight();
+  const isDesktop = useIsDesktopColumns();
+
   return (
     <div
-      className="flex min-h-full flex-col rounded-[24px] border bg-[var(--ac-panel-bg)] p-6"
-      style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
+      className="flex flex-col rounded-[24px] border bg-[var(--ac-panel-bg)] p-6"
+      style={{
+        borderColor: "var(--ac-panel-border)",
+        boxShadow: "var(--ac-panel-shadow)",
+        minHeight: isDesktop && galleryHeight ? galleryHeight : undefined,
+      }}
     >
       {/* The struck-through original only exists for a discounted plan, so the row reserves its line either
           way — otherwise the whole box, and the buttons under it, would shift as the buyer moves between

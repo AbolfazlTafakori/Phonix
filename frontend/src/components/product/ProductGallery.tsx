@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import ProductCardImage from "@/components/ProductCardImage";
+import { useSyncGalleryHeight } from "./purchase";
 
 export default function ProductGallery({
   image,
@@ -18,9 +19,11 @@ export default function ProductGallery({
 }) {
   const allImages = [image, ...gallery.filter(Boolean)];
   const [active, setActive] = useState(0);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useSyncGalleryHeight(rootRef);
 
   return (
-    <div>
+    <div ref={rootRef}>
       <div className="relative overflow-hidden rounded-[22px] border bg-[var(--ac-panel-bg)]" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
         <ProductCardImage src={allImages[active]} alt={name} className="aspect-[4/5] w-full object-cover" />
         {featured && (
