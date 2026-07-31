@@ -416,7 +416,7 @@ export function BuyBox() {
 
   return (
     <div
-      className="rounded-[24px] border bg-[var(--ac-panel-bg)] p-6"
+      className="flex min-h-full flex-col rounded-[24px] border bg-[var(--ac-panel-bg)] p-6"
       style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}
     >
       {/* The struck-through original only exists for a discounted plan, so the row reserves its line either
@@ -505,7 +505,9 @@ export function BuyBox() {
         </div>
       )}
 
-      <div className="mt-5 grid grid-cols-3 gap-2 border-t pt-5" style={{ borderColor: "var(--ac-divider)" }}>
+      {/* mt-auto (not a fixed margin) pins this row flush to the box's bottom edge — including when the
+          box stretches taller than its own content to match the plan picker column next to it. */}
+      <div className="mt-auto grid grid-cols-3 gap-2 border-t pt-5" style={{ borderColor: "var(--ac-divider)" }}>
         <a href="#plan-compare" className="flex flex-col items-center gap-1.5 rounded-xl px-2 py-2.5 text-[11px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ color: "var(--ac-text)" }}>
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 3h5v5M8 21H3v-5M21 3l-7.5 7.5M3 21l7.5-7.5" /></svg>
           مقایسه

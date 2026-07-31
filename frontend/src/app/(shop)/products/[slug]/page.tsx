@@ -243,9 +243,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           right-to-left like the marketplaces Iranian buyers already know: the product on the right, what you
           are choosing in the middle, and the price and buttons in a sticky box on the left. */}
       <PurchaseProvider product={product}>
-      <div className="grid items-start gap-5 sm:gap-6 lg:grid-cols-[minmax(300px,380px)_1fr_minmax(300px,360px)]">
-        {/* gallery — first on mobile; RIGHT column on desktop */}
-        <div className="order-1 lg:col-start-1 lg:row-start-1">
+      <div className="grid items-stretch gap-5 sm:gap-6 lg:grid-cols-[minmax(300px,380px)_1fr_minmax(300px,360px)]">
+        {/* gallery — first on mobile; RIGHT column on desktop. lg:h-full lets it share the row's full
+            height when the plan picker (middle column) grows tall with many plans, so its bottom edge
+            lines up with the buy box on the other side instead of stopping short. */}
+        <div className="order-1 lg:col-start-1 lg:row-start-1 lg:h-full">
           <ProductGallery image={product.image} gallery={product.gallery ?? []} name={product.name} featured={product.featured} out={out} />
         </div>
 
@@ -277,8 +279,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
           </div>
         </div>
 
-        {/* The buying column — desktop only; the sticky bottom bar carries the price and CTA on mobile. */}
-        <div className="order-3 hidden lg:sticky lg:top-[100px] lg:col-start-3 lg:row-start-1 lg:block">
+        {/* The buying column — desktop only; the sticky bottom bar carries the price and CTA on mobile.
+            lg:h-full mirrors the gallery column so the box's bottom edge (see BuyBox's own h-full/mt-auto)
+            lines up with it when the plan picker pushes the row taller. */}
+        <div className="order-3 hidden lg:sticky lg:top-[100px] lg:col-start-3 lg:row-start-1 lg:block lg:h-full">
           <BuyBox />
         </div>
       </div>
