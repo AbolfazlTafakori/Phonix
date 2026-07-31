@@ -58,7 +58,7 @@ export default function ThemeToggle() {
       onClick={toggle}
       aria-label={dark ? "روشن کردن تم روشن" : "روشن کردن تم تیره"}
       title={dark ? "روشن کردن تم روشن" : "روشن کردن تم تیره"}
-      className="grid h-11 w-11 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"
+      className="grid h-11 w-11 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red-text)]"
     >
       {dark ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
     </button>

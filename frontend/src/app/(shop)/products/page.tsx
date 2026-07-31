@@ -45,7 +45,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
         <section className="overflow-hidden border-b border-[var(--hl-border)] bg-[var(--hl-surface)]">
           <div className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">
             <nav className="flex items-center justify-start gap-2 pb-2 pt-6 text-[13px] text-[var(--hl-muted)]">
-              <Link href="/" className="flex items-center gap-1 transition hover:text-[var(--hl-red)]">
+              <Link href="/" className="flex items-center gap-1 transition hover:text-[var(--hl-red-text)]">
                 <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z" /><path d="M9 22V12h6v10" /></svg>
                 خانه
               </Link>
@@ -59,7 +59,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
               </div>
 
               <div className="hero-anim-text w-full text-center lg:w-auto lg:text-right">
-                <h1 className="text-[30px] font-black leading-[1.5] text-[var(--hl-red)] sm:text-[42px] xl:text-[46px] 2xl:text-[52px]">
+                <h1 className="text-[30px] font-black leading-[1.5] text-[var(--hl-red-text)] sm:text-[42px] xl:text-[46px] 2xl:text-[52px]">
                   محصولات فونیکس وریفای
                 </h1>
                 <p className="mx-auto mt-3 max-w-xl text-[16px] leading-7 text-[var(--hl-muted)] sm:mt-4 sm:text-[20px] sm:leading-9 lg:mx-0">

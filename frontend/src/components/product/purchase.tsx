@@ -261,9 +261,9 @@ export function PlanPicker() {
                 : { borderColor: "var(--ac-panel-border)" }}
             >
               <span className="flex items-center gap-3">
-                <span style={{ color: active ? "#F2551F" : "var(--ac-icon)" }}>{TYPE_ICON(t)}</span>
+                <span style={{ color: active ? "var(--hl-orange-text)" : "var(--ac-icon)" }}>{TYPE_ICON(t)}</span>
                 <span className="leading-tight">
-                  <span className="block text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{t}</span>
+                  <span className="block text-[14px] font-black" style={{ color: active ? "var(--hl-orange-text)" : "var(--ac-title)" }}>{t}</span>
                   <span className="mt-0.5 block text-[11px]" style={{ color: "var(--ac-muted)" }}>{TYPE_DESC[t] ?? (isV2Ray ? "لوکیشن سرویس" : "اشتراک دیجیتال")}</span>
                 </span>
               </span>
@@ -300,13 +300,13 @@ export function PlanPicker() {
                     ? { borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }
                     : { borderColor: "var(--ac-panel-border)" }}
                 >
-                  <span className="text-[14px] font-black" style={{ color: active ? "#F2551F" : "var(--ac-title)" }}>{p.label || `${toFa(p.months)} ماهه`}</span>
+                  <span className="text-[14px] font-black" style={{ color: active ? "var(--hl-orange-text)" : "var(--ac-title)" }}>{p.label || `${toFa(p.months)} ماهه`}</span>
                   <span className="text-[12px] font-bold" style={{ color: "var(--ac-text)" }}>{formatToman(p.finalPrice)}</span>
                   {/* The badge line is always laid out, even when a plan has neither a seat count nor a
                       discount — otherwise cards in the same row would sit at different heights. */}
                   <span className="mt-0.5 flex h-[19px] items-center">
                     {p.userCount > 0 ? (
-                      <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
+                      <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "var(--hl-orange-text)" }}>
                         <svg viewBox="0 0 24 24" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" /></svg>
                         {toFa(p.userCount)} کاربر
                       </span>
@@ -433,7 +433,7 @@ export function BuyBox() {
           </p>
         </div>
         {planLabel && (
-          <span className="rounded-lg px-2.5 py-1 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
+          <span className="rounded-lg px-2.5 py-1 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "var(--hl-orange-text)" }}>
             {planLabel}
           </span>
         )}
@@ -445,7 +445,7 @@ export function BuyBox() {
         </button>
       ) : overLevel ? (
         <div className="mt-4 rounded-xl border p-4 text-center" style={{ borderColor: "var(--ac-btn-secondary-border)", background: "var(--ac-stat-icon-orange-bg)" }}>
-          <p className="text-[13px] font-black" style={{ color: "#F2551F" }}>برای خرید این محصول احراز هویت لازم است</p>
+          <p className="text-[13px] font-black" style={{ color: "var(--hl-orange-text)" }}>برای خرید این محصول احراز هویت لازم است</p>
           <p className="mt-1 text-[12px] leading-6" style={{ color: "var(--ac-text)" }}>
             این محصول به سطح {toFa(requiredLevel)} ({requiredLevel >= 2 ? "تأیید کارت ملی" : "تأیید کارت بانکی"}) نیاز دارد؛
             سطح فعلی شما {toFa(level ?? 0)} است.
@@ -465,7 +465,7 @@ export function BuyBox() {
       ) : inCartQty > 0 ? (
         <div className="mt-4 space-y-2.5">
           <div className="flex items-center justify-between rounded-xl border px-4 py-2.5" style={{ borderColor: "var(--ac-menu-active-border)", background: "var(--ac-menu-active-bg)" }}>
-            <span className="text-[13px] font-bold" style={{ color: "#F2551F" }}>تعداد</span>
+            <span className="text-[13px] font-bold" style={{ color: "var(--hl-orange-text)" }}>تعداد</span>
             <div className="flex items-center gap-3">
               <button type="button" onClick={() => changeQty(inCartQty - 1)} aria-label="کاهش" className="grid h-8 w-8 place-items-center rounded-lg border text-[16px] font-bold transition hover:bg-[color:var(--ac-menu-hover)]" style={{ borderColor: "var(--ac-panel-border)", color: "var(--ac-text)", background: "var(--ac-panel-bg)" }}>−</button>
               <span className="w-6 text-center text-[15px] font-black" style={{ color: "var(--ac-title)" }}>{toFa(inCartQty)}</span>

@@ -64,13 +64,15 @@ const display = Space_Grotesk({
   weight: ["400", "500", "600", "700"],
 });
 
-// Declare the site as inherently dark so the browser (and extensions like Dark Reader)
-// don't re-theme it and inject attributes that break React hydration.
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   colorScheme: "light dark",
-  themeColor: "#ffffff",
+  // Mobile browser chrome follows the theme; a single value left the address bar white in dark mode.
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f8f1ea" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0e12" },
+  ],
 };
 
 export async function generateMetadata(): Promise<Metadata> {

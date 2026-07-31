@@ -18,7 +18,7 @@ function Row({ item, open, onToggle }: { item: Item; open: boolean; onToggle: ()
     <div className={`hl-card overflow-hidden rounded-[16px] transition ${open ? "border-[#ff5a1f]" : ""}`}>
       <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-right">
         <span className="text-[15px] font-bold text-[var(--hl-ink)]">{item.q}</span>
-        <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[18px] font-bold transition ${open ? "bg-gradient-to-br from-[#ef233c] to-[#ff5a1f] text-white" : "bg-[#fff6f2] text-[var(--hl-red)]"}`}>
+        <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[18px] font-bold transition ${open ? "bg-gradient-to-br from-[#ef233c] to-[#ff5a1f] text-white" : "bg-[#fff6f2] text-[var(--hl-red-text)]"}`}>
           {open ? "−" : "+"}
         </span>
       </button>

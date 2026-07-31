@@ -30,8 +30,19 @@ body {
   color: #fff;
 }
 
-/* the site is dark by design — keeps the browser/extensions from re-theming it */
+/* Must track the active shell, not a fixed value: it is what tells the browser how to paint the things
+   CSS can't reach — form controls, autofill fills, the caret, and the default scrollbar. Pinned to `dark`
+   it rendered dark widgets on the light storefront.
+   Same shape as the `body:has(.home-light)` rule below: the bare dark shell (admin, invoice, config,
+   maintenance) is the default, `.home-light` marks the light surfaces, and an explicit dark theme wins
+   last. `.home-dark` is set on <html> before first paint. */
 html {
+  color-scheme: dark;
+}
+html:has(.home-light) {
+  color-scheme: light;
+}
+html.home-dark {
   color-scheme: dark;
 }
 
@@ -142,7 +153,8 @@ body:has(.home-light) { background: #f8f1ea; }
   --hl-orange: #ff5a1f;
   --hl-ink: #151515;
   --hl-ink-2: #5f6470;
-  --hl-muted: #8a8f99;
+  /* Secondary text, so it has to clear 4.5:1 against the cream page — the old #8a8f99 sat at 2.9. */
+  --hl-muted: #646972;
   --hl-border: #f0e2d6;
   /* Section surface — a warm off-white, ~2 shades lighter than the page cream so hero
      bands read brighter (close to the shield logo's tone). */
@@ -181,6 +193,22 @@ body:has(.home-light) { background: #f8f1ea; }
   transition: filter 0.2s ease, transform 0.2s ease;
 }
 .hl-cta:hover { filter: brightness(1.06); transform: translateY(-1px); }
+
+/* Red/blue in a *text* role, as opposed to a fill role.
+   `--hl-red` (#ef233c) is the brand fill and stays untouched, but as text it lands at 3.8–4.3:1 against
+   every surface here — under the 4.5 AA floor on light AND dark. These are the same hue pushed just past
+   that floor in each direction, and are only ever used for `color`, never for a background or border. */
+:root {
+  --hl-red-text: #c8102e;
+  --hl-orange-text: #c0380b;
+  --hl-blue-text: #2563eb;
+}
+html.home-dark {
+  --hl-red-text: #ff5c72;
+  /* On dark surfaces the brand orange already clears AA, so it stays exactly as-is. */
+  --hl-orange-text: #f2551f;
+  --hl-blue-text: #6f9bf5;
+}
 
 /* Live-chat surfaces — theme-aware so the widget matches the site (light by default, dark when
    the theme toggle is on). Declared globally because the chat renders outside the .home-light scope. */
@@ -266,7 +294,7 @@ html.home-dark body { background: #0e0e12; }
 html.home-dark .home-light {
   --hl-ink: #f2f3f5;
   --hl-ink-2: #b4b8c2;
-  --hl-muted: #7c8290;
+  --hl-muted: #8d93a1;
   --hl-border: #2a2a34;
   --hl-surface: #14141a;
   --hl-card: #17171d;
@@ -341,8 +369,8 @@ body:has(.home-light) {
   --ac-input-focus: #ff7a2f;
   --ac-title: #1f1a17;
   --ac-text: #5e5248;
-  --ac-muted: #8c8075;
-  --ac-icon: #8c7b6c;
+  --ac-muted: #736860;
+  --ac-icon: #796a5d;
   --ac-divider: #eadfd4;
   --ac-menu-active-bg: #fff1e8;
   --ac-menu-active-border: #ff6a2b;
@@ -389,8 +417,8 @@ html.home-dark .home-light {
   --ac-input-focus: #ff7a2f;
   --ac-title: #f0ebe5;
   --ac-text: #c4b4a4;
-  --ac-muted: #7a6e65;
-  --ac-icon: #6a5e58;
+  --ac-muted: #968a80;
+  --ac-icon: #847870;
   --ac-divider: rgba(255, 255, 255, 0.07);
   --ac-menu-active-bg: rgba(255, 106, 43, 0.12);
   --ac-menu-active-border: #ff6a2b;
@@ -409,7 +437,8 @@ html.home-dark .home-light {
   --ac-stat-icon-purple-bg: rgba(138, 82, 255, 0.12);
 }
 
-/* Slim scrollbar to match the dark theme */
+/* Slim scrollbar. Follows the same shell cascade as `color-scheme` above, otherwise the light
+   storefront gets a dark gutter (or the admin panel a light one). */
 ::-webkit-scrollbar {
   width: 10px;
 }
@@ -419,6 +448,27 @@ html.home-dark .home-light {
 ::-webkit-scrollbar-thumb {
   background: #2a2a3d;
   border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3a3a52;
+}
+html:has(.home-light)::-webkit-scrollbar-track {
+  background: #efe6dc;
+}
+html:has(.home-light)::-webkit-scrollbar-thumb {
+  background: #c9b8a8;
+}
+html:has(.home-light)::-webkit-scrollbar-thumb:hover {
+  background: #b3a08e;
+}
+html.home-dark::-webkit-scrollbar-track {
+  background: var(--color-ink);
+}
+html.home-dark::-webkit-scrollbar-thumb {
+  background: #2a2a3d;
+}
+html.home-dark::-webkit-scrollbar-thumb:hover {
+  background: #3a3a52;
 }
 
 /* Floating UI must never end up in a printed page or a saved PDF. The live-chat launcher is rendered by the

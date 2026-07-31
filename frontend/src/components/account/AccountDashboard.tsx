@@ -119,7 +119,7 @@ function StatCard({
       </div>
 
       {/* link */}
-      <span className="flex items-center justify-center gap-1.5 text-[13px] font-bold transition-opacity group-hover:opacity-60" style={{ color: "#F2551F" }}>
+      <span className="flex items-center justify-center gap-1.5 text-[13px] font-bold transition-opacity group-hover:opacity-60" style={{ color: "var(--hl-orange-text)" }}>
         {linkText}
         <span className="text-[17px] leading-none" style={{ direction: "ltr" }}>‹</span>
       </span>
@@ -297,7 +297,7 @@ function ChangeEmailRow({ email, emailVerified }: { email: string; emailVerified
           <span className="rounded-md px-2 py-0.5 text-[10px] font-bold bg-amber-500/15 text-amber-600">ایمیلی ثبت نشده</span>
           <span className="text-[12px]" style={{ color: "var(--ac-muted)" }}>برای دریافت اعلان‌های امنیتی و سفارش‌ها لازم است.</span>
         </div>
-        <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "#F2551F" }}>افزودن ایمیل</button>
+        <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>افزودن ایمیل</button>
       </div>
     );
   }
@@ -311,7 +311,7 @@ function ChangeEmailRow({ email, emailVerified }: { email: string; emailVerified
             {emailVerified ? "تأییدشده" : "تأیید نشده"}
           </span>
           <span dir="ltr" className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{email}</span>
-          <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "#F2551F" }}>تغییر</button>
+          <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>تغییر</button>
         </div>
       </div>
     );
@@ -415,7 +415,7 @@ export default function AccountDashboard() {
             </h2>
             <p className="text-[14px] leading-loose md:text-[15px]" style={{ color: "var(--ac-text)" }}>
               از اینکه به خانواده{" "}
-              <span className="font-black" style={{ color: "#F2551F" }}>Phoenix Verify</span>{" "}
+              <span className="font-black" style={{ color: "var(--hl-orange-text)" }}>Phoenix Verify</span>{" "}
               پیوسته‌اید، خوشحالیم.
             </p>
             <p className="text-[14px] leading-loose md:text-[15px]" style={{ color: "var(--ac-text)" }}>
@@ -477,7 +477,7 @@ export default function AccountDashboard() {
 
             <div className="mb-2 flex items-center justify-between text-[13px] font-bold">
               <span style={{ color: "var(--ac-text)" }}>پیشرفت تکمیل پروفایل</span>
-              <span style={{ color: "#F2551F" }}>{toFa(completionPct)}٪ تکمیل شده</span>
+              <span style={{ color: "var(--hl-orange-text)" }}>{toFa(completionPct)}٪ تکمیل شده</span>
             </div>
             <div className="mb-5 h-[8px] overflow-hidden rounded-full" style={{ background: "var(--ac-divider)" }}>
               <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${completionPct}%`, background: "linear-gradient(90deg, #FF8A2B 0%, #FF3D2E 100%)" }} />
@@ -523,7 +523,7 @@ export default function AccountDashboard() {
         {/* header */}
         <div className="flex items-center justify-between border-b px-5 py-4 md:px-6" style={dividerStyle}>
           <h2 className="text-[16px] font-black md:text-[18px]" style={{ color: "var(--ac-title)" }}>سفارش‌های اخیر</h2>
-          <Link href="/account/orders" className="text-[13px] font-bold transition hover:opacity-70" style={{ color: "#F2551F" }}>
+          <Link href="/account/orders" className="text-[13px] font-bold transition hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>
             مشاهده همه سفارش‌ها ‹
           </Link>
         </div>
@@ -609,7 +609,7 @@ export default function AccountDashboard() {
           <Link
             href="/account/tickets"
             className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-xl border text-[13px] font-bold transition"
-            style={{ background: "var(--ac-btn-secondary-bg)", border: "1px solid var(--ac-btn-secondary-border)", color: "#F2551F" }}
+            style={{ background: "var(--ac-btn-secondary-bg)", border: "1px solid var(--ac-btn-secondary-border)", color: "var(--hl-orange-text)" }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ac-menu-hover)"; }}
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = "var(--ac-btn-secondary-bg)"; }}
           >
@@ -626,7 +626,7 @@ export default function AccountDashboard() {
               </svg>
               <h3 className="text-[16px] font-black" style={{ color: "var(--ac-title)" }}>علاقه‌مندی‌های من</h3>
             </div>
-            <Link href="/account/favorites" className="text-[13px] font-bold transition hover:opacity-70" style={{ color: "#F2551F" }}>
+            <Link href="/account/favorites" className="text-[13px] font-bold transition hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>
               مشاهده همه
             </Link>
           </div>
@@ -637,7 +637,7 @@ export default function AccountDashboard() {
                 {I.heart.map((d, i) => <path key={i} d={d} />)}
               </svg>
               <p className="text-[13px]" style={{ color: "var(--ac-muted)" }}>هنوز محصولی ذخیره نکرده‌اید.</p>
-              <Link href="/products" className="mt-3 text-[13px] font-bold hover:opacity-70" style={{ color: "#F2551F" }}>مشاهده محصولات ‹</Link>
+              <Link href="/products" className="mt-3 text-[13px] font-bold hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>مشاهده محصولات ‹</Link>
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-2.5">
@@ -656,7 +656,7 @@ export default function AccountDashboard() {
                     )}
                     <p className="text-[11px] font-bold leading-snug" style={{ color: "var(--ac-title)" }}>{p.name}</p>
                   </div>
-                  <span className="absolute bottom-2 left-2 text-[13px]" style={{ color: "#F2551F" }}>♥</span>
+                  <span className="absolute bottom-2 left-2 text-[13px]" style={{ color: "var(--hl-orange-text)" }}>♥</span>
                 </div>
               ))}
             </div>
@@ -674,7 +674,7 @@ export default function AccountDashboard() {
           </p>
           <p className="mb-4 text-[13px] leading-loose" style={{ color: "var(--ac-text)" }}>
             به ازای هر ثبت‌نام فعال،{" "}
-            <span className="font-black" style={{ color: "#F2551F" }}>۵۰,۰۰۰ تومان</span>{" "}
+            <span className="font-black" style={{ color: "var(--hl-orange-text)" }}>۵۰,۰۰۰ تومان</span>{" "}
             اعتبار دریافت کنید.
           </p>
 
@@ -683,7 +683,7 @@ export default function AccountDashboard() {
             style={{ background: "var(--ac-stat-icon-orange-bg)", borderColor: "var(--ac-btn-secondary-border)", borderStyle: "dashed" }}
           >
             <p className="mb-1 text-[11px]" style={{ color: "var(--ac-muted)" }}>کد دعوت شما</p>
-            <p className="text-[20px] font-black uppercase tracking-wider" dir="ltr" style={{ color: "#F2551F" }}>
+            <p className="text-[20px] font-black uppercase tracking-wider" dir="ltr" style={{ color: "var(--hl-orange-text)" }}>
               {username.toUpperCase() || "PHONIX2024"}
             </p>
             {/* The link the copy button actually copies, shown so it is clear what lands on the clipboard. */}
@@ -706,7 +706,7 @@ export default function AccountDashboard() {
           </div>
 
           <div className="mt-3 text-center">
-            <Link href="/account/invite" className="text-[13px] font-bold transition hover:opacity-70" style={{ color: "#F2551F" }}>
+            <Link href="/account/invite" className="text-[13px] font-bold transition hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>
               مشاهده جزئیات و شرایط ‹
             </Link>
           </div>
@@ -761,7 +761,7 @@ export default function AccountDashboard() {
           <Link
             href="/account/tickets"
             className="group flex h-12 min-w-[180px] items-center justify-center gap-2 rounded-xl border text-[15px] font-bold transition-all duration-200"
-            style={{ background: "var(--ac-btn-secondary-bg)", border: "1.5px solid var(--ac-panel-border)", color: "#F2551F" }}
+            style={{ background: "var(--ac-btn-secondary-bg)", border: "1.5px solid var(--ac-panel-border)", color: "var(--hl-orange-text)" }}
             onMouseEnter={(e) => {
               const el = e.currentTarget as HTMLElement;
               el.style.background = "var(--ac-menu-hover)";
@@ -772,7 +772,7 @@ export default function AccountDashboard() {
               const el = e.currentTarget as HTMLElement;
               el.style.background = "var(--ac-btn-secondary-bg)";
               el.style.borderColor = "var(--ac-panel-border)";
-              el.style.color = "#F2551F";
+              el.style.color = "var(--hl-orange-text)";
             }}
           >
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4">

@@ -141,7 +141,7 @@ function ReviewCard({ comment, replies }: { comment: Comment; replies: Comment[]
       <p className="mt-3 text-sm leading-7" style={{ color: "var(--ac-text)" }}>{comment.body}</p>
       {replies.map((r) => (
         <div key={r.id} className="mt-3 rounded-lg p-4" style={{ background: "var(--ac-menu-hover)" }}>
-          <p className="text-xs font-bold" style={{ color: "#F2551F" }}>{r.userName}{r.isAdminReply ? " (پشتیبانی)" : ""}</p>
+          <p className="text-xs font-bold" style={{ color: "var(--hl-orange-text)" }}>{r.userName}{r.isAdminReply ? " (پشتیبانی)" : ""}</p>
           <p className="mt-1.5 text-sm leading-7" style={{ color: "var(--ac-text)" }}>{r.body}</p>
         </div>
       ))}

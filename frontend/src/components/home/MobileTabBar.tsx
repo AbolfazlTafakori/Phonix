@@ -71,7 +71,7 @@ export default function MobileTabBar() {
             key={t.key}
             href={t.href}
             className="flex flex-col items-center gap-1 py-2 text-[11px] font-bold transition"
-            style={{ color: t.active ? "#F2551F" : "var(--ac-muted)" }}
+            style={{ color: t.active ? "var(--hl-orange-text)" : "var(--ac-muted)" }}
           >
             <span className="relative">
               <Icon className="h-[22px] w-[22px]" />

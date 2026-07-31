@@ -28,11 +28,14 @@ export default function HomeNewsletter() {
           <input
             dir="rtl"
             type="email"
+            name="email"
+            autoComplete="email"
+            aria-label="ایمیل برای عضویت در خبرنامه"
             placeholder="ایمیل شما..."
             style={{ background: "#fff", color: "#151515" }}
             className="h-12 flex-1 rounded-xl px-4 text-[14px] font-medium placeholder:text-[#8a8f99] focus:outline-none"
           />
-          <button type="submit" style={{ background: "#fff" }} className="h-12 shrink-0 rounded-xl px-6 text-[14px] font-bold text-[#F0392C] transition hover:brightness-95">
+          <button type="submit" style={{ background: "#fff" }} className="h-12 shrink-0 rounded-xl px-6 text-[14px] font-bold text-[#c8102e] transition hover:brightness-95">
             عضویت در خبرنامه
           </button>
         </form>

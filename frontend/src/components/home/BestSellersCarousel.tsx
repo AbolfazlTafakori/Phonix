@@ -50,7 +50,7 @@ function Card({ p }: { p: CarouselCard }) {
           <p className="truncate text-[15px] text-[var(--hl-muted)]">{p.categoryName}</p>
           <Stars />
         </div>
-        <Link href={p.href} className="mt-1 line-clamp-1 text-[20px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]">
+        <Link href={p.href} className="mt-1 line-clamp-1 text-[20px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red-text)]">
           {p.name}
         </Link>
         <div className="mt-auto pt-3 text-center text-[18px] font-black text-[var(--hl-ink)]">{p.priceLabel}</div>
@@ -75,7 +75,7 @@ function Arrow({ dir, onClick }: { dir: "prev" | "next"; onClick: () => void }) 
       type="button"
       aria-label={dir === "next" ? "بعدی" : "قبلی"}
       onClick={onClick}
-      className={`absolute top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-[var(--hl-border)] bg-white text-[var(--hl-ink)] shadow-[0_10px_24px_-10px_rgba(20,20,20,0.35)] transition hover:border-[var(--hl-red)]/40 hover:text-[var(--hl-red)] sm:h-11 sm:w-11 ${side}`}
+      className={`absolute top-1/2 z-10 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-[var(--hl-border)] bg-white text-[var(--hl-ink)] shadow-[0_10px_24px_-10px_rgba(20,20,20,0.35)] transition hover:border-[var(--hl-red)]/40 hover:text-[var(--hl-red-text)] sm:h-11 sm:w-11 ${side}`}
     >
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d={dir === "next" ? "M15 6l-6 6 6 6" : "M9 6l6 6-6 6"} />

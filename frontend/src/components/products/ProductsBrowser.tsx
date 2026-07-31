@@ -147,7 +147,7 @@ function ProductCard({ p }: { p: Product }) {
         </div>
 
         <div className="mt-3 flex items-center gap-2">
-          <span className="flex-1 rounded-xl border border-[var(--hl-red)] py-2 text-center text-[13px] font-bold text-[var(--hl-red)] transition group-hover:bg-[#fff4f1]">
+          <span className="flex-1 rounded-xl border border-[var(--hl-red)] py-2 text-center text-[13px] font-bold text-[var(--hl-red-text)] transition group-hover:bg-[#fff4f1]">
             مشاهده
           </span>
           {out ? (
@@ -256,7 +256,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
     <div className="overflow-hidden rounded-[18px] border border-[var(--hl-card-border)] bg-[var(--hl-card)]">
       <div className="flex items-center justify-between gap-2 px-5 py-4">
         <h2 className="text-[17px] font-black text-[var(--hl-ink)]">فیلتر محصولات</h2>
-        <svg viewBox="0 0 24 24" className="h-5 w-5 text-[var(--hl-red)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
+        <svg viewBox="0 0 24 24" className="h-5 w-5 text-[var(--hl-red-text)]" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 6h16M7 12h10M10 18h4" /></svg>
       </div>
 
       <Section title="دسته‌بندی محصولات">
@@ -296,6 +296,9 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
         <span className="text-[14px] font-bold text-[var(--hl-ink)]">فقط محصولات تخفیف‌دار</span>
         <button
           type="button"
+          role="switch"
+          aria-checked={discountOnly}
+          aria-label="فقط محصولات تخفیف‌دار"
           onClick={() => { setDiscountOnly((v) => !v); setPage(1); }}
           className={`relative h-6 w-11 shrink-0 rounded-full transition ${discountOnly ? "bg-[var(--hl-red)]" : "bg-[var(--hl-border)]"}`}
         >
@@ -343,7 +346,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                 نمایش {formatNumber(pageItems.length)} از {formatNumber(filtered.length)} محصول
               </span>
               {anyFilter && (
-                <button type="button" onClick={clearAll} className="rounded-lg border border-[var(--hl-red)]/40 px-3 py-1 text-[12px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff4f1]">
+                <button type="button" onClick={clearAll} className="rounded-lg border border-[var(--hl-red)]/40 px-3 py-1 text-[12px] font-bold text-[var(--hl-red-text)] transition hover:bg-[#fff4f1]">
                   پاک کردن همه
                 </button>
               )}
@@ -388,7 +391,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                     type="button"
                     disabled={pageClamped === 1}
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
-                    className="flex items-center gap-1.5 rounded-xl border border-[var(--hl-card-border)] bg-[var(--hl-card)] px-3.5 py-2 text-[13px] font-bold text-[var(--hl-ink-2)] transition enabled:hover:border-[var(--hl-red)]/50 enabled:hover:text-[var(--hl-red)] disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-xl border border-[var(--hl-card-border)] bg-[var(--hl-card)] px-3.5 py-2 text-[13px] font-bold text-[var(--hl-ink-2)] transition enabled:hover:border-[var(--hl-red)]/50 enabled:hover:text-[var(--hl-red-text)] disabled:opacity-40"
                   >
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                     قبلی
@@ -405,7 +408,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                         key={n}
                         type="button"
                         onClick={() => setPage(n)}
-                        className={`h-9 w-9 rounded-xl text-[13px] font-bold transition ${n === pageClamped ? "bg-[var(--hl-red)] text-white shadow-[0_8px_18px_-8px_rgba(239,35,60,0.6)]" : "border border-[var(--hl-card-border)] bg-[var(--hl-card)] text-[var(--hl-ink-2)] hover:border-[var(--hl-red)]/50 hover:text-[var(--hl-red)]"}`}
+                        className={`h-9 w-9 rounded-xl text-[13px] font-bold transition ${n === pageClamped ? "bg-[var(--hl-red)] text-white shadow-[0_8px_18px_-8px_rgba(239,35,60,0.6)]" : "border border-[var(--hl-card-border)] bg-[var(--hl-card)] text-[var(--hl-ink-2)] hover:border-[var(--hl-red)]/50 hover:text-[var(--hl-red-text)]"}`}
                       >
                         {formatNumber(n)}
                       </button>
@@ -415,7 +418,7 @@ export default function ProductsBrowser({ products, categories, initialCatId }: 
                     type="button"
                     disabled={pageClamped === totalPages}
                     onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                    className="flex items-center gap-1.5 rounded-xl border border-[var(--hl-card-border)] bg-[var(--hl-card)] px-3.5 py-2 text-[13px] font-bold text-[var(--hl-ink-2)] transition enabled:hover:border-[var(--hl-red)]/50 enabled:hover:text-[var(--hl-red)] disabled:opacity-40"
+                    className="flex items-center gap-1.5 rounded-xl border border-[var(--hl-card-border)] bg-[var(--hl-card)] px-3.5 py-2 text-[13px] font-bold text-[var(--hl-ink-2)] transition enabled:hover:border-[var(--hl-red)]/50 enabled:hover:text-[var(--hl-red-text)] disabled:opacity-40"
                   >
                     بعدی
                     <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M11 6l-6 6 6 6" /></svg>

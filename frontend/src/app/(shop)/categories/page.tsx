@@ -71,7 +71,7 @@ export default async function CategoriesPage() {
       <section className="overflow-hidden border-b border-[var(--hl-border)] bg-[var(--hl-surface)]">
         <div className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">
           <nav className="flex items-center justify-start gap-2 pb-2 pt-6 text-[13px] text-[var(--hl-muted)]">
-            <Link href="/" className="flex items-center gap-1 transition hover:text-[var(--hl-red)]">
+            <Link href="/" className="flex items-center gap-1 transition hover:text-[var(--hl-red-text)]">
               <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z" /><path d="M9 22V12h6v10" /></svg>
               خانه
             </Link>
@@ -89,7 +89,7 @@ export default async function CategoriesPage() {
             </div>
 
             <div className="flex-1 text-center xl:text-right">
-              <p className="text-[26px] font-black text-[var(--hl-red)] sm:text-[34px] xl:text-[36px] 2xl:text-[40px]">دسته‌بندی</p>
+              <p className="text-[26px] font-black text-[var(--hl-red-text)] sm:text-[34px] xl:text-[36px] 2xl:text-[40px]">دسته‌بندی</p>
               <h1 className="mt-1 text-[22px] font-extrabold leading-[1.5] text-[var(--hl-ink)] sm:text-[30px] xl:text-[32px] 2xl:text-[36px]">
                 خدمات و محصولات فونیکس وریفای
               </h1>
@@ -108,7 +108,7 @@ export default async function CategoriesPage() {
                 <ul className="flex-1 space-y-6">
                   {heroFeatures.map((text) => (
                     <li key={text} className="flex items-center gap-2 whitespace-nowrap text-[15px] font-bold text-[var(--hl-ink)]">
-                      <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-[var(--hl-red)]" fill="currentColor">
+                      <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0 text-[var(--hl-red-text)]" fill="currentColor">
                         <path d="M12 2a10 10 0 110 20 10 10 0 010-20zm-1.7 14.3l6.4-6.4-1.4-1.4-5 5-2.3-2.3-1.4 1.4 3.7 3.7z" />
                       </svg>
                       {text}
@@ -165,11 +165,11 @@ export default async function CategoriesPage() {
                     <span className="text-5xl">📌</span>
                   )}
                 </div>
-                <h3 className="text-[16px] font-bold text-[var(--hl-ink)] transition group-hover:text-[var(--hl-red)] sm:text-[18px]">{cat.name}</h3>
+                <h3 className="text-[16px] font-bold text-[var(--hl-ink)] transition group-hover:text-[var(--hl-red-text)] sm:text-[18px]">{cat.name}</h3>
                 <p className="mt-1.5 line-clamp-2 text-[12px] leading-5 text-[var(--hl-muted)] sm:text-[13px] sm:leading-6">{desc}</p>
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-[13px] font-medium text-[var(--hl-muted)]">{formatNumber(cat.productCount)} محصول</span>
-                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-[var(--hl-red)]/10 text-[var(--hl-red)] transition group-hover:bg-[var(--hl-red)] group-hover:text-white">
+                  <span className="grid h-6 w-6 place-items-center rounded-lg bg-[var(--hl-red)]/10 text-[var(--hl-red-text)] transition group-hover:bg-[var(--hl-red)] group-hover:text-white">
                     <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M15 6l-6 6 6 6" />
                     </svg>

@@ -163,7 +163,7 @@ export default function Sidebar() {
                 style={{ color: "var(--ac-menu-text)" }}
                 onMouseEnter={(e) => {
                   (e.currentTarget as HTMLElement).style.background = "var(--ac-menu-hover)";
-                  (e.currentTarget as HTMLElement).style.color = "#F2551F";
+                  (e.currentTarget as HTMLElement).style.color = "var(--hl-orange-text)";
                 }}
                 onMouseLeave={(e) => {
                   (e.currentTarget as HTMLElement).style.background = "";
@@ -254,7 +254,7 @@ export default function Sidebar() {
         </Link>
 
         <div className="mt-4 text-center">
-          <Link href="/account/wallet" className="text-[13px] font-bold transition hover:text-[#FF3D2E]" style={{ color: "#F2551F" }}>
+          <Link href="/account/wallet" className="text-[13px] font-bold transition hover:text-[#FF3D2E]" style={{ color: "var(--hl-orange-text)" }}>
             مشاهده همه تراکنش‌ها ‹
           </Link>
         </div>

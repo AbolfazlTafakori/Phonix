@@ -151,11 +151,14 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
         onSubmit={submitSearch}
         className="flex h-11 w-full items-center gap-2 rounded-full border border-[var(--hl-border)] bg-[#f7f8fa] px-5 transition focus-within:border-[var(--hl-red)]/40 focus-within:bg-white"
       >
-        <button type="submit" aria-label="جستجو" className="shrink-0 text-[var(--hl-muted)] transition hover:text-[var(--hl-red)]">
+        <button type="submit" aria-label="جستجو" className="-mr-2 grid h-11 w-11 shrink-0 place-items-center text-[var(--hl-muted)] transition hover:text-[var(--hl-red-text)]">
           <SearchIcon className="h-5 w-5" />
         </button>
         <input
           dir="rtl"
+          type="search"
+          name="q"
+          aria-label="جستجوی محصولات"
           autoFocus={autoFocus}
           value={term}
           onChange={(e) => setTerm(e.target.value)}
@@ -180,7 +183,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
                   >
                     <img src={p.image} alt={p.name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
                     <span className="min-w-0 flex-1 truncate text-sm font-bold text-[var(--hl-ink)]">{p.name}</span>
-                    <span className="shrink-0 text-xs font-bold text-[var(--hl-red)]">{formatToman(productDisplayPrice(p))}</span>
+                    <span className="shrink-0 text-xs font-bold text-[var(--hl-red-text)]">{formatToman(productDisplayPrice(p))}</span>
                   </Link>
                 </li>
               ))}
@@ -219,7 +222,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
                 href={l.href}
                 className={`relative py-1 transition ${
                   i === activeIndex
-                    ? "text-[var(--hl-red)] after:absolute after:inset-x-0 after:-bottom-[6px] after:h-[3px] after:rounded-full after:bg-gradient-to-l after:from-[#ef233c] after:to-[#ff5a1f]"
+                    ? "text-[var(--hl-red-text)] after:absolute after:inset-x-0 after:-bottom-[6px] after:h-[3px] after:rounded-full after:bg-gradient-to-l after:from-[#ef233c] after:to-[#ff5a1f]"
                     : "text-[var(--hl-ink-2)] hover:text-[var(--hl-ink)]"
                 }`}
               >
@@ -241,7 +244,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
                 type="button"
                 onClick={toggleBell}
                 aria-label="اعلان‌ها"
-                className="relative grid h-10 w-10 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]"
+                className="relative grid h-10 w-10 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red-text)]"
               >
                 <BellIcon className="h-[22px] w-[22px]" />
                 {unread > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[var(--hl-red)]" />}
@@ -255,7 +258,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
             <Link
               href="/cart"
               aria-label="سبد خرید"
-              className={`relative ${onProductDetail ? "grid" : "hidden lg:grid"} h-11 w-11 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]`}
+              className={`relative ${onProductDetail ? "grid" : "hidden lg:grid"} h-11 w-11 place-items-center rounded-full text-[var(--hl-ink)] transition hover:text-[var(--hl-red-text)]`}
             >
               <CartIcon className="h-6 w-6" />
               {count > 0 && (
@@ -269,7 +272,7 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
           <Link
             href={user ? "/account" : "/login"}
             aria-label={user ? "حساب کاربری" : "ورود / ثبت‌نام"}
-            className={`${onProductDetail ? "flex" : "hidden lg:flex"} items-center gap-2 text-[16px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red)]`}
+            className={`${onProductDetail ? "flex" : "hidden lg:flex"} items-center gap-2 text-[16px] font-bold text-[var(--hl-ink)] transition hover:text-[var(--hl-red-text)]`}
           >
             <UserIcon className="h-5 w-5" />
             <span className="hidden md:inline">{user ? "حساب کاربری" : "ورود / ثبت‌نام"}</span>

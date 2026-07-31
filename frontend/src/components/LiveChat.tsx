@@ -332,7 +332,7 @@ export default function LiveChat() {
           <HeadsetIcon className="relative h-7 w-7" />
         )}
         {!open && unread > 0 && (
-          <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-[var(--chat-surface)] bg-white px-1 text-[11px] font-bold text-[#ef233c]">
+          <span className="absolute -right-1 -top-1 grid h-6 min-w-6 place-items-center rounded-full border-2 border-[var(--chat-surface)] bg-white px-1 text-[11px] font-bold text-[#c8102e]">
             {unread > 9 ? "۹+" : unread.toLocaleString("fa-IR")}
           </span>
         )}

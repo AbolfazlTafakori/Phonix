@@ -30,7 +30,7 @@ export default async function BlogPage() {
               >
                 <img loading="lazy" decoding="async" src={post.image || undefined} alt={post.title} className="h-48 w-full object-cover" />
                 <div className="p-6 text-right">
-                  <span className="inline-block rounded-full bg-[var(--hl-red)]/10 px-3 py-1 font-archivo text-xs font-bold text-[var(--hl-red)]">{post.tag}</span>
+                  <span className="inline-block rounded-full bg-[var(--hl-red)]/10 px-3 py-1 font-archivo text-xs font-bold text-[var(--hl-red-text)]">{post.tag}</span>
                   <h3 className="mt-3 text-lg font-bold leading-8 text-[var(--hl-ink)]">{post.title}</h3>
                   {post.excerpt && <p className="mt-2 text-sm leading-7 text-[var(--hl-ink-2)]">{post.excerpt}</p>}
                   <p className="mt-4 font-archivo text-sm text-[var(--hl-ink-2)]">{post.date}</p>

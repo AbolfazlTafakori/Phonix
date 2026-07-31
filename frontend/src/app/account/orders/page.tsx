@@ -176,7 +176,7 @@ export default function OrdersPage() {
                                 className={`h-10 w-10 rounded-xl object-cover ${delivered === 0 ? "opacity-50 grayscale" : ""}`}
                               />
                               {delivered > 0 && (
-                                <span className="absolute -left-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-emerald-500 text-[10px] text-white">✓</span>
+                                <span className="absolute -left-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-emerald-700 text-[10px] text-white">✓</span>
                               )}
                               {total > 1 && (
                                 <span className="absolute -bottom-1 -left-1 rounded-full bg-[color:var(--ac-menu-hover)] px-1 text-[10px] font-bold" style={{ color: "var(--ac-text)" }}>

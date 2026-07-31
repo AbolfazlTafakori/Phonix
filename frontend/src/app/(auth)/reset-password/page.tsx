@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
             <PwField value={password} onChange={setPassword} placeholder="گذرواژه جدید" show={show} onToggle={() => setShow((s) => !s)} />
             <PwField value={confirm} onChange={setConfirm} placeholder="تکرار گذرواژه جدید" show={show} onToggle={() => setShow((s) => !s)} />
             <p className="text-[11px] text-[var(--chat-muted)]">حداقل ۸ کاراکتر و ترکیبی از حروف و اعداد.</p>
-            {error && <p className="text-[12.5px] text-[#ef233c]">{error}</p>}
+            {error && <p className="text-[12.5px] text-[var(--hl-red-text)]">{error}</p>}
             <button type="submit" disabled={busy} className={`mt-1 ${gradBtn}`}>{busy ? "در حال ثبت..." : "تغییر گذرواژه"}</button>
             <Link href="/login" className={outlineBtn}>بازگشت به صفحه ورود</Link>
           </form>

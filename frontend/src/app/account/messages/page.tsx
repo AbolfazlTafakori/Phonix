@@ -80,7 +80,7 @@ export default function MessagesPage() {
               </div>
               {n.body && <p className="mt-2 whitespace-pre-wrap text-[13px] leading-7" style={{ color: "var(--ac-text)" }}>{n.body}</p>}
               {n.link && (
-                <Link href={n.link} className="mt-3 inline-block text-[13px] font-bold transition hover:opacity-70" style={{ color: "#F2551F" }}>
+                <Link href={n.link} className="mt-3 inline-block text-[13px] font-bold transition hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>
                   مشاهده ‹
                 </Link>
               )}

@@ -66,7 +66,7 @@ export default function PlanInfoForm({
         {plan.inputFields.map((f) => (
           <div key={f.label}>
             <label className="mb-1.5 block text-sm text-[var(--hl-ink-2)]">
-              {f.label} {f.required && <span className="text-[#ef233c]">*</span>}
+              {f.label} {f.required && <span className="text-[var(--hl-red-text)]">*</span>}
             </label>
             {f.type === "textarea" ? (
               <textarea

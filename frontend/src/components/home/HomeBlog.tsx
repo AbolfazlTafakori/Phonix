@@ -20,7 +20,7 @@ export default function HomeBlog({ posts, title }: { posts: BlogPost[]; title: s
         </div>
         <Link
           href="/blog"
-          className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[16px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2]"
+          className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[16px] font-bold text-[var(--hl-red-text)] transition hover:bg-[#fff6f2]"
         >
           مشاهده همه
         </Link>
@@ -34,11 +34,11 @@ export default function HomeBlog({ posts, title }: { posts: BlogPost[]; title: s
             className="hl-card group flex items-center gap-4 rounded-[18px] p-4 transition duration-200 hover:-translate-y-1 hover:shadow-[0_18px_40px_-16px_rgba(20,20,20,0.14)]"
           >
             <div className="flex-1">
-              <h3 className="line-clamp-2 text-[15px] font-bold leading-[1.7] text-[var(--hl-ink)] transition group-hover:text-[var(--hl-red)]">
+              <h3 className="line-clamp-2 text-[15px] font-bold leading-[1.7] text-[var(--hl-ink)] transition group-hover:text-[var(--hl-red-text)]">
                 {p.title}
               </h3>
               <div className="mt-3 flex items-center gap-4 text-[12px] text-[var(--hl-muted)]">
-                {p.tag && <span className="rounded-full bg-[var(--hl-red)]/10 px-2 py-0.5 font-bold text-[var(--hl-red)]">{p.tag}</span>}
+                {p.tag && <span className="rounded-full bg-[var(--hl-red)]/10 px-2 py-0.5 font-bold text-[var(--hl-red-text)]">{p.tag}</span>}
                 {p.date && <span>{p.date}</span>}
               </div>
             </div>

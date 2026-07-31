@@ -110,7 +110,7 @@ export default function ForgotPasswordPage() {
             </div>
 
             {error && (
-              <p role="alert" className="text-[12px] leading-6 text-[#ef233c]">{error}</p>
+              <p role="alert" className="text-[12px] leading-6 text-[var(--hl-red-text)]">{error}</p>
             )}
 
             <button type="submit" disabled={busy || !captcha.text.trim()} className={`mt-1 ${gradBtn}`}>

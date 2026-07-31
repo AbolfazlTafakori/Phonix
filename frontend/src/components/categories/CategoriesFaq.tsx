@@ -17,7 +17,7 @@ function Row({ item, open, onToggle }: { item: Item; open: boolean; onToggle: ()
     <div className={`hl-card overflow-hidden rounded-[16px] transition ${open ? "border-[#ff5a1f]" : ""}`}>
       <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-right">
         <span className="text-[15px] font-bold text-[var(--hl-ink)]">{item.q}</span>
-        <svg viewBox="0 0 24 24" className={`h-5 w-5 shrink-0 text-[var(--hl-red)] transition ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <svg viewBox="0 0 24 24" className={`h-5 w-5 shrink-0 text-[var(--hl-red-text)] transition ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>

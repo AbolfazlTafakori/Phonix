@@ -41,7 +41,7 @@ export default function HomeFooter({ brand }: { brand: { siteName: string; logo:
             </p>
             <div className="mt-5 flex items-center gap-2.5">
               {socials.map(({ I, href }, i) => (
-                <Link key={i} href={href} className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--hl-border)] bg-[var(--hl-card)] text-[var(--hl-ink-2)] transition hover:border-[var(--hl-red)]/40 hover:text-[var(--hl-red)]">
+                <Link key={i} href={href} className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--hl-border)] bg-[var(--hl-card)] text-[var(--hl-ink-2)] transition hover:border-[var(--hl-red)]/40 hover:text-[var(--hl-red-text)]">
                   <I className="h-5 w-5" />
                 </Link>
               ))}
@@ -53,7 +53,7 @@ export default function HomeFooter({ brand }: { brand: { siteName: string; logo:
             <h3 className="mb-4 text-[17px] font-bold text-[var(--hl-ink)]">لینک‌های مفید</h3>
             <ul className="flex flex-col gap-3">
               {quick.map((l) => (
-                <li key={l.label}><Link href={l.href} className="text-[15px] text-[var(--hl-ink-2)] transition hover:text-[var(--hl-red)]">{l.label}</Link></li>
+                <li key={l.label}><Link href={l.href} className="text-[15px] text-[var(--hl-ink-2)] transition hover:text-[var(--hl-red-text)]">{l.label}</Link></li>
               ))}
             </ul>
           </div>
@@ -63,7 +63,7 @@ export default function HomeFooter({ brand }: { brand: { siteName: string; logo:
             <h3 className="mb-4 text-[17px] font-bold text-[var(--hl-ink)]">دسترسی سریع</h3>
             <ul className="flex flex-col gap-3">
               {access.map((l) => (
-                <li key={l.label}><Link href={l.href} className="text-[15px] text-[var(--hl-ink-2)] transition hover:text-[var(--hl-red)]">{l.label}</Link></li>
+                <li key={l.label}><Link href={l.href} className="text-[15px] text-[var(--hl-ink-2)] transition hover:text-[var(--hl-red-text)]">{l.label}</Link></li>
               ))}
             </ul>
           </div>
@@ -85,7 +85,7 @@ export default function HomeFooter({ brand }: { brand: { siteName: string; logo:
                 همه‌روزه ۹ صبح تا ۱۲ شب
               </li>
             </ul>
-            <Link href="#" className="mt-4 inline-flex max-w-full items-center gap-2 rounded-xl border border-[#2563eb]/30 bg-[#2563eb]/5 px-4 py-2 text-[14px] font-bold text-[#2563eb] transition hover:bg-[#2563eb]/10">
+            <Link href="#" className="mt-4 inline-flex max-w-full items-center gap-2 rounded-xl border border-[#2563eb]/30 bg-[#2563eb]/5 px-4 py-2 text-[14px] font-bold text-[var(--hl-blue-text)] transition hover:bg-[#2563eb]/10">
               <TelegramIcon className="h-4 w-4 shrink-0" />
               <span className="min-w-0 truncate">@PhoenixVerifySupport</span>
             </Link>
@@ -126,7 +126,7 @@ export default function HomeFooter({ brand }: { brand: { siteName: string; logo:
             </svg>
             کیفیت، سرعت، امنیت
           </span>
-          <span>تمامی حقوق این سایت متعلق به <span className="font-bold text-[var(--hl-red)]">Phoenix Verify</span> است.</span>
+          <span>تمامی حقوق این سایت متعلق به <span className="font-bold text-[var(--hl-red-text)]">Phoenix Verify</span> است.</span>
         </div>
       </div>
     </footer>

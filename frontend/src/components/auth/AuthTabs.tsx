@@ -252,7 +252,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
             placeholder="------"
             className="h-12 w-full rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface)] text-center text-lg tracking-[0.5em] text-[var(--chat-ink)] outline-none focus:border-[#ff7a2e]"
           />
-          {error && <p className="mt-4 text-[12.5px] text-[#ef233c]">{error}</p>}
+          {error && <p className="mt-4 text-[12.5px] text-[var(--hl-red-text)]">{error}</p>}
           <button type="submit" disabled={busy || otp.length !== 6} className={`mt-6 ${gradBtn}`}>
             {busy ? "در حال بررسی..." : "تأیید و ورود"}
           </button>
@@ -279,7 +279,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
             key={t}
             type="button"
             onClick={() => switchTab(t)}
-            className={`flex-1 rounded-lg py-2.5 text-[13px] font-bold transition ${tab === t ? "border border-[#ffd9cf] bg-[var(--chat-surface)] text-[#ef233c] shadow-sm" : "text-[var(--chat-ink-2)] hover:text-[var(--chat-ink-2)]"}`}
+            className={`flex-1 rounded-lg py-2.5 text-[13px] font-bold transition ${tab === t ? "border border-[#ffd9cf] bg-[var(--chat-surface)] text-[var(--hl-red-text)] shadow-sm" : "text-[var(--chat-ink-2)] hover:text-[var(--chat-ink-2)]"}`}
           >
             {t === "register" ? "ثبت‌نام" : "ورود"}
           </button>
@@ -302,9 +302,9 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
               <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 rounded border-[#d6d9e2] accent-[#ef233c]" />
               مرا به خاطر بسپار
             </label>
-            <Link href="/forgot-password" className="text-[12px] font-bold text-[#ef233c] hover:underline">رمز عبور را فراموش کرده‌اید؟</Link>
+            <Link href="/forgot-password" className="text-[12px] font-bold text-[var(--hl-red-text)] hover:underline">رمز عبور را فراموش کرده‌اید؟</Link>
           </div>
-          {error && <p className="text-[12.5px] text-[#ef233c]">{error}</p>}
+          {error && <p className="text-[12.5px] text-[var(--hl-red-text)]">{error}</p>}
           <button type="submit" disabled={busy} className={`mt-1 ${gradBtn}`}>
             {busy ? "در حال ورود..." : "ورود به حساب"}
           </button>
@@ -315,7 +315,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
           {/* Disallowed characters (Persian letters, spaces, #, (), …) are dropped as they are typed rather
               than rejected on submit, so the field can only ever hold a policy-valid value. */}
           <Field icon={<AtI />} value={username} onChange={(v) => setUsername(v.replace(/[^a-zA-Z0-9]/g, ""))} placeholder="نام کاربری (حروف انگلیسی و عدد، حداقل ۵ کاراکتر)" dir="ltr" right={
-            <button type="button" onClick={() => setUsername(randomUsername())} tabIndex={-1} className="shrink-0 text-[11px] font-bold text-[#ef233c] hover:underline">جدید</button>
+            <button type="button" onClick={() => setUsername(randomUsername())} tabIndex={-1} className="shrink-0 text-[11px] font-bold text-[var(--hl-red-text)] hover:underline">جدید</button>
           } />
           <Field icon={<MailI />} type="email" value={email} onChange={setEmail} placeholder="ایمیل" dir="ltr" />
           <Field icon={<LockI />} type={showRegPw ? "text" : "password"} value={regPassword} onChange={setRegPassword} placeholder="رمز عبور" right={eye(showRegPw, () => setShowRegPw((s) => !s))} />
@@ -323,9 +323,9 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
           <CaptchaRow captcha={captcha} />
           <label className="flex items-start gap-2.5 text-[12px] leading-6 text-[var(--chat-ink-2)]">
             <input type="checkbox" checked={agree} onChange={(e) => setAgree(e.target.checked)} className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#d6d9e2] accent-[#ef233c]" />
-            <span><Link href="/terms" target="_blank" className="font-bold text-[#ef233c] hover:underline">قوانین و مقررات</Link> را مطالعه کرده و می‌پذیرم.</span>
+            <span><Link href="/terms" target="_blank" className="font-bold text-[var(--hl-red-text)] hover:underline">قوانین و مقررات</Link> را مطالعه کرده و می‌پذیرم.</span>
           </label>
-          {error && <p className="text-[12.5px] text-[#ef233c]">{error}</p>}
+          {error && <p className="text-[12.5px] text-[var(--hl-red-text)]">{error}</p>}
           <button type="submit" disabled={busy} className={`mt-1 ${gradBtn}`}>
             {busy ? "در حال ثبت..." : "ایجاد حساب کاربری"}
           </button>
@@ -343,7 +343,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
 
       <p className="mt-6 text-center text-[12px] text-[var(--chat-ink-2)]">
         {tab === "register" ? "حساب دارید؟ " : "حساب ندارید؟ "}
-        <button type="button" onClick={() => switchTab(tab === "register" ? "login" : "register")} className="font-bold text-[#ef233c] hover:underline">
+        <button type="button" onClick={() => switchTab(tab === "register" ? "login" : "register")} className="font-bold text-[var(--hl-red-text)] hover:underline">
           {tab === "register" ? "وارد شوید" : "ثبت‌نام کنید"}
         </button>
       </p>

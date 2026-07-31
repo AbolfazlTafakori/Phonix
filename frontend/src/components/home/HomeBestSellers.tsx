@@ -55,7 +55,7 @@ export default async function HomeBestSellers() {
         </div>
         <Link
           href="/products"
-          className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[16px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2]"
+          className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-white px-4 py-2 text-[16px] font-bold text-[var(--hl-red-text)] transition hover:bg-[#fff6f2]"
         >
           مشاهده همه
         </Link>

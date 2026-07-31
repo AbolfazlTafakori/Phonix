@@ -24,7 +24,7 @@ export default function ProductGallery({
       <div className="relative overflow-hidden rounded-[22px] border bg-[var(--ac-panel-bg)]" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
         <ProductCardImage src={allImages[active]} alt={name} className="aspect-[4/5] w-full object-cover" />
         {featured && (
-          <span className="absolute right-4 top-4 rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
+          <span className="absolute right-4 top-4 rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "var(--hl-orange-text)" }}>
             محبوب‌ترین
           </span>
         )}

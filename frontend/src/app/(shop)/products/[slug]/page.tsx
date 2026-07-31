@@ -358,7 +358,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       {/* support + comparison */}
       <div className="mt-8 grid items-start gap-5 sm:mt-10 sm:gap-6 lg:grid-cols-[280px_1fr]">
         <div className="rounded-[22px] border bg-[var(--ac-panel-bg)] p-5 text-center sm:p-6" style={{ borderColor: "var(--ac-panel-border)", boxShadow: "var(--ac-panel-shadow)" }}>
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full sm:h-14 sm:w-14" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "#F2551F" }}>
+          <span className="mx-auto grid h-12 w-12 place-items-center rounded-full sm:h-14 sm:w-14" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "var(--hl-orange-text)" }}>
             <Icon d={I.headset} className="h-6 w-6 sm:h-7 sm:w-7" />
           </span>
           <h3 className="mt-3 text-[15px] font-black sm:mt-4 sm:text-[17px]" style={{ color: "var(--ac-title)" }}>سوالی دارید؟</h3>
@@ -382,7 +382,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                       return (
                         <th key={m} className="px-3 py-3 font-black sm:px-4 sm:py-3.5" style={{ color: "var(--ac-title)" }}>
                           {toFa(m)} ماهه
-                          {best && <span className="mr-1 rounded-full bg-emerald-500 px-1.5 py-0.5 text-[9px] font-black text-white sm:mr-1.5 sm:px-2 sm:text-[10px]">٪{toFa(bestDiscount)}−</span>}
+                          {best && <span className="mr-1 rounded-full bg-emerald-700 px-1.5 py-0.5 text-[9px] font-black text-white sm:mr-1.5 sm:px-2 sm:text-[10px]">٪{toFa(bestDiscount)}−</span>}
                         </th>
                       );
                     })}
@@ -440,7 +440,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
             </div>
             <Link
               href="/products"
-              className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-[var(--ac-panel-bg)] px-3 py-1.5 text-[13px] font-bold text-[var(--hl-red)] transition hover:bg-[#fff6f2] sm:px-4 sm:py-2 sm:text-[16px]"
+              className="shrink-0 rounded-xl border border-[var(--hl-border)] bg-[var(--ac-panel-bg)] px-3 py-1.5 text-[13px] font-bold text-[var(--hl-red-text)] transition hover:bg-[#fff6f2] sm:px-4 sm:py-2 sm:text-[16px]"
             >
               مشاهده همه
             </Link>
