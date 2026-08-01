@@ -10,7 +10,7 @@ Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-269%20passing-3fb950)](#)
+[![Tests](https://img.shields.io/badge/tests-296%20passing-3fb950)](#)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](#-license)
 
 </div>
@@ -87,6 +87,7 @@ Optional two-server clustering for **business continuity** (a datacenter or conn
 - **Disjoint id bands** — the Standby reserves its own autoincrement range, so ids minted on both sides during a partition can never collide.
 - **Isolated sync failures** — one bad event is dead-lettered and retried on its own; it can never wedge every later change behind it.
 - **Encrypted, authenticated node link** — HMAC-SHA256 over method, path, timestamp and body, with a replay window. Plain HTTP between nodes is refused at startup.
+- **Configurable from the admin panel** — enable clustering, set or rotate the peer URL and shared secret, and correct a misconfigured role, all live from *Cluster Management*, with no terminal and no restart. A rolling diagnostic log and failover/promote/demote history sit alongside the live status for troubleshooting.
 
 > Public traffic still follows DNS. When a Standby promotes itself, point the domain at it — that switch is deliberately a human decision.
 
@@ -187,7 +188,7 @@ Server A (Primary)   p-ui → 4 → Primary   # prints the shared secret once �
 Server B (Standby)   p-ui → 4 → Standby   # paste that same secret
 ```
 
-Each node needs the other's base URL (`https://…`, no port and no `/api` — the app appends its own path), reachable from the opposite side. The Standby then bootstraps and mirrors on its own. Full walkthrough, environment variables and failover/failback procedure: **[DEPLOY.md](DEPLOY.md)**.
+Each node needs the other's base URL (`https://…`, no port and no `/api` — the app appends its own path), reachable from the opposite side. The Standby then bootstraps and mirrors on its own. The same setup — mode, peer URL, shared secret, and a manual role correction if a node was configured wrong — is also available live from the admin panel's *Cluster Management* page, with no terminal or restart required. Full walkthrough, environment variables and failover/failback procedure: **[DEPLOY.md](DEPLOY.md)**.
 
 ---
 
