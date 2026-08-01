@@ -35,6 +35,11 @@ public interface IClusterSyncService
     // Admin-panel config apply: enable clustering (mode) and/or update peer URL / rotate the HMAC secret,
     // live, without a restart. `mode` is only honored while this node is still Standalone.
     Task<(bool Ok, string? Error)> UpdateConfigAsync(string? mode, string? peerUrl, string? secret);
+    // Manual override for a node whose role was set wrong (e.g. meant to be Primary but was configured as
+    // Standby): sets Role directly, live, WITHOUT the promote/demote peer handshake PromoteAsync/HandleDemote
+    // use. Deliberately unsafe if misused — the caller (admin panel) must warn about split-brain risk before
+    // calling this, since unlike Promote it never confirms the peer isn't also Primary.
+    Task<(bool Ok, string? Error)> ForceSetRoleAsync(string? mode);
 
     // Node-to-node actions (see ClusterController's HMAC-gated routes).
     ClusterSyncPullResponse HandlePull(long since);
@@ -616,6 +621,38 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
             (trimmedSecret is not null ? " — کلید امنیتی چرخانده شد" : "") + ".");
         return Task.FromResult((true, enabledNow ? null
             : (string?)"تنظیمات ذخیره شد؛ خوشه هنوز فعال نیست — یک حالت (Primary/Standby) انتخاب کنید تا فعال شود."));
+    }
+
+    // Manual role correction (Fix: an admin who set the wrong mode at enable-time had no way back — Promote
+    // only works from Recovering and StartRecovery only from Primary, so a plain Standby was stuck). This
+    // bypasses that handshake entirely, so it must only ever be reached through an admin panel confirmation
+    // that spells out the split-brain risk.
+    public Task<(bool Ok, string? Error)> ForceSetRoleAsync(string? mode)
+    {
+        if (!_clusterEnabled) return Task.FromResult((false, (string?)"خوشه‌سازی روی این سرور فعال نیست."));
+        var normalized = mode?.Trim().ToLowerInvariant();
+        if (normalized is not ("primary" or "standby"))
+            return Task.FromResult((false, (string?)"حالت باید Primary یا Standby باشد."));
+        var newRole = normalized == "primary" ? ClusterRole.Primary : ClusterRole.Standby;
+
+        lock (_transitionLock)
+        {
+            var state = _store.GetClusterState();
+            if (state.Role == newRole) return Task.FromResult((true, (string?)null));
+
+            if (newRole == ClusterRole.Primary) { state.LastFailoverAtUtc = null; state.LastPromotedAtUtc = DateTime.UtcNow; }
+            else state.LastDemotedAtUtc = DateTime.UtcNow;
+            state.Role = newRole;
+            _store.SetClusterState(state);
+            SetRoleCache(newRole);
+        }
+        // Same id-band requirement as HandleDemote — a node newly forced into Standby must still reserve its
+        // disjoint autoincrement range before accepting any write.
+        if (newRole == ClusterRole.Standby) _store.EnsureStandbyIdBand();
+
+        _logger.LogWarning("Cluster role force-set to {Role} from admin panel (manual override, no peer handshake).", newRole);
+        RecordEvent("warning", $"نقش این سرور به‌صورت دستی و بدون هماهنگی با سرور مقابل به {newRole} تغییر کرد.");
+        return Task.FromResult((true, (string?)null));
     }
 
     // ── Node-to-node actions (called from ClusterController behind ClusterPeerAuthAttribute) ──────────────

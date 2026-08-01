@@ -403,6 +403,8 @@ export const api = {
     bootstrap: () => request<void>("/cluster/bootstrap", { method: "POST" }),
     updateConfig: (body: { mode?: string; peerUrl?: string; secret?: string }) =>
       request<{ warning?: string } | null>("/cluster/config", { method: "POST", body: json(body) }),
+    forceRole: (mode: "primary" | "standby") =>
+      request<void>("/cluster/force-role", { method: "POST", body: json({ mode }) }),
   },
   // The record of what the shop has sent. info@ receives nothing, so this is the only way to answer
   // "did this customer actually get their email?".

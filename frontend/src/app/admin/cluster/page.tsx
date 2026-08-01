@@ -61,6 +61,10 @@ export default function ClusterPage() {
   const [configError, setConfigError] = useState("");
   const [configNotice, setConfigNotice] = useState("");
 
+  const [forceRoleTarget, setForceRoleTarget] = useState<"primary" | "standby" | null>(null);
+  const [forceRoleBusy, setForceRoleBusy] = useState(false);
+  const [forceRoleError, setForceRoleError] = useState("");
+
   async function load() {
     try {
       const status = await api.cluster.status();
@@ -98,6 +102,21 @@ export default function ClusterPage() {
       setConfigError(e instanceof Error ? e.message : "خطا در اعمال تنظیمات");
     } finally {
       setConfigBusy(false);
+    }
+  }
+
+  async function runForceRole() {
+    if (!forceRoleTarget) return;
+    setForceRoleBusy(true);
+    setForceRoleError("");
+    try {
+      await api.cluster.forceRole(forceRoleTarget);
+      setForceRoleTarget(null);
+      await load();
+    } catch (e) {
+      setForceRoleError(e instanceof Error ? e.message : "خطا در اصلاح نقش");
+    } finally {
+      setForceRoleBusy(false);
     }
   }
 
@@ -201,10 +220,21 @@ export default function ClusterPage() {
                   {data.nodeId ? <span dir="ltr">{data.nodeId}</span> : "بدون شناسه"}
                 </p>
               </div>
-              <span className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold ${role.cls}`}>
-                <span className={`h-2 w-2 rounded-full ${data.role === "Primary" ? "animate-pulse bg-emerald-400" : "bg-current"}`} />
-                {role.label}
-              </span>
+              <div className="flex items-center gap-2">
+                <span className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold ${role.cls}`}>
+                  <span className={`h-2 w-2 rounded-full ${data.role === "Primary" ? "animate-pulse bg-emerald-400" : "bg-current"}`} />
+                  {role.label}
+                </span>
+                {(data.role === "Primary" || data.role === "Standby") && (
+                  <button
+                    onClick={() => setForceRoleTarget(data.role === "Primary" ? "standby" : "primary")}
+                    className="rounded-full border border-white/15 px-3 py-1.5 text-xs font-bold text-white/50 transition hover:bg-white/10 hover:text-white/80"
+                    title="برای اصلاح یک تنظیم اشتباه، بدون هماهنگی با سرور مقابل"
+                  >
+                    اصلاح دستی نقش
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -426,6 +456,35 @@ export default function ClusterPage() {
           <button
             onClick={() => setConfirmAction(null)}
             disabled={busy !== null}
+            className="h-11 flex-1 rounded-xl border border-white/15 text-sm font-bold text-white/80 transition hover:bg-white/10 disabled:opacity-60"
+          >
+            انصراف
+          </button>
+        </div>
+      </Modal>
+
+      <Modal
+        open={forceRoleTarget !== null}
+        onClose={() => !forceRoleBusy && setForceRoleTarget(null)}
+        title="اصلاح دستی نقش"
+      >
+        <p className="text-sm leading-7 text-rose-300">
+          این عملیات با سرور مقابل هیچ هماهنگی‌ای انجام نمی‌دهد. اگر سرور مقابل هم همین الان Primary باشد، بعد از
+          این عملیات هر دو سرور هم‌زمان Primary خواهند شد (Split-brain) و دادهٔ دو سرور از هم واگرا می‌شود. فقط
+          برای اصلاح یک تنظیم اشتباه (مثلاً سروری که باید Primary می‌بود ولی Standby تنظیم شده) استفاده کنید.
+        </p>
+        {forceRoleError && <p className="mt-3 rounded-xl bg-rose-500/10 p-3 text-sm text-rose-400">{forceRoleError}</p>}
+        <div className="mt-6 flex gap-3">
+          <button
+            onClick={runForceRole}
+            disabled={forceRoleBusy}
+            className="h-11 flex-1 rounded-xl bg-rose-600 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-60"
+          >
+            {forceRoleBusy ? "در حال انجام..." : `تغییر اجباری به ${forceRoleTarget === "primary" ? "Primary" : "Standby"}`}
+          </button>
+          <button
+            onClick={() => setForceRoleTarget(null)}
+            disabled={forceRoleBusy}
             className="h-11 flex-1 rounded-xl border border-white/15 text-sm font-bold text-white/80 transition hover:bg-white/10 disabled:opacity-60"
           >
             انصراف

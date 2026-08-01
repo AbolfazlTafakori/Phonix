@@ -21,6 +21,8 @@ public record ClusterPullInput(long Since);
 // rotate the peer URL / HMAC secret — all live, no terminal, no restart.
 public record ClusterConfigInput(string? Mode, string? PeerUrl, string? Secret);
 
+public record ClusterForceRoleInput(string Mode);
+
 [ApiController]
 [Route("api/cluster")]
 public class ClusterController : ControllerBase
@@ -55,6 +57,17 @@ public class ClusterController : ControllerBase
         var (ok, error) = await _cluster.UpdateConfigAsync(input.Mode, input.PeerUrl, input.Secret);
         if (!ok) return BadRequest(error);
         return error is null ? Ok() : Ok(new { warning = error });
+    }
+
+    // Manual role correction for a node set up with the wrong mode (Standby that should be Primary, or vice
+    // versa) — bypasses the Promote/Recover peer handshake, so the client must confirm the split-brain risk
+    // before ever calling this.
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    [HttpPost("force-role")]
+    public async Task<IActionResult> ForceRole(ClusterForceRoleInput input)
+    {
+        var (ok, error) = await _cluster.ForceSetRoleAsync(input.Mode);
+        return ok ? Ok() : BadRequest(error);
     }
 
     [Authorize(Roles = nameof(UserRole.Admin))]
