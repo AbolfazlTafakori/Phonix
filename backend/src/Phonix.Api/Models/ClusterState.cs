@@ -44,7 +44,19 @@ public class ClusterState
     // The peer DataEpoch this node's data was last aligned to (set when a snapshot is restored from the peer).
     // A pull that reports a different epoch means the peer's data was replaced underneath this node.
     public string? PeerDataEpoch { get; set; }
+
+    // Admin-panel-set overrides for the peer URL and HMAC secret (see ClusterController.UpdateConfig). Once
+    // set here they take precedence over PHONIX_CLUSTER_PEER/PHONIX_CLUSTER_SECRET on every subsequent boot —
+    // the same "env var only seeds, this row is authoritative afterward" relationship the rest of this class
+    // already has, so an admin can reconfigure the cluster without touching the terminal or restarting.
+    public string? PeerUrl { get; set; }
+    public string? Secret { get; set; }
 }
+
+// One entry in the in-memory cluster event log surfaced by GET /api/cluster/events — a rolling diagnostic
+// trail (role transitions, sync failures, config changes) for the admin panel. Intentionally not persisted:
+// it exists to explain "what just happened" during a live incident, not to be a permanent audit record.
+public sealed record ClusterEvent(DateTime AtUtc, string Level, string Message);
 
 // A Standby attaching to an already-populated Primary pulls one of these once, restores it wholesale, then
 // switches to ordinary incremental pulls starting at HighWaterMark. SnapshotJson is the SAME StoreSnapshot

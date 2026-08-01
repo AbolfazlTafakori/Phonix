@@ -7,12 +7,19 @@ using Phonix.Api.Services;
 namespace Phonix.Api.Controllers;
 
 // What the Cluster Management admin page renders: current role, peer reachability/last contact, sync
-// progress, and health, all read lock-free off the live ClusterSyncService instance.
+// progress, and health read lock-free off the live ClusterSyncService instance, plus the persisted
+// failover/promote/demote history and data-lineage fields (ClusterState) for the detailed report.
 public record ClusterStatusDto(
     string Role, bool ClusterEnabled, string NodeId, string? PeerUrl, bool PeerReachable,
-    DateTime? LastSyncUtc, DateTime? LastPeerContactUtc, long PendingCount, long DeadLetterCount);
+    DateTime? LastSyncUtc, DateTime? LastPeerContactUtc, long PendingCount, long DeadLetterCount,
+    DateTime? LastFailoverAtUtc, DateTime? LastPromotedAtUtc, DateTime? LastDemotedAtUtc,
+    bool IdBandApplied, string? DataEpoch, string? PeerDataEpoch);
 
 public record ClusterPullInput(long Since);
+
+// Admin-panel config apply (ClusterSyncService.UpdateConfigAsync): enable clustering by mode, and/or set or
+// rotate the peer URL / HMAC secret — all live, no terminal, no restart.
+public record ClusterConfigInput(string? Mode, string? PeerUrl, string? Secret);
 
 [ApiController]
 [Route("api/cluster")]
@@ -24,9 +31,31 @@ public class ClusterController : ControllerBase
     // ── Admin-facing: the Cluster Management page ───────────────────────────────────────────────────────
     [Authorize(Roles = nameof(UserRole.Admin))]
     [HttpGet("status")]
-    public ClusterStatusDto Status() => new(
-        _cluster.Role.ToString(), _cluster.Role != ClusterRole.Standalone, _cluster.NodeId, _cluster.PeerUrl,
-        _cluster.PeerReachable, _cluster.LastSyncUtc, _cluster.LastPeerContactUtc, _cluster.PendingCount, _cluster.DeadLetterCount);
+    public ClusterStatusDto Status()
+    {
+        var state = _cluster.GetStateSnapshot();
+        return new(
+            _cluster.Role.ToString(), _cluster.Role != ClusterRole.Standalone, _cluster.NodeId, _cluster.PeerUrl,
+            _cluster.PeerReachable, _cluster.LastSyncUtc, _cluster.LastPeerContactUtc, _cluster.PendingCount, _cluster.DeadLetterCount,
+            state.LastFailoverAtUtc, state.LastPromotedAtUtc, state.LastDemotedAtUtc,
+            state.IdBandApplied, state.DataEpoch, state.PeerDataEpoch);
+    }
+
+    // Rolling diagnostic trail (role transitions, sync failures, config changes) for the "گزارش دقیق" section.
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    [HttpGet("events")]
+    public IReadOnlyList<ClusterEvent> Events() => _cluster.RecentEvents;
+
+    // Manual config apply from the admin panel: enable clustering (mode) and/or set/rotate peer URL + secret,
+    // live, no terminal, no restart (Fix: previously PHONIX_CLUSTER_MODE/PEER/SECRET were terminal-only).
+    [Authorize(Roles = nameof(UserRole.Admin))]
+    [HttpPost("config")]
+    public async Task<IActionResult> UpdateConfig(ClusterConfigInput input)
+    {
+        var (ok, error) = await _cluster.UpdateConfigAsync(input.Mode, input.PeerUrl, input.Secret);
+        if (!ok) return BadRequest(error);
+        return error is null ? Ok() : Ok(new { warning = error });
+    }
 
     [Authorize(Roles = nameof(UserRole.Admin))]
     [HttpPost("promote")]

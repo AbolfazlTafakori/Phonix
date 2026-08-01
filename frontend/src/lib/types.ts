@@ -759,6 +759,19 @@ export type ClusterStatus = {
   lastPeerContactUtc: string | null;
   pendingCount: number;
   deadLetterCount: number;
+  lastFailoverAtUtc: string | null;
+  lastPromotedAtUtc: string | null;
+  lastDemotedAtUtc: string | null;
+  idBandApplied: boolean;
+  dataEpoch: string | null;
+  peerDataEpoch: string | null;
+};
+
+// One rolling diagnostic entry (GET /api/cluster/events) — role transitions, sync failures, config changes.
+export type ClusterEvent = {
+  atUtc: string;
+  level: "info" | "warning" | "error" | "critical";
+  message: string;
 };
 
 // One Serilog file surfaced by the admin "system logs" page (GET /api/admin/logs).

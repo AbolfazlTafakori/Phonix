@@ -16,7 +16,15 @@ public static class ClusterAuth
     // enough that a captured request can't be replayed hours later.
     private static readonly TimeSpan ReplayWindow = TimeSpan.FromMinutes(5);
 
-    private static string? Secret => Environment.GetEnvironmentVariable("PHONIX_CLUSTER_SECRET") is { } s && !string.IsNullOrWhiteSpace(s) ? s : null;
+    // Set by ClusterSyncService when the admin panel configures/rotates the secret (ClusterState.Secret takes
+    // over from the env var the same way PeerUrl does) — never written to from anywhere else.
+    private static volatile string? _runtimeSecret;
+
+    public static void SetRuntimeSecret(string? secret) =>
+        _runtimeSecret = string.IsNullOrWhiteSpace(secret) ? null : secret.Trim();
+
+    private static string? Secret => _runtimeSecret
+        ?? (Environment.GetEnvironmentVariable("PHONIX_CLUSTER_SECRET") is { } s && !string.IsNullOrWhiteSpace(s) ? s : null);
 
     public static bool IsConfigured => Secret is not null;
 

@@ -74,6 +74,7 @@ import type {
   TopProductStat,
   ServerStatus,
   ClusterStatus,
+  ClusterEvent,
   AuditLogPage,
   SentEmailPage,
   AuthResult,
@@ -395,10 +396,13 @@ export const api = {
   },
   cluster: {
     status: () => request<ClusterStatus>("/cluster/status"),
+    events: () => request<ClusterEvent[]>("/cluster/events"),
     promote: () => request<void>("/cluster/promote", { method: "POST" }),
     recover: () => request<void>("/cluster/recover", { method: "POST" }),
     resync: () => request<void>("/cluster/resync", { method: "POST" }),
     bootstrap: () => request<void>("/cluster/bootstrap", { method: "POST" }),
+    updateConfig: (body: { mode?: string; peerUrl?: string; secret?: string }) =>
+      request<{ warning?: string } | null>("/cluster/config", { method: "POST", body: json(body) }),
   },
   // The record of what the shop has sent. info@ receives nothing, so this is the only way to answer
   // "did this customer actually get their email?".

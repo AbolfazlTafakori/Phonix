@@ -21,12 +21,20 @@ public interface IClusterSyncService
     bool PeerReachable { get; }
     long DeadLetterCount { get; }
 
+    // Full persisted state (failover/promote/demote history, data epoch, id-band flag) for the detailed
+    // report on the admin panel — read straight from the store, same as DeadLetterCount above.
+    ClusterState GetStateSnapshot();
+    IReadOnlyList<ClusterEvent> RecentEvents { get; }
+
     // Admin-triggered actions (see ClusterController). Each returns (ok, error) rather than throwing —
     // these are ordinary "the operator clicked a button" outcomes, not exceptional failures.
     Task<(bool Ok, string? Error)> PromoteAsync();
     Task<(bool Ok, string? Error)> StartRecoveryAsync();
     Task<(bool Ok, string? Error)> ResyncNowAsync();
     Task<(bool Ok, string? Error)> BootstrapFromPrimaryAsync();
+    // Admin-panel config apply: enable clustering (mode) and/or update peer URL / rotate the HMAC secret,
+    // live, without a restart. `mode` is only honored while this node is still Standalone.
+    Task<(bool Ok, string? Error)> UpdateConfigAsync(string? mode, string? peerUrl, string? secret);
 
     // Node-to-node actions (see ClusterController's HMAC-gated routes).
     ClusterSyncPullResponse HandlePull(long since);
@@ -44,8 +52,10 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
     private readonly IFileStorageService _files;
     private readonly ILogger<ClusterSyncService> _logger;
 
-    private readonly bool _clusterEnabled;
-    private readonly string? _configuredPeerUrl;
+    // Mutable now: an admin can enable clustering, change the peer URL, or rotate the secret live from the
+    // panel (UpdateConfigAsync), so these can no longer be readonly-from-env-at-boot.
+    private volatile bool _clusterEnabled;
+    private volatile string? _configuredPeerUrl;
     private readonly string _nodeId;
     private readonly ClusterRole? _seedRole;
     private readonly int _syncIntervalSeconds;
@@ -64,6 +74,26 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
 
     private long _lastMediaSyncTicks;
     private long _lastWitnessOkTicks;
+
+    // Rolling in-memory diagnostic trail for the admin panel's "log رویدادها" section (GET /api/cluster/events).
+    // Bounded so a flapping peer can never grow this unbounded; deliberately not persisted (see ClusterEvent).
+    private const int MaxRecentEvents = 50;
+    private readonly object _eventsLock = new();
+    private readonly LinkedList<ClusterEvent> _events = new();
+
+    private void RecordEvent(string level, string message)
+    {
+        lock (_eventsLock)
+        {
+            _events.AddFirst(new ClusterEvent(DateTime.UtcNow, level, message));
+            while (_events.Count > MaxRecentEvents) _events.RemoveLast();
+        }
+    }
+
+    public IReadOnlyList<ClusterEvent> RecentEvents
+    {
+        get { lock (_eventsLock) return _events.ToList(); }
+    }
 
     // Lock-free published state: the write-gate middleware reads Role on every mutating request, so it must
     // never wait on a SQLite round-trip. Longs carry ticks/enum-as-int via Interlocked; a plain lock guards
@@ -128,6 +158,8 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
     }
 
     // Runs before the background loop and aborts host startup on a misconfiguration (Fix 6 transport guard).
+    // Only applies to an env-configured peer at boot — a peer URL set later from the admin panel is validated
+    // synchronously inside UpdateConfigAsync instead, since by then the host is already up.
     public override Task StartAsync(CancellationToken cancellationToken)
     {
         if (_clusterEnabled) ValidatePeerTransport();
@@ -142,45 +174,62 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
     public long PendingCount => Interlocked.Read(ref _pendingCount);
     public bool PeerReachable => Interlocked.CompareExchange(ref _consecutiveFailures, 0, 0) == 0;
     public long DeadLetterCount => _clusterEnabled ? _store.GetDeadLetterCount() : 0;
+    public ClusterState GetStateSnapshot() => _store.GetClusterState();
 
     private void SetRoleCache(ClusterRole role) => Interlocked.Exchange(ref _roleValue, (long)role);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        if (!_clusterEnabled) return; // standalone: this loop never runs at all
+        // Persisted admin-panel overrides (UpdateConfigAsync) always take over from the env vars here on, so
+        // a config set from the panel survives a restart the same way a promote/demote already does.
+        var initialState = _store.GetClusterState();
+        if (!string.IsNullOrWhiteSpace(initialState.PeerUrl)) _configuredPeerUrl = initialState.PeerUrl;
+        if (!string.IsNullOrWhiteSpace(initialState.Secret)) ClusterAuth.SetRuntimeSecret(initialState.Secret);
+        if (initialState.Role != ClusterRole.Standalone) _clusterEnabled = true;
 
-        var state = _store.GetClusterState();
-        if (state.Role == ClusterRole.Standalone && _seedRole is { } seed)
-        {
-            // First boot with clustering configured: seed once from the env var. Every transition after this
-            // is driven by this service (auto-failover) or the admin panel (promote/recover), never the env
-            // var again — exactly like PHONIX_OWNER_USERNAME/PASSWORD only seed the initial owner account.
-            state.Role = seed;
-            _store.SetClusterState(state);
-        }
-        SetRoleCache(state.Role);
-
-        // Fix 1: a Standby MUST reserve its disjoint id band before it can accept (or replay) any write, so its
-        // inserts can never collide with the Primary's during a partition. Idempotent — applied once, ever.
-        if (state.Role == ClusterRole.Standby && _store.EnsureStandbyIdBand())
-            _logger.LogInformation("Standby id band reserved (autoincrement offset +{Offset}).", StandbyIdBandOffset);
-
-        // Fix 3: a fresh Standby attaching to an already-populated Primary can't converge from the incremental
-        // outbox alone — it pulls one full snapshot first. Auto-runs when this node is a never-bootstrapped,
-        // empty Standby; a non-empty or already-bootstrapped node skips straight to incremental sync.
-        // Deliberately not gated on an empty store. A real install is never empty by this point — startup
-        // applies the owner account from the environment — so requiring emptiness meant the initial
-        // bootstrap never ran outside tests. What makes this safe is the pair of conditions that remain:
-        // the operator explicitly configured this node as Standby, and it has never bootstrapped before.
-        if (state.Role == ClusterRole.Standby && state.BootstrappedAtUtc is null
-            && !string.IsNullOrWhiteSpace(_configuredPeerUrl))
-        {
-            var (ok, err) = await BootstrapFromPrimaryAsync();
-            if (!ok) _logger.LogWarning("Initial Standby bootstrap from Primary did not complete: {Error}", err);
-        }
-
+        // Loops forever (rather than returning early on Standalone) so that a live UpdateConfigAsync call can
+        // flip _clusterEnabled to true later and have this same loop pick clustering up without a restart.
+        var initialized = false;
         while (!stoppingToken.IsCancellationRequested)
         {
+            if (!_clusterEnabled)
+            {
+                try { await Task.Delay(TimeSpan.FromSeconds(_syncIntervalSeconds), stoppingToken); }
+                catch (OperationCanceledException) { }
+                continue;
+            }
+
+            if (!initialized)
+            {
+                initialized = true;
+                var state = _store.GetClusterState();
+                if (state.Role == ClusterRole.Standalone && _seedRole is { } seed)
+                {
+                    // First boot with clustering configured: seed once from the env var. Every transition after
+                    // this is driven by this service (auto-failover) or the admin panel (promote/recover/config),
+                    // never the env var again — exactly like PHONIX_OWNER_USERNAME/PASSWORD only seed the owner.
+                    state.Role = seed;
+                    _store.SetClusterState(state);
+                }
+                SetRoleCache(state.Role);
+
+                // Fix 1: a Standby MUST reserve its disjoint id band before it can accept (or replay) any write,
+                // so its inserts can never collide with the Primary's during a partition. Applied once, ever.
+                if (state.Role == ClusterRole.Standby && _store.EnsureStandbyIdBand())
+                    _logger.LogInformation("Standby id band reserved (autoincrement offset +{Offset}).", StandbyIdBandOffset);
+
+                // Fix 3: a fresh Standby attaching to an already-populated Primary can't converge from the
+                // incremental outbox alone — it pulls one full snapshot first. Auto-runs when this node is a
+                // never-bootstrapped Standby with a peer configured; already-bootstrapped nodes skip straight
+                // to incremental sync.
+                if (state.Role == ClusterRole.Standby && state.BootstrappedAtUtc is null
+                    && !string.IsNullOrWhiteSpace(_configuredPeerUrl))
+                {
+                    var (ok, err) = await BootstrapFromPrimaryAsync();
+                    if (!ok) _logger.LogWarning("Initial Standby bootstrap from Primary did not complete: {Error}", err);
+                }
+            }
+
             try { await SyncOnceAsync(stoppingToken); }
             catch (Exception ex) { _logger.LogWarning(ex, "Cluster sync cycle failed"); }
             try { await SyncMediaIfDueAsync(stoppingToken); }
@@ -246,6 +295,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
                 _store.RecordSyncFailure(entry, ex.Message);
                 _logger.LogWarning(ex, "Cluster sync: entry {OutboxId} ({Table}#{EntityId}) failed to apply — dead-lettered.",
                     entry.Id, entry.EntityTable, entry.EntityId);
+                RecordEvent("error", $"رویداد #{entry.Id} ({entry.EntityTable}) اعمال نشد و به Dead-letter منتقل شد: {ex.Message}");
             }
             cursor = entry.Id;
         }
@@ -274,6 +324,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
                 SetRoleCache(ClusterRole.Recovering);
             }
             _logger.LogWarning("Cluster conflict: both nodes claim Primary — demoting this node to Recovering.");
+            RecordEvent("warning", "تداخل خوشه: هر دو سرور Primary اعلام شدند — این سرور به Recovering منتقل شد.");
             _ = _alerts.SendAlertAsync("⚠️ هر دو سرور خوشه Primary اعلام شدند — این سرور به حالت Recovering منتقل شد و باید دستی ترفیع بگیرد.");
         }
     }
@@ -342,6 +393,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
             _logger.LogWarning(
                 "Peer unreachable for over {Seconds}s, but no witness is reachable either — this node is isolated, not the Primary down. Staying read-only.",
                 _failoverGraceSeconds);
+            RecordEvent("warning", "قطع اتصال با سرور مقابل، اما اینترنت این سرور هم قطع بود — ترفیع خودکار انجام نشد.");
             _ = _alerts.SendAlertAsync("🌐 ارتباط این سرور با اینترنت قطع است — ترفیع خودکار انجام نشد تا هر دو سرور هم‌زمان Primary نشوند.");
             return;
         }
@@ -361,6 +413,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
             SetRoleCache(ClusterRole.Primary);
         }
         _logger.LogWarning("Peer unreachable for over {Seconds}s — auto-promoting this node to Primary.", _failoverGraceSeconds);
+        RecordEvent("critical", $"سرور مقابل بیش از {_failoverGraceSeconds} ثانیه در دسترس نبود — این سرور به‌طور خودکار Primary شد (failover).");
         _ = _alerts.SendAlertAsync("🔴 سرور اصلی خوشه در دسترس نیست — این سرور به‌طور خودکار Primary شد.");
     }
 
@@ -454,6 +507,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
 
         _logger.LogInformation("Standby bootstrap complete: restored snapshot (cursor {Cursor}), pulled {Media} media file(s).",
             snapshot.HighWaterMark, mediaCount);
+        RecordEvent("info", $"راه‌اندازی اولیه (bootstrap) از Primary کامل شد — {mediaCount} فایل رسانه دریافت شد.");
         _ = _alerts.SendAlertAsync("✅ سرور Standby با موفقیت از Primary راه‌اندازی اولیه (bootstrap) شد.");
         return (true, null);
     }
@@ -481,6 +535,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
             SetRoleCache(ClusterRole.Primary);
         }
         _logger.LogInformation("Manually promoted to Primary.");
+        RecordEvent("info", "این سرور به‌صورت دستی از پنل ادمین به Primary ترفیع یافت.");
         _ = _alerts.SendAlertAsync("✅ این سرور به‌صورت دستی Primary شد.");
         return (true, null);
     }
@@ -496,6 +551,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
             SetRoleCache(ClusterRole.Recovering);
         }
         _logger.LogInformation("Manually entered Recovering state.");
+        RecordEvent("info", "این سرور به‌صورت دستی از پنل ادمین وارد حالت Recovering شد.");
         return Task.FromResult((true, (string?)null));
     }
 
@@ -504,6 +560,62 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         if (!_clusterEnabled) return (false, "خوشه‌سازی روی این سرور فعال نیست.");
         await SyncOnceAsync(CancellationToken.None);
         return (true, null);
+    }
+
+    // Admin-panel config apply (no terminal, no restart): enable clustering by picking a mode while still
+    // Standalone, and/or set or rotate the peer URL / HMAC secret on a running node. Mirrors the same
+    // "explicit admin action persists to ClusterState and wins from now on" pattern as Promote/Recover.
+    public Task<(bool Ok, string? Error)> UpdateConfigAsync(string? mode, string? peerUrl, string? secret)
+    {
+        var normalizedMode = mode?.Trim().ToLowerInvariant();
+        if (normalizedMode is not null && normalizedMode is not ("primary" or "standby"))
+            return Task.FromResult((false, (string?)"حالت باید Primary یا Standby باشد."));
+
+        var trimmedPeer = string.IsNullOrWhiteSpace(peerUrl) ? null : peerUrl.Trim().TrimEnd('/');
+        if (trimmedPeer is not null)
+        {
+            if (!Uri.TryCreate(trimmedPeer, UriKind.Absolute, out var uri))
+                return Task.FromResult((false, (string?)"آدرس سرور مقابل معتبر نیست."));
+            if (uri.Scheme != Uri.UriSchemeHttps && !_allowInsecurePeer)
+                return Task.FromResult((false, (string?)
+                    "آدرس سرور مقابل باید HTTPS باشد (برای تست محلی می‌توانید PHONIX_CLUSTER_ALLOW_INSECURE را فعال کنید)."));
+        }
+        var trimmedSecret = string.IsNullOrWhiteSpace(secret) ? null : secret.Trim();
+
+        bool enabledNow;
+        lock (_transitionLock)
+        {
+            var state = _store.GetClusterState();
+            if (normalizedMode is not null)
+            {
+                if (state.Role != ClusterRole.Standalone)
+                    return Task.FromResult((false, (string?)"حالت خوشه فقط زمانی قابل تنظیم است که سرور در حالت Standalone باشد؛ برای تغییر نقش از ترفیع/بازیابی استفاده کنید."));
+                state.Role = normalizedMode == "primary" ? ClusterRole.Primary : ClusterRole.Standby;
+                SetRoleCache(state.Role);
+            }
+            if (trimmedPeer is not null)
+            {
+                state.PeerUrl = trimmedPeer;
+                _configuredPeerUrl = trimmedPeer;
+            }
+            if (trimmedSecret is not null)
+            {
+                state.Secret = trimmedSecret;
+                ClusterAuth.SetRuntimeSecret(trimmedSecret);
+            }
+            _store.SetClusterState(state);
+            _clusterEnabled = state.Role != ClusterRole.Standalone;
+            enabledNow = _clusterEnabled;
+        }
+
+        _logger.LogInformation("Cluster config updated from admin panel (mode={Mode}, peerUrl changed={PeerChanged}, secret rotated={SecretChanged}).",
+            normalizedMode ?? "unchanged", trimmedPeer is not null, trimmedSecret is not null);
+        RecordEvent("info", $"تنظیمات خوشه از پنل ادمین به‌روزرسانی شد" +
+            (normalizedMode is not null ? $" — حالت: {normalizedMode}" : "") +
+            (trimmedPeer is not null ? $" — آدرس سرور مقابل تغییر کرد" : "") +
+            (trimmedSecret is not null ? " — کلید امنیتی چرخانده شد" : "") + ".");
+        return Task.FromResult((true, enabledNow ? null
+            : (string?)"تنظیمات ذخیره شد؛ خوشه هنوز فعال نیست — یک حالت (Primary/Standby) انتخاب کنید تا فعال شود."));
     }
 
     // ── Node-to-node actions (called from ClusterController behind ClusterPeerAuthAttribute) ──────────────
@@ -529,6 +641,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         // Fix 1: a node becoming Standby must hold a disjoint id band before it can accept any (auth) write.
         _store.EnsureStandbyIdBand();
         _logger.LogInformation("Demoted to Standby at the peer's request (it is being promoted to Primary).");
+        RecordEvent("info", "این سرور به درخواست سرور مقابل به Standby تنزل یافت.");
         _ = _alerts.SendAlertAsync("ℹ️ این سرور به Standby تنزل یافت (سرور مقابل Primary شد).");
     }
 
