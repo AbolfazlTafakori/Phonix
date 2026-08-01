@@ -9,6 +9,11 @@ RELEASES_DIR="$BASE_DIR/releases"
 CURRENT_LINK="$BASE_DIR/current"
 CONF_DIR="/etc/phoenix"
 OFFLINE_NUGET_FLAG="/etc/phoenix/nuget-offline"
+MIRROR_NUGET_FLAG="/etc/phoenix/nuget-mirror"
+# See install.sh for why this exists: some networks block nuget.org's package CDN specifically while
+# leaving the rest of the internet reachable. This NuGet-compatible mirror was confirmed working from
+# such a network and is only ever tried after a direct restore already failed.
+MIRROR_NUGET_URL="https://nuget.iranserver.com/repository/nuget/index.json"
 ENV_FILE="$CONF_DIR/phoenix.env"
 SECRET_FILE="$CONF_DIR/secret.env"
 OWNER_FILE="$CONF_DIR/owner.env"
@@ -307,17 +312,41 @@ write_offline_nuget_config() {
 XML
 }
 
-# Publishes the backend, falling back to an offline restore when nuget.org can't be reached.
+# Points NuGet at the mirror only — mixing it with nuget.org would make every restore pay the full
+# timeout against the blocked source before the mirror is ever tried.
+write_mirror_nuget_config() {
+    cat > "$REPO_DIR/nuget.config" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget-mirror" value="$MIRROR_NUGET_URL" />
+  </packageSources>
+</configuration>
+XML
+}
+
+# Publishes the backend. Three tiers, tried in order and each remembered via its own flag file so a
+# later build goes straight to whichever one actually worked instead of re-paying every timeout:
+#   1. nuget.org directly (untouched on a host with ordinary internet access).
+#   2. the NuGet mirror, for networks that block nuget.org specifically.
+#   3. the local package cache, for a host with no working NuGet source at all right now.
 #
 # Reachability is decided by attempting the build, not by probing the host first: a probe can complete a
 # TCP handshake and look healthy on a network that then stalls the actual package requests until they time
-# out, which is exactly how this fails in practice. Once a host has proven it needs the offline path, the
-# flag file skips the slow first attempt on every later build.
+# out, which is exactly how this fails in practice. Once a host has proven which tier it needs, the flag
+# file skips the slow failed attempts on every later build.
 publish_backend() {
     local out="$1"
 
+    if [[ -f "$MIRROR_NUGET_FLAG" ]]; then
+        say "Using the NuGet mirror (nuget.org was unreachable on an earlier build)."
+        write_mirror_nuget_config
+        dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo
+        return
+    fi
     if [[ -f "$OFFLINE_NUGET_FLAG" ]]; then
-        say "Using the local NuGet cache (nuget.org was unreachable on an earlier build)."
+        say "Using the local NuGet cache (no NuGet source was reachable on an earlier build)."
         write_offline_nuget_config
         dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo
         return
@@ -328,12 +357,20 @@ publish_backend() {
         return 0
     fi
 
+    warn "The backend build could not reach nuget.org — retrying against a NuGet mirror."
+    write_mirror_nuget_config
+    if dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo; then
+        touch "$MIRROR_NUGET_FLAG"
+        ok "Built via the NuGet mirror; later builds will use it directly."
+        return 0
+    fi
+
     [[ -d "$HOME/.nuget/packages" ]] || {
-        warn "The backend build failed and there is no local NuGet cache to fall back to."
+        warn "The backend build failed: neither nuget.org nor the mirror was reachable, and there is no local NuGet cache to fall back to."
         return 1
     }
 
-    warn "The backend build could not reach nuget.org — retrying against the local package cache."
+    warn "The NuGet mirror didn't work either — retrying against the local package cache."
     write_offline_nuget_config
     if dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo; then
         touch "$OFFLINE_NUGET_FLAG"

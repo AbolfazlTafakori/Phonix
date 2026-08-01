@@ -11,6 +11,14 @@ DATA_DIR="/var/lib/phoenix"
 LOG_DIR="/var/log/phoenix"
 CONF_DIR="/etc/phoenix"
 OFFLINE_NUGET_FLAG="/etc/phoenix/nuget-offline"
+MIRROR_NUGET_FLAG="/etc/phoenix/nuget-mirror"
+# Some networks (observed from Iranian IP ranges) block nuget.org's package CDN outright while
+# leaving GitHub, npm and even Microsoft's own package feed for the .NET SDK itself reachable — only
+# the NuGet package download path is affected. This is a public NuGet-compatible proxy (Sonatype
+# Nexus) that mirrors api.nuget.org and was confirmed reachable and serving real packages from such a
+# network. It is tried automatically, only as a fallback after a direct restore fails, so a host with
+# ordinary access never depends on a third-party mirror.
+MIRROR_NUGET_URL="https://nuget.iranserver.com/repository/nuget/index.json"
 ENV_FILE="$CONF_DIR/phoenix.env"
 SECRET_FILE="$CONF_DIR/secret.env"
 OWNER_FILE="$CONF_DIR/owner.env"
@@ -61,16 +69,40 @@ write_offline_nuget_config() {
 XML
 }
 
-# Publishes the backend, falling back to an offline restore when nuget.org can't be reached.
+# Points NuGet at the mirror only (not nuget.org too) — mixing both would make every restore pay the
+# full timeout against the blocked source before the mirror is ever tried.
+write_mirror_nuget_config() {
+    cat > "$REPO_DIR/nuget.config" <<XML
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <clear />
+    <add key="nuget-mirror" value="$MIRROR_NUGET_URL" />
+  </packageSources>
+</configuration>
+XML
+}
+
+# Publishes the backend. Three tiers, tried in order and each remembered via its own flag file so a
+# later build goes straight to whichever one actually worked instead of re-paying every timeout:
+#   1. nuget.org directly (the default — untouched on a host with ordinary internet access).
+#   2. a NuGet-compatible mirror (see MIRROR_NUGET_URL) for networks that block nuget.org specifically
+#      but still have general internet access.
+#   3. the local package cache, for a host with no working NuGet source at all right now.
 #
 # Reachability is decided by attempting the build rather than probing first: a probe can complete a TCP
 # handshake and look healthy on a network that then stalls the real package requests until they time out.
-# The flag file records the outcome so later builds skip the slow first attempt.
 publish_backend() {
     local out="$1"
 
+    if [[ -f "$MIRROR_NUGET_FLAG" ]]; then
+        say "Using the NuGet mirror (nuget.org was unreachable on an earlier build)."
+        write_mirror_nuget_config
+        dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo
+        return
+    fi
     if [[ -f "$OFFLINE_NUGET_FLAG" ]]; then
-        say "Using the local NuGet cache (nuget.org was unreachable on an earlier build)."
+        say "Using the local NuGet cache (no NuGet source was reachable on an earlier build)."
         write_offline_nuget_config
         dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo
         return
@@ -81,9 +113,18 @@ publish_backend() {
         return 0
     fi
 
-    [[ -d "$HOME/.nuget/packages" ]] || die "The backend build failed and there is no local NuGet cache to fall back to."
+    warn "The backend build could not reach nuget.org — retrying against a NuGet mirror."
+    write_mirror_nuget_config
+    if dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo; then
+        mkdir -p "$(dirname "$MIRROR_NUGET_FLAG")"
+        touch "$MIRROR_NUGET_FLAG"
+        ok "Built via the NuGet mirror; later builds will use it directly."
+        return
+    fi
 
-    warn "The backend build could not reach nuget.org — retrying against the local package cache."
+    [[ -d "$HOME/.nuget/packages" ]] || die "The backend build failed: neither nuget.org nor the mirror was reachable, and there is no local NuGet cache to fall back to."
+
+    warn "The NuGet mirror didn't work either — retrying against the local package cache."
     write_offline_nuget_config
     dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo
     mkdir -p "$(dirname "$OFFLINE_NUGET_FLAG")"
