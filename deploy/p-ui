@@ -353,7 +353,9 @@ publish_backend() {
     fi
 
     rm -f "$REPO_DIR/nuget.config"
-    if dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo; then
+    # See install.sh: a blocked nuget.org can be a full blackhole rather than a quick refusal, so cap the
+    # first attempt at 3 minutes instead of waiting out dotnet's own much longer retry/backoff.
+    if timeout -k 10 180 dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo; then
         return 0
     fi
 

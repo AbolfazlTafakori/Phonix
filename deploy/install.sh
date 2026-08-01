@@ -109,7 +109,11 @@ publish_backend() {
     fi
 
     rm -f "$REPO_DIR/nuget.config"
-    if dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo; then
+    # A blocked nuget.org doesn't always refuse the connection quickly — on some networks it's a full
+    # blackhole (SYN sent, nothing ever comes back), and dotnet's own retry/backoff can then take far
+    # longer than is worth waiting on a source that already looks dead. Capped at 3 minutes so a blocked
+    # host reaches the mirror promptly instead of hanging for tens of minutes on the first install.
+    if timeout -k 10 180 dotnet publish "$REPO_DIR/$DOTNET_PROJECT" -c Release -o "$out" --nologo; then
         return 0
     fi
 
