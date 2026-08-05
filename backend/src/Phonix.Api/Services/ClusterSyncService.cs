@@ -41,6 +41,11 @@ public interface IClusterSyncService
     // calling this, since unlike Promote it never confirms the peer isn't also Primary.
     Task<(bool Ok, string? Error)> ForceSetRoleAsync(string? mode);
 
+    // Called by ClusterPeerAuthAttribute the moment any node-to-node request passes HMAC verification. Only
+    // the peer holds the secret, so a verified request is proof the peer was alive and able to reach this
+    // node — a liveness signal that survives a link which is blocked in one direction only.
+    void NotePeerInboundContact();
+
     // Node-to-node actions (see ClusterController's HMAC-gated routes).
     ClusterSyncPullResponse HandlePull(long since);
     void HandleDemote();
@@ -79,6 +84,7 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
 
     private long _lastMediaSyncTicks;
     private long _lastWitnessOkTicks;
+    private long _lastInboundPeerContactTicks;
 
     // Rolling in-memory diagnostic trail for the admin panel's "log رویدادها" section (GET /api/cluster/events).
     // Bounded so a flapping peer can never grow this unbounded; deliberately not persisted (see ClusterEvent).
@@ -328,9 +334,11 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
                 _store.SetClusterState(state);
                 SetRoleCache(ClusterRole.Recovering);
             }
-            _logger.LogWarning("Cluster conflict: both nodes claim Primary — demoting this node to Recovering.");
-            RecordEvent("warning", "تداخل خوشه: هر دو سرور Primary اعلام شدند — این سرور به Recovering منتقل شد.");
-            _ = _alerts.SendAlertAsync("⚠️ هر دو سرور خوشه Primary اعلام شدند — این سرور به حالت Recovering منتقل شد و باید دستی ترفیع بگیرد.");
+            _logger.LogWarning(
+                "Cluster conflict: both nodes claim Primary — demoting this node to Recovering. This node always loses that argument (its Primary status never came from a failover), so re-promoting it while the peer still claims Primary will just repeat this. Fix the peer's role instead.");
+            RecordEvent("warning",
+                "تداخل خوشه: هر دو سرور Primary اعلام شدند — این سرور به Recovering منتقل شد. توجه: در این تداخل همیشه همین سرور عقب می‌نشیند، پس ترفیع دوباره‌ی آن تا وقتی سرور مقابل هم Primary است نتیجه‌ای ندارد و همین چرخه تکرار می‌شود؛ نقش سرور مقابل را اصلاح کنید.");
+            _ = _alerts.SendAlertAsync("⚠️ هر دو سرور خوشه Primary اعلام شدند — این سرور به Recovering منتقل شد. تا وقتی نقش سرور مقابل اصلاح نشود، ترفیع دستی این سرور دوباره به همین حالت برمی‌گردد.");
         }
     }
 
@@ -360,6 +368,9 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
         return Interlocked.Read(ref _lastWitnessOkTicks) > 0 ? false : null;
     }
 
+    public void NotePeerInboundContact() =>
+        Interlocked.Exchange(ref _lastInboundPeerContactTicks, DateTime.UtcNow.Ticks);
+
     private async Task RecordContactFailureAsync(CancellationToken ct)
     {
         var failures = Interlocked.Increment(ref _consecutiveFailures);
@@ -367,6 +378,25 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
 
         var lastContact = new DateTime(Interlocked.Read(ref _lastPeerContactTicks), DateTimeKind.Utc);
         if (DateTime.UtcNow - lastContact < TimeSpan.FromSeconds(_failoverGraceSeconds)) return;
+
+        // Outbound silence alone does not mean the peer is down: on a link that is filtered in ONE direction
+        // (this node cannot reach the peer, while the peer still reaches this node fine) the peer keeps
+        // serving customers the whole time. Promoting here produces two Primaries, and the peer — whose own
+        // Primary status is the legitimate, never-failed-over one — then demotes itself, so the cluster
+        // oscillates for as long as the filtering lasts. A verified inbound peer request is positive proof
+        // the peer is alive, and only the peer can produce one (it is HMAC-signed with the shared secret),
+        // so it outranks our own inability to call out. The witness check below cannot see this case at all:
+        // it asks "is MY internet down", and on a one-way block the answer is a truthful "no".
+        var lastInbound = new DateTime(Interlocked.Read(ref _lastInboundPeerContactTicks), DateTimeKind.Utc);
+        if (DateTime.UtcNow - lastInbound < TimeSpan.FromSeconds(_failoverGraceSeconds))
+        {
+            _logger.LogWarning(
+                "Cannot reach the peer, but it is still reaching this node (last verified request {Seconds:F0}s ago) — the link is blocked one way, not the peer down. Staying Standby.",
+                (DateTime.UtcNow - lastInbound).TotalSeconds);
+            RecordEvent("warning",
+                "ارتباط خروجی با سرور مقابل قطع است، اما آن سرور همچنان به این سرور درخواست می‌فرستد — یعنی مسیر فقط یک‌طرفه بسته است و سرور مقابل سالم است. ترفیع خودکار انجام نشد.");
+            return;
+        }
 
         lock (_transitionLock)
         {

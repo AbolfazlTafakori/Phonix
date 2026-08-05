@@ -85,6 +85,58 @@ public class ClusterSyncTests
         Assert.Equal("Local Latest", store.GetProduct(product.Id)!.Name);
     }
 
+    // Regression: SeatSubmissions has four NOT NULL columns beside Id/DataJson, but the apply path routed it
+    // to the generic (Id, DataJson) upsert — so every seat row a customer filed failed the UserId constraint
+    // on the Standby and went to the dead-letter queue. Nothing else reported it: the cursor kept advancing.
+    [Fact]
+    public void ApplyRemoteOp_replicates_a_seat_submission_with_its_indexed_columns()
+    {
+        var origin = FreshStore(clusterEnabled: true);
+        var saved = origin.SaveSeatSubmission(new SeatSubmission
+        {
+            UserId = 7, OrderId = 22, UnitId = 1, SeatIndex = 0, SeatLabel = "A - 8",
+            ProductId = 3, ProductName = "Shared Plan", OrderCode = "ORD-22", UserName = "buyer",
+            Text = "details", Status = SeatSubmissionStatus.Pending,
+        });
+        Assert.NotNull(saved);
+        var entry = Assert.Single(origin.GetOutboxSince(0), e => e.EntityTable == "SeatSubmissions");
+
+        var peer = FreshStore(clusterEnabled: true);
+        Assert.True(peer.ApplyRemoteOp(entry));
+
+        var replicated = peer.GetSeatSubmission(saved!.Id);
+        Assert.NotNull(replicated);
+        Assert.Equal(7, replicated!.UserId);
+        Assert.Equal("A - 8", replicated.SeatLabel);
+        // The indexed columns must be populated too, not just DataJson — the admin review queue reads the
+        // table through them (GetSeatSubmissionsForUnit / the Status index), not through the JSON.
+        Assert.Single(peer.GetSeatSubmissionsForUnit(22, 1));
+        Assert.Single(peer.GetSeatSubmissions(SeatSubmissionStatus.Pending));
+    }
+
+    // A second Upsert for a seat row that already exists must update in place, not fail on the primary key —
+    // the real traffic is edit-after-file, which is exactly what produced the duplicate dead letters.
+    [Fact]
+    public void ApplyRemoteOp_updates_a_seat_submission_that_already_exists()
+    {
+        var origin = FreshStore(clusterEnabled: true);
+        var saved = origin.SaveSeatSubmission(new SeatSubmission
+        {
+            UserId = 7, OrderId = 22, UnitId = 1, SeatIndex = 0, SeatLabel = "A - 8", Text = "first",
+        })!;
+        var peer = FreshStore(clusterEnabled: true);
+        foreach (var e in origin.GetOutboxSince(0)) peer.ApplyRemoteOp(e);
+
+        saved.Text = "edited";
+        origin.SaveSeatSubmission(saved);
+        foreach (var e in origin.GetOutboxSince(0)) Assert.True(peer.ApplyRemoteOp(e));
+
+        var replicated = peer.GetSeatSubmission(saved.Id)!;
+        Assert.Equal("edited", replicated.Text);
+        // Updated in place — a second Upsert for the same id must not insert a duplicate seat row.
+        Assert.Single(peer.GetSeatSubmissionsForUnit(22, 1));
+    }
+
     [Fact]
     public void ApplyRemoteOp_rejects_a_table_name_outside_the_synced_allowlist()
     {

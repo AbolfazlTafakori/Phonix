@@ -131,6 +131,7 @@ WHERE Id > @cursor ORDER BY Id LIMIT @batchSize;",
             case "Notifications": UpsertNotificationRow(conn, tx, Deserialize<Notification>(json)!); break;
             case "DiscountCodes": UpsertDiscountCodeRow(conn, tx, Deserialize<DiscountCode>(json)!); break;
             case "ReferralEarnings": UpsertReferralEarningRow(conn, tx, id, Deserialize<ReferralEarning>(json)!); break;
+            case "SeatSubmissions": UpsertSeatSubmissionRow(conn, tx, Deserialize<SeatSubmission>(json)!); break;
             default: UpsertSimpleRow(conn, tx, table, id, json); break; // Categories/Plans/HeroSlides/… (plain Id+DataJson)
         }
     }
@@ -149,6 +150,18 @@ ON CONFLICT(Id) DO UPDATE SET DataJson = excluded.DataJson;", new { id, json }, 
 INSERT INTO StockItems (Id, ProductId, Status, DataJson) VALUES (@Id, @ProductId, @Status, @DataJson)
 ON CONFLICT(Id) DO UPDATE SET ProductId=excluded.ProductId, Status=excluded.Status, DataJson=excluded.DataJson;",
             new { s.Id, s.ProductId, Status = (int)s.Status, DataJson = Serialize(s) }, tx);
+
+    // SeatSubmissions used to fall through to UpsertSimpleRow, which writes only (Id, DataJson) — but the
+    // table has four other NOT NULL columns, so every remote seat row failed on the UserId constraint and
+    // dead-lettered. The local helper next door is UPDATE-only (the row already exists there), so the apply
+    // path needs its own insert-or-update, exactly like StockItems above.
+    private static void UpsertSeatSubmissionRow(SqliteConnection conn, SqliteTransaction tx, SeatSubmission s) =>
+        conn.Execute(@"
+INSERT INTO SeatSubmissions (Id, UserId, OrderId, UnitId, Status, DataJson)
+VALUES (@Id, @UserId, @OrderId, @UnitId, @Status, @DataJson)
+ON CONFLICT(Id) DO UPDATE SET UserId=excluded.UserId, OrderId=excluded.OrderId, UnitId=excluded.UnitId,
+                              Status=excluded.Status, DataJson=excluded.DataJson;",
+            new { s.Id, s.UserId, s.OrderId, s.UnitId, Status = (int)s.Status, DataJson = Serialize(s) }, tx);
 
     private static void UpsertStockAccountRow(SqliteConnection conn, SqliteTransaction tx, StockAccount a) =>
         conn.Execute(@"

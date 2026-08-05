@@ -57,6 +57,11 @@ public sealed class ClusterPeerAuthAttribute : Attribute, IAsyncAuthorizationFil
         if (!ClusterAuth.Verify(request.Method, path, body, timestamp, signature))
         {
             context.Result = new UnauthorizedResult();
+            return;
         }
+
+        // Only the peer can produce a valid signature, so this is the one place that can say "the peer is
+        // alive and can reach me" — the signal auto-failover needs to avoid promoting on a one-way link cut.
+        context.HttpContext.RequestServices.GetRequiredService<IClusterSyncService>().NotePeerInboundContact();
     }
 }
