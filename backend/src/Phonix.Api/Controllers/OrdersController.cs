@@ -183,8 +183,40 @@ public class OrdersController : ControllerBase
         // Validate and capture any per-plan customer inputs (e.g. account email/password) before placing the
         // order. Required fields are enforced here so the client can't skip them; sensitive values are
         // encrypted before they ever reach the store.
-        var lineInfo = new List<OrderLineInfo>();
+        // Fold duplicate lines (same product AND same plan) into one before anything else looks at them. A
+        // basket can carry the product twice — the API accepts it and a cart that fails to merge produces it —
+        // and every downstream rule pairs a line with "the units of this product+plan". Two lines against one
+        // shared pool of units made those pairings disagree: the per-account refund divided one line's
+        // quantity by both lines' units, and the units all came out numbered "اکانت ۱".
+        var mergedLines = new List<OrderLineInput>();
         foreach (var line in input.Items)
+        {
+            // A line that predates per-unit input groups carries a single Inputs/Note pair instead; lift it
+            // into a group so merging never silently drops what the buyer typed.
+            var groups = line.Units is { Count: > 0 }
+                ? new List<UnitInputDto>(line.Units)
+                : (line.Inputs is { Count: > 0 } || !string.IsNullOrWhiteSpace(line.Note)
+                    ? new List<UnitInputDto> { new(line.Inputs, line.Note) }
+                    : new List<UnitInputDto>());
+
+            var at = mergedLines.FindIndex(m => m.ProductId == line.ProductId && m.PlanId == line.PlanId);
+            if (at < 0)
+            {
+                mergedLines.Add(line with { Units = groups.Count > 0 ? groups : null });
+                continue;
+            }
+            var target = mergedLines[at];
+            var combined = new List<UnitInputDto>(target.Units ?? new List<UnitInputDto>());
+            combined.AddRange(groups);
+            mergedLines[at] = target with
+            {
+                Quantity = target.Quantity + line.Quantity,
+                Units = combined.Count > 0 ? combined : null,
+            };
+        }
+
+        var lineInfo = new List<OrderLineInfo>();
+        foreach (var line in mergedLines)
         {
             var info = BuildLineInfo(line, out var error);
             if (error is not null) return BadRequest(error);
@@ -193,7 +225,7 @@ public class OrdersController : ControllerBase
 
         var result = _store.PlaceOrder(
             user,
-            input.Items.Select(i => (i.ProductId, i.Quantity, i.PlanId)),
+            mergedLines.Select(i => (i.ProductId, i.Quantity, i.PlanId)),
             input.PaymentMethod,
             input.FromWallet,
             input.DiscountCode,

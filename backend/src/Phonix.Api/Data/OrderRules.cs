@@ -13,13 +13,19 @@ public static class OrderRules
     // order, which is also what makes the sum of the parts add back up to the order total.
     public static long UnitRefundAmount(Order order, OrderUnit unit)
     {
-        var item = order.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
-        if (item is null) return 0;
+        // EVERY line for this product+plan, not just the first. A basket may carry the same product on two
+        // separate lines (the API accepts it, and an unmerged cart produces it). Reading the quantity off one
+        // line while counting the units of all of them made each account refund a fraction of its own price.
+        var lines = order.Items
+            .Where(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""))
+            .ToList();
+        if (lines.Count == 0) return 0;
+        var chargedForProduct = lines.Sum(i => i.UnitPrice * (long)i.Quantity);
         // A line normally fans out into Quantity units (one unit = one UnitPrice), but a slot-fulfilled line
         // is a SINGLE unit covering the whole quantity — its refund is the line's share, not one seat's.
         var unitsOfLine = Math.Max(1, order.Units.Count(u =>
             u.ProductId == unit.ProductId && (u.Plan ?? "") == (unit.Plan ?? "")));
-        var price = (long)Math.Round(item.UnitPrice * (double)item.Quantity / unitsOfLine, MidpointRounding.AwayFromZero);
+        var price = (long)Math.Round((double)chargedForProduct / unitsOfLine, MidpointRounding.AwayFromZero);
         if (order.Subtotal <= 0) return price;
 
         long Share(long total) => total <= 0

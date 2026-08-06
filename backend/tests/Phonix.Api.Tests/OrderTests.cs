@@ -492,6 +492,38 @@ public class OrderTests
         Assert.Equal(OrderStatus.Cancelled, store.GetOrder(order.Id)!.Status);
     }
 
+    // A basket can legitimately carry the same product on two separate lines (the API accepts it, and a cart
+    // that fails to merge produces it). The refund then has to be per unit of what was actually charged: the
+    // line lookup finds one line while the unit count spans both, so the share was computed against the wrong
+    // quantity and each account paid back half its price — the shop silently keeping the rest.
+    [Fact]
+    public void Cancelling_an_account_of_a_product_listed_on_two_separate_lines_refunds_its_full_price()
+    {
+        var store = TestStore.Create();
+        store.UpdateUser(5, u => u.Wallet = 100_000_000);
+        var order = store.PlaceOrder(store.GetUser(5)!, new[] { (1, 1, (int?)null), (1, 1, (int?)null) },
+            "wallet", fromWallet: true).Order!;
+        Assert.Equal(2, order.Units.Count);
+
+        // Both accounts are the same product at the same price, so each must pay back the same amount, and
+        // that amount is half of what the buyer was charged — not a quarter, which is what dividing one
+        // line's quantity by both lines' units produced.
+        var walletBefore = store.GetUser(5)!.Wallet;
+        var (_, first, error) = store.RejectUnit(order.Id, order.Units[0].Id, "موجود نبود", "admin");
+
+        Assert.Null(error);
+        // Half the order, since the two accounts are identical — the bug paid back a quarter.
+        Assert.Equal(order.Total / 2, first);
+        Assert.True(first > order.Items[0].UnitPrice);                   // its price plus its tax/fee share
+        Assert.Equal(walletBefore + first, store.GetUser(5)!.Wallet);
+
+        // And the two together give back everything that was paid, tax and fee included.
+        var (_, second, _) = store.RejectUnit(order.Id, order.Units[1].Id, "موجود نبود", "admin");
+        Assert.Equal(first, second);
+        Assert.Equal(order.Total, first + second);
+        Assert.Equal(walletBefore + order.Total, store.GetUser(5)!.Wallet);
+    }
+
     // A cancelled order has already paid its money back and put its stock away. Rejecting one of its accounts
     // afterwards must not pay a second time — the Telegram reject button sits on a message that stays tappable
     // long after the order was cancelled elsewhere, so this is reachable without anyone doing anything odd.
