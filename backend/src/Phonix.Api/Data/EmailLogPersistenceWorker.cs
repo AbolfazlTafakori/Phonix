@@ -6,9 +6,14 @@ namespace Phonix.Api.Data;
 public sealed class EmailLogPersistenceWorker : BackgroundService
 {
     private readonly EmailLogStore _log;
+    private readonly ILogger<EmailLogPersistenceWorker> _logger;
     private static readonly TimeSpan Interval = TimeSpan.FromSeconds(10);
 
-    public EmailLogPersistenceWorker(EmailLogStore log) => _log = log;
+    public EmailLogPersistenceWorker(EmailLogStore log, ILogger<EmailLogPersistenceWorker> logger)
+    {
+        _log = log;
+        _logger = logger;
+    }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -22,13 +27,29 @@ public sealed class EmailLogPersistenceWorker : BackgroundService
             {
                 break;
             }
-            _log.SaveIfChanged();
+            // Same reasoning as AuditPersistenceWorker: an escaping exception stops the host, so a failed
+            // flush must cost this cycle only, not the site.
+            try
+            {
+                _log.SaveIfChanged();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Email log could not be flushed; retrying on the next cycle.");
+            }
         }
     }
 
     public override async Task StopAsync(CancellationToken cancellationToken)
     {
-        _log.Save();
+        try
+        {
+            _log.Save();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Final email-log save on shutdown failed.");
+        }
         await base.StopAsync(cancellationToken);
     }
 }
