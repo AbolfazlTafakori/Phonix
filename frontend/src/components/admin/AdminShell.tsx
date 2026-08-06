@@ -6,6 +6,7 @@ import { useAdminAuth, adminRoles, clearAdminUser } from "@/lib/adminAuth";
 import { api } from "@/lib/api";
 import AdminSidebar from "./AdminSidebar";
 import AdminTopbar from "./AdminTopbar";
+import ActionErrorToaster from "./ActionErrorToaster";
 
 export default function AdminShell({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -70,6 +71,7 @@ export default function AdminShell({ children }: { children: ReactNode }) {
       <AdminSidebar open={open} onClose={() => setOpen(false)} />
       <AdminTopbar onMenu={() => setOpen(true)} />
       <main className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">{children}</main>
+      <ActionErrorToaster />
     </div>
   );
 }

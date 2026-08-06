@@ -57,7 +57,7 @@ export default function AdminHeaderPage() {
           <Card className="p-6">
             <h3 className="mb-5 text-lg font-bold text-white">برند و لوگو</h3>
             <div className="flex items-center gap-3 rounded-xl bg-white/[0.03] p-4">
-              <img src={content.brand.logo} alt="logo" className="h-14 w-auto" />
+              {content.brand.logo && <img src={content.brand.logo} alt="logo" className="h-14 w-auto" />}
               <span className="font-bigshot text-base leading-tight text-white">
                 {content.brand.logoLine1}
                 <br />

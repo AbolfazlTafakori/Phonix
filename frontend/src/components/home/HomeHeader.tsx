@@ -208,7 +208,9 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
             </div>
           )}
           <Link href="/" className="hidden items-center gap-2.5 lg:flex">
-            <img src={brand.logo} alt={brand.siteName} className="h-11 w-auto sm:h-14" />
+            {/* An empty src is not a blank image: the browser treats it as "re-request the current page",
+                so an install with no logo uploaded pays for a second page fetch on every visit. */}
+            {brand.logo && <img src={brand.logo} alt={brand.siteName} className="h-11 w-auto sm:h-14" />}
             <span className="hidden text-[15px] font-extrabold leading-[1.1] text-[var(--hl-ink)] sm:inline-block sm:text-[17px]">
               {brand.logoLine1}
               <br />

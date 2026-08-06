@@ -40,7 +40,7 @@ export default async function Home() {
         <Reveal><HomeFaq /></Reveal>
         <Reveal><HomeNewsletter /></Reveal>
       </main>
-      <FooterVisibility><HomeFooter brand={content.brand} /></FooterVisibility>
+      <FooterVisibility><HomeFooter brand={content.brand} footer={content.footer} /></FooterVisibility>
       <MobileTabBar />
     </div>
   );

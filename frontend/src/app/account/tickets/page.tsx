@@ -35,6 +35,9 @@ export default function TicketsPage() {
   const [reply, setReply] = useState("");
   const [replyAttachment, setReplyAttachment] = useState("");
   const [busy, setBusy] = useState(false);
+  // Without this a failed send left the button re-enabled and nothing else changed, which reads as "sent" —
+  // the one outcome a support ticket must never fake.
+  const [sendError, setSendError] = useState("");
 
   async function load() {
     if (!user) return;
@@ -53,6 +56,7 @@ export default function TicketsPage() {
   async function create() {
     if (!user || !subject.trim() || !body.trim()) return;
     setBusy(true);
+    setSendError("");
     try {
       const t = await api.tickets.create({ subject: subject.trim(), department, body: body.trim(), priority, attachment: attachment || undefined });
       setTickets((p) => [t, ...p]);
@@ -62,6 +66,8 @@ export default function TicketsPage() {
       setPriority("Medium");
       setOpenForm(false);
       setSelected(t);
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : "خطا در ثبت تیکت");
     } finally {
       setBusy(false);
     }
@@ -70,12 +76,15 @@ export default function TicketsPage() {
   async function sendReply() {
     if (!selected || (!reply.trim() && !replyAttachment)) return;
     setBusy(true);
+    setSendError("");
     try {
       const t = await api.tickets.reply(selected.id, reply.trim() || "(فایل پیوست)", false, replyAttachment || undefined);
       setSelected(t);
       setTickets((p) => p.map((x) => (x.id === t.id ? t : x)));
       setReply("");
       setReplyAttachment("");
+    } catch (e) {
+      setSendError(e instanceof Error ? e.message : "خطا در ارسال پاسخ");
     } finally {
       setBusy(false);
     }
@@ -126,6 +135,7 @@ export default function TicketsPage() {
                 <ImageField value={attachment} onChange={setAttachment} aspect="square" />
               </div>
             </div>
+            {sendError && <p className="text-xs leading-6 text-rose-500">{sendError}</p>}
             <button
               onClick={create}
               disabled={busy}
@@ -204,6 +214,7 @@ export default function TicketsPage() {
                   ارسال
                 </button>
               </div>
+              {sendError && <p className="mt-2 text-xs leading-6 text-rose-500">{sendError}</p>}
               <div className="mt-2">
                 <span className="mb-1 block text-xs" style={{ color: "var(--ac-muted)" }}>فایل پیوست (اختیاری)</span>
                 <div className="w-[110px]">

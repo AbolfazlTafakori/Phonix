@@ -7,7 +7,7 @@ export default async function SiteFooter() {
   const content = await getSiteContent();
   return (
     <div className="home-light">
-      <HomeFooter brand={content.brand} />
+      <HomeFooter brand={content.brand} footer={content.footer} />
     </div>
   );
 }

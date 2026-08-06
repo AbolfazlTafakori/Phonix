@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { TelegramIcon, InstagramIcon, TwitterIcon } from "../Icons";
+import type { SiteContent } from "@/lib/types";
 
 const YoutubeIcon = ({ className }: { className?: string }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor">
@@ -9,7 +10,9 @@ const YoutubeIcon = ({ className }: { className?: string }) => (
 
 const quick = [
   { label: "درباره ما", href: "#about" },
-  { label: "تماس با ما", href: "#" },
+  // Points at the support block further down this same footer (phone, email, hours). It used to be "#",
+  // which on a public page is a link that looks clickable and only jumps to the top of the document.
+  { label: "تماس با ما", href: "#support" },
   { label: "وبلاگ", href: "/blog" },
   { label: "قوانین و مقررات", href: "/terms" },
 ];
@@ -20,14 +23,31 @@ const access = [
   { label: "وبلاگ", href: "/blog" },
 ];
 
-const socials = [
-  { I: TelegramIcon, href: "#" },
-  { I: InstagramIcon, href: "#" },
-  { I: TwitterIcon, href: "#" },
-  { I: YoutubeIcon, href: "#" },
-];
+const socialIcons: Record<string, (props: { className?: string }) => React.ReactElement> = {
+  telegram: TelegramIcon,
+  instagram: InstagramIcon,
+  twitter: TwitterIcon,
+  youtube: YoutubeIcon,
+};
 
-export default function HomeFooter({ brand }: { brand: { siteName: string; logo: string; logoLine1: string; logoLine2: string } }) {
+// A social entry is only worth rendering if it actually goes somewhere. The seeded default href is "#", so
+// without this the home page shows a row of icons that look like buttons and do nothing when tapped.
+const isLive = (href: string | undefined) => !!href && href.trim() !== "" && href.trim() !== "#";
+
+export default function HomeFooter({
+  brand,
+  footer,
+}: {
+  brand: { siteName: string; logo: string; logoLine1: string; logoLine2: string };
+  // The same admin-managed footer settings the site-wide Footer already renders. The home page used to
+  // hardcode its own copies, so anything an operator changed in the panel simply never appeared here — and
+  // the social icons and the Telegram button stayed permanently dead.
+  footer?: SiteContent["footer"];
+}) {
+  const socials = (footer?.socials ?? []).filter((s) => isLive(s.href));
+  const telegram = socials.find((s) => s.icon === "telegram");
+  const supportEmail = footer?.contact.email?.trim() || "support@phoenixverify.com";
+  const supportHours = footer?.contact.hours?.trim() || "همه‌روزه ۹ صبح تا ۱۲ شب";
   return (
     <footer className="border-t border-[var(--hl-border)] bg-[var(--hl-surface)]">
       <div className="mx-auto max-w-[1840px] px-4 py-12 sm:px-8 sm:py-14 xl:px-16">
@@ -39,13 +59,25 @@ export default function HomeFooter({ brand }: { brand: { siteName: string; logo:
             <p className="text-[15px] leading-[1.9] text-[var(--hl-ink-2)]">
               فینیکس وریفای، مرجع معتبر ارائه سرویس‌های دیجیتال، شماره مجازی، گیفت کارت و سایر خدمات آنلاین با پشتیبانی حرفه‌ای.
             </p>
-            <div className="mt-5 flex items-center gap-2.5">
-              {socials.map(({ I, href }, i) => (
-                <Link key={i} href={href} className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--hl-border)] bg-[var(--hl-card)] text-[var(--hl-ink-2)] transition hover:border-[var(--hl-red)]/40 hover:text-[var(--hl-red-text)]">
-                  <I className="h-5 w-5" />
-                </Link>
-              ))}
-            </div>
+            {socials.length > 0 && (
+              <div className="mt-5 flex items-center gap-2.5">
+                {socials.map((s) => {
+                  const Icon = socialIcons[s.icon] ?? TwitterIcon;
+                  return (
+                    <a
+                      key={s.label}
+                      href={s.href}
+                      aria-label={s.label}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="grid h-10 w-10 place-items-center rounded-xl border border-[var(--hl-border)] bg-[var(--hl-card)] text-[var(--hl-ink-2)] transition hover:border-[var(--hl-red)]/40 hover:text-[var(--hl-red-text)]"
+                    >
+                      <Icon className="h-5 w-5" />
+                    </a>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* quick links */}
@@ -69,7 +101,7 @@ export default function HomeFooter({ brand }: { brand: { siteName: string; logo:
           </div>
 
           {/* support */}
-          <div className="lg:order-2">
+          <div id="support" className="scroll-mt-24 lg:order-2">
             <h3 className="mb-4 text-[17px] font-bold text-[var(--hl-ink)]">پشتیبانی</h3>
             <ul className="flex flex-col gap-3 text-[15px] text-[var(--hl-ink-2)]">
               <li className="flex items-center gap-2">
@@ -78,17 +110,24 @@ export default function HomeFooter({ brand }: { brand: { siteName: string; logo:
               </li>
               <li className="flex items-center gap-2 min-w-0">
                 <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16v16H4zM4 6l8 6 8-6" /></svg>
-                <span dir="ltr" className="min-w-0 truncate">support@phoenixverify.com</span>
+                <span dir="ltr" className="min-w-0 truncate">{supportEmail}</span>
               </li>
               <li className="flex items-center gap-2">
                 <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
-                همه‌روزه ۹ صبح تا ۱۲ شب
+                {supportHours}
               </li>
             </ul>
-            <Link href="#" className="mt-4 inline-flex max-w-full items-center gap-2 rounded-xl border border-[#2563eb]/30 bg-[#2563eb]/5 px-4 py-2 text-[14px] font-bold text-[var(--hl-blue-text)] transition hover:bg-[#2563eb]/10">
-              <TelegramIcon className="h-4 w-4 shrink-0" />
-              <span className="min-w-0 truncate">@PhoenixVerifySupport</span>
-            </Link>
+            {telegram && (
+              <a
+                href={telegram.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-4 inline-flex max-w-full items-center gap-2 rounded-xl border border-[#2563eb]/30 bg-[#2563eb]/5 px-4 py-2 text-[14px] font-bold text-[var(--hl-blue-text)] transition hover:bg-[#2563eb]/10"
+              >
+                <TelegramIcon className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 truncate">{telegram.label}</span>
+              </a>
+            )}
           </div>
 
           {/* trust */}

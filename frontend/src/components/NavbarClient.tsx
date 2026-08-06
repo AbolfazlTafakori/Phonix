@@ -274,7 +274,7 @@ export default function NavbarClient({ brand, header }: Props) {
             {/* brand + nav — pinned to the right next to the logo */}
             <div className="flex min-w-0 shrink-0 items-center gap-3 sm:gap-5 lg:gap-7">
               <Link href="/" onClick={() => setMobileOpen(false)} className="flex shrink-0 items-center gap-2">
-                <img src={brand.logo} alt={brand.siteName} className="h-9 w-auto sm:h-11" />
+                {brand.logo && <img src={brand.logo} alt={brand.siteName} className="h-9 w-auto sm:h-11" />}
                 <span className="hidden font-bigshot text-[15px] leading-[1.05] text-white sm:block">
                   {brand.logoLine1}
                   <br />
@@ -448,7 +448,7 @@ export default function NavbarClient({ brand, header }: Props) {
         >
           <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
             <Link href="/" onClick={() => setMobileOpen(false)} className="flex items-center gap-2">
-              <img src={brand.logo} alt={brand.siteName} className="h-9 w-auto" />
+              {brand.logo && <img src={brand.logo} alt={brand.siteName} className="h-9 w-auto" />}
               <span className="font-bigshot text-[15px] leading-[1.05] text-white">
                 {brand.logoLine1}
                 <br />

@@ -31,6 +31,10 @@ export default function OrderFulfillmentPage() {
   const [cancelReason, setCancelReason] = useState("");
   const [refund, setRefund] = useState<number | null>(null);
   const [cancelError, setCancelError] = useState("");
+  // Separate from cancelError: this one means "the server says this account cannot be cancelled at all", so
+  // the button stays off. A failed attempt only fills cancelError, which must NOT disable the retry — a
+  // network blip would otherwise leave the operator looking at a dead button until they reopened the modal.
+  const [cancelBlocked, setCancelBlocked] = useState(false);
 
   // Reserves the next available stock-pool item for this unit and drops its payload into the content field.
   // The item stays reserved until the delivery is submitted; abandoning the modal leaves it releasable from
@@ -108,12 +112,18 @@ export default function OrderFulfillmentPage() {
     setCancelTarget({ order, unit });
     setCancelReason("");
     setCancelError("");
+    setCancelBlocked(false);
     setRefund(null);
     try {
       const preview = await api.orders.unitRefundPreview(order.id, unit.id);
       setRefund(preview.refund);
-      if (!preview.canReject) setCancelError(preview.reason ?? "این اکانت قابل لغو نیست.");
+      if (!preview.canReject) {
+        setCancelError(preview.reason ?? "این اکانت قابل لغو نیست.");
+        setCancelBlocked(true);
+      }
     } catch (e) {
+      // The amount could not be read, so there is nothing trustworthy to confirm against — but the operator
+      // can reopen and try again, so this is not a permanent block.
       setCancelError(e instanceof Error ? e.message : "خطا در محاسبه مبلغ بازگشتی");
     }
   }
@@ -328,7 +338,7 @@ export default function OrderFulfillmentPage() {
           </button>
           <button
             onClick={confirmCancel}
-            disabled={busy || refund === null || cancelError !== ""}
+            disabled={busy || refund === null || cancelBlocked}
             className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-rose-500/20 px-5 text-sm font-bold text-rose-300 transition hover:bg-rose-500/30 disabled:opacity-50"
           >
             {busy ? <Spinner /> : <><AdminIcon name="close" className="h-4 w-4" /> لغو و بازگشت وجه</>}

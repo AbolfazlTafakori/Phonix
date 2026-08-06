@@ -27,6 +27,7 @@ export default function CheckoutPage() {
   const [emailVerified, setEmailVerified] = useState(true);
   const [resending, setResending] = useState(false);
   const [resent, setResent] = useState(false);
+  const [resendError, setResendError] = useState("");
   const [placing, setPlacing] = useState(false);
   const [error, setError] = useState("");
   const [doneCode, setDoneCode] = useState("");
@@ -159,9 +160,14 @@ export default function CheckoutPage() {
 
   async function resendVerification() {
     setResending(true);
+    setResendError("");
     try {
       await api.auth.resendVerification();
       setResent(true);
+    } catch (e) {
+      // A silent failure here is particularly bad: the buyer is stuck at checkout waiting for an email that
+      // was never sent, with nothing on screen to say so.
+      setResendError(e instanceof Error ? e.message : "ارسال ایمیل تأیید ناموفق بود؛ دوباره تلاش کنید.");
     } finally {
       setResending(false);
     }
@@ -488,9 +494,12 @@ export default function CheckoutPage() {
               {resent ? (
                 <p className="mt-2 text-emerald-500">ایمیل تأیید دوباره ارسال شد.</p>
               ) : (
-                <button onClick={resendVerification} disabled={resending} className="mt-2 rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-600 transition hover:bg-amber-500/10 disabled:opacity-60">
-                  {resending ? "در حال ارسال..." : "ارسال مجدد ایمیل تأیید"}
-                </button>
+                <>
+                  <button onClick={resendVerification} disabled={resending} className="mt-2 rounded-lg border border-amber-500/40 px-3 py-1.5 text-xs font-bold text-amber-600 transition hover:bg-amber-500/10 disabled:opacity-60">
+                    {resending ? "در حال ارسال..." : "ارسال مجدد ایمیل تأیید"}
+                  </button>
+                  {resendError && <p className="mt-2 text-xs leading-6 text-rose-500">{resendError}</p>}
+                </>
               )}
             </div>
           )}
