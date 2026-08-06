@@ -19,6 +19,10 @@ public record DeliverInput(string Content, bool Email, string? EmailSubject, str
 public record RejectOrderInput(string? Reason);
 public record DeliverUnitInput(string Content, bool Email, string? EmailSubject, string? EmailBody, bool Final);
 public record CancelOrderInput(string? Reason);
+public record RejectUnitInput(string? Reason);
+// What cancelling ONE account of an order would pay back, so the panel can show the exact figure before the
+// operator commits instead of re-deriving the split in the browser.
+public record UnitRefundPreview(long Refund, bool CanReject, string? Reason);
 
 [ApiController]
 [Route("api/orders")]
@@ -341,6 +345,40 @@ public class OrdersController : ControllerBase
         }
 
         return RevealInputs(order);
+    }
+
+    // What the buyer would get back if THIS account were cancelled now. Read-only, and computed by the same
+    // OrderRules the cancellation itself uses, so the number shown in the confirmation is the number paid.
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders", "orders-fulfillment")]
+    [HttpGet("{id:int}/units/{unitId:int}/refund-preview")]
+    public ActionResult<UnitRefundPreview> RefundPreview(int id, int unitId)
+    {
+        var order = _store.GetOrder(id);
+        if (order is null) return NotFound();
+        var unit = order.Units.FirstOrDefault(u => u.Id == unitId);
+        if (unit is null) return NotFound();
+        if (unit.Delivered) return Ok(new UnitRefundPreview(0, false, "این اکانت قبلاً تحویل شده است."));
+        if (unit.Rejected) return Ok(new UnitRefundPreview(unit.RefundedAmount, false, "این اکانت قبلاً لغو شده است."));
+        return Ok(new UnitRefundPreview(OrderRules.UnitRefundAmount(order, unit), true, null));
+    }
+
+    // Cancels ONE account of an order: the product could not be supplied, but the rest of the basket is
+    // unaffected. The buyer is refunded exactly this account's share of what they paid — its price less its
+    // slice of the discount, plus its slice of VAT and the gateway fee — and its stock/slots go back. The
+    // whole order settles itself once nothing is left pending. Until now this only existed behind the
+    // Telegram buttons, so an operator working in the panel had no way to do it.
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders", "orders-fulfillment")]
+    [HttpPost("{id:int}/units/{unitId:int}/reject")]
+    public ActionResult<Order> RejectUnit(int id, int unitId, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] RejectUnitInput? input)
+    {
+        var reason = string.IsNullOrWhiteSpace(input?.Reason)
+            ? "عدم امکان ارائه سرویس"
+            : input!.Reason!.Trim();
+        var (order, _, error) = _store.RejectUnit(id, unitId, reason, User.Identity?.Name);
+        if (error is not null) return BadRequest(error);
+        return RevealInputs(order!);
     }
 
     // Legacy whole-order deliver (kept for older flows): stores the in-site content and optionally emails.

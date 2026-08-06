@@ -472,6 +472,12 @@ export const api = {
       request<Order>(`/orders/${id}/units/${unitId}/draft`, { method: "POST", body: json({ ...body, email: false }) }),
     deliverUnit: (id: number, unitId: number, body: { content: string; email: boolean; emailSubject?: string; emailBody?: string; final?: boolean }) =>
       request<Order>(`/orders/${id}/units/${unitId}/deliver`, { method: "POST", body: json(body) }),
+    // What cancelling this one account would refund, asked before the operator confirms. The split lives in
+    // the backend's OrderRules — never recomputed here, so the figure shown is the figure paid.
+    unitRefundPreview: (id: number, unitId: number) =>
+      request<{ refund: number; canReject: boolean; reason: string | null }>(`/orders/${id}/units/${unitId}/refund-preview`),
+    rejectUnit: (id: number, unitId: number, body: { reason?: string }) =>
+      request<Order>(`/orders/${id}/units/${unitId}/reject`, { method: "POST", body: json(body) }),
   },
   tickets: {
     list: (params?: { status?: TicketStatus }) => request<Ticket[]>(`/tickets${qs(params)}`),

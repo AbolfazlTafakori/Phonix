@@ -429,6 +429,69 @@ public class OrderTests
         Assert.Equal(walletBefore + expectedRefund, store.GetUser(5)!.Wallet);
     }
 
+    // The case the panel's per-account cancel exists for: a basket of SEVERAL DIFFERENT products where one of
+    // them turns out to be unsuppliable. The buyer must get back what that product cost, not an equal split of
+    // the basket and not the whole order — the products here have deliberately different prices so an even
+    // split would be visibly wrong.
+    [Fact]
+    public void Cancelling_one_product_of_a_mixed_basket_refunds_only_that_products_share()
+    {
+        var store = TestStore.Create();
+        // Enough wallet that the whole basket is paid outright and the order goes straight to Preparing —
+        // this is the fulfillment queue's state, which is where the cancel button lives.
+        store.UpdateUser(5, u => u.Wallet = 100_000_000);
+        var user = store.GetUser(5)!;
+        // Netflix 290,000 · Spotify 185,000 · Apple Music 165,000 · Freelancer 320,000 — four different prices.
+        var order = store.PlaceOrder(user, new[] { (1, 1, (int?)null), (2, 1, (int?)null), (5, 1, (int?)null), (6, 1, (int?)null) },
+            "wallet", fromWallet: true).Order!;
+        Assert.Equal(4, order.Units.Count);
+
+        // Cancel the Freelancer account — the most expensive line, so a wrong "average" refund would show up.
+        var unit = order.Units.Single(u => u.ProductId == 6);
+        var line = order.Items.Single(i => i.ProductId == 6);
+        long Share(long total) => total <= 0
+            ? 0
+            : (long)Math.Round(total * (double)line.UnitPrice / order.Subtotal, MidpointRounding.AwayFromZero);
+        var expected = line.UnitPrice - Share(order.DiscountAmount) + Share(order.VatAmount) + Share(order.FeeAmount);
+
+        var walletBefore = store.GetUser(5)!.Wallet;
+        var (after, refunded, error) = store.RejectUnit(order.Id, unit.Id, "عدم امکان ارائه سرویس", "admin");
+
+        Assert.Null(error);
+        Assert.Equal(expected, refunded);
+        Assert.Equal(walletBefore + expected, store.GetUser(5)!.Wallet);
+        // Not the whole order, and not a quarter of it.
+        Assert.True(refunded < order.Total);
+        Assert.NotEqual(order.Total / 4, refunded);
+        // The other three are untouched and still deliverable.
+        Assert.Equal(OrderStatus.Preparing, after!.Status);
+        Assert.Equal(3, after.Units.Count(u => !u.Rejected && !u.Delivered));
+    }
+
+    // Cancelling every account one at a time must pay back exactly what the buyer paid for the order — no
+    // rounding drift that quietly keeps or gives away money across the parts.
+    [Fact]
+    public void Cancelling_every_account_of_a_mixed_basket_refunds_the_whole_order_total()
+    {
+        var store = TestStore.Create();
+        var user = store.GetUser(5)!;
+        var order = store.PlaceOrder(user, new[] { (1, 1, (int?)null), (2, 1, (int?)null), (5, 1, (int?)null) },
+            "wallet", fromWallet: true).Order!;
+        var walletBefore = store.GetUser(5)!.Wallet;
+
+        long total = 0;
+        foreach (var u in order.Units.ToList())
+        {
+            var (_, refunded, error) = store.RejectUnit(order.Id, u.Id, "عدم امکان ارائه سرویس", "admin");
+            Assert.Null(error);
+            total += refunded;
+        }
+
+        Assert.Equal(order.Total, total);
+        Assert.Equal(walletBefore + order.Total, store.GetUser(5)!.Wallet);
+        Assert.Equal(OrderStatus.Cancelled, store.GetOrder(order.Id)!.Status);
+    }
+
     // One rejected account must not hold the order open: delivering the rest still completes it (and issues
     // the invoice), while rejecting every account cancels it.
     [Fact]

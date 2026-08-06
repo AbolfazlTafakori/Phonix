@@ -25,6 +25,13 @@ export default function OrderFulfillmentPage() {
   const [busy, setBusy] = useState(false);
   const [pullError, setPullError] = useState("");
 
+  // Cancelling one account of an order (the service turned out to be unavailable). Separate from `target` so
+  // the two flows can never be confused: this one pays money back and cannot be undone.
+  const [cancelTarget, setCancelTarget] = useState<{ order: Order; unit: OrderUnit } | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [refund, setRefund] = useState<number | null>(null);
+  const [cancelError, setCancelError] = useState("");
+
   // Reserves the next available stock-pool item for this unit and drops its payload into the content field.
   // The item stays reserved until the delivery is submitted; abandoning the modal leaves it releasable from
   // the stock page.
@@ -94,6 +101,37 @@ export default function OrderFulfillmentPage() {
     }
   }
 
+  // Opens the cancel confirmation and asks the server what this account would refund. The amount is never
+  // computed here: it is this account's price less its share of the order discount, plus its share of the VAT
+  // and gateway fee, and only the backend's OrderRules knows that split.
+  async function openCancel(order: Order, unit: OrderUnit) {
+    setCancelTarget({ order, unit });
+    setCancelReason("");
+    setCancelError("");
+    setRefund(null);
+    try {
+      const preview = await api.orders.unitRefundPreview(order.id, unit.id);
+      setRefund(preview.refund);
+      if (!preview.canReject) setCancelError(preview.reason ?? "این اکانت قابل لغو نیست.");
+    } catch (e) {
+      setCancelError(e instanceof Error ? e.message : "خطا در محاسبه مبلغ بازگشتی");
+    }
+  }
+
+  async function confirmCancel() {
+    if (!cancelTarget) return;
+    setBusy(true);
+    setCancelError("");
+    try {
+      applyOrder(await api.orders.rejectUnit(cancelTarget.order.id, cancelTarget.unit.id, { reason: cancelReason.trim() || undefined }));
+      setCancelTarget(null);
+    } catch (e) {
+      setCancelError(e instanceof Error ? e.message : "خطا در لغو اکانت");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div>
       <PageHeader title="تحویل سفارش" desc="آماده‌سازی و تحویل هر اکانت به‌صورت جداگانه — قابل کار همزمان توسط چند نفر" />
@@ -115,23 +153,34 @@ export default function OrderFulfillmentPage() {
                 </div>
                 <span className="text-xs text-white/45">
                   {o.units.filter((u) => u.delivered).length} از {o.units.length} اکانت تحویل شد
+                  {o.units.some((u) => u.rejected) && (
+                    <span className="text-rose-300/70"> · {o.units.filter((u) => u.rejected).length} لغو شد</span>
+                  )}
                 </span>
               </div>
 
               <div className="mt-3 grid gap-3 lg:grid-cols-2">
                 {o.units.map((u) => (
-                  <div key={u.id} className={`rounded-xl border p-3 ${u.delivered ? "border-emerald-500/25 bg-emerald-500/[0.05]" : "border-white/10 bg-white/[0.02]"}`}>
+                  <div key={u.id} className={`rounded-xl border p-3 ${u.rejected ? "border-rose-500/25 bg-rose-500/[0.05]" : u.delivered ? "border-emerald-500/25 bg-emerald-500/[0.05]" : "border-white/10 bg-white/[0.02]"}`}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="flex items-center gap-2 text-sm font-bold text-white">
                         <img src={u.image} alt={u.name} className="h-7 w-7 rounded object-cover" />
                         {u.name}{o.units.filter((x) => x.productId === u.productId).length > 1 ? ` — اکانت ${u.unitIndex}` : ""}
                       </span>
-                      {u.delivered ? (
+                      {u.rejected ? (
+                        <span className="rounded-md bg-rose-500/15 px-2 py-0.5 text-[11px] font-bold text-rose-300">لغو شد</span>
+                      ) : u.delivered ? (
                         <span className="rounded-md bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-400">✓ تحویل شد</span>
                       ) : (
                         <span className="rounded-md bg-amber-500/15 px-2 py-0.5 text-[11px] font-bold text-amber-300">در انتظار</span>
                       )}
                     </div>
+                    {u.rejected && (
+                      <p className="mt-1.5 text-[11px] leading-6 text-rose-300/80">
+                        {formatToman(u.refundedAmount)} به کیف پول مشتری بازگشت
+                        {u.rejectionReason ? ` — ${u.rejectionReason}` : ""}
+                      </p>
+                    )}
                     {u.plan && <p className="mt-1 text-[11px] text-white/40">{u.plan}</p>}
 
                     {(u.customerInputs.length > 0 || u.customerNote) && (
@@ -155,15 +204,31 @@ export default function OrderFulfillmentPage() {
                       <p className="mt-2 text-[11px] text-amber-300/70">پیش‌نویس ذخیره‌شده توسط {u.handledBy}</p>
                     )}
 
-                    <button
-                      onClick={() => open(o, u)}
-                      className={`mt-3 flex h-9 w-full items-center justify-center gap-1.5 rounded-lg text-xs font-bold transition active:scale-[0.98] ${
-                        u.delivered ? "border border-white/10 text-white/70 hover:bg-white/5" : "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
-                      }`}
-                    >
-                      <AdminIcon name={u.delivered ? "edit" : "check"} className="h-4 w-4" />
-                      {u.delivered ? "ویرایش / ارسال مجدد" : "آماده‌سازی و تحویل"}
-                    </button>
+                    {!u.rejected && (
+                      <div className="mt-3 flex gap-2">
+                        <button
+                          onClick={() => open(o, u)}
+                          className={`flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg text-xs font-bold transition active:scale-[0.98] ${
+                            u.delivered ? "border border-white/10 text-white/70 hover:bg-white/5" : "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
+                          }`}
+                        >
+                          <AdminIcon name={u.delivered ? "edit" : "check"} className="h-4 w-4" />
+                          {u.delivered ? "ویرایش / ارسال مجدد" : "آماده‌سازی و تحویل"}
+                        </button>
+                        {/* Only for an account not yet handed over: once it is delivered the customer has it,
+                            so taking the money back here would be wrong — that is a support/refund matter. */}
+                        {!u.delivered && (
+                          <button
+                            onClick={() => openCancel(o, u)}
+                            title="این اکانت را لغو کن و سهم پرداختی‌اش را برگردان"
+                            className="flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-rose-500/25 px-3 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10 active:scale-[0.98]"
+                          >
+                            <AdminIcon name="close" className="h-4 w-4" />
+                            لغو
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -217,6 +282,61 @@ export default function OrderFulfillmentPage() {
           </button>
         </div>
         <p className="mt-3 text-[11px] leading-6 text-white/40">«سیو موقت» اطلاعات را نگه می‌دارد و سفارش در همین لیست می‌ماند. «تحویل این اکانت» آن را تحویل‌شده ثبت می‌کند؛ وقتی همه‌ی اکانت‌ها تحویل شدند سفارش به «تکمیل‌شده» می‌رود.</p>
+      </Modal>
+
+      <Modal
+        open={cancelTarget !== null}
+        onClose={() => setCancelTarget(null)}
+        title={`لغو ${cancelTarget?.unit.name ?? ""}${(cancelTarget && cancelTarget.order.units.filter((x) => x.productId === cancelTarget.unit.productId).length > 1) ? ` — اکانت ${cancelTarget.unit.unitIndex}` : ""}`}
+      >
+        <p className="text-sm leading-7 text-white/70">
+          این اکانت لغو می‌شود و سهم پرداختی‌اش به کیف پول مشتری برمی‌گردد. بقیه‌ی اکانت‌های این سفارش دست‌نخورده می‌مانند و می‌توانید مثل قبل تحویلشان دهید.
+        </p>
+
+        <div className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/[0.06] p-4">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-white/70">مبلغ بازگشتی به کیف پول</span>
+            <span className="text-lg font-bold text-rose-300">
+              {refund === null ? <Spinner className="h-4 w-4" /> : formatToman(refund)}
+            </span>
+          </div>
+          <p className="mt-2 text-[11px] leading-6 text-white/45">
+            قیمت این اکانت، منهای سهمش از تخفیف سفارش، به‌علاوه‌ی سهمش از مالیات و کارمزد درگاه — یعنی دقیقاً همان چیزی که مشتری بابت همین یک قلم پرداخت کرده، نه کل مبلغ سفارش.
+          </p>
+        </div>
+
+        <div className="mt-4">
+          <Field label="دلیل لغو (برای مشتری و سوابق سفارش ثبت می‌شود)">
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              className={`${inputCls} resize-none`}
+              placeholder="عدم امکان ارائه سرویس"
+            />
+          </Field>
+        </div>
+
+        {cancelError && <p className="mt-3 text-xs leading-6 text-rose-400">{cancelError}</p>}
+
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+          <button
+            onClick={() => setCancelTarget(null)}
+            className="flex h-10 items-center justify-center rounded-lg border border-white/12 px-4 text-sm font-bold text-white/75 transition hover:bg-white/5"
+          >
+            انصراف
+          </button>
+          <button
+            onClick={confirmCancel}
+            disabled={busy || refund === null || cancelError !== ""}
+            className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-rose-500/20 px-5 text-sm font-bold text-rose-300 transition hover:bg-rose-500/30 disabled:opacity-50"
+          >
+            {busy ? <Spinner /> : <><AdminIcon name="close" className="h-4 w-4" /> لغو و بازگشت وجه</>}
+          </button>
+        </div>
+        <p className="mt-3 text-[11px] leading-6 text-white/40">
+          این کار برگشت‌پذیر نیست: موجودی محصول به انبار برمی‌گردد و تراکنش بازگشت وجه ثبت می‌شود. اگر همه‌ی اکانت‌های سفارش لغو شوند، خود سفارش هم «لغوشده» می‌شود.
+        </p>
       </Modal>
     </div>
   );
