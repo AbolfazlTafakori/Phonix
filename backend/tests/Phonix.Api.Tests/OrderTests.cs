@@ -492,6 +492,47 @@ public class OrderTests
         Assert.Equal(OrderStatus.Cancelled, store.GetOrder(order.Id)!.Status);
     }
 
+    // A cancelled order has already paid its money back and put its stock away. Rejecting one of its accounts
+    // afterwards must not pay a second time — the Telegram reject button sits on a message that stays tappable
+    // long after the order was cancelled elsewhere, so this is reachable without anyone doing anything odd.
+    [Fact]
+    public void Rejecting_an_account_of_an_already_cancelled_order_pays_nothing_more()
+    {
+        var store = TestStore.Create();
+        store.UpdateUser(5, u => u.Wallet = 100_000_000);
+        var order = store.PlaceOrder(store.GetUser(5)!, new[] { (1, 2, (int?)null) }, "wallet", fromWallet: true).Order!;
+        store.CancelOrder(order.Id, "admin", "لغو کل سفارش", applyPenalty: false);
+
+        var walletAfterCancel = store.GetUser(5)!.Wallet;
+        var stockAfterCancel = store.GetProduct(1)!.Stock;
+
+        var (_, refunded, error) = store.RejectUnit(order.Id, order.Units[0].Id, "دوباره", "admin");
+
+        Assert.NotNull(error);
+        Assert.Equal(0, refunded);
+        Assert.Equal(walletAfterCancel, store.GetUser(5)!.Wallet);
+        Assert.Equal(stockAfterCancel, store.GetProduct(1)!.Stock);
+    }
+
+    // Same door from the other side: a cancelled order must not be deliverable. Handing its accounts over
+    // would give the buyer both the refund and the goods, and once every unit was delivered the order would
+    // flip itself back to Completed — a cancelled, refunded order silently resurrected as a sale.
+    [Fact]
+    public void Delivering_an_account_of_an_already_cancelled_order_is_refused()
+    {
+        var store = TestStore.Create();
+        store.UpdateUser(5, u => u.Wallet = 100_000_000);
+        var order = store.PlaceOrder(store.GetUser(5)!, new[] { (1, 1, (int?)null) }, "wallet", fromWallet: true).Order!;
+        store.CancelOrder(order.Id, "admin", "لغو کل سفارش", applyPenalty: false);
+
+        var (after, justCompleted) = store.DeliverUnit(order.Id, order.Units[0].Id, "اطلاعات اکانت", "admin");
+
+        Assert.False(justCompleted);
+        Assert.Equal(OrderStatus.Cancelled, store.GetOrder(order.Id)!.Status);
+        Assert.False(store.GetOrder(order.Id)!.Units[0].Delivered);
+        Assert.Null(after);
+    }
+
     // One rejected account must not hold the order open: delivering the rest still completes it (and issues
     // the invoice), while rejecting every account cancels it.
     [Fact]

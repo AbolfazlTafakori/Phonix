@@ -748,6 +748,11 @@ LIMIT 1;",
             var o = Deserialize<Order>(oj)!;
             var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
             if (unit is null) return (null, false);
+            // A cancelled order was already refunded, so handing its accounts over would give the buyer both
+            // the money and the goods — and once every unit was delivered the settle branch below would flip
+            // the order to Completed, quietly resurrecting a cancelled sale. Re-delivery of an already
+            // COMPLETED order stays allowed: that is the panel's "ویرایش / ارسال مجدد".
+            if (o.Status == OrderStatus.Cancelled) return (null, false);
 
             unit.DeliveryContent = content; unit.HandledBy = changedBy;
             if (!unit.Delivered) { unit.Delivered = true; unit.DeliveredAt = Today(); unit.DeliveredAtUtc = DateTime.UtcNow; }
@@ -849,6 +854,11 @@ LIMIT 1;",
             var o = Deserialize<Order>(oj)!;
             var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
             if (unit is null) return (null, 0, "اکانت یافت نشد.");
+            // Cancelling the whole order already refunded what was collected and put the stock back, but it
+            // does NOT mark the units rejected — so without this guard the per-account reject would pay a
+            // second time and restock again. Reachable in practice: the Telegram reject button stays tappable
+            // on an old message long after the order was cancelled from the panel.
+            if (o.Status == OrderStatus.Cancelled) return (null, 0, "این سفارش قبلاً لغو و تسویه شده است.");
             if (unit.Delivered) return (null, 0, "این اکانت قبلاً تحویل شده است.");
             if (unit.Rejected) return (null, 0, "این اکانت قبلاً رد شده است.");
 
