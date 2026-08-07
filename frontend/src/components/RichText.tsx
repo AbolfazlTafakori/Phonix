@@ -74,7 +74,9 @@ export default function RichText({ content, className = "" }: { content: string;
 
   const blocks = text.split(/\n{2,}/);
   return (
-    <div className={`space-y-4 text-sm leading-8 text-[var(--hl-ink-2)] ${className}`}>
+    // min-w-0 so the block can shrink inside a grid or flex parent; without it a wide table inside
+    // pushes the whole column past the viewport instead of scrolling inside its own box.
+    <div className={`min-w-0 space-y-4 text-sm leading-8 text-[var(--hl-ink-2)] ${className}`}>
       {blocks.map((block, bi) => {
         const imgOnly = block.match(/^!\[([^\]]*)\]\(([^)]+)\)$/);
         if (imgOnly) {
@@ -92,8 +94,16 @@ export default function RichText({ content, className = "" }: { content: string;
           return (
             // Comparison tables are wider than a phone; the scroll stays inside the table so the page
             // itself never scrolls sideways.
-            <div key={bi} className="-mx-1 overflow-x-auto px-1">
-              <table className="w-full min-w-[420px] border-collapse text-right text-[13px]">
+            // A comparison table is usually wider than a phone. The scroll has to be contained here, and
+            // that only works if this box and everything above it may shrink below their content — a grid
+            // or flex item defaults to min-width:auto and would otherwise push the whole column wide,
+            // which is what dragged the article text outside its card on mobile. overscroll-contain keeps
+            // a sideways drag on the table from turning into a page swipe.
+            <div
+              key={bi}
+              className="ap-table-scroll w-full min-w-0 max-w-full overflow-x-auto overscroll-x-contain"
+            >
+              <table className="w-max min-w-full border-collapse text-right text-[13px]">
                 <thead>
                   <tr className="border-b-2 border-[var(--hl-border)]">
                     {table.header.map((h, hi) => (

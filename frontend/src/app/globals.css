@@ -478,3 +478,25 @@ html.home-dark::-webkit-scrollbar-thumb:hover {
     display: none !important;
   }
 }
+
+/* A comparison table inside article copy scrolls sideways on narrow screens. The scrollbar is the only
+   cue that there is more to see, so it stays visible rather than being hidden until the user guesses. */
+.ap-table-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--hl-border, rgba(128, 128, 128, 0.5)) transparent;
+  -webkit-overflow-scrolling: touch;
+}
+.ap-table-scroll::-webkit-scrollbar {
+  height: 6px;
+}
+.ap-table-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.ap-table-scroll::-webkit-scrollbar-thumb {
+  background: var(--hl-border, rgba(128, 128, 128, 0.5));
+  border-radius: 999px;
+}
+.ap-table-scroll table {
+  /* Cells must not wrap to one character per line when the table is narrower than its content. */
+  white-space: nowrap;
+}

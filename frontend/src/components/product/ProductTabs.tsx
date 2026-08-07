@@ -51,7 +51,9 @@ export default function ProductTabs({ product, comments }: { product: Product; c
       <div className="p-5 md:p-8">
         {active === "desc" && (
           <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-            <div>
+            {/* min-w-0: a grid item will not shrink below its content unless told to, so a wide table in
+                the description would otherwise stretch this column and push the text out of the card. */}
+            <div className="min-w-0">
               <h2 className="mb-4 text-lg font-black" style={{ color: "var(--ac-title)" }}>درباره {product.name}</h2>
               <RichText content={product.description} />
               {product.warning && (
