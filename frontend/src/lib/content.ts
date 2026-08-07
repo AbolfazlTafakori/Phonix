@@ -4,7 +4,6 @@ import type { HeroSlide, HomeCategory, Showcase, BlogPost, SiteContent, Advanced
 import {
   categories as homeCats,
   products as homeProducts,
-  blogPosts as homeBlog,
   navLinks as homeNav,
   footerLinks as homeFooter,
 } from "@/data/home";
@@ -121,20 +120,6 @@ const defaultShowcase: Showcase[] = homeProducts.map((p, i) => ({
   isActive: true,
 }));
 
-const defaultBlogPosts: BlogPost[] = homeBlog.map((b, i) => ({
-  id: i + 1,
-  slug: `post-${i + 1}`,
-  tag: b.tag,
-  title: b.title,
-  excerpt: "",
-  content: "",
-  date: b.date,
-  image: b.image,
-  featuredOnHome: true,
-  sortOrder: i + 1,
-  isActive: true,
-}));
-
 export const getSiteContent = cache(async (): Promise<SiteContent> => {
   try {
     return await api.siteContent.get();
@@ -171,7 +156,10 @@ export const getBlogPosts = cache(async (): Promise<BlogPost[]> => {
   try {
     return sortActive(await api.blog.list());
   } catch {
-    return defaultBlogPosts;
+    // A failed fetch used to fall back to placeholder posts carrying Lorem ipsum titles, which meant a
+    // backend hiccup published filler text on the blog — and left it there for a crawler to pick up.
+    // An empty list hides the section instead, the same way the testimonials fetch below behaves.
+    return [];
   }
 });
 

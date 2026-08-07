@@ -13,7 +13,10 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const description = plainExcerpt(post.excerpt || post.content);
   const canonical = `/blog/${post.slug}`;
   return {
-    title: `${post.title} | بلاگ`,
+    // The root layout's template already appends the brand, so adding "| بلاگ" here spent about twenty
+    // characters of the search result on a second suffix and pushed every post title past the width
+    // Google will show.
+    title: post.title,
     description,
     alternates: { canonical },
     openGraph: {
