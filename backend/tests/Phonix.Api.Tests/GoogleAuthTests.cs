@@ -115,6 +115,25 @@ public class GoogleAuthTests : IClassFixture<GoogleAuthAppFactory>
         Assert.Equal("newgoogleuser@example.com", body.User!.Email);
     }
 
+    // The everyday path, and the one that was broken: sign in with Google, come back later, sign in again.
+    // The account Google creates has to be verified, because Google is what verified it — otherwise the
+    // second visit meets the "unverified account already owns this e-mail" guard and the user is told to use
+    // password reset for an account that has no password at all.
+    [Fact]
+    public async Task Signing_in_with_google_twice_still_works()
+    {
+        const string email = "returning@example.com";
+        var first = await FreshClient().PostAsJsonAsync("/api/auth/google", new { credential = GoogleCredential(email) });
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        var second = await FreshClient().PostAsJsonAsync("/api/auth/google", new { credential = GoogleCredential(email) });
+        Assert.Equal(HttpStatusCode.OK, second.StatusCode);
+
+        var body = await second.Content.ReadFromJsonAsync<AuthResult>();
+        Assert.NotNull(body!.Token);
+        Assert.Equal(email, body.User!.Email);
+    }
+
     [Fact]
     public async Task Wrong_audience_token_is_rejected()
     {

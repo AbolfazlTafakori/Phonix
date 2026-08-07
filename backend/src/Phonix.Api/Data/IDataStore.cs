@@ -112,6 +112,9 @@ public interface IDataStore
     string? SetEmail(int userId, string email);
     AppUser? FindByLogin(string identifier);
     AppUser RegisterUser(AppUser user);
+    // Signup for anything reachable by two requests at once: settles uniqueness inside the insert's own write
+    // lock, so a raced username/e-mail is a clean conflict rather than a duplicate account or a 500.
+    (AppUser? User, string? Error) TryRegisterUser(AppUser user);
     void EnsureOwnerFromEnvironment();
 
     // ── Subscription plans ──────────────────────────────────────────────────────────────────────────

@@ -169,7 +169,9 @@ public class AuthController : ControllerBase
         var name = input.Name.Trim();
         if (name.Length > maxNameLength) name = name[..maxNameLength];
 
-        var user = _store.RegisterUser(new AppUser
+        // The checks above are the fast path with the friendlier message; this one is the real guarantee,
+        // taken inside the insert's write lock so two simultaneous signups can't both pass it.
+        var (user, conflict) = _store.TryRegisterUser(new AppUser
         {
             Name = name,
             Username = input.Username.Trim(),
@@ -178,6 +180,7 @@ public class AuthController : ControllerBase
             Phone = "", // not collected at signup; the customer can add one later from their profile
             ReferredBy = referredBy,
         });
+        if (user is null) return Conflict(conflict ?? "ثبت‌نام انجام نشد.");
         await SendVerification(user); // email is mandatory now, so verification always goes out
         _logger.LogInformation("New account registered: {Username} (#{UserId}) from {ClientIp}",
             user.Username, user.Id, ClientIp);
@@ -379,7 +382,9 @@ public class AuthController : ControllerBase
         if (user is null)
         {
             var username = GenerateUsernameFromEmail(email);
-            user = _store.RegisterUser(new AppUser
+            // Same race as the e-mail signup, and easier to hit here: two tabs finishing the Google popup at
+            // once would otherwise create two accounts for one Google identity.
+            var (created, conflict) = _store.TryRegisterUser(new AppUser
             {
                 Name = string.IsNullOrWhiteSpace(info.name) ? username : info.name!.Trim(),
                 Username = username,
@@ -390,8 +395,13 @@ public class AuthController : ControllerBase
                 Phone = "",
                 EmailVerified = true,
             });
-            _logger.LogInformation("New Google account: {Username} (#{UserId}) from {ClientIp}",
-                user.Username, user.Id, ClientIp);
+            // Losing the race means the other request just created this very account — adopt it rather than
+            // failing a sign-in that has already succeeded on Google's side.
+            user = created ?? _store.FindByLogin(email);
+            if (user is null) return Conflict(conflict ?? "ایجاد حساب انجام نشد.");
+            if (created is not null)
+                _logger.LogInformation("New Google account: {Username} (#{UserId}) from {ClientIp}",
+                    user.Username, user.Id, ClientIp);
         }
         else if (user.Blocked)
         {

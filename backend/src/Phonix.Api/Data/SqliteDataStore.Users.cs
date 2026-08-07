@@ -107,18 +107,55 @@ LIMIT 1;", new { id = identifier });
         return users;
     }
 
+    // Signup that settles the "is this taken?" question inside the same write lock as the insert. Checking
+    // first and inserting after leaves a window between the two: two requests carrying the same e-mail — a
+    // double-tapped signup button is enough — both pass the check and both insert, and the account is then
+    // reachable by an address that identifies two people, which breaks login-by-email and password reset.
+    // Username has a unique index, so that pair raced into a constraint violation and a 500 instead of the
+    // 409 the caller already knew how to render. WriteTx is BEGIN IMMEDIATE, so the second caller waits and
+    // then sees the first one's row.
+    public (AppUser? User, string? Error) TryRegisterUser(AppUser user)
+    {
+        PrepareNewUser(user);
+        return WriteTx<(AppUser?, string?)>((conn, tx) =>
+        {
+            var username = user.Username ?? "";
+            if (conn.ExecuteScalar<long>(
+                    "SELECT COUNT(1) FROM Users WHERE Username = @username COLLATE NOCASE", new { username }, tx) > 0)
+                return (null, "این نام کاربری قبلاً استفاده شده است.");
+
+            var email = user.Email ?? "";
+            if (!string.IsNullOrWhiteSpace(email) && conn.ExecuteScalar<long>(
+                    "SELECT COUNT(1) FROM Users WHERE Email = @email COLLATE NOCASE", new { email }, tx) > 0)
+                return (null, "این ایمیل قبلاً ثبت شده است.");
+
+            return (InsertNewUser(conn, tx, user), null);
+        });
+    }
+
     public AppUser RegisterUser(AppUser user)
+    {
+        PrepareNewUser(user);
+        return WriteTx((conn, tx) => InsertNewUser(conn, tx, user));
+    }
+
+    private static void PrepareNewUser(AppUser user)
     {
         user.Role = UserRole.Customer;
         user.SecurityStamp = SecurityStamp.New();
-        user.EmailVerified = false; // must confirm their email before they can order
+        // EmailVerified is left as the caller set it. It defaults to false, so an e-mail/password signup still
+        // has to confirm before it can order; only a provider that has ALREADY proven the address (Google)
+        // passes true. Forcing it false here also overrode that, which left every Google account unverified —
+        // so the second Google sign-in met the "an unverified account already owns this e-mail" guard and sent
+        // the user to password reset for an account that has no password.
         if (string.IsNullOrWhiteSpace(user.JoinedAt)) user.JoinedAt = Today();
+    }
 
-        return WriteTx((conn, tx) =>
-        {
-            // Let SQLite assign the id (AUTOINCREMENT), then stamp the derived Code and rewrite the payload so
-            // DataJson carries the final id+code. Both writes are in one transaction → atomic.
-            var id = conn.ExecuteScalar<long>(@"
+    private AppUser InsertNewUser(SqliteConnection conn, SqliteTransaction tx, AppUser user)
+    {
+        // Let SQLite assign the id (AUTOINCREMENT), then stamp the derived Code and rewrite the payload so
+        // DataJson carries the final id+code. Both writes are in one transaction → atomic.
+        var id = conn.ExecuteScalar<long>(@"
 INSERT INTO Users (Username, Email, Phone, Role, Blocked, ReferredBy, VerificationLevel, DataJson)
 VALUES (@Username, @Email, @Phone, @Role, @Blocked, @ReferredBy, @VerificationLevel, @DataJson);
 SELECT last_insert_rowid();",
@@ -129,14 +166,13 @@ SELECT last_insert_rowid();",
                     DataJson = Serialize(user),
                 }, tx);
 
-            user.Id = (int)id;
-            user.Code = NextUserCode(conn, tx);
-            var json = Serialize(user);
-            conn.Execute("UPDATE Users SET DataJson = @DataJson WHERE Id = @Id",
-                new { DataJson = json, user.Id }, tx);
-            AppendOutbox(conn, tx, "Users", user.Id, SyncOp.Upsert, json);
-            return user;
-        });
+        user.Id = (int)id;
+        user.Code = NextUserCode(conn, tx);
+        var json = Serialize(user);
+        conn.Execute("UPDATE Users SET DataJson = @DataJson WHERE Id = @Id",
+            new { DataJson = json, user.Id }, tx);
+        AppendOutbox(conn, tx, "Users", user.Id, SyncOp.Upsert, json);
+        return user;
     }
 
     // Runs inside the caller's write transaction, so the uniqueness probe and the insert that uses the code

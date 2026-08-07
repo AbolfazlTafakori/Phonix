@@ -43,7 +43,18 @@ ON CONFLICT(Id) DO UPDATE SET
     // validation and the order placement (SqliteDataStore.Orders looks the chosen plan up in p.Plans) all see
     // the same list. Doing it any further up would leave one of them reading an empty plan list and rejecting
     // the order.
-    private Product ApplyV2RayPlans(Product product)
+    // The catalogue's V2Ray plans and panels, read once. Listing products used to re-read both tables for
+    // EVERY linked product — two extra full reads per row on pages the storefront loads constantly. Null
+    // means "not loaded yet", which is what the single-product path passes.
+    private sealed record V2RayLookups(IReadOnlyList<V2RayPlan> Plans, IReadOnlyDictionary<int, V2RayPanel> Panels);
+
+    private V2RayLookups LoadV2RayLookups() =>
+        new(GetV2RayPlans(), GetV2RayPanels().ToDictionary(p => p.Id, p => p));
+
+    private Product ApplyV2RayPlans(Product product) =>
+        product.V2RayCategoryId <= 0 ? product : ApplyV2RayPlans(product, LoadV2RayLookups());
+
+    private Product ApplyV2RayPlans(Product product, V2RayLookups lookups)
     {
         if (product.V2RayCategoryId <= 0) return product;
 
@@ -51,14 +62,14 @@ ON CONFLICT(Id) DO UPDATE SET
         // only active plans, so it disappears from the picker either way — but order placement resolves the
         // chosen plan through this same list, and removing it outright would leave a stale checkout failing
         // with "no product found" instead of saying the plan is full.
-        var plans = GetV2RayPlans()
+        var plans = lookups.Plans
             .Where(p => p.CategoryId == product.V2RayCategoryId && p.Active)
             .OrderBy(p => p.SortOrder).ThenBy(p => p.FinalPrice)
             .ToList();
 
         // The buyer picks a SERVER first, then one of that server's plans — so the storefront's first level is
         // the server under the exact name the operator gave it ("هلند تانل NL"), not the plan name.
-        var panels = GetV2RayPanels().ToDictionary(p => p.Id, p => p);
+        var panels = lookups.Panels;
         string ServerName(int panelId)
         {
             if (!panels.TryGetValue(panelId, out var panel)) return "سرور";
@@ -107,7 +118,14 @@ ON CONFLICT(Id) DO UPDATE SET
         var sql = "SELECT DataJson FROM Products WHERE 1=1";
         if (categoryId is not null) sql += " AND CategoryId = @categoryId";
         sql += " ORDER BY Id;";
-        var products = conn.Query<string>(sql, new { categoryId }).Select(j => ApplyV2RayPlans(Deserialize<Product>(j)!)).ToList();
+        var products = conn.Query<string>(sql, new { categoryId }).Select(j => Deserialize<Product>(j)!).ToList();
+        // One lookup for the whole page instead of one per linked product, and none at all for a catalogue
+        // that uses no V2Ray products.
+        if (products.Any(p => p.V2RayCategoryId > 0))
+        {
+            var lookups = LoadV2RayLookups();
+            products = products.Select(p => ApplyV2RayPlans(p, lookups)).ToList();
+        }
 
         if (!string.IsNullOrWhiteSpace(search))
         {
