@@ -120,9 +120,19 @@ const defaultShowcase: Showcase[] = homeProducts.map((p, i) => ({
   isActive: true,
 }));
 
+// Both of the object-shaped getters below are read by the ROOT layout, so anything they return is
+// dereferenced on every page. The catch only covers a failed fetch or unparseable body — a well-formed
+// response of the wrong shape (an empty array, null, a partial object from a half-upgraded backend) used
+// to sail through and then throw on the first property access, 500-ing the entire site. Merging over the
+// defaults keeps a bad payload from ever reaching a consumer.
+function withDefaults<T extends object>(value: unknown, fallback: T): T {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return fallback;
+  return { ...fallback, ...(value as Partial<T>) };
+}
+
 export const getSiteContent = cache(async (): Promise<SiteContent> => {
   try {
-    return await api.siteContent.get();
+    return withDefaults(await api.siteContent.getCached(), defaultSiteContent);
   } catch {
     return defaultSiteContent;
   }
@@ -138,7 +148,7 @@ export const getHeroSlides = cache(async (): Promise<HeroSlide[]> => {
 
 export const getHomeCategories = cache(async (): Promise<HomeCategory[]> => {
   try {
-    return sortActive(await api.homeCategories.list());
+    return sortActive(await api.homeCategories.listCached());
   } catch {
     return defaultHomeCategories;
   }
@@ -184,9 +194,12 @@ export const defaultAdvanced: AdvancedSettings = {
   terms: "",
 };
 
+// Read by the root layout, so this runs on every request for every page. The values it feeds there
+// (analytics id, custom script, terms) are cosmetic — the maintenance gate has its own 15s cache in
+// proxy.ts — so serving them from the data cache saves an API round-trip on the critical path.
 export const getAdvancedSettings = cache(async (): Promise<AdvancedSettings> => {
   try {
-    return await api.advancedSettings.get();
+    return withDefaults(await api.advancedSettings.getCached(), defaultAdvanced);
   } catch {
     return defaultAdvanced;
   }

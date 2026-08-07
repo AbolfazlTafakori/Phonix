@@ -9,7 +9,9 @@ import BestSellersCarousel, { type CarouselCard } from "./BestSellersCarousel";
 // backend is unreachable so the section never ships empty.
 async function getFeatured(): Promise<Product[]> {
   try {
-    const all = (await api.products.list()).filter((p) => p.isActive);
+    // listCached, not list: this runs on the home page's server render, so the uncached variant
+    // pulled the whole catalogue from the API on every single request.
+    const all = (await api.products.listCached()).filter((p) => p.isActive);
     const featured = all.filter((p) => p.featured);
     const picked = [...featured, ...all.filter((p) => !p.featured)].slice(0, 6);
     if (picked.length) return picked;

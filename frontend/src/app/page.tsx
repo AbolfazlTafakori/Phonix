@@ -19,9 +19,10 @@ import MobileTabBar from "@/components/home/MobileTabBar";
 import Reveal from "@/components/Reveal";
 import { jsonLdScript } from "@/lib/seo";
 
-// Home content (hero, showcase, blog picks) is admin-editable, so render per request instead of
-// baking the build-time snapshot into a static page.
-export const dynamic = "force-dynamic";
+// Home content (hero, showcase, blog picks) is admin-editable, so it can't be baked in at build
+// time — but rendering per request made every visitor and crawler wait on the API. Cached and
+// refreshed in the background instead, matching the rest of the storefront.
+export const revalidate = 60;
 
 export default async function Home() {
   const [content, blogPosts] = await Promise.all([getSiteContent(), getBlogPosts()]);

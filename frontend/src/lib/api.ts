@@ -391,6 +391,7 @@ export const api = {
   },
   homeCategories: {
     list: () => request<HomeCategory[]>("/home-categories"),
+    listCached: (revalidate = CATALOG_REVALIDATE) => request<HomeCategory[]>("/home-categories", { revalidate }),
     create: (body: HomeCategoryInput) => request<HomeCategory>("/home-categories", { method: "POST", body: json(body) }),
     update: (id: number, body: HomeCategoryInput) => request<HomeCategory>(`/home-categories/${id}`, { method: "PUT", body: json(body) }),
     remove: (id: number) => request<void>(`/home-categories/${id}`, { method: "DELETE" }),
@@ -525,10 +526,12 @@ export const api = {
   },
   siteContent: {
     get: () => request<SiteContent>("/site-content"),
+    getCached: (revalidate = CATALOG_REVALIDATE) => request<SiteContent>("/site-content", { revalidate }),
     update: (body: SiteContent) => request<SiteContent>("/site-content", { method: "PUT", body: json(body) }),
   },
   advancedSettings: {
     get: () => request<AdvancedSettings>("/advanced-settings"),
+    getCached: (revalidate = CATALOG_REVALIDATE) => request<AdvancedSettings>("/advanced-settings", { revalidate }),
     update: (body: AdvancedSettings) => request<AdvancedSettings>("/advanced-settings", { method: "PUT", body: json(body) }),
   },
   paymentMethods: {

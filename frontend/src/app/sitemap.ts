@@ -3,6 +3,7 @@ import { api } from "@/lib/api";
 import { getBlogPosts } from "@/lib/content";
 import { SITE_URL, productPath } from "@/lib/seo";
 import { categoryPath } from "@/lib/categorySeo";
+import { parsePostDate } from "@/lib/jalali";
 
 export const dynamic = "force-dynamic";
 
@@ -42,11 +43,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const posts = await getBlogPosts();
     blogPages = posts
       .filter((p) => p.isActive)
-      .map((p) => ({
-        url: `${SITE_URL}/blog/${encodeURIComponent(p.slug)}`,
-        changeFrequency: "monthly" as const,
-        priority: 0.5,
-      }));
+      .map((p) => {
+        // Only the posts whose label parses get a lastmod — a guessed date would teach Google to
+        // distrust the field across the whole sitemap.
+        const published = parsePostDate(p.date);
+        return {
+          url: `${SITE_URL}/blog/${encodeURIComponent(p.slug)}`,
+          ...(published && { lastModified: published }),
+          changeFrequency: "monthly" as const,
+          priority: 0.5,
+        };
+      });
   } catch {
     // blog is optional
   }
