@@ -8,15 +8,6 @@ import RichText from "@/components/RichText";
 // whose contents only change when an admin edits them.
 export const revalidate = 60;
 
-// Articles change rarely, so prerender them all; a failed fetch during the build leaves them to be
-// rendered on demand rather than failing the deploy.
-export async function generateStaticParams() {
-  try {
-    return (await getBlogPosts()).filter((p) => p.isActive).map((p) => ({ slug: p.slug }));
-  } catch {
-    return [];
-  }
-}
 
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;

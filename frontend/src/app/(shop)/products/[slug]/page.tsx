@@ -17,17 +17,6 @@ import { absoluteUrl, jsonLdScript, latinBrand, plainExcerpt, productMetaDescrip
 // whose contents only change when an admin edits them.
 export const revalidate = 60;
 
-// Prerender the catalogue at build time so a first visit (and a crawler's first fetch) is served from
-// cache instead of rendering on demand. An unreachable API must not break a deploy, so a failure here
-// simply yields no prerendered pages and every URL falls back to on-demand rendering, as before.
-export async function generateStaticParams() {
-  try {
-    const products = await api.products.listCached();
-    return products.filter((p) => p.isActive).map((p) => ({ slug: productSlug(p) }));
-  } catch {
-    return [];
-  }
-}
 
 // slug format: "{id}-{name-slug}" — resolve by the numeric id prefix.
 function idFromSlug(slug: string): number | null {

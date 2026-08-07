@@ -12,18 +12,6 @@ import { toCardData } from "@/lib/productCard";
 // whose contents only change when an admin edits them.
 export const revalidate = 60;
 
-// Same reasoning as the product pages: prerender the categories that have products, and fall back to
-// on-demand rendering if the API cannot be reached during the build.
-export async function generateStaticParams() {
-  try {
-    const [products, categories] = await Promise.all([api.products.listCached(), api.categories.listCached()]);
-    return categories
-      .filter((c) => c.isActive && products.some((p) => p.isActive && p.categoryId === c.id))
-      .map((c) => ({ slug: categorySlug(c) }));
-  } catch {
-    return [];
-  }
-}
 
 async function resolve(slug: string): Promise<{ category: Category; products: Product[]; categories: Category[] } | null> {
   const wanted = decodeURIComponent(slug).toLowerCase();

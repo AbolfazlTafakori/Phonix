@@ -7,9 +7,9 @@ import TrustStats from "@/components/home/TrustStats";
 import CategoriesFaq from "@/components/categories/CategoriesFaq";
 import { categoryCardBlurb, categoryPath } from "@/lib/categorySeo";
 
-// Served from cache and refreshed in the background, so a visitor never waits on the API for a page
-// whose contents only change when an admin edits them.
-export const revalidate = 60;
+// Rendered per request, but the category list behind it is cached for a minute — so the page costs a
+// render rather than an API round-trip, and a build never has to reach the API to produce it.
+export const dynamic = "force-dynamic";
 export const metadata = {
   title: "دسته‌بندی محصولات",
   description: "دسته‌بندی کامل خدمات و محصولات دیجیتال فونیکس وریفای: استریم، وریفای، گیفت‌کارت، VPN، شماره مجازی و نرم‌افزار.",
