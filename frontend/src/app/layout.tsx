@@ -75,6 +75,15 @@ export const viewport: Viewport = {
   ],
 };
 
+// This layout wraps every route and reads settings over the network, so any page Next decides to
+// prerender has to reach the API during `next build` — which the deploy build deliberately cannot do
+// (b1a9259). Pages carrying no dynamic data of their own, like the auth screens, were the ones that
+// qualified, and their build hung until it timed out. Declaring the layout dynamic keeps the whole app
+// off the build-time export path; `fetchCache` is spelled out because force-dynamic otherwise implies
+// force-no-store and would undo the per-request caching of the fetches below.
+export const dynamic = "force-dynamic";
+export const fetchCache = "default-cache";
+
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getAdvancedSettings();
   const title = s.metaTitle || "فونیکس وریفای | Phoenix Verify";
