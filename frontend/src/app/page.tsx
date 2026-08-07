@@ -11,11 +11,13 @@ import HomeHowToBuy from "@/components/home/HomeHowToBuy";
 import HomeReviews from "@/components/home/HomeReviews";
 import HomeBlog from "@/components/home/HomeBlog";
 import HomeFaq from "@/components/home/HomeFaq";
+import { faqItems } from "@/components/home/homeFaqItems";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import HomeFooter from "@/components/home/HomeFooter";
 import FooterVisibility from "@/components/home/FooterVisibility";
 import MobileTabBar from "@/components/home/MobileTabBar";
 import Reveal from "@/components/Reveal";
+import { jsonLdScript } from "@/lib/seo";
 
 // Home content (hero, showcase, blog picks) is admin-editable, so render per request instead of
 // baking the build-time snapshot into a static page.
@@ -23,8 +25,18 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const [content, blogPosts] = await Promise.all([getSiteContent(), getBlogPosts()]);
+  const faqLd = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((f) => ({
+      "@type": "Question",
+      name: f.q,
+      acceptedAnswer: { "@type": "Answer", text: f.a },
+    })),
+  };
   return (
     <div className="home-light min-h-screen pb-[60px] lg:pb-0">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(faqLd) }} />
       <TopBar />
       <HomeHeader brand={content.brand} searchPlaceholder="جستجو در فونیکس" />
       <main>

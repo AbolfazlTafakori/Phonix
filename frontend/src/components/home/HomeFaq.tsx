@@ -1,19 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { faqItems, type HomeFaqItem } from "./homeFaqItems";
 
-type Item = { q: string; a: string };
-
-const items: Item[] = [
-  { q: "چطور محصول یا شماره را بعد از خرید دریافت می‌کنم؟", a: "بعد از پرداخت موفق، محصول یا شماره بلافاصله در پنل کاربری یا ایمیل شما ارسال می‌شود." },
-  { q: "زمان تحویل محصولات چقدر است؟", a: "بیشتر محصولات آنی تحویل داده می‌شوند و در موارد خاص در کوتاه‌ترین زمان ممکن." },
-  { q: "آیا محصولات شما قانونی و اورجینال هستند؟", a: "بله، تمام محصولات از منابع معتبر و کاملاً اورجینال تهیه و ارائه می‌شوند." },
-  { q: "آیا امکان بازگشت وجه وجود دارد؟", a: "در صورت بروز مشکل در تحویل، مبلغ پرداختی طبق قوانین سایت به شما بازگردانده می‌شود." },
-  { q: "در صورت بروز مشکل چگونه پشتیبانی دریافت کنم؟", a: "از طریق تیکت، چت آنلاین یا کانال تلگرام به‌صورت شبانه‌روزی پاسخگوی شما هستیم." },
-  { q: "آیا برای خرید نیاز به ثبت‌نام دارم؟", a: "برای پیگیری سفارش و دریافت پشتیبانی بهتر، ثبت‌نام توصیه می‌شود و بسیار سریع است." },
-];
-
-function Row({ item, open, onToggle }: { item: Item; open: boolean; onToggle: () => void }) {
+function Row({ item, open, onToggle }: { item: HomeFaqItem; open: boolean; onToggle: () => void }) {
   return (
     <div className={`hl-card overflow-hidden rounded-[16px] transition ${open ? "border-[#ff5a1f]" : ""}`}>
       <button onClick={onToggle} className="flex w-full items-center justify-between gap-3 px-5 py-4 text-right">
@@ -29,7 +19,7 @@ function Row({ item, open, onToggle }: { item: Item; open: boolean; onToggle: ()
 
 export default function HomeFaq() {
   const [openIdx, setOpenIdx] = useState(0);
-  const cols = [items.slice(0, 3), items.slice(3)];
+  const cols = [faqItems.slice(0, 3), faqItems.slice(3)];
 
   return (
     <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16 py-16">

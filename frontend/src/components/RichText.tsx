@@ -2,11 +2,28 @@ import React from "react";
 
 // Minimal, safe Markdown-subset renderer for article-style product descriptions. No dependency and no
 // dangerouslySetInnerHTML — everything is turned into React elements, so stored content can't inject HTML.
-// Supported: # / ## / ### headings, **bold**, *italic*, [text](url) links, ![alt](url) images, and "- " lists.
+// Supported: # / ## / ### headings, **bold**, *italic*, [text](url) links, ![alt](url) images, "- " lists
+// and pipe tables.
 
 function safeUrl(url: string): string | null {
   const u = url.trim();
   return /^https?:\/\//i.test(u) || u.startsWith("/") ? u : null;
+}
+
+// A pipe table is a header row, a `| --- | --- |` separator, then body rows. Without this, an
+// admin-written comparison table rendered as literal "| پلن | کیفیت |" text on the page.
+function parseTable(lines: string[]): { header: string[]; rows: string[][] } | null {
+  const rows = lines.filter((l) => l.trim() !== "");
+  if (rows.length < 2) return null;
+  if (!rows.every((l) => l.trim().startsWith("|"))) return null;
+  if (!/^\|[\s:|-]+\|$/.test(rows[1].trim()) || !rows[1].includes("-")) return null;
+
+  const cells = (line: string) =>
+    line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
+  const header = cells(rows[0]);
+  const body = rows.slice(2).map(cells).filter((r) => r.some((c) => c !== ""));
+  if (header.length === 0 || body.length === 0) return null;
+  return { header, rows: body };
 }
 
 function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
@@ -23,7 +40,23 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
       if (src) nodes.push(<img loading="lazy" decoding="async" key={key} src={src} alt={m[1]} className="my-2 inline-block max-h-32 rounded-lg align-middle" />);
     } else if (m[3] !== undefined && m[4] !== undefined) {
       const href = safeUrl(m[4]);
-      nodes.push(href ? <a key={key} href={href} target="_blank" rel="noreferrer" className="font-medium text-[var(--hl-red-text)] underline">{m[3]}</a> : m[3]);
+      // Links to our own pages stay in the tab — sending a reader to another page of the same shop in a
+      // new window is disorienting, and the referrer suppression only makes sense for outbound links.
+      const internal = href?.startsWith("/") ?? false;
+      nodes.push(
+        href ? (
+          <a
+            key={key}
+            href={href}
+            {...(internal ? {} : { target: "_blank", rel: "noreferrer" })}
+            className="font-medium text-[var(--hl-red-text)] underline"
+          >
+            {m[3]}
+          </a>
+        ) : (
+          m[3]
+        ),
+      );
     } else if (m[5] !== undefined) {
       nodes.push(<strong key={key} className="font-bold text-[var(--hl-ink)]">{m[5]}</strong>);
     } else if (m[6] !== undefined) {
@@ -53,6 +86,37 @@ export default function RichText({ content, className = "" }: { content: string;
         if (block.startsWith("# ")) return <h2 key={bi} className="text-xl font-bold text-[var(--hl-ink)]">{renderInline(block.slice(2), `h${bi}`)}</h2>;
 
         const lines = block.split("\n");
+
+        const table = parseTable(lines);
+        if (table) {
+          return (
+            // Comparison tables are wider than a phone; the scroll stays inside the table so the page
+            // itself never scrolls sideways.
+            <div key={bi} className="-mx-1 overflow-x-auto px-1">
+              <table className="w-full min-w-[420px] border-collapse text-right text-[13px]">
+                <thead>
+                  <tr className="border-b-2 border-[var(--hl-border)]">
+                    {table.header.map((h, hi) => (
+                      <th key={hi} className="whitespace-nowrap px-3 py-2.5 font-bold text-[var(--hl-ink)]">
+                        {renderInline(h, `th${bi}-${hi}`)}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {table.rows.map((r, ri) => (
+                    <tr key={ri} className="border-b border-[var(--hl-border)] last:border-0">
+                      {r.map((c, ci) => (
+                        <td key={ci} className="px-3 py-2.5 align-top">{renderInline(c, `td${bi}-${ri}-${ci}`)}</td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          );
+        }
+
         if (lines.some((l) => l.startsWith("- ")) && lines.every((l) => l.startsWith("- ") || l.trim() === "")) {
           return (
             <ul key={bi} className="list-disc space-y-1.5 pr-5">

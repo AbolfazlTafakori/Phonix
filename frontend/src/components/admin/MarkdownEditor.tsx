@@ -36,6 +36,27 @@ export default function MarkdownEditor({ value, onChange }: { value: string; onC
     });
   }
 
+  // Tables have to sit on their own lines with a blank line before them, or the renderer reads them as
+  // an ordinary paragraph and the pipes show up as text.
+  function insertTable() {
+    const el = ref.current;
+    const pos = el?.selectionStart ?? value.length;
+    const before = value.slice(0, pos);
+    const lead = before === "" || before.endsWith("\n\n") ? "" : before.endsWith("\n") ? "\n" : "\n\n";
+    const table =
+      "| ستون ۱ | ستون ۲ | ستون ۳ |\n" +
+      "| --- | --- | --- |\n" +
+      "| مقدار | مقدار | مقدار |\n" +
+      "| مقدار | مقدار | مقدار |\n";
+    const after = value.slice(pos).startsWith("\n") ? "" : "\n";
+    onChange(before + lead + table + after + value.slice(pos));
+    requestAnimationFrame(() => {
+      el?.focus();
+      const caret = (before + lead).length;
+      if (el) el.selectionStart = el.selectionEnd = caret;
+    });
+  }
+
   async function pickImage(file: File | undefined) {
     if (!file) return;
     setUploading(true);
@@ -61,6 +82,7 @@ export default function MarkdownEditor({ value, onChange }: { value: string; onC
         <button type="button" onClick={() => prefixLine("## ")} className={btn}>تیتر</button>
         <button type="button" onClick={() => prefixLine("- ")} className={btn}>• لیست</button>
         <button type="button" onClick={() => wrap("[", "](https://)", "متن لینک")} className={btn}>لینک</button>
+        <button type="button" onClick={insertTable} className={btn}>جدول</button>
         <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className={`${btn} flex items-center gap-1 disabled:opacity-50`}>
           <AdminIcon name="image" className="h-3.5 w-3.5" />
           {uploading ? "در حال آپلود…" : "افزودن عکس"}
@@ -77,7 +99,7 @@ export default function MarkdownEditor({ value, onChange }: { value: string; onC
         className="block w-full resize-y bg-transparent px-4 py-3 text-sm leading-7 text-white outline-none placeholder:text-white/35"
       />
       <p className="border-t border-white/8 px-4 py-2 text-[11px] text-white/40">
-        راهنما: <span className="font-mono">**پررنگ**</span> · <span className="font-mono">## تیتر</span> · <span className="font-mono">- مورد لیست</span> · عکس‌ها بین متن نمایش داده می‌شوند.
+        راهنما: <span className="font-mono">**پررنگ**</span> · <span className="font-mono">## تیتر</span> · <span className="font-mono">- مورد لیست</span> · <span className="font-mono">| جدول |</span> · عکس‌ها بین متن نمایش داده می‌شوند.
       </p>
     </div>
   );

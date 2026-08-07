@@ -58,9 +58,36 @@ export function latinBrand(name: string): string | null {
 }
 
 // Strip markdown syntax and collapse whitespace for use in meta descriptions.
+//
+// Product descriptions are markdown documents that open with a heading, so taking the raw text would
+// run that heading straight into the first paragraph ("… و پشتیبانی فارسی نتفلیکس بزرگ‌ترین سرویس …").
+// Headings, list bullets, table rows and link targets are dropped so the excerpt starts at the first
+// real sentence, and the cut lands on a word boundary instead of mid-word.
 export function plainExcerpt(text: string, max = 160): string {
-  const plain = text.replace(/[#*_\[\]()`>]/g, "").replace(/\s+/g, " ").trim();
-  return plain.length > max ? `${plain.slice(0, max - 1)}…` : plain;
+  const prose = text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .filter((line) => {
+      const l = line.trim();
+      if (!l) return false;
+      if (/^#{1,6}\s/.test(l)) return false; // headings
+      if (/^[-*+]\s/.test(l)) return false; // bullets
+      if (/^\|/.test(l)) return false; // table rows and separators
+      if (/^\d+[.)]\s/.test(l) || /^[۰-۹]+[.)]\s/.test(l)) return false; // numbered steps
+      return true;
+    })
+    .join(" ");
+
+  const plain = (prose || text)
+    .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1") // links/images → their label
+    .replace(/[#*_`>]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (plain.length <= max) return plain;
+  const cut = plain.slice(0, max - 1);
+  const lastSpace = cut.lastIndexOf(" ");
+  return `${(lastSpace > max * 0.6 ? cut.slice(0, lastSpace) : cut).replace(/[،,.\s]+$/, "")}…`;
 }
 
 // A search result shows roughly 120–160 characters, and an admin-written product description is often a
