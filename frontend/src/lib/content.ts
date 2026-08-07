@@ -154,7 +154,7 @@ export const getShowcase = cache(async (): Promise<Showcase[]> => {
 
 export const getBlogPosts = cache(async (): Promise<BlogPost[]> => {
   try {
-    return sortActive(await api.blog.list());
+    return sortActive(await api.blog.listCached());
   } catch {
     // A failed fetch used to fall back to placeholder posts carrying Lorem ipsum titles, which meant a
     // backend hiccup published filler text on the blog — and left it there for a crawler to pick up.

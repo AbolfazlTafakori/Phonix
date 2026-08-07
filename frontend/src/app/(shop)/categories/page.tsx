@@ -7,7 +7,9 @@ import TrustStats from "@/components/home/TrustStats";
 import CategoriesFaq from "@/components/categories/CategoriesFaq";
 import { categoryCardBlurb, categoryPath } from "@/lib/categorySeo";
 
-export const dynamic = "force-dynamic";
+// Served from cache and refreshed in the background, so a visitor never waits on the API for a page
+// whose contents only change when an admin edits them.
+export const revalidate = 60;
 export const metadata = {
   title: "دسته‌بندی محصولات",
   description: "دسته‌بندی کامل خدمات و محصولات دیجیتال فونیکس وریفای: استریم، وریفای، گیفت‌کارت، VPN، شماره مجازی و نرم‌افزار.",
@@ -63,7 +65,7 @@ const banners = [
 export default async function CategoriesPage() {
   let categories: Category[] = [];
   try {
-    categories = (await api.categories.list()).filter((c) => c.isActive);
+    categories = (await api.categories.listCached()).filter((c) => c.isActive);
   } catch {}
 
   return (

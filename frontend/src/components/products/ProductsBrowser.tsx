@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ProductCardImage from "@/components/ProductCardImage";
 import { formatNumber, formatToman, productDisplayPrice } from "@/lib/format";
-import type { Product, Category } from "@/lib/types";
+import type { Category } from "@/lib/types";
+import type { ProductCardData } from "@/lib/productCard";
 import { productPath } from "@/lib/seo";
 
 // Each page shows exactly ROWS_PER_PAGE rows; how many products that is depends on how many
@@ -76,7 +77,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-function ProductCard({ p }: { p: Product }) {
+function ProductCard({ p }: { p: ProductCardData }) {
   const display = productDisplayPrice(p);
   const discounted = p.discountPercent > 0;
   const showStrike = discounted && p.price > display;
@@ -107,7 +108,7 @@ function ProductCard({ p }: { p: Product }) {
 
       <div className="flex flex-1 flex-col p-4">
         <h3 className="line-clamp-1 text-center text-[16px] font-black text-[var(--hl-ink)]">{p.name}</h3>
-        <p className="mt-1 line-clamp-1 text-center text-[12px] text-[var(--hl-muted)]">{p.plans[0]?.type || p.categoryName}</p>
+        <p className="mt-1 line-clamp-1 text-center text-[12px] text-[var(--hl-muted)]">{p.planLabel || p.categoryName}</p>
 
         <div className="mt-3 flex flex-col items-center">
           {out ? (
@@ -148,7 +149,7 @@ function ProductCard({ p }: { p: Product }) {
   );
 }
 
-export default function ProductsBrowser({ products, categories, initialCatId }: { products: Product[]; categories: Category[]; initialCatId?: number }) {
+export default function ProductsBrowser({ products, categories, initialCatId }: { products: ProductCardData[]; categories: Category[]; initialCatId?: number }) {
   const [selectedCats, setSelectedCats] = useState<Set<number>>(() => (initialCatId ? new Set([initialCatId]) : new Set()));
   const [maxPrice, setMaxPrice] = useState(PRICE_MAX);
   // Off by default so out-of-stock products stay listed (name, description, and an "unavailable" price):

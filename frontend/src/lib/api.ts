@@ -128,12 +128,28 @@ function handleUnauthorized() {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+// `revalidate` opts a read into Next's data cache for that many seconds. Everything else stays
+// uncached: an admin screen must never show a stale figure, and a request carrying a session must
+// never be served from a shared cache. Only the public catalogue reads pass it, and only on the
+// server — see the `cached` helpers below.
+type RequestOptions = RequestInit & { revalidate?: number };
+
+// How long a storefront page may serve catalogue data before it is refreshed in the background.
+// Short enough that a price or stock edit in the admin panel shows up almost immediately, long
+// enough that bursts of traffic and crawlers are served from cache instead of hitting the API.
+export const CATALOG_REVALIDATE = 60;
+
+async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   const csrf = getCsrfToken();
+  const { revalidate, ...rest } = init ?? {};
+  const caching: RequestInit =
+    revalidate != null && typeof window === "undefined"
+      ? ({ next: { revalidate } } as RequestInit)
+      : { cache: "no-store" };
   const res = await fetch(`${BASE}/api${path}`, {
-    cache: "no-store",
+    ...caching,
     credentials: "include",
-    ...init,
+    ...rest,
     headers: {
       "Content-Type": "application/json",
       ...(csrf ? { "X-CSRF-Token": csrf } : {}),
@@ -211,12 +227,16 @@ const json = (body: unknown) => JSON.stringify(body);
 export const api = {
   categories: {
     list: () => request<Category[]>("/categories"),
+    listCached: (revalidate = CATALOG_REVALIDATE) => request<Category[]>("/categories", { revalidate }),
     create: (body: CategoryInput) => request<Category>("/categories", { method: "POST", body: json(body) }),
     update: (id: number, body: CategoryInput) => request<Category>(`/categories/${id}`, { method: "PUT", body: json(body) }),
     remove: (id: number) => request<void>(`/categories/${id}`, { method: "DELETE" }),
   },
   products: {
     list: (params?: { categoryId?: number; search?: string }) => request<Product[]>(`/products${qs(params)}`),
+    // Catalogue read for the public pages: identical data, but cacheable so a storefront request does
+    // not wait on the API every time. Admin screens keep using list() and always see live figures.
+    listCached: (revalidate = CATALOG_REVALIDATE) => request<Product[]>("/products", { revalidate }),
     create: (body: ProductInput) => request<Product>("/products", { method: "POST", body: json(body) }),
     update: (id: number, body: ProductInput) => request<Product>(`/products/${id}`, { method: "PUT", body: json(body) }),
     updatePrice: (id: number, body: { price: number; discountPercent: number; priceUsd?: number }) =>
@@ -383,6 +403,7 @@ export const api = {
   },
   blog: {
     list: () => request<BlogPost[]>("/blog"),
+    listCached: (revalidate = CATALOG_REVALIDATE) => request<BlogPost[]>("/blog", { revalidate }),
     create: (body: BlogPostInput) => request<BlogPost>("/blog", { method: "POST", body: json(body) }),
     update: (id: number, body: BlogPostInput) => request<BlogPost>(`/blog/${id}`, { method: "PUT", body: json(body) }),
     remove: (id: number) => request<void>(`/blog/${id}`, { method: "DELETE" }),

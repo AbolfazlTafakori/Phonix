@@ -3,10 +3,13 @@ import { productPath } from "@/lib/seo";
 import { api } from "@/lib/api";
 import ProductCardImage from "@/components/ProductCardImage";
 import ProductsBrowser from "@/components/products/ProductsBrowser";
+import { toCardData } from "@/lib/productCard";
 import ProductsHeroStats from "@/components/products/ProductsHeroStats";
 import type { Product, Category } from "@/lib/types";
 
-export const dynamic = "force-dynamic";
+// Served from cache and refreshed in the background, so a visitor never waits on the API for a page
+// whose contents only change when an admin edits them.
+export const revalidate = 60;
 export const metadata = {
   title: "محصولات",
   description: "خرید انواع اکانت پریمیوم، اشتراک، گیفت‌کارت، شماره مجازی و لایسنس نرم‌افزار با تحویل آنی و پرداخت امن در فونیکس وریفای.",
@@ -24,7 +27,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
   let products: Product[] = [];
   let categories: Category[] = [];
   try {
-    [products, categories] = await Promise.all([api.products.list(), api.categories.list()]);
+    [products, categories] = await Promise.all([api.products.listCached(), api.categories.listCached()]);
   } catch {
     // backend unavailable
   }
@@ -100,7 +103,7 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
           )}
         </div>
       ) : (
-        <ProductsBrowser products={active} categories={activeCats} initialCatId={selected || undefined} />
+        <ProductsBrowser products={active.map(toCardData)} categories={activeCats} initialCatId={selected || undefined} />
       )}
     </>
   );

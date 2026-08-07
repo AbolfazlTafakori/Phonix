@@ -6,12 +6,28 @@ import ProductsBrowser from "@/components/products/ProductsBrowser";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import { absoluteUrl, jsonLdScript, plainExcerpt, productPath } from "@/lib/seo";
 import { categoryHeading, categoryIntro, categoryPath, categorySlug } from "@/lib/categorySeo";
+import { toCardData } from "@/lib/productCard";
 
-export const dynamic = "force-dynamic";
+// Served from cache and refreshed in the background, so a visitor never waits on the API for a page
+// whose contents only change when an admin edits them.
+export const revalidate = 60;
+
+// Same reasoning as the product pages: prerender the categories that have products, and fall back to
+// on-demand rendering if the API cannot be reached during the build.
+export async function generateStaticParams() {
+  try {
+    const [products, categories] = await Promise.all([api.products.listCached(), api.categories.listCached()]);
+    return categories
+      .filter((c) => c.isActive && products.some((p) => p.isActive && p.categoryId === c.id))
+      .map((c) => ({ slug: categorySlug(c) }));
+  } catch {
+    return [];
+  }
+}
 
 async function resolve(slug: string): Promise<{ category: Category; products: Product[]; categories: Category[] } | null> {
   const wanted = decodeURIComponent(slug).toLowerCase();
-  const [products, categories] = await Promise.all([api.products.list(), api.categories.list()]);
+  const [products, categories] = await Promise.all([api.products.listCached(), api.categories.listCached()]);
   const active = categories.filter((c) => c.isActive);
   const category = active.find((c) => categorySlug(c) === wanted);
   if (!category) return null;
@@ -127,7 +143,7 @@ export default async function CategoryLandingPage({ params }: { params: Promise<
         </div>
       </section>
 
-      <ProductsBrowser products={products} categories={categories} initialCatId={category.id} />
+      <ProductsBrowser products={products.map(toCardData)} categories={categories} initialCatId={category.id} />
 
       <HomeNewsletter />
     </>

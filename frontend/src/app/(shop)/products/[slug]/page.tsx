@@ -13,7 +13,21 @@ import HomeNewsletter from "@/components/home/HomeNewsletter";
 import Reveal from "@/components/Reveal";
 import { absoluteUrl, jsonLdScript, latinBrand, plainExcerpt, productMetaDescription, productPath, productSlug, productTitle } from "@/lib/seo";
 
-export const dynamic = "force-dynamic";
+// Served from cache and refreshed in the background, so a visitor never waits on the API for a page
+// whose contents only change when an admin edits them.
+export const revalidate = 60;
+
+// Prerender the catalogue at build time so a first visit (and a crawler's first fetch) is served from
+// cache instead of rendering on demand. An unreachable API must not break a deploy, so a failure here
+// simply yields no prerendered pages and every URL falls back to on-demand rendering, as before.
+export async function generateStaticParams() {
+  try {
+    const products = await api.products.listCached();
+    return products.filter((p) => p.isActive).map((p) => ({ slug: productSlug(p) }));
+  } catch {
+    return [];
+  }
+}
 
 // slug format: "{id}-{name-slug}" — resolve by the numeric id prefix.
 function idFromSlug(slug: string): number | null {
@@ -24,7 +38,7 @@ function idFromSlug(slug: string): number | null {
 async function findProduct(slug: string): Promise<Product | null> {
   const id = idFromSlug(slug);
   if (id == null) return null;
-  const products = await api.products.list();
+  const products = await api.products.listCached();
   return products.find((p) => p.isActive && p.id === id) ?? null;
 }
 
@@ -101,7 +115,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
   const id = idFromSlug(slug);
   if (id == null) notFound();
   try {
-    const products = await api.products.list();
+    const products = await api.products.listCached();
     const active = products.filter((p) => p.isActive);
     product = active.find((p) => p.id === id) ?? null;
     if (product) {

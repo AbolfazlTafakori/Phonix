@@ -2,7 +2,9 @@ import Link from "next/link";
 import { getBlogPosts, getSiteContent } from "@/lib/content";
 import Reveal from "@/components/Reveal";
 
-export const dynamic = "force-dynamic";
+// Served from cache and refreshed in the background, so a visitor never waits on the API for a page
+// whose contents only change when an admin edits them.
+export const revalidate = 60;
 export const metadata = {
   title: "بلاگ",
   description: "مقالات و راهنمای خرید اکانت‌های پریمیوم، وریفای حساب‌ها و خدمات دیجیتال در بلاگ فونیکس وریفای.",
