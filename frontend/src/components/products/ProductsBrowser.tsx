@@ -32,15 +32,6 @@ function useGridColumns(): number {
 }
 const PRICE_MAX = 20_000_000;
 
-// The catalog has no ratings field yet, so derive a stable pseudo-rating from the id
-// purely for the card layout. Deterministic → no hydration mismatch.
-function rating(id: number) {
-  const score = (4.5 + ((id * 37) % 5) / 10).toFixed(1);
-  const reviews = ((id * 137) % 1490) + 60;
-  const label = reviews >= 1000 ? `${(reviews / 1000).toFixed(1)}K` : String(reviews);
-  return { score, label };
-}
-
 type Sort = "popular" | "cheap" | "expensive" | "newest";
 const sortOptions: { value: Sort; label: string }[] = [
   { value: "popular", label: "محبوب‌ترین" },
@@ -51,14 +42,6 @@ const sortOptions: { value: Sort; label: string }[] = [
 
 const serviceTypes = ["اشتراک (با تمدید)", "اکانت اختصاصی", "گیفت کارت", "سرویس یک‌ماهه"];
 const deliveryTimes = ["تحویل آنی", "تحویل در کمتر از ۱ ساعت", "تحویل ۱ تا ۲۴ ساعت", "هر زمان"];
-
-function Star({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-      <path d="M12 2l2.9 6 6.6.9-4.8 4.6 1.1 6.5L12 17.8 6.2 20l1.1-6.5L2.5 8.9 9 8z" />
-    </svg>
-  );
-}
 
 function Check({ checked }: { checked: boolean }) {
   return (
@@ -94,7 +77,6 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function ProductCard({ p }: { p: Product }) {
-  const rt = rating(p.id);
   const display = productDisplayPrice(p);
   const discounted = p.discountPercent > 0;
   const showStrike = discounted && p.price > display;
@@ -126,12 +108,6 @@ function ProductCard({ p }: { p: Product }) {
       <div className="flex flex-1 flex-col p-4">
         <h3 className="line-clamp-1 text-center text-[16px] font-black text-[var(--hl-ink)]">{p.name}</h3>
         <p className="mt-1 line-clamp-1 text-center text-[12px] text-[var(--hl-muted)]">{p.plans[0]?.type || p.categoryName}</p>
-
-        <div className="mt-2 flex items-center justify-center gap-1.5 text-[12px]">
-          <Star className="h-3.5 w-3.5 text-[#ffb020]" />
-          <span className="font-black text-[var(--hl-ink)]">{rt.score}</span>
-          <span className="text-[var(--hl-muted)]">({rt.label})</span>
-        </div>
 
         <div className="mt-3 flex flex-col items-center">
           {out ? (
