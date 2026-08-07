@@ -37,6 +37,7 @@ Two constraints shaped the design throughout — **every privileged action is tr
 - **Single-file SQLite** in WAL mode — no external database server, no connection pool, backup-bot friendly.
 - **ACID writes** through `IMMEDIATE` transactions, eliminating torn-write / partial-state corruption.
 - **`IDataStore` abstraction** — persistence is swappable; a legacy JSON snapshot (`store.json`) is imported once to seed an empty database.
+- **Lists that don't scale with history** — order and transaction pages are paged in SQL against indexed columns, and only the rows actually returned are decrypted, so a screen showing twenty rows costs the same in year three as on day one.
 - Designed and validated against multi-threaded concurrency stress testing.
 
 ### 📦 Virtual Stock Pool & Automated Fulfillment
@@ -46,9 +47,17 @@ Two constraints shaped the design throughout — **every privileged action is tr
 - **Atomic reservation** inside the same `IMMEDIATE` transactions as wallet debits — two concurrent orders can never claim the same item.
 - Full traceability: every delivered item records which order unit consumed it.
 
+### 🧾 A Checkout That Quotes What It Charges
+An order is always priced by the server when it is placed, so anything the basket shows has to agree with that or the buyer is quoted one figure and debited another.
+
+- **Baskets re-price themselves** — a cart carrying last month's prices is brought up to the live catalogue before anything is totalled, and the change is stated rather than swapped in silently.
+- **Discount codes stop counting when the basket changes** — a code is validated against the basket it was typed into, so editing that basket retires it with an explanation instead of leaving a stale discount on screen.
+- **Cancelling returns the coupon** — a single-use code spent on an order that is later cancelled goes back to the buyer, floored so a replayed cancellation can't manufacture extra capacity.
+
 ### 🚚 Unit-Level Order Fulfillment
 - Orders split into **per-account deliverable units**, so multiple staff can work the same order in parallel.
 - Drafts, per-unit delivery with optional templated email, and automatic order completion when the last unit ships.
+- **Cancel one account, not the order** — when a single product of a basket can't be supplied, it is cancelled on its own and the rest ships normally. The buyer is refunded exactly that account's share of what they paid: its price less its slice of the order discount, plus its slice of VAT and the gateway fee. The panel states the figure before the operator commits, and its stock goes back on the shelf.
 - **16-digit invoice numbers** minted exactly at completion — an undelivered order never has an invoice.
 - Customers browse deliveries per product from their dashboard: each order shows its product logos, and each logo opens only that service's delivered accounts.
 
@@ -73,6 +82,7 @@ A second kind of inventory: instead of handing out a credential from a pool, the
 - **Security stamps** — instantly invalidate all active sessions on credential or permission changes.
 - **Verification that follows the address** — an email change never takes effect on its own; a one-time confirmation link goes to the *new* address, and the account keeps its old, already-verified email until that address proves itself, so the checkout's verified-email gate can never be bypassed. The old address gets a security notice the moment the change is requested — not after — so a hijacked session can't swap it out unnoticed.
 - **Tamper-proof 2FA lifecycle** — an active second factor can only be removed or re-provisioned with its current TOTP code; a hijacked session cannot strip it.
+- **One identity, one account** — signup settles uniqueness inside the transaction that inserts, so two simultaneous attempts on the same username or address can't both succeed. An address that identified two accounts would quietly break login-by-email and password reset for both.
 - **Progressive 3-tier verification** — a strict, escalating KYC ladder gating sensitive actions by trust level; payment destinations stay hidden until the cart's required level is met.
 - **Section-scoped staff permissions** — limited staff accounts see and reach only the admin sections an owner explicitly grants.
 
@@ -81,6 +91,8 @@ Optional two-server clustering for **business continuity** (a datacenter or conn
 
 - **Continuous mirroring** — every write is journaled to an outbox and pulled by the peer, so a healthy Standby is an exact copy of the Primary: same rows, same uploaded files, verified by checksum.
 - **Automatic failover** — a Standby that loses its Primary for longer than the grace period (default 90s) promotes itself and keeps taking orders unattended. A node that has never completed a first sync never promotes: an empty server must not take charge of live traffic.
+- **Survives a one-way link cut** — on a filtered route the Standby can stop reaching the Primary while the Primary still reaches it and keeps serving customers. Promoting there would make two Primaries and cost whichever side lost the argument its writes. A node-to-node request that passes HMAC verification is proof the peer is alive, and only the peer can produce one, so recent inbound contact outranks the outbound silence. A genuinely dead peer sends nothing, so real failover is unaffected.
+- **Self-retiring outbox** — replicated history is pruned once the peer's own cursor confirms it, and only after it has aged. A Standby that is behind, offline or never configured never advances that cursor, so entries it still needs are never dropped; without this the journal grew for the lifetime of the shop and took the database, the bootstrap snapshot and every backup with it.
 - **Manual failback** — a returning Primary comes back read-only (`Recovering`) and catches up; reclaiming the role is a deliberate click, never automatic, and only once it is fully caught up.
 - **Attach to a populated Primary** — a fresh Standby pulls one full snapshot, pins its sync cursor, then transfers media. Neither server has to start empty.
 - **Restore-aware re-sync** — a wholesale restore on the Primary rotates a data epoch the peer notices on its next pull. Incremental sync only ever describes changes, so without this a Standby silently keeps rows the restore deleted while every health signal reads clean.
@@ -94,7 +106,7 @@ Optional two-server clustering for **business continuity** (a datacenter or conn
 ### 🤖 Telegram Automation
 - **Receipt bot** — every card-to-card receipt lands in the admin chat with one-tap approve/reject.
 - **Order bot** — confirmed orders are announced to the fulfillment team exactly once, with claim-based dedup across approval paths.
-- **Backup bot** — encrypted database backups shipped to a private chat on schedule, with failure alerting.
+- **Backup bot** — encrypted database backups shipped to a private chat on schedule, with failure alerting. Archives are compressed, split under Telegram's per-file cap, and customer documents are always encrypted to the offline key before they leave the server. An uploads folder that has outgrown the box fails the backup with a message naming the limit instead of taking the API down with it (`PHONIX_BACKUP_MAX_MEDIA_MB`).
 
 ### 🚀 DevOps & Observability
 - **Interactive Linux installer** (`install.sh`) — guided, one-command provisioning.
