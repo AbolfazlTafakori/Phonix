@@ -75,6 +75,26 @@ export function clearCart() {
   save([]);
 }
 
+// Re-prices the basket from the catalogue. A line stores the price it was added at, but an order is always
+// charged at the price the server reads when it is placed — so a basket left sitting while the shop repriced
+// showed one total and took another off the buyer's wallet. `priceFor` returns the current price of a line,
+// or null when the product/plan is gone (left untouched: the order attempt reports it properly).
+// Returns the lines whose price moved, so the page can say so rather than silently changing the number.
+export function repriceCart(
+  priceFor: (item: CartItem) => number | null,
+): { name: string; from: number; to: number }[] {
+  const items = getCart();
+  const changed: { name: string; from: number; to: number }[] = [];
+  const next = items.map((i) => {
+    const current = priceFor(i);
+    if (current === null || current === i.price) return i;
+    changed.push({ name: i.name, from: i.price, to: current });
+    return { ...i, price: current };
+  });
+  if (changed.length > 0) save(next);
+  return changed;
+}
+
 // The basket is localStorage, an external store, so it is read through React's own API for that instead of
 // being copied into state by an effect. Both the key and the stored text are cached: the snapshot must return
 // the SAME array while nothing has changed, or every render would look like a change and loop.

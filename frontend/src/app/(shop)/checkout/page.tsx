@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useCart, clearCart, removeFromCart } from "@/lib/cart";
+import { useCart, clearCart, removeFromCart, repriceCart } from "@/lib/cart";
 import { formatToman, toFa } from "@/lib/format";
 import type { PaymentMethod, BankCard, DiscountResult, Product, ProductPlan } from "@/lib/types";
 import { CardToCardForm, emptyCardToCard, isCardToCardComplete, type CardToCardValue } from "@/components/account/CardToCardForm";
@@ -44,13 +44,24 @@ export default function CheckoutPage() {
   // accepted in the add-to-cart modal, so checkout only needs one final confirmation.
   const [rulesAccepted, setRulesAccepted] = useState(false);
 
+  // Set when the basket was re-priced against the live catalogue on load (see the fetch effect).
+  const [priceNotice, setPriceNotice] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [discount, setDiscount] = useState<DiscountResult | null>(null);
+  // The basket total the applied code was validated against — see discountStale below.
+  const [discountBasis, setDiscountBasis] = useState<number | null>(null);
   const [applyingCode, setApplyingCode] = useState(false);
   const [codeError, setCodeError] = useState("");
 
+  // A code is validated against the basket it was typed into, and its finalTotal is a number for THAT
+  // basket. Editing the basket afterwards used to leave that number on screen, quoting a discount the order
+  // would never carry. Derived rather than cleared in an effect: the code stops counting the moment the
+  // basket it was priced against no longer matches, and the buyer is told to re-apply it.
+  const discountStale = discount !== null && discountBasis !== total;
+  const activeDiscount = discount?.valid && !discountStale ? discount : null;
+
   // goods after discount → VAT on the discounted goods → payable (mirrors the backend's PlaceOrder).
-  const goodsTotal = discount?.valid ? discount.finalTotal : total;
+  const goodsTotal = activeDiscount ? activeDiscount.finalTotal : total;
   const vat = Math.round((goodsTotal * vatPercent) / 100);
   const payable = goodsTotal + vat;
   const walletBalance = wallet ?? 0;
@@ -111,6 +122,23 @@ export default function CheckoutPage() {
         }
         setLevelMap(Object.fromEntries(prods.map((p) => [p.id, p.requiredLevel])));
         setProductsById(Object.fromEntries(prods.map((p) => [p.id, p])));
+
+        // Bring the basket up to today's catalogue before anything is totalled. The server prices the order
+        // when it is placed, so a basket carrying last month's numbers would quote one figure and charge
+        // another. Say what moved instead of changing the total under the buyer.
+        const byId = new Map(prods.map((p) => [p.id, p]));
+        const moved = repriceCart((line) => {
+          const product = byId.get(line.productId);
+          if (!product) return null;
+          if (line.planId == null) return product.finalPrice;
+          return product.plans.find((pl) => pl.id === line.planId)?.finalPrice ?? null;
+        });
+        if (moved.length > 0)
+          setPriceNotice(
+            moved.length === 1
+              ? `قیمت «${moved[0].name}» به‌روز شد: ${formatToman(moved[0].from)} ← ${formatToman(moved[0].to)}`
+              : `قیمت ${toFa(moved.length)} مورد از سبد شما به‌روز شد.`,
+          );
         if (me) {
           setWallet(me.wallet);
           setEmailVerified(me.emailVerified);
@@ -132,6 +160,7 @@ export default function CheckoutPage() {
     if (levelModal && overLevelItems.length === 0) setLevelModal(false);
   }, [levelModal, overLevelItems.length]);
 
+
   async function applyCode() {
     const code = codeInput.trim();
     if (!code) return;
@@ -141,8 +170,10 @@ export default function CheckoutPage() {
       const result = await api.discounts.validate(code, total);
       if (result.valid) {
         setDiscount(result);
+        setDiscountBasis(total);   // what it was priced against; the basket must still match at checkout
       } else {
         setDiscount(null);
+        setDiscountBasis(null);
         setCodeError(result.message ?? "کد تخفیف نامعتبر است.");
       }
     } catch {
@@ -154,6 +185,7 @@ export default function CheckoutPage() {
 
   function removeCode() {
     setDiscount(null);
+    setDiscountBasis(null);
     setCodeInput("");
     setCodeError("");
   }
@@ -224,7 +256,7 @@ export default function CheckoutPage() {
         }),
         paymentMethod,
         fromWallet: useWallet,
-        discountCode: discount?.valid ? codeInput.trim() : null,
+        discountCode: activeDiscount ? codeInput.trim() : null,
         paymentMethodId: needsMethod ? methodId : null,
         cardId: needsMethod ? pay.cardId : null,
         receiptUrl: needsMethod ? pay.receiptUrl : null,
@@ -427,7 +459,7 @@ export default function CheckoutPage() {
         <div className="h-fit rounded-2xl border border-[var(--hl-border)] hl-card p-6">
           <div className="mb-4">
             <label className="mb-2 block text-sm font-bold text-[var(--hl-ink)]">کد تخفیف</label>
-            {discount?.valid ? (
+            {activeDiscount ? (
               <div className="flex items-center justify-between rounded-xl border border-emerald-500/40 bg-emerald-500/10 px-4 py-3">
                 <span className="font-mono text-sm font-bold text-emerald-500" dir="ltr">{codeInput.trim().toUpperCase()}</span>
                 <button onClick={removeCode} className="text-xs font-bold text-[var(--hl-ink-2)] transition hover:text-rose-500">حذف</button>
@@ -450,6 +482,11 @@ export default function CheckoutPage() {
                 </button>
               </div>
             )}
+            {discountStale && (
+              <p className="mt-2 text-xs leading-6 text-amber-600 dark:text-amber-300">
+                سبد خرید تغییر کرد، پس کد تخفیف دیگر اعمال نمی‌شود. برای مبلغ جدید دوباره «اعمال» را بزنید.
+              </p>
+            )}
             {codeError && <p className="mt-2 text-xs text-rose-500">{codeError}</p>}
           </div>
 
@@ -458,10 +495,10 @@ export default function CheckoutPage() {
               <span>مبلغ کل</span>
               <span className="text-[var(--hl-ink)]">{formatToman(total)}</span>
             </div>
-            {discount?.valid && (
+            {activeDiscount && (
               <div className="flex items-center justify-between text-emerald-500">
                 <span>تخفیف</span>
-                <span>− {formatToman(discount.amount)}</span>
+                <span>− {formatToman(activeDiscount.amount)}</span>
               </div>
             )}
             {vat > 0 && (
@@ -513,6 +550,11 @@ export default function CheckoutPage() {
               />
               <span className="leading-6">تمام قوانین مربوط به محصولات سبد خریدم را خوانده‌ام و می‌پذیرم.</span>
             </label>
+          )}
+          {priceNotice && (
+            <p className="mt-3 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] px-3 py-2 text-xs leading-6 text-amber-600 dark:text-amber-300">
+              {priceNotice}
+            </p>
           )}
           {error && <p className="mt-3 text-sm text-rose-500">{error}</p>}
           <button

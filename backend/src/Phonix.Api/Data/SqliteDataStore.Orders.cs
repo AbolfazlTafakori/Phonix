@@ -335,6 +335,24 @@ SELECT last_insert_rowid();",
         return new DiscountResult(dc, amount, null);
     }
 
+    // The inverse of ConsumeDiscountTx, for an order that is being cancelled. Named by code because that is
+    // all the order keeps; a code deleted or renamed since is simply nothing to give back. Never drops below
+    // zero, so replaying a cancel can't manufacture extra capacity on a limited code.
+    private void ReleaseDiscountTx(SqliteConnection conn, SqliteTransaction tx, string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return;
+        var json = conn.QueryFirstOrDefault<string>(
+            "SELECT DataJson FROM DiscountCodes WHERE Code = @code COLLATE NOCASE LIMIT 1",
+            new { code = code.Trim() }, tx);
+        if (json is null || Deserialize<DiscountCode>(json) is not { } dc || dc.UsedCount <= 0) return;
+
+        dc.UsedCount--;
+        var updated = Serialize(dc);
+        conn.Execute("UPDATE DiscountCodes SET DataJson = @DataJson WHERE Id = @Id",
+            new { DataJson = updated, dc.Id }, tx);
+        AppendOutbox(conn, tx, "DiscountCodes", dc.Id, SyncOp.Upsert, updated);
+    }
+
     private void ConsumeDiscountTx(SqliteConnection conn, SqliteTransaction tx, DiscountCode dc)
     {
         dc.UsedCount++;
@@ -664,6 +682,11 @@ LIMIT 1;",
                     });
                 }
             }
+
+            // Give the coupon back. Placing the order consumed a use (ConsumeDiscountTx); cancelling it means
+            // that sale never happened, so a single-use code the buyer spent here must not stay spent — they
+            // would otherwise get their money back and lose the code with it.
+            ReleaseDiscountTx(conn, tx, o.DiscountCode);
 
             o.Status = OrderStatus.Cancelled;
             AppendOrderHistory(o, from, OrderStatus.Cancelled, changedBy, reason ?? "لغو سفارش");

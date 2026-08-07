@@ -492,6 +492,25 @@ public class OrderTests
         Assert.Equal(OrderStatus.Cancelled, store.GetOrder(order.Id)!.Status);
     }
 
+    // A one-time code consumed by an order that then gets cancelled must go back to the buyer. Otherwise the
+    // shop keeps the coupon and refunds the money, and a single-use code is spent on a sale that never was.
+    [Fact]
+    public void Cancelling_an_order_gives_its_discount_code_back()
+    {
+        var store = TestStore.Create();
+        store.UpdateUser(5, u => u.Wallet = 100_000_000);
+        var before = store.GetDiscountCodes().First(d => d.Code == "WELCOME10").UsedCount;
+
+        var order = store.PlaceOrder(store.GetUser(5)!, new[] { (1, 1, (int?)null) },
+            "wallet", fromWallet: true, discountCode: "WELCOME10").Order!;
+        Assert.True(order.DiscountAmount > 0);
+        Assert.Equal(before + 1, store.GetDiscountCodes().First(d => d.Code == "WELCOME10").UsedCount);
+
+        store.CancelOrder(order.Id, "admin", "لغو", applyPenalty: false);
+
+        Assert.Equal(before, store.GetDiscountCodes().First(d => d.Code == "WELCOME10").UsedCount);
+    }
+
     // SQL paging has to agree with what reading everything and slicing it used to produce — same rows, same
     // order, same total — or a page number would quietly mean something different than it did before.
     [Fact]
