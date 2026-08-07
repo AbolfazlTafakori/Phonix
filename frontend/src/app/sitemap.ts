@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { api } from "@/lib/api";
 import { getBlogPosts } from "@/lib/content";
 import { SITE_URL, productPath } from "@/lib/seo";
+import { categoryPath } from "@/lib/categorySeo";
 
 export const dynamic = "force-dynamic";
 
@@ -15,14 +16,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   let productPages: MetadataRoute.Sitemap = [];
+  let categoryPages: MetadataRoute.Sitemap = [];
   try {
-    const products = await api.products.list();
-    productPages = products
-      .filter((p) => p.isActive)
-      .map((p) => ({
-        url: `${SITE_URL}${productPath(p)}`,
+    const [products, categories] = await Promise.all([api.products.list(), api.categories.list()]);
+    const activeProducts = products.filter((p) => p.isActive);
+    productPages = activeProducts.map((p) => ({
+      url: `${SITE_URL}${productPath(p)}`,
+      changeFrequency: "weekly" as const,
+      priority: 0.8,
+    }));
+    // A category landing page 404s when it has no products, so only the ones that resolve are listed.
+    categoryPages = categories
+      .filter((c) => c.isActive && activeProducts.some((p) => p.categoryId === c.id))
+      .map((c) => ({
+        url: `${SITE_URL}${categoryPath(c)}`,
         changeFrequency: "weekly" as const,
-        priority: 0.8,
+        priority: 0.85,
       }));
   } catch {
     // API unavailable — still serve the static portion of the sitemap.
@@ -42,5 +51,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // blog is optional
   }
 
-  return [...staticPages, ...productPages, ...blogPages];
+  return [...staticPages, ...categoryPages, ...productPages, ...blogPages];
 }

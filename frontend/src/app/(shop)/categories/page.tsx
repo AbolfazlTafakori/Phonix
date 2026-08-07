@@ -5,6 +5,7 @@ import type { Category } from "@/lib/types";
 import HomeNewsletter from "@/components/home/HomeNewsletter";
 import TrustStats from "@/components/home/TrustStats";
 import CategoriesFaq from "@/components/categories/CategoriesFaq";
+import { categoryCardBlurb, categoryPath } from "@/lib/categorySeo";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
@@ -151,11 +152,13 @@ export default async function CategoriesPage() {
           {categories.map((cat) => {
             const meta = categoryMeta[cat.name] ?? defaultMeta;
             const logo = cat.icon || meta.logo;
-            const desc = cat.description?.trim() || meta.desc;
+            // Live category names don't match the hardcoded map above, so every card fell back to the same
+            // «محصولات و خدمات متنوع» line. The blurb now comes from the category's own intro copy.
+            const desc = categoryCardBlurb(cat) || meta.desc;
             return (
               <Link
                 key={cat.id}
-                href={`/products?cat=${cat.id}`}
+                href={categoryPath(cat)}
                 className="hl-card group flex flex-col items-center rounded-2xl p-5 text-center transition duration-200 hover:-translate-y-1 hover:border-[#ff5a1f]/60"
               >
                 <div className="mb-4 flex h-24 w-24 items-center justify-center sm:h-28 sm:w-28">
