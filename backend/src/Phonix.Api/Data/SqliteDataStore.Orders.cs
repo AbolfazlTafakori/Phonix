@@ -30,6 +30,21 @@ public sealed partial class SqliteDataStore
             .Select(j => Deserialize<Order>(j)!).ToList();
     }
 
+    // One page of orders, paged in SQL. The list endpoints used to read the WHOLE table, deserialize every
+    // row and then keep twenty — work that grows with the shop's lifetime on a screen that always shows the
+    // same twenty. Status is indexed, so the filtered count and the page both stay cheap as orders pile up.
+    public (IReadOnlyList<Order> Items, int Total) GetOrdersPage(OrderStatus? status, int page, int pageSize)
+    {
+        using var conn = OpenConnection();
+        var where = status is null ? "" : " WHERE Status = @status";
+        var args = new { status = status is null ? 0 : (int)status.Value, take = pageSize, skip = (page - 1) * pageSize };
+        var total = conn.ExecuteScalar<int>($"SELECT COUNT(*) FROM Orders{where}", args);
+        var items = conn.Query<string>(
+                $"SELECT DataJson FROM Orders{where} ORDER BY Id DESC LIMIT @take OFFSET @skip", args)
+            .Select(j => Deserialize<Order>(j)!).ToList();
+        return (items, total);
+    }
+
     public IReadOnlyList<Order> GetUserOrders(int userId)
     {
         using var conn = OpenConnection();

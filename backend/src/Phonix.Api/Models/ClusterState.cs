@@ -24,6 +24,13 @@ public class ClusterState
     public DateTime? LastDemotedAtUtc { get; set; }
     // The highest peer SyncOutbox.Id this node has already applied — the whole incremental-sync cursor.
     public long LastAppliedCursor { get; set; }
+
+    // The highest id of OUR outbox the peer has confirmed consuming, learned from the cursor it sends on each
+    // pull. The outbox is append-only and every write lands in it, so without this it grows for the lifetime
+    // of the shop and drags the database, every snapshot and every backup up with it. Pruning is driven by
+    // this and nothing else: a peer that is behind, offline, or was never configured simply never advances it,
+    // so entries it still needs can't be deleted out from under it.
+    public long PeerAckCursor { get; set; }
     // True once this node has reserved its disjoint autoincrement id band (see BumpAutoincrementOffset). Only
     // a Standby ever does this, and only once — the flag makes the bump idempotent across restarts so it is
     // never applied twice (which would push ids into a second, overlapping band). Set the moment a node first

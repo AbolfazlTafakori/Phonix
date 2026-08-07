@@ -144,8 +144,12 @@ public class TransactionsController : ControllerBase
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("transactions")]
     [HttpGet("page")]
-    public PagedResult<Transaction> GetPage([FromQuery] TxStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
-        PagedResult<Transaction>.From(_store.GetTransactions(status), page, pageSize);
+    public PagedResult<Transaction> GetPage([FromQuery] TxStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        (page, pageSize) = PagedResult<Transaction>.Clamp(page, pageSize);
+        var (items, total) = _store.GetTransactionsPage(status, page, pageSize);
+        return new PagedResult<Transaction>(items, total, page, pageSize);
+    }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("transactions")]

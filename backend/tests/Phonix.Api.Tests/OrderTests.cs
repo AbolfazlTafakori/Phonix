@@ -492,6 +492,43 @@ public class OrderTests
         Assert.Equal(OrderStatus.Cancelled, store.GetOrder(order.Id)!.Status);
     }
 
+    // SQL paging has to agree with what reading everything and slicing it used to produce — same rows, same
+    // order, same total — or a page number would quietly mean something different than it did before.
+    [Fact]
+    public void Paging_orders_in_sql_returns_the_same_rows_as_paging_the_whole_list()
+    {
+        var store = TestStore.Create();
+        store.UpdateUser(5, u => u.Wallet = 100_000_000);
+        for (var i = 0; i < 7; i++)
+            store.PlaceOrder(store.GetUser(5)!, new[] { (1, 1, (int?)null) }, "wallet", fromWallet: true);
+
+        // The seed ships a couple of orders of its own, so everything here is measured against the full list
+        // rather than a fixed count.
+        var all = store.GetOrders();
+        var count = all.Count;
+        Assert.True(count >= 7);
+
+        var (firstPage, total) = store.GetOrdersPage(null, page: 1, pageSize: 3);
+        Assert.Equal(count, total);
+        Assert.Equal(all.Take(3).Select(o => o.Id), firstPage.Select(o => o.Id));
+
+        // Every page, walked end to end, must reproduce the full list exactly once and in the same order.
+        var walked = new List<int>();
+        for (var p = 1; (p - 1) * 3 < count; p++)
+            walked.AddRange(store.GetOrdersPage(null, p, 3).Items.Select(o => o.Id));
+        Assert.Equal(all.Select(o => o.Id), walked);
+
+        var (past, pastTotal) = store.GetOrdersPage(null, page: count + 5, pageSize: 3);
+        Assert.Empty(past);                                        // past the end is empty, not an error
+        Assert.Equal(count, pastTotal);
+
+        // The status filter has to narrow both the page and the count, not just the page.
+        store.CancelOrder(all[0].Id, "admin", "تست", applyPenalty: false);
+        var (cancelled, cancelledTotal) = store.GetOrdersPage(OrderStatus.Cancelled, page: 1, pageSize: 20);
+        Assert.Equal(1, cancelledTotal);
+        Assert.Equal(all[0].Id, Assert.Single(cancelled).Id);
+    }
+
     // A basket can legitimately carry the same product on two separate lines (the API accepts it, and a cart
     // that fails to merge produces it). The refund then has to be per unit of what was actually charged: the
     // line lookup finds one line while the unit count spans both, so the share was computed against the wrong

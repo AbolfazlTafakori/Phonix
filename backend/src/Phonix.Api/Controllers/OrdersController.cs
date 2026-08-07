@@ -74,8 +74,15 @@ public class OrdersController : ControllerBase
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("orders", "orders-receipts", "orders-fulfillment", "orders-status")]
     [HttpGet("page")]
-    public PagedResult<Order> GetPage([FromQuery] OrderStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
-        PagedResult<Order>.From(_store.GetOrders(status).Select(RevealInputs).ToList(), page, pageSize);
+    public PagedResult<Order> GetPage([FromQuery] OrderStatus? status, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        // Paged in SQL, and only THIS page is decrypted: RevealInputs clones the order through the serializer
+        // to unseal its sensitive fields, so running it over the whole table to display twenty rows made every
+        // list view cost the shop's entire order history.
+        (page, pageSize) = PagedResult<Order>.Clamp(page, pageSize);
+        var (items, total) = _store.GetOrdersPage(status, page, pageSize);
+        return new PagedResult<Order>(items.Select(RevealInputs).ToList(), total, page, pageSize);
+    }
 
     // Every issued invoice is a completed order — the 16-digit number is minted exactly at that transition, so
     // an order that was never delivered simply has no invoice and never shows up here. `q` matches the invoice

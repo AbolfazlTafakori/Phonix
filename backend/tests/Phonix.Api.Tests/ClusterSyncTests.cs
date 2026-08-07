@@ -137,6 +137,37 @@ public class ClusterSyncTests
         Assert.Single(peer.GetSeatSubmissionsForUnit(22, 1));
     }
 
+    // The outbox is append-only and every write lands in it, so it has to be retired eventually. The rule that
+    // keeps that safe: only entries the peer said it consumed, and only once they have aged.
+    [Fact]
+    public void Pruning_the_outbox_removes_only_aged_entries_the_peer_has_acknowledged()
+    {
+        var store = FreshStore(clusterEnabled: true);
+        for (var i = 0; i < 5; i++)
+            store.AddProduct(new Product { Name = $"P{i}", CategoryId = 1, Price = 1000, Stock = 1, IsActive = true });
+        var all = store.GetOutboxSince(0);
+        Assert.Equal(5, all.Count);
+
+        // Nothing acknowledged yet — a peer that never pulled must never lose history.
+        Assert.Equal(0, store.PruneOutboxUpTo(0, TimeSpan.Zero));
+        Assert.Equal(5, store.GetOutboxSince(0).Count);
+
+        // Acknowledged, but the entries were written moments ago: the age window still protects them.
+        Assert.Equal(0, store.PruneOutboxUpTo(all[4].Id, TimeSpan.FromHours(24)));
+        Assert.Equal(5, store.GetOutboxSince(0).Count);
+
+        // Acknowledged and past the window: everything up to the cursor goes, the rest stays.
+        var removed = store.PruneOutboxUpTo(all[2].Id, TimeSpan.Zero);
+        Assert.Equal(3, removed);
+        var left = store.GetOutboxSince(0);
+        Assert.Equal(new[] { all[3].Id, all[4].Id }, left.Select(e => e.Id));
+
+        // A pruned prefix must not make the puller think it is behind: the high-water mark still names the
+        // newest entry, so a caught-up peer still computes zero pending.
+        Assert.Equal(all[4].Id, store.GetOutboxHighWaterMark());
+        Assert.Empty(store.GetOutboxSince(all[4].Id));
+    }
+
     [Fact]
     public void ApplyRemoteOp_rejects_a_table_name_outside_the_synced_allowlist()
     {

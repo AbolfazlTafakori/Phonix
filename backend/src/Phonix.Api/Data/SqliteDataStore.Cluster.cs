@@ -79,6 +79,24 @@ WHERE Id > @cursor ORDER BY Id LIMIT @batchSize;",
         return conn.ExecuteScalar<long?>("SELECT MAX(Id) FROM SyncOutbox") ?? 0;
     }
 
+    // Drops replicated history the peer has already consumed. Every write appends here, so with clustering on
+    // this table otherwise grows for the lifetime of the shop — inflating the database, the bootstrap snapshot
+    // that crosses the link, and every backup taken from it.
+    //
+    // Two conditions, both required, make this safe. Only rows at or below the cursor the PEER ITSELF reported
+    // are eligible, so a Standby that is behind, offline or never configured never advances it and nothing it
+    // still needs can disappear. And rows must also have aged past `minAge`, which leaves a window for a peer
+    // that comes back with a slightly older cursor. Ids are AUTOINCREMENT, so a pruned id is never reissued
+    // and a cursor can never be made to point at the wrong entry.
+    public int PruneOutboxUpTo(long ackCursor, TimeSpan minAge)
+    {
+        if (ackCursor <= 0) return 0;
+        var cutoff = DateTime.UtcNow.Subtract(minAge).ToString("o");
+        return WriteTx((conn, tx) => conn.Execute(
+            "DELETE FROM SyncOutbox WHERE Id <= @ackCursor AND CreatedAtUtc < @cutoff",
+            new { ackCursor, cutoff }, tx));
+    }
+
     // ── Applying a row pulled from the peer ─────────────────────────────────────────────────────────────
     // Last-writer-wins by timestamp against SyncRowVersion: if this node's own copy of the row was written
     // (locally OR by an earlier remote apply) at or after the incoming entry's time, the incoming write is

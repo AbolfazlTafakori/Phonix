@@ -259,8 +259,31 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         return IdPattern().IsMatch(candidate) ? candidate : null;
     }
 
-    public byte[] ArchivePublicMedia() => ArchiveCategories(new[] { "avatars" }, "");
-    public byte[] ArchiveSensitiveMedia() => ArchiveCategories(new[] { "kyc", "cards", "receipts" }, "");
+    private static readonly string[] PublicCategories = { "avatars" };
+    private static readonly string[] SensitiveCategories = { "kyc", "cards", "receipts" };
+
+    public byte[] ArchivePublicMedia() => ArchiveCategories(PublicCategories, "");
+    public byte[] ArchiveSensitiveMedia() => ArchiveCategories(SensitiveCategories, "");
+
+    // Bytes on disk for what an archive would contain, WITHOUT building it. Archiving is a whole-payload
+    // operation — zip in memory, then encrypt to a second array, then slice parts off it — so a documents
+    // folder that has quietly grown past what the box can hold takes the process down with an OOM. Callers
+    // check this first and refuse with a message instead.
+    public long MediaSizeBytes(bool sensitive)
+    {
+        var total = 0L;
+        foreach (var category in sensitive ? SensitiveCategories : PublicCategories)
+        {
+            var dir = Path.Combine(_root, category);
+            if (!Directory.Exists(dir)) continue;
+            foreach (var file in Directory.EnumerateFiles(dir))
+            {
+                try { total += new FileInfo(file).Length; }
+                catch (IOException) { /* vanished mid-scan; it won't be in the archive either */ }
+            }
+        }
+        return total;
+    }
 
     // A single complete archive: the full store.json plus every uploaded file (media/<category>/...).
     public byte[] ArchiveFull(string storeJson)

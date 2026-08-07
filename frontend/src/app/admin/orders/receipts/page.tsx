@@ -21,7 +21,9 @@ export default function OrderReceiptsPage() {
   useEffect(() => {
     (async () => {
       try {
-        setOrders((await api.orders.list()).filter((o) => o.status === "PendingApproval"));
+        // Server-side filter: this queue is only ever the pending-approval orders, so pulling the whole
+        // history and discarding it in the browser cost more every month the shop stayed open.
+        setOrders(await api.orders.list({ status: "PendingApproval" }));
       } catch (e) {
         setError(e instanceof Error ? e.message : "خطا در بارگذاری");
       } finally {

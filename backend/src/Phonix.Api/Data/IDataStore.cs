@@ -255,6 +255,8 @@ public interface IDataStore
 
     // ── Finance: transactions + withdrawals ─────────────────────────────────────────────────────────
     IReadOnlyList<Transaction> GetTransactions(TxStatus? status = null);
+    // Paged in SQL. Prefer this over GetTransactions for anything user-facing: the ledger never shrinks.
+    (IReadOnlyList<Transaction> Items, int Total) GetTransactionsPage(TxStatus? status, int page, int pageSize);
     Transaction? GetTransaction(int id);
     IReadOnlyList<Transaction> GetUserTransactions(int userId);
     Transaction AddTransaction(Transaction t);
@@ -287,6 +289,8 @@ public interface IDataStore
 
     // ── Orders + fulfilment + referrals ─────────────────────────────────────────────────────────────
     IReadOnlyList<Order> GetOrders(OrderStatus? status = null);
+    // Paged in SQL — see GetTransactionsPage.
+    (IReadOnlyList<Order> Items, int Total) GetOrdersPage(OrderStatus? status, int page, int pageSize);
     IReadOnlyList<Order> GetUserOrders(int userId);
     Order? GetOrder(int id);
     void RefreshAllUserOrderStats();

@@ -687,10 +687,35 @@ public sealed class ClusterSyncService : BackgroundService, IClusterSyncService
 
     // ── Node-to-node actions (called from ClusterController behind ClusterPeerAuthAttribute) ──────────────
 
+    // How long consumed outbox history is kept after the peer confirms it, and how far the peer's cursor must
+    // advance before that acknowledgement is worth a write. The pull runs every few seconds, so recording every
+    // single one would turn a read into a write on the busiest path in the cluster.
+    private static readonly TimeSpan OutboxRetention = TimeSpan.FromHours(24);
+    private const long PeerAckWriteThreshold = 200;
+
     public ClusterSyncPullResponse HandlePull(long since)
     {
         var state = _store.GetClusterState();
         var entries = _store.GetOutboxSince(since);
+
+        // Asking for everything after `since` is the peer stating it has applied everything up to it. That is
+        // the only signal that lets this node retire replicated history without risking the peer's cursor.
+        if (since > state.PeerAckCursor + PeerAckWriteThreshold)
+        {
+            lock (_transitionLock)
+            {
+                state = _store.GetClusterState();
+                if (since > state.PeerAckCursor)
+                {
+                    state.PeerAckCursor = since;
+                    _store.SetClusterState(state);
+                }
+            }
+            var pruned = _store.PruneOutboxUpTo(state.PeerAckCursor, OutboxRetention);
+            if (pruned > 0)
+                _logger.LogInformation("Cluster outbox: pruned {Count} entries the peer has already applied.", pruned);
+        }
+
         return new ClusterSyncPullResponse(entries, state.Role.ToString(), _store.GetOutboxHighWaterMark(), state.DataEpoch);
     }
 

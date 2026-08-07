@@ -24,6 +24,13 @@ public class TelegramBackupSender : ITelegramBackupSender
     // multipart envelope, so an archive of any total size still goes through as multiple parts.
     private const int MaxPartBytes = 45 * 1024 * 1024;
 
+    // Ceiling on the uploads folder a media backup will attempt, in bytes. The default leaves room for the
+    // zip plus its encrypted copy plus the part being uploaded on a small VPS; a bigger box can raise it.
+    private static readonly long MaxMediaBytes =
+        long.TryParse(Environment.GetEnvironmentVariable("PHONIX_BACKUP_MAX_MEDIA_MB"), out var mb) && mb > 0
+            ? mb * 1024 * 1024
+            : 512L * 1024 * 1024;
+
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
     private readonly IHttpClientFactory _httpFactory;
@@ -105,6 +112,15 @@ public class TelegramBackupSender : ITelegramBackupSender
         // Never ship users' documents in the clear: require the backup key for the sensitive archive.
         if (sensitive && !BackupCrypto.IsEnabled)
             return Fail(label, chatId, "برای ارسال مدارک حساس، کلید پشتیبان (PHONIX_BACKUP_KEY) باید تنظیم شده باشد.");
+
+        // Building the archive holds the whole thing in memory, and encrypting it holds a second copy, so an
+        // uploads folder that has outgrown the box would take the API down rather than fail a backup. Measure
+        // it on disk first and refuse loudly. PHONIX_BACKUP_MAX_MEDIA_MB raises the ceiling on a bigger server.
+        var sizeBytes = _files.MediaSizeBytes(sensitive);
+        if (sizeBytes > MaxMediaBytes)
+            return Fail(label, chatId,
+                $"حجم فایل‌ها ({sizeBytes / (1024 * 1024)} مگابایت) از سقف مجاز ارسال ({MaxMediaBytes / (1024 * 1024)} مگابایت) بیشتر است. " +
+                "از «دانلود پشتیبان» روی خود سرور استفاده کنید یا سقف را با PHONIX_BACKUP_MAX_MEDIA_MB بالا ببرید.");
 
         try
         {

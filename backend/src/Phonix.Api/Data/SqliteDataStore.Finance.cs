@@ -90,6 +90,20 @@ SELECT last_insert_rowid();",
         sql += " ORDER BY Id DESC;";
         return conn.Query<string>(sql, new { status = status is null ? 0 : (int)status.Value }).Select(j => Deserialize<Transaction>(j)!).ToList();
     }
+
+    // One page of transactions, paged in SQL — see GetOrdersPage. The ledger only ever grows, so this is the
+    // table where reading everything to show twenty rows hurts first.
+    public (IReadOnlyList<Transaction> Items, int Total) GetTransactionsPage(TxStatus? status, int page, int pageSize)
+    {
+        using var conn = OpenConnection();
+        var where = status is null ? "" : " WHERE Status = @status";
+        var args = new { status = status is null ? 0 : (int)status.Value, take = pageSize, skip = (page - 1) * pageSize };
+        var total = conn.ExecuteScalar<int>($"SELECT COUNT(*) FROM Transactions{where}", args);
+        var items = conn.Query<string>(
+                $"SELECT DataJson FROM Transactions{where} ORDER BY Id DESC LIMIT @take OFFSET @skip", args)
+            .Select(j => Deserialize<Transaction>(j)!).ToList();
+        return (items, total);
+    }
     public Transaction? GetTransaction(int id)
     {
         using var conn = OpenConnection();

@@ -56,8 +56,10 @@ export default function OrderFulfillmentPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [list, products] = await Promise.all([api.orders.list(), api.products.list()]);
-        setOrders(list.filter((o) => o.status === "Preparing"));
+        // Ask the server for the orders this page is about. Fetching every order ever placed and filtering
+        // here downloaded (and decrypted) the shop's whole history to show the handful still being prepared.
+        const [list, products] = await Promise.all([api.orders.list({ status: "Preparing" }), api.products.list()]);
+        setOrders(list);
         setTemplates(Object.fromEntries(products.map((p) => [p.id, p.deliveryTemplate])));
       } catch (e) {
         setError(e instanceof Error ? e.message : "خطا در بارگذاری");

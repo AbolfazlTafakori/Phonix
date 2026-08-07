@@ -9,11 +9,19 @@ public record PagedResult<T>(IReadOnlyList<T> Items, int Total, int Page, int Pa
 
     public static PagedResult<T> From(IReadOnlyList<T> all, int page, int pageSize)
     {
+        (page, pageSize) = Clamp(page, pageSize);
+        var items = all.Skip((page - 1) * pageSize).Take(pageSize).ToList();
+        return new PagedResult<T>(items, all.Count, page, pageSize);
+    }
+
+    // The same bounds From applies, exposed for callers that page in SQL instead of in memory: they need the
+    // clamped values BEFORE the query runs, and both paths must agree or a page number would mean two things.
+    public static (int Page, int PageSize) Clamp(int page, int pageSize)
+    {
         if (page < 1) page = 1;
         if (pageSize < 1) pageSize = 20;
         if (pageSize > 200) pageSize = 200;
-        var items = all.Skip((page - 1) * pageSize).Take(pageSize).ToList();
-        return new PagedResult<T>(items, all.Count, page, pageSize);
+        return (page, pageSize);
     }
 }
 
