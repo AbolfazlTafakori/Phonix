@@ -1,12 +1,24 @@
 import Link from "next/link";
-import { getHomeCategories } from "@/lib/content";
 
-// Tiles come from the admin panel's home-categories editor. They used to be a hardcoded list here, so
-// every edit made in the panel — titles, ordering, uploaded icons, links — was silently discarded.
-// getHomeCategories already filters to active, sorts, and falls back to the static set if the API is down.
-export default async function HomeCategories() {
-  const categories = await getHomeCategories();
+type Cat = { title: string; logo: string; href: string };
 
+// Ordered so each row reads right-to-left matching the reference:
+// row 1 (R→L): VPN · گیفت کارت · استریم · موزیک · نتفلیکس
+// row 2 (R→L): شبکه‌های اجتماعی · نرم‌افزارها · بازی · شماره مجازی · وریفای
+const categories: Cat[] = [
+  { title: "فیلترشکن / VPN", logo: "/figma/cat-vpn.webp", href: "/products" },
+  { title: "گیفت کارت", logo: "/figma/cat-giftcard.webp", href: "/products" },
+  { title: "اکانت‌های استریم", logo: "/figma/cat-stream.webp", href: "/products" },
+  { title: "اپل موزیک و اسپاتیفای", logo: "/figma/cat-music.webp", href: "/products" },
+  { title: "نتفلیکس", logo: "/figma/cat-netflix.webp", href: "/products" },
+  { title: "شبکه‌های اجتماعی", logo: "/figma/cat-social.webp", href: "/products" },
+  { title: "نرم‌افزارها", logo: "/figma/cat-software.webp", href: "/products" },
+  { title: "بازی و سرگرمی", logo: "/figma/cat-game.webp", href: "/products" },
+  { title: "شماره مجازی", logo: "/figma/cat-number.webp", href: "/products" },
+  { title: "تایید و وریفای حساب", logo: "/figma/cat-verify.webp", href: "/products" },
+];
+
+export default function HomeCategories() {
   return (
     <section className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16 py-20">
       <div className="mb-8 flex items-center justify-between">
@@ -25,20 +37,13 @@ export default async function HomeCategories() {
       <div className="grid grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-5">
         {categories.map((c) => (
           <Link
-            key={c.id}
+            key={c.title}
             href={c.href}
             style={{ boxShadow: "var(--cat-shadow)" }}
             className="group flex flex-col items-center gap-4 rounded-[20px] border border-[var(--hl-border)] bg-white p-6 transition duration-200 hover:-translate-y-1.5 hover:border-[#ff5a1f]/60"
           >
             <div className="flex h-32 items-center justify-center">
-              {/* iconClass carries the per-tile nudge the panel stores for artwork that sits off-centre. */}
-              <img
-                loading="lazy"
-                decoding="async"
-                src={c.icon}
-                alt={c.title}
-                className={`max-h-32 w-auto object-contain transition duration-200 group-hover:scale-105 ${c.iconClass}`}
-              />
+              <img loading="lazy" decoding="async" src={c.logo} alt={c.title} className="max-h-32 w-auto object-contain transition duration-200 group-hover:scale-105" />
             </div>
             <h3 className="text-center text-[20px] font-bold text-[var(--hl-ink)]">{c.title}</h3>
           </Link>
