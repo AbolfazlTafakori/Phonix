@@ -10,7 +10,7 @@ Next.js 16 · React 19 · ASP.NET Core 8 · Tailwind v4
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind-v4-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
-[![Tests](https://img.shields.io/badge/tests-296%20passing-3fb950)](#)
+[![Tests](https://img.shields.io/badge/tests-307%20passing-3fb950)](#)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](#-license)
 
 </div>
@@ -108,6 +108,33 @@ Optional two-server clustering for **business continuity** (a datacenter or conn
 - **Order bot** — confirmed orders are announced to the fulfillment team exactly once, with claim-based dedup across approval paths.
 - **Backup bot** — encrypted database backups shipped to a private chat on schedule, with failure alerting. Archives are compressed, split under Telegram's per-file cap, and customer documents are always encrypted to the offline key before they leave the server. An uploads folder that has outgrown the box fails the backup with a message naming the limit instead of taking the API down with it (`PHONIX_BACKUP_MAX_MEDIA_MB`).
 
+### 🔎 Search Presence & Content Round-Trip
+Every page is server-rendered with its own title, description and canonical, and the catalogue drives the
+machine-readable surface rather than a hand-maintained copy of it.
+
+- **Sitemap built from the live catalogue** — active products, categories that actually resolve, and blog
+  posts, so a delisted product leaves the sitemap the moment it is delisted.
+- **`lastmod` only where the date is real.** Post dates are authored as Persian (Jalali) labels for readers,
+  so they are converted to Gregorian for the sitemap; a label that doesn't parse omits the field instead of
+  substituting today. An always-current `lastmod` is worse than none — it teaches a crawler to distrust the
+  signal across the whole file.
+- **Structured data per page type** — `Organization` and `WebSite` sitewide, `Product` with `AggregateOffer`,
+  `BreadcrumbList`, and a per-product `FAQPage` built from the FAQ the panel already stores.
+- **Private areas excluded** in `robots.txt` — account, checkout, cart, invoice, admin and the API.
+
+**Content lives in the shop, not the repo.** Product copy and blog posts are authored in the admin panel, so
+the live database is the source of truth. `scripts/sync-site-content.py` pulls that published copy back out
+into `seo-content/` as Markdown — one file per product and post, in the same shape the panel's importers
+read. That gives a reviewable, diffable snapshot of exactly what is public without making the repo a second
+source of truth that can drift.
+
+```bash
+python scripts/sync-site-content.py [--url https://phoenixverify.com] [--out seo-content]
+```
+
+`seo-content/` is deliberately untracked: it is generated output, regenerate it whenever you want the
+current state.
+
 ### 🚀 DevOps & Observability
 - **Interactive Linux installer** (`install.sh`) — guided, one-command provisioning.
 - **`p-ui` CLI** — zero-downtime hot updates with health-checked auto-rollback, plus domain fallback routing.
@@ -148,10 +175,17 @@ Phonix/
 ├── deploy/
 │   ├── install.sh             # Bare-metal installer (systemd + nginx + certbot)
 │   └── p-ui                   # Operations CLI installed to /usr/local/bin
-├── scripts/                   # Docker-based install and local dev helpers
+├── scripts/
+│   ├── dev.sh / dev.ps1       # Run API and storefront together for local work
+│   ├── install.sh             # Container-based install path
+│   ├── phonix.service         # systemd unit template
+│   └── sync-site-content.py   # Pull published copy back out of the live shop (see below)
+├── figma-export/              # Design-export tooling; downloaded assets stay untracked
+├── seo-content/               # Output of sync-site-content.py — untracked, regenerate on demand
 ├── docker-compose.yml         # Containerised stack (API + storefront)
 ├── install.sh                 # One-line bootstrap that fetches and runs deploy/install.sh
 ├── DEPLOY.md                  # Deployment, configuration and HA cluster guide
+├── PRODUCT.md                 # Product overview
 └── README.md
 ```
 
