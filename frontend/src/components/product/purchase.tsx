@@ -472,25 +472,23 @@ export function BuyBox() {
         minHeight: isDesktop && galleryHeight ? galleryHeight : undefined,
       }}
     >
-      {/* The struck-through original only exists for a discounted plan, so the row reserves its line either
-          way — otherwise the whole box, and the buttons under it, would shift as the buyer moves between
-          plans. */}
-      <div className="flex min-h-[78px] items-end justify-between gap-2">
-        <div>
-          <p className="text-[12px]" style={{ color: "var(--ac-muted)" }}>قیمت نهایی</p>
-          <p className="mt-1.5 text-[27px] font-black leading-none" style={{ color: "var(--ac-title)" }}>
-            {formatToman(unitPrice)}
-          </p>
-          <p className="mt-2 h-[18px] text-[12px] line-through" style={{ color: "var(--ac-muted)" }}>
-            {discount > 0 ? formatToman(basePrice) : " "}
-          </p>
-        </div>
+      {/* Label and plan badge share one row (the badge names what "final price" refers to, so it reads as
+          a pair, not a floating tag); the struck-through original always reserves its line so the box, and
+          the buttons under it, never shift as the buyer moves between plans. */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[12px]" style={{ color: "var(--ac-muted)" }}>قیمت نهایی</p>
         {planLabel && (
-          <span className="rounded-lg px-2.5 py-1.5 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "var(--hl-orange-text)" }}>
+          <span className="rounded-lg px-2.5 py-1 text-[11px] font-black" style={{ background: "var(--ac-stat-icon-orange-bg)", color: "var(--hl-orange-text)" }}>
             {planLabel}
           </span>
         )}
       </div>
+      <p className="mt-1.5 text-[27px] font-black leading-none" style={{ color: "var(--ac-title)" }}>
+        {formatToman(unitPrice)}
+      </p>
+      <p className="mt-2 h-[18px] text-[12px] line-through" style={{ color: "var(--ac-muted)" }}>
+        {discount > 0 ? formatToman(basePrice) : " "}
+      </p>
 
       {/* Delivery + refund guarantee — the two facts a buyer checks right before hitting the CTA, called
           out the same way a marketplace box surfaces them between the price and the button. */}
