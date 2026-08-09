@@ -25,7 +25,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   description: "",
   warning: "",
   requiredLevel: 1,
-  v2rayCategoryId: 0,
+  v2RayCategoryId: 0,
   deliveryTemplate: "",
   priceUsd: 0,
   features: [
@@ -142,7 +142,7 @@ export default function AdminProductsPage() {
       stock: p.stock,
       isActive: p.isActive,
       featured: p.featured,
-      v2rayCategoryId: p.v2rayCategoryId,
+      v2RayCategoryId: p.v2RayCategoryId,
       image: p.image,
       logo: p.logo,
       listImage: p.listImage ?? "",
@@ -400,8 +400,8 @@ export default function AdminProductsPage() {
           {v2rayCats.length > 0 && (
             <Field label="اتصال به پلن‌های V2Ray (اختیاری)">
               <select
-                value={form.v2rayCategoryId}
-                onChange={(e) => set("v2rayCategoryId", Number(e.target.value))}
+                value={form.v2RayCategoryId}
+                onChange={(e) => set("v2RayCategoryId", Number(e.target.value))}
                 className={`${inputCls} h-12`}
               >
                 <option value={0} className="bg-[#15151f]">— محصول عادی (پلن‌های خودش) —</option>

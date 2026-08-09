@@ -106,7 +106,7 @@ export type Product = {
   faq: ProductFaq[];
   plans: ProductPlan[];
   // When > 0 this product sells the V2Ray plans of that category instead of its own `plans` list.
-  v2rayCategoryId: number;
+  v2RayCategoryId: number;
 };
 
 export type StockItemStatus = "Available" | "Reserved" | "Delivered" | "Disabled";
@@ -265,7 +265,7 @@ export type ProductInput = {
   features: ProductFeature[];
   faq: ProductFaq[];
   plans: ProductPlanInput[];
-  v2rayCategoryId: number;
+  v2RayCategoryId: number;
 };
 
 export type User = {

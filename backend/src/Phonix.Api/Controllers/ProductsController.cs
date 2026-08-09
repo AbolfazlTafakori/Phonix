@@ -73,7 +73,10 @@ public class ProductsController : ControllerBase
         var oldImages = existing is null
             ? Array.Empty<string?>()
             : new[] { existing.Image, existing.Logo, existing.ListImage }.Concat(existing.Gallery).ToArray();
-        var product = Map(new Product { Id = id }, input);
+        // Seeded with the current V2Ray link so a payload that omits the field keeps it (Map only writes the
+        // field when the input actually carries one). Seeding it BEFORE Map rather than restoring it after
+        // also keeps Map's own "a linked product owns no plans" rule reading the right value.
+        var product = Map(new Product { Id = id, V2RayCategoryId = existing?.V2RayCategoryId ?? 0 }, input);
         // The product form doesn't carry the stock-pool switches (they live on the stock page) — a
         // full-replace edit must not silently reset them.
         product.AutoDeliverStock = existing?.AutoDeliverStock ?? false;
@@ -168,7 +171,14 @@ public class ProductsController : ControllerBase
         target.RequiredLevel = Math.Clamp(input.RequiredLevel ?? 1, 1, 2);
         // Links the product to the V2Ray catalogue: when set, its selectable plans come from that category
         // instead of its own Plans list (see Product.V2RayCategoryId). 0 = an ordinary product.
-        target.V2RayCategoryId = Math.Max(0, input.V2RayCategoryId ?? 0);
+        //
+        // A MISSING field leaves the link alone; only an explicit 0 unlinks. Treating "absent" as 0 made this
+        // destructive out of proportion to the mistake: any client that didn't send the field — which the
+        // admin form itself did for a while, having read it back under the wrong name — silently detached the
+        // product from its catalogue, and every plan it sold disappeared from the storefront with no error
+        // anywhere. The whole payload is otherwise a full replacement, so this is the one field where the
+        // difference between "not supplied" and "set to zero" carries real weight.
+        if (input.V2RayCategoryId is int v2rayCategory) target.V2RayCategoryId = Math.Max(0, v2rayCategory);
         target.DeliveryTemplate = input.DeliveryTemplate ?? "";
         target.Features = input.Features ?? new();
         target.Faq = (input.Faq ?? new())
