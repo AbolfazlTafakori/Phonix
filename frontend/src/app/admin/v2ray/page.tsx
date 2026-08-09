@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import type { V2RayInbound, V2RayPanelInfo, V2RayProvider, V2RayProviderInfo } from "@/lib/types";
-import { Card, PageHeader, Spinner, inputCls } from "@/components/admin/ui";
+import type { V2RayAlertSettings, V2RayInbound, V2RayPanelInfo, V2RayProvider, V2RayProviderInfo } from "@/lib/types";
+import { Card, Field, PageHeader, Spinner, Toggle, inputCls } from "@/components/admin/ui";
 import AdminIcon from "@/components/admin/AdminIcon";
 
 // Owner-only page for wiring up the Xray/V2Ray panels the shop provisions accounts on. Phase one: add a
@@ -18,12 +18,14 @@ export default function AdminV2RayPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [adding, setAdding] = useState(false);
+  const [alerts, setAlerts] = useState<V2RayAlertSettings | null>(null);
 
   async function load() {
     try {
-      const [pv, pn] = await Promise.all([api.v2ray.providers(), api.v2ray.panels()]);
+      const [pv, pn, al] = await Promise.all([api.v2ray.providers(), api.v2ray.panels(), api.v2ray.alerts.get()]);
       setProviders(pv);
       setPanels(pn);
+      setAlerts(al);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در بارگذاری");
     } finally {
@@ -62,6 +64,8 @@ export default function AdminV2RayPage() {
       />
 
       {error && !adding && <Card className="mb-5 p-5 text-center text-rose-400">{error}</Card>}
+
+      {!adding && alerts && <AlertSettingsCard initial={alerts} onSaved={setAlerts} />}
 
       {adding ? (
         <AddPanelWizard
@@ -103,6 +107,108 @@ export default function AdminV2RayPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// When customers are told a service is running out, and how long an ended one is kept on the panel. The
+// monitor re-reads these every cycle, so saving here takes effect within minutes and needs no restart.
+function AlertSettingsCard({ initial, onSaved }: { initial: V2RayAlertSettings; onSaved: (v: V2RayAlertSettings) => void }) {
+  const [draft, setDraft] = useState<V2RayAlertSettings>(initial);
+  const [busy, setBusy] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+
+  const set = <K extends keyof V2RayAlertSettings>(key: K, value: V2RayAlertSettings[K]) =>
+    setDraft((d) => ({ ...d, [key]: value }));
+
+  const dirty =
+    draft.enabled !== initial.enabled
+    || draft.expiryWarnHours !== initial.expiryWarnHours
+    || draft.volumeWarnGb !== initial.volumeWarnGb
+    || draft.deleteAfterExpiryHours !== initial.deleteAfterExpiryHours;
+
+  async function save() {
+    setBusy(true);
+    setError("");
+    try {
+      const next = await api.v2ray.alerts.save(draft);
+      setDraft(next);
+      onSaved(next);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ذخیره ناموفق بود");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card className="mb-5 p-6">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h3 className="text-lg font-bold text-white">هشدارها و پاک‌سازی خودکار</h3>
+          <p className="mt-1 max-w-2xl text-sm text-white/45">
+            هشدار پایان زمان و پایان حجم به‌صورت اعلان درون‌سایتی و ایمیل برای مشتری ارسال می‌شود؛ هر کدام فقط
+            یک بار در هر دوره‌ی سرویس و پس از هر تمدید دوباره فعال می‌شوند.
+          </p>
+        </div>
+        <label className="flex shrink-0 items-center gap-3">
+          <span className="text-sm text-white/70">فعال</span>
+          <Toggle checked={draft.enabled} onChange={(v) => set("enabled", v)} />
+        </label>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="هشدار پایان زمان (ساعت پیش از انقضا)">
+          <input
+            type="number" dir="ltr" min={0} max={720}
+            value={draft.expiryWarnHours}
+            onChange={(e) => set("expiryWarnHours", Math.max(0, Number(e.target.value) || 0))}
+            className={`${inputCls} text-left`}
+          />
+          <span className="mt-1.5 block text-xs text-white/40">۰ = غیرفعال · پیش‌فرض ۴۸ ساعت</span>
+        </Field>
+
+        <Field label="هشدار پایان حجم (گیگابایت باقی‌مانده)">
+          <input
+            type="number" dir="ltr" min={0} max={1024} step={0.1}
+            value={draft.volumeWarnGb}
+            onChange={(e) => set("volumeWarnGb", Math.max(0, Number(e.target.value) || 0))}
+            className={`${inputCls} text-left`}
+          />
+          <span className="mt-1.5 block text-xs text-white/40">۰ = غیرفعال · پیش‌فرض ۱ گیگابایت</span>
+        </Field>
+
+        <Field label="حذف از پنل (ساعت پس از پایان زمان)">
+          <input
+            type="number" dir="ltr" min={0} max={8760}
+            value={draft.deleteAfterExpiryHours}
+            onChange={(e) => set("deleteAfterExpiryHours", Math.max(0, Number(e.target.value) || 0))}
+            className={`${inputCls} text-left`}
+          />
+          <span className="mt-1.5 block text-xs text-white/40">۰ = هرگز حذف نشود · پیش‌فرض ۴۸ ساعت</span>
+        </Field>
+      </div>
+
+      <p className="mt-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.07] px-4 py-3 text-xs leading-6 text-amber-300/90">
+        حذف خودکار فقط بر اساس <b>پایان زمان</b> انجام می‌شود و تنها همان کانفیگ را از پنل حذف می‌کند؛ سایر
+        کانفیگ‌های همان مشتری دست‌نخورده می‌مانند. اتمام حجم هیچ‌گاه باعث حذف نمی‌شود، چون کاربر ممکن است هنوز
+        اعتبار زمانی داشته باشد و با تمدید باید همان کانفیگ قبلی‌اش برگردد.
+      </p>
+
+      <div className="mt-5 flex items-center gap-3">
+        <button
+          onClick={save}
+          disabled={busy || !dirty}
+          className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
+        >
+          {busy ? <Spinner /> : "ذخیره تغییرات"}
+        </button>
+        {saved && <span className="text-sm font-medium text-emerald-400">✓ ذخیره شد</span>}
+        {error && <span className="text-sm text-rose-400">{error}</span>}
+      </div>
+    </Card>
   );
 }
 

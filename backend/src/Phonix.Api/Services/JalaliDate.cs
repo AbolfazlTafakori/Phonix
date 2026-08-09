@@ -51,6 +51,14 @@ public static class JalaliDate
         return ToPersianDigits(s);
     }
 
+    // A stored UTC moment as the Tehran calendar day a customer would call it, in Persian digits — e.g.
+    // "۱۴۰۴/۰۵/۱۲". Same +03:30 offset as NowStamp, so a date shown here matches the one the shop stamps.
+    public static string Format(DateTime utc)
+    {
+        var t = utc.AddMinutes(210);
+        return ToPersianDigits($"{Cal.GetYear(t):0000}/{Cal.GetMonth(t):00}/{Cal.GetDayOfMonth(t):00}");
+    }
+
     public static string ToPersianDigits(string value) =>
         new(value.Select(ch => char.IsAsciiDigit(ch) ? (char)('۰' + (ch - '0')) : ch).ToArray());
 

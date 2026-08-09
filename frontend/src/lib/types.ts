@@ -1052,6 +1052,7 @@ export type OrderUnit = {
 };
 
 export type OrderUnitV2Ray = {
+  // Empty on a renewal's own unit: the service is still reached through the original config link.
   token: string;
   uuid: string;
   subUrl: string;
@@ -1061,6 +1062,9 @@ export type OrderUnitV2Ray = {
   durationDays: number;
   ipLimit: number;
   expiresAtUtc: string | null;
+  renewCount: number;
+  lastRenewedAtUtc: string | null;
+  panelDeletedAtUtc: string | null;
 };
 
 // One share URI served by the subscription link.
@@ -1070,6 +1074,10 @@ export type V2RayConfigLine = {
   protocol: string;
   network: string;
 };
+
+// Why a service is not running, as the server decides it — the page renders from this rather than
+// re-deriving a state from the numbers.
+export type V2RayStatus = "active" | "expired" | "depleted" | "disabled" | "removed";
 
 // One provisioned V2Ray account as the public config page sees it.
 export type V2RayConfig = {
@@ -1087,13 +1095,47 @@ export type V2RayConfig = {
   totalBytes: number;
   ipLimit: number;
   online: boolean;
+  lastOnlineUtc: string | null;
   remainingDays: number | null;
   expiresAtUtc: string | null;
   createdAtUtc: string | null;
+  status: V2RayStatus;
   active: boolean;
-  // False when the subscription link didn't answer: the plan's own terms are shown, usage isn't live.
+  // False when neither the panel nor the subscription link answered: the plan's own terms are shown instead.
   statsLive: boolean;
+  renewCount: number;
+  lastRenewedAtUtc: string | null;
   configs: V2RayConfigLine[];
+};
+
+// A plan this exact service can be renewed onto — same catalogue category and same server.
+export type V2RayRenewalPlan = {
+  id: number;
+  title: string;
+  description: string;
+  volumeGb: number;
+  durationDays: number;
+  ipLimit: number;
+  price: number;
+  discountPercent: number;
+  finalPrice: number;
+};
+
+export type V2RayRenewals = {
+  renewable: boolean;
+  // Why not, when `renewable` is false — shown as-is.
+  reason: string;
+  productId: number;
+  productName: string;
+  plans: V2RayRenewalPlan[];
+};
+
+// When customers are warned that a service is running out, and how long an ended one survives on the panel.
+export type V2RayAlertSettings = {
+  enabled: boolean;
+  expiryWarnHours: number;
+  volumeWarnGb: number;
+  deleteAfterExpiryHours: number;
 };
 
 export type OrderStatusHistory = {

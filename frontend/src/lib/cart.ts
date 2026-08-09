@@ -11,6 +11,10 @@ export type CartItem = {
   quantity: number;
   planId?: number | null;
   plan?: string | null;
+  // Set when this line extends a V2Ray config the buyer already holds: the config page's own token. Such a
+  // line is always exactly one service and never merges with anything, so it stays paired with the service
+  // it renews all the way to checkout.
+  renewToken?: string | null;
 };
 
 const BASE = "phonix_cart";
@@ -33,8 +37,13 @@ function migrateLegacy() {
   localStorage.removeItem(BASE);
 }
 
-const sameLine = (item: CartItem, productId: number, planId?: number | null) =>
-  item.productId === productId && (item.planId ?? null) === (planId ?? null);
+// What makes two lines "the same basket row". The renewal token is part of the identity: two renewals of two
+// different services are the same product and plan, and folding them together would charge for one and
+// extend only one.
+const sameLine = (item: CartItem, productId: number, planId?: number | null, renewToken?: string | null) =>
+  item.productId === productId
+  && (item.planId ?? null) === (planId ?? null)
+  && (item.renewToken ?? null) === (renewToken ?? null);
 
 export function getCart(): CartItem[] {
   if (typeof window === "undefined") return [];
@@ -54,21 +63,23 @@ function save(items: CartItem[]) {
 
 export function addToCart(item: Omit<CartItem, "quantity">, quantity = 1) {
   const items = getCart();
-  const existing = items.find((i) => sameLine(i, item.productId, item.planId));
-  if (existing) existing.quantity += quantity;
-  else items.push({ ...item, quantity });
+  const existing = items.find((i) => sameLine(i, item.productId, item.planId, item.renewToken));
+  // A renewal is one service and the checkout refuses any other quantity, so adding the same one twice
+  // replaces it rather than stacking a second charge onto it.
+  if (existing) existing.quantity = item.renewToken ? 1 : existing.quantity + quantity;
+  else items.push({ ...item, quantity: item.renewToken ? 1 : quantity });
   save(items);
 }
 
-export function setQuantity(productId: number, quantity: number, planId?: number | null) {
+export function setQuantity(productId: number, quantity: number, planId?: number | null, renewToken?: string | null) {
   let items = getCart();
-  if (quantity <= 0) items = items.filter((i) => !sameLine(i, productId, planId));
-  else items = items.map((i) => (sameLine(i, productId, planId) ? { ...i, quantity } : i));
+  if (quantity <= 0) items = items.filter((i) => !sameLine(i, productId, planId, renewToken));
+  else items = items.map((i) => (sameLine(i, productId, planId, renewToken) ? { ...i, quantity } : i));
   save(items);
 }
 
-export function removeFromCart(productId: number, planId?: number | null) {
-  save(getCart().filter((i) => !sameLine(i, productId, planId)));
+export function removeFromCart(productId: number, planId?: number | null, renewToken?: string | null) {
+  save(getCart().filter((i) => !sameLine(i, productId, planId, renewToken)));
 }
 
 export function clearCart() {

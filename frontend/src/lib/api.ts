@@ -51,6 +51,8 @@ import type {
   V2RayPlan,
   V2RayPlanInput,
   V2RayPublicPlan,
+  V2RayRenewals,
+  V2RayAlertSettings,
   TelegramSettings,
   TelegramSettingsInput,
   Transaction,
@@ -482,7 +484,9 @@ export const api = {
     forUser: (userId: number) => request<Order[]>(`/orders/user/${userId}`),
     get: (id: number) => request<Order>(`/orders/${id}`),
     invoice: (id: number) => request<Invoice>(`/orders/${id}/invoice`),
-    place: (body: { items: { productId: number; quantity: number; planId?: number | null; units?: { inputs?: { label: string; value: string }[]; note?: string | null }[]; inputs?: { label: string; value: string }[]; note?: string | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null; cardId?: number | null; receiptUrl?: string | null; trackingNumber?: string | null; paymentDate?: string | null; description?: string | null }) =>
+    // `renewToken` turns a line into a renewal of the V2Ray config that token belongs to: the same account
+    // gets a fresh term instead of a second one being created.
+    place: (body: { items: { productId: number; quantity: number; planId?: number | null; units?: { inputs?: { label: string; value: string }[]; note?: string | null }[]; inputs?: { label: string; value: string }[]; note?: string | null; renewToken?: string | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null; cardId?: number | null; receiptUrl?: string | null; trackingNumber?: string | null; paymentDate?: string | null; description?: string | null }) =>
       request<Order>("/orders", { method: "POST", body: json(body) }),
     approve: (id: number) => request<Order>(`/orders/${id}/approve`, { method: "POST" }),
     reject: (id: number, reason?: string) => request<Order>(`/orders/${id}/reject`, { method: "POST", body: json({ reason: reason ?? null }) }),
@@ -623,6 +627,12 @@ export const api = {
     addClient: (id: number, body: { email: string; totalGb: number; limitIp: number; durationDays: number; inboundIds: number[] }) =>
       request<{ ok: boolean; uuid: string; subId: string; inboundsAdded: number; subscriptionUrl: string }>(`/v2ray/panels/${id}/client`, { method: "POST", body: json(body) }),
     remove: (id: number) => request<{ ok: boolean }>(`/v2ray/panels/${id}`, { method: "DELETE" }),
+
+    // Warning thresholds and the auto-removal grace period, read fresh by the monitor each cycle.
+    alerts: {
+      get: () => request<V2RayAlertSettings>("/v2ray/alerts"),
+      save: (body: V2RayAlertSettings) => request<V2RayAlertSettings>("/v2ray/alerts", { method: "PUT", body: json(body) }),
+    },
 
     // Separate V2Ray sales catalogue: categories and the plans under them.
     categories: {
@@ -867,6 +877,9 @@ export const api = {
   // The public config page for one provisioned V2Ray account, addressed by its own token.
   v2rayConfig: {
     get: (token: string) => request<V2RayConfig>(`/v2ray/config/${encodeURIComponent(token)}`),
+    // The plans this service can be extended onto. Public like the page itself; placing the renewal order
+    // still requires the buyer to be signed in.
+    renewals: (token: string) => request<V2RayRenewals>(`/v2ray/config/${encodeURIComponent(token)}/renewals`),
   },
   // Public: approved reviews the admin flagged for the home-page carousel.
   testimonials: {

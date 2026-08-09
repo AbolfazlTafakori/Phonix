@@ -17,13 +17,28 @@ public record OrderActionResult(Order? Order, string? Error);
 
 // What the customer supplied for ONE account of an order line at checkout, and for the line as a whole.
 public record OrderUnitInfo(List<OrderInputValue> Inputs, string? Note);
-public record OrderLineInfo(IReadOnlyList<OrderUnitInfo>? Units);
+// `RenewToken`, when set, marks the line as extending a V2Ray config the buyer already holds rather than
+// buying a new one. It is validated before it gets here (see OrdersController.ResolveRenewal), so the store
+// only has to carry it onto the unit fulfilment will read it from.
+public record OrderLineInfo(IReadOnlyList<OrderUnitInfo>? Units, string? RenewToken = null);
 
 // The out-of-band part of a partly-paid order: the card the buyer sent money to and the proof they attached.
 public record RemainderPayment(int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
 
 // One subscription coming up for renewal, as the reminder worker needs it.
 public sealed record RenewalReminder(int UserId, string Email, string OrderCode, string ExpiresFa);
+
+// One provisioned V2Ray account flattened out of its order, which is all the monitor needs to pair it with
+// what the panel reports and decide whether it is due a warning or due to be cleared away.
+public sealed record V2RayServiceRef(
+    int OrderId, int UnitId, string OrderCode, int UserId,
+    int PanelId, string Email, string Token,
+    DateTime? ExpiresAtUtc, long VolumeGb,
+    bool ExpiryWarned, bool VolumeWarned);
+
+// Who to tell, once a warning or a removal has actually been claimed. Null is returned instead when another
+// pass (or another server in the cluster) got there first, which is what makes each message go out once.
+public sealed record V2RayNotifyTarget(int UserId, string Email, string OrderCode, string Token);
 
 // Live "needs attention" counters for the admin sidebar badges.
 public sealed record AdminBadgeCounts(

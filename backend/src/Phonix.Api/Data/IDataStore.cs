@@ -213,6 +213,13 @@ public interface IDataStore
     V2RayPlan? UpdateV2RayPlan(V2RayPlan plan);
     bool DeleteV2RayPlan(int id);
 
+    // ── V2Ray service monitoring (warnings + panel clean-up) ────────────────────────────────────────
+    V2RayAlertSettings GetV2RayAlertSettings();
+    V2RayAlertSettings UpdateV2RayAlertSettings(V2RayAlertSettings alerts);
+    IReadOnlyList<V2RayServiceRef> GetV2RayServices();
+    V2RayNotifyTarget? ClaimV2RayWarning(int orderId, int unitId, bool expiry, bool volume, string expiresFa, string remainingFa);
+    V2RayNotifyTarget? MarkV2RayPanelDeleted(int orderId, int unitId, string reason, bool notify);
+
     // ── Content: hero slides ────────────────────────────────────────────────────────────────────────
     IReadOnlyList<HeroSlide> GetHeroSlides();
     HeroSlide? GetHeroSlide(int id);

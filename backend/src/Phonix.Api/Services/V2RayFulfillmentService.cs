@@ -58,13 +58,19 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
 
         // The account may already exist: the panel call can succeed and the delivery that follows still fail
         // (a crash, a lost write). Retrying the panel call then would add a SECOND client for one purchase and
-        // quietly burn a slot, so an already-provisioned unit is only re-delivered.
+        // quietly burn a slot — or, for a renewal, extend the same service twice for one payment. Either way
+        // an already-fulfilled unit is only re-delivered.
         if (unit.V2Ray is { Uuid.Length: > 0 } provisioned)
         {
             _store.DeliverUnit(order.Id, unit.Id, DeliveryText(panel, provisioned), Actor);
             _logger.LogInformation("Re-delivered the existing V2Ray account for order {Code} unit {Unit}.", order.Code, unit.Id);
             return true;
         }
+
+        // A renewal never creates a client. It extends the one the customer already has, so their link, their
+        // configs and their config page all keep working exactly as before.
+        if (unit.V2RayRenewToken is { Length: > 0 } renewToken)
+            return await RenewAsync(order, unit, plan, renewToken, ct);
 
         var email = BuildEmail(order, unit);
 
@@ -111,6 +117,98 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
         return true;
     }
 
+    // Extends an account the buyer already owns, in place on the panel.
+    //
+    // Everything the customer holds stays put: the UUID, the subscription id and link, the config list, and
+    // the token their config page is reachable by. What moves is the term — a fresh quota, a later expiry, the
+    // plan's device limit — and the account is re-enabled, since the panel switches off a client whose traffic
+    // or time has run out.
+    private async Task<bool> RenewAsync(Order order, OrderUnit unit, V2RayPlan plan, string renewToken, CancellationToken ct)
+    {
+        var target = _store.FindUnitByV2RayToken(renewToken);
+        if (target is not var (targetOrder, targetUnit) || targetUnit.V2Ray is not { Uuid.Length: > 0 } account)
+        {
+            Record(order, unit, "سرویسی که قرار بود تمدید شود پیدا نشد.");
+            return false;
+        }
+        if (account.PanelDeletedAtUtc is not null)
+        {
+            Record(order, unit, "این سرویس از پنل حذف شده و دیگر قابل تمدید نیست.");
+            return false;
+        }
+
+        // The renewal runs against the panel the ACCOUNT lives on, never the plan's — a plan pointing
+        // somewhere else would otherwise write the new term onto a server that doesn't hold this client.
+        // Checkout only offers same-server plans; this is the guard that makes a stale basket harmless.
+        var panel = _store.GetV2RayPanel(account.PanelId);
+        if (panel is null || !panel.Enabled)
+        {
+            Record(order, unit, "سرور این سرویس در دسترس نیست.");
+            return false;
+        }
+        if (plan.PanelId != account.PanelId)
+        {
+            Record(order, unit, "پلن انتخاب‌شده برای سرور این سرویس نیست.");
+            return false;
+        }
+
+        var result = await _connector.RenewClientAsync(
+            panel.Provider,
+            new V2RayCredentials(panel.Url, panel.Username, SensitiveField.Reveal(panel.Password), SensitiveField.Reveal(panel.ApiToken)),
+            account.Email,
+            new V2RayClientLimits(plan.VolumeGb, plan.DurationDays, plan.IpLimit),
+            ct);
+
+        if (!result.Ok)
+        {
+            Record(order, unit, result.Error ?? "تمدید اکانت روی پنل ناموفق بود.");
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        account.PlanId = plan.Id;
+        account.VolumeGb = plan.VolumeGb;
+        account.DurationDays = plan.DurationDays;
+        account.IpLimit = plan.IpLimit;
+        account.ExpiresAtUtc = result.ExpiryTimeMs > 0
+            ? DateTimeOffset.FromUnixTimeMilliseconds(result.ExpiryTimeMs).UtcDateTime
+            : null;
+        account.RenewCount += 1;
+        account.LastRenewedAtUtc = now;
+        // A new term earns a new set of warnings; without this the customer would be told once, ever, that a
+        // service they have since renewed twice is about to run out.
+        account.ExpiryWarnSentUtc = null;
+        account.VolumeWarnSentUtc = null;
+        account.LastError = null;
+        _store.SetUnitV2Ray(targetOrder.Id, targetUnit.Id, account);
+
+        // The renewal's OWN unit records what it bought, so the order reads properly on its own — but with no
+        // token of its own, because the service is still reached through the original link. A second unit
+        // carrying the same token would make the config page's lookup ambiguous.
+        _store.SetUnitV2Ray(order.Id, unit.Id, new V2RayAccount
+        {
+            PanelId = panel.Id,
+            PlanId = plan.Id,
+            Email = account.Email,
+            Uuid = account.Uuid,
+            SubId = account.SubId,
+            SubUrl = account.SubUrl,
+            Token = "",
+            Protocol = account.Protocol,
+            Network = account.Network,
+            VolumeGb = plan.VolumeGb,
+            DurationDays = plan.DurationDays,
+            IpLimit = plan.IpLimit,
+            CreatedAtUtc = now,
+            ExpiresAtUtc = account.ExpiresAtUtc,
+            Attempts = (unit.V2Ray?.Attempts ?? 0) + 1,
+        });
+        _store.DeliverUnit(order.Id, unit.Id, RenewalText(panel, account), Actor);
+        _logger.LogInformation("Renewed the V2Ray account {Email} on panel {Panel} for order {Code}.",
+            account.Email, panel.Id, order.Code);
+        return true;
+    }
+
     // A V2Ray product's selectable plans ARE the linked category's plans, so the chosen id is a V2RayPlan id.
     private V2RayPlan? ResolvePlan(OrderUnit unit)
     {
@@ -124,7 +222,10 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
     // Marks the failure on the unit so the panel shows why, and the worker can back off.
     private void Record(Order order, OrderUnit unit, string error)
     {
-        var account = unit.V2Ray ?? new V2RayAccount { Token = NewToken() };
+        // A renewal is served through the original account's link, so its unit must never mint a token of its
+        // own — a second token pointing at the same service is one the config page could resolve either way.
+        var account = unit.V2Ray
+            ?? new V2RayAccount { Token = unit.V2RayRenewToken is { Length: > 0 } ? "" : NewToken() };
         account.Attempts += 1;
         account.LastError = error;
         _store.SetUnitV2Ray(order.Id, unit.Id, account);
@@ -152,6 +253,23 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
         if (!string.IsNullOrWhiteSpace(a.SubUrl)) lines.Add($"لینک اشتراک: {a.SubUrl}");
         lines.Add(a.VolumeGb > 0 ? $"حجم: {a.VolumeGb} گیگابایت" : "حجم: نامحدود");
         lines.Add(a.DurationDays > 0 ? $"مدت: {a.DurationDays} روز" : "مدت: بدون محدودیت");
+        return string.Join("\n", lines);
+    }
+
+    // A renewal's order entry. It says plainly that nothing has to be re-imported — the single most common
+    // question after one, since the customer's app shows no change until it next refreshes the link.
+    private static string RenewalText(V2RayPanel panel, V2RayAccount a)
+    {
+        var lines = new List<string>
+        {
+            "این خرید، تمدید سرویس قبلی شماست؛ لینک و کانفیگ‌های شما تغییری نکرده است.",
+            $"سرور: {(string.IsNullOrWhiteSpace(panel.Name) ? "—" : panel.Name)}",
+        };
+        if (!string.IsNullOrWhiteSpace(a.SubUrl)) lines.Add($"لینک اشتراک: {a.SubUrl}");
+        lines.Add(a.VolumeGb > 0 ? $"حجم جدید: {a.VolumeGb} گیگابایت" : "حجم جدید: نامحدود");
+        lines.Add(a.ExpiresAtUtc is DateTime e
+            ? $"اعتبار تا: {JalaliDate.Format(e)}"
+            : "اعتبار: بدون محدودیت زمانی");
         return string.Join("\n", lines);
     }
 }

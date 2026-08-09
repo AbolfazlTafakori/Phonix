@@ -22,20 +22,28 @@ export default function CartPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
           <div className="space-y-3">
             {items.map((i) => (
-              <div key={`${i.productId}:${i.planId ?? ""}`} className="hl-card flex flex-wrap items-center gap-3 rounded-2xl p-4 sm:gap-4">
+              <div key={`${i.productId}:${i.planId ?? ""}:${i.renewToken ?? ""}`} className="hl-card flex flex-wrap items-center gap-3 rounded-2xl p-4 sm:gap-4">
                 <img loading="lazy" decoding="async" src={i.image || undefined} alt={i.name} className="h-14 w-14 shrink-0 rounded-lg object-cover sm:h-16 sm:w-16" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-bold text-[var(--hl-ink)]">{i.name}</p>
                   {i.plan && <p className="text-xs text-[var(--hl-muted)]">{i.plan}</p>}
+                  {i.renewToken && (
+                    <p className="mt-0.5 inline-block rounded-md bg-emerald-500/12 px-1.5 py-0.5 text-[11px] font-bold text-emerald-600">تمدید سرویس فعلی</p>
+                  )}
                   <p className="text-sm font-bold text-emerald-500">{formatToman(i.price)}</p>
                 </div>
                 <div className="flex w-full items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-4">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setQuantity(i.productId, i.quantity - 1, i.planId)} className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--hl-border)] text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]">−</button>
-                    <span className="w-8 text-center text-sm font-bold text-[var(--hl-ink)]">{i.quantity}</span>
-                    <button onClick={() => setQuantity(i.productId, i.quantity + 1, i.planId)} className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--hl-border)] text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]">+</button>
-                  </div>
-                  <button onClick={() => removeFromCart(i.productId, i.planId)} className="text-sm text-rose-500 transition hover:text-rose-400">حذف</button>
+                  {/* A renewal always applies to exactly one service, so its quantity isn't adjustable. */}
+                  {i.renewToken ? (
+                    <span className="text-sm font-bold text-[var(--hl-ink)]">۱ سرویس</span>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setQuantity(i.productId, i.quantity - 1, i.planId)} className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--hl-border)] text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]">−</button>
+                      <span className="w-8 text-center text-sm font-bold text-[var(--hl-ink)]">{i.quantity}</span>
+                      <button onClick={() => setQuantity(i.productId, i.quantity + 1, i.planId)} className="grid h-8 w-8 place-items-center rounded-lg border border-[var(--hl-border)] text-[var(--hl-ink-2)] transition hover:bg-[var(--hl-border)]">+</button>
+                    </div>
+                  )}
+                  <button onClick={() => removeFromCart(i.productId, i.planId, i.renewToken)} className="text-sm text-rose-500 transition hover:text-rose-400">حذف</button>
                 </div>
               </div>
             ))}

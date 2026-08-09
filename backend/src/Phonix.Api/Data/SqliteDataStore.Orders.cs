@@ -128,7 +128,8 @@ public sealed partial class SqliteDataStore
                 // A slot-fulfilled product's quantity is USERS ON ONE SHARED ACCOUNT (consecutive slots), so
                 // the whole line is a single deliverable no matter the quantity.
                 var unitCount = p.SlotFulfillment ? 1 : qty;
-                var lineUnits = lineInfo is not null && idx < lineInfo.Count ? lineInfo[idx]?.Units : null;
+                var info = lineInfo is not null && idx < lineInfo.Count ? lineInfo[idx] : null;
+                var lineUnits = info?.Units;
                 for (var u = 0; u < unitCount; u++)
                 {
                     var ui = lineUnits is not null && u < lineUnits.Count ? lineUnits[u] : null;
@@ -137,6 +138,9 @@ public sealed partial class SqliteDataStore
                         Id = units.Count + 1, ProductId = p.Id, Name = p.Name, Image = p.Image, Plan = planLabel,
                         PlanId = plan?.Id, UserCount = plan?.UserCount ?? 0,
                         UnitIndex = u + 1, CustomerInputs = ui?.Inputs ?? new(), CustomerNote = ui?.Note,
+                        // A renewal is always exactly one account (the checkout refuses any other quantity),
+                        // so the token belongs to the line's single unit.
+                        V2RayRenewToken = info?.RenewToken,
                     });
                 }
             }
@@ -777,6 +781,92 @@ LIMIT 1;",
     // The exact shape V2RayFulfillmentService.NewToken produces: 16 random bytes as lowercase hex.
     private static bool IsV2RayToken(string? token) =>
         token is { Length: 32 } && token.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f');
+
+    // Every V2Ray account the shop is still responsible for, flattened for the monitor.
+    //
+    // Only units with a token are returned. A renewal's own unit mirrors the account it extended but holds no
+    // token of its own (see V2RayFulfillmentService.RenewAsync), and including it would have the monitor
+    // evaluate — and warn about, and delete — the same live service once per renewal it has ever had.
+    // Accounts already known to be off the panel are skipped: there is nothing left to watch.
+    public IReadOnlyList<V2RayServiceRef> GetV2RayServices()
+    {
+        using var conn = OpenConnection();
+        var services = new List<V2RayServiceRef>();
+        foreach (var json in conn.Query<string>("SELECT DataJson FROM Orders WHERE Status=@s", new { s = (int)OrderStatus.Completed })
+                     .Concat(conn.Query<string>("SELECT DataJson FROM Orders WHERE Status=@s", new { s = (int)OrderStatus.Preparing })))
+        {
+            var order = Deserialize<Order>(json)!;
+            foreach (var unit in order.Units)
+            {
+                if (unit.V2Ray is not { Uuid.Length: > 0, Token.Length: > 0 } a) continue;
+                if (a.PanelDeletedAtUtc is not null) continue;
+                services.Add(new V2RayServiceRef(
+                    order.Id, unit.Id, order.Code, order.UserId,
+                    a.PanelId, a.Email, a.Token,
+                    a.ExpiresAtUtc, a.VolumeGb,
+                    a.ExpiryWarnSentUtc is not null, a.VolumeWarnSentUtc is not null));
+            }
+        }
+        return services;
+    }
+
+    // Claims the warnings that are due for one service and posts the in-app notice, all under the write lock
+    // and persisted before returning — so a restart, a second sweep, or the other server in the cluster can
+    // never send the same warning twice. Returns who to email, or null when there was nothing left to claim.
+    //
+    // Both warnings landing in one pass produce ONE message covering both, rather than two arriving seconds
+    // apart saying much the same thing.
+    public V2RayNotifyTarget? ClaimV2RayWarning(int orderId, int unitId, bool expiry, bool volume, string expiresFa, string remainingFa) =>
+        WriteTx<V2RayNotifyTarget?>((conn, tx) =>
+        {
+            if (!expiry && !volume) return null;
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id=@orderId", new { orderId }, tx);
+            if (oj is null) return null;
+            var order = Deserialize<Order>(oj)!;
+            var unit = order.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit?.V2Ray is not { } account) return null;
+
+            // Re-checked inside the transaction: the flags may have been set since the sweep read them.
+            var claimExpiry = expiry && account.ExpiryWarnSentUtc is null;
+            var claimVolume = volume && account.VolumeWarnSentUtc is null;
+            if (!claimExpiry && !claimVolume) return null;
+
+            var now = DateTime.UtcNow;
+            if (claimExpiry) account.ExpiryWarnSentUtc = now;
+            if (claimVolume) account.VolumeWarnSentUtc = now;
+
+            var user = LoadUser(conn, tx, order.UserId);
+            UpsertOrder(conn, tx, order);
+            if (user is null) return null;
+
+            Notify(conn, tx, user.Id, OrderNotices.V2RayRunningOut(
+                order.Code, account.Token, claimExpiry ? expiresFa : null, claimVolume ? remainingFa : null));
+            return new V2RayNotifyTarget(user.Id, user.Email, order.Code, account.Token);
+        });
+
+    // Records that an account is no longer on the panel. `notify` is on when WE removed it — the customer is
+    // told their service has ended — and off when the sweep merely noticed it was already gone, which is an
+    // operator's doing and not ours to announce.
+    public V2RayNotifyTarget? MarkV2RayPanelDeleted(int orderId, int unitId, string reason, bool notify) =>
+        WriteTx<V2RayNotifyTarget?>((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id=@orderId", new { orderId }, tx);
+            if (oj is null) return null;
+            var order = Deserialize<Order>(oj)!;
+            var unit = order.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit?.V2Ray is not { } account) return null;
+            if (account.PanelDeletedAtUtc is not null) return null;   // another pass already recorded it
+
+            account.PanelDeletedAtUtc = DateTime.UtcNow;
+            account.PanelDeletedReason = reason;
+
+            var user = notify ? LoadUser(conn, tx, order.UserId) : null;
+            UpsertOrder(conn, tx, order);
+            if (user is null) return null;
+
+            Notify(conn, tx, user.Id, OrderNotices.V2RayRemoved(order.Code));
+            return new V2RayNotifyTarget(user.Id, user.Email, order.Code, account.Token);
+        });
 
     public (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null) =>
         WriteTx<(Order?, bool)>((conn, tx) =>

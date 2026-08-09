@@ -243,6 +243,27 @@ public sealed partial class SqliteDataStore
         return removed;
     }
 
+    // ── V2Ray warnings + clean-up thresholds ────────────────────────────────────────────────────────
+    public V2RayAlertSettings GetV2RayAlertSettings() => GetSingleton<V2RaySettings>(V2RayKey).Alerts ?? new();
+
+    // Clamped here rather than at the edge, so the values the sweep reads are always sane no matter which
+    // caller wrote them: a negative threshold would read as "disabled", and an absurdly large one would keep
+    // a warning permanently due.
+    public V2RayAlertSettings UpdateV2RayAlertSettings(V2RayAlertSettings alerts)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
+        s.Alerts = new V2RayAlertSettings
+        {
+            Enabled = alerts.Enabled,
+            ExpiryWarnHours = Math.Clamp(alerts.ExpiryWarnHours, 0, 24 * 30),
+            VolumeWarnGb = Math.Clamp(alerts.VolumeWarnGb, 0, 1024),
+            DeleteAfterExpiryHours = Math.Clamp(alerts.DeleteAfterExpiryHours, 0, 24 * 365),
+        };
+        WriteSingleton(conn, null, V2RayKey, s);
+        return s.Alerts;
+    }
+
     public TelegramSettings GetTelegramSettings() => GetSingleton<TelegramSettings>(TelegramKey);
 
     public void UpdateTelegramSettings(TelegramSettings settings)

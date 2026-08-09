@@ -13,7 +13,10 @@ namespace Phonix.Api.Controllers;
 public record CustomerInputDto(string Label, string Value);
 // One account's worth of customer inputs at checkout. A line with quantity 2 sends two of these.
 public record UnitInputDto(List<CustomerInputDto>? Inputs, string? Note);
-public record OrderLineInput(int ProductId, int Quantity, int? PlanId, List<UnitInputDto>? Units = null, List<CustomerInputDto>? Inputs = null, string? Note = null);
+// `RenewToken` turns the line into a renewal of a V2Ray config the buyer already holds: same account, same
+// link, a fresh term. It is the config page's own token, and it is validated against the signed-in buyer
+// before the order is placed (see ResolveRenewal).
+public record OrderLineInput(int ProductId, int Quantity, int? PlanId, List<UnitInputDto>? Units = null, List<CustomerInputDto>? Inputs = null, string? Note = null, string? RenewToken = null);
 public record PlaceOrderInput(List<OrderLineInput> Items, string PaymentMethod, bool FromWallet, string? DiscountCode, int? PaymentMethodId, int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
 public record DeliverInput(string Content, bool Email, string? EmailSubject, string? EmailBody);
 public record RejectOrderInput(string? Reason);
@@ -206,7 +209,12 @@ public class OrdersController : ControllerBase
                     ? new List<UnitInputDto> { new(line.Inputs, line.Note) }
                     : new List<UnitInputDto>());
 
-            var at = mergedLines.FindIndex(m => m.ProductId == line.ProductId && m.PlanId == line.PlanId);
+            // A renewal is tied to one specific existing service, so it can never fold into another line —
+            // not even the same product and plan bought fresh alongside it.
+            var at = string.IsNullOrWhiteSpace(line.RenewToken)
+                ? mergedLines.FindIndex(m => m.ProductId == line.ProductId && m.PlanId == line.PlanId
+                    && string.IsNullOrWhiteSpace(m.RenewToken))
+                : -1;
             if (at < 0)
             {
                 mergedLines.Add(line with { Units = groups.Count > 0 ? groups : null });
@@ -225,9 +233,11 @@ public class OrdersController : ControllerBase
         var lineInfo = new List<OrderLineInfo>();
         foreach (var line in mergedLines)
         {
+            var renewToken = ResolveRenewal(line, user.Id, out var renewError);
+            if (renewError is not null) return BadRequest(renewError);
             var info = BuildLineInfo(line, out var error);
             if (error is not null) return BadRequest(error);
-            lineInfo.Add(info);
+            lineInfo.Add(info with { RenewToken = renewToken });
         }
 
         var result = _store.PlaceOrder(
@@ -261,6 +271,72 @@ public class OrdersController : ControllerBase
         _ = _mailer.OrderPlacedAsync(order);
 
         return RevealInputs(order);
+    }
+
+    // Checks a line that claims to renew an existing V2Ray config and returns the token to carry onto the
+    // unit, or null when the line is an ordinary purchase. Everything here is a rule the browser must not be
+    // trusted with:
+    //
+    //   * the config link is deliberately shareable, so holding the token proves nothing about who is paying;
+    //     only the account that BOUGHT the service may spend money renewing it;
+    //   * a renewal is one service, so the quantity is pinned to one — two of them would take two payments
+    //     and extend the same account once;
+    //   * the plan has to be one this service could actually be moved onto: the same catalogue category AND
+    //     the same server, because renewing writes the new term onto the client where it already lives.
+    private string? ResolveRenewal(OrderLineInput line, int buyerId, out string? error)
+    {
+        error = null;
+        var token = (line.RenewToken ?? "").Trim();
+        if (token.Length == 0) return null;
+
+        if (line.Quantity != 1)
+        {
+            error = "برای تمدید، تعداد باید یک باشد.";
+            return null;
+        }
+
+        if (_store.FindUnitByV2RayToken(token) is not var (order, unit) || unit.V2Ray is not { Uuid.Length: > 0 } account)
+        {
+            error = "سرویسی که قصد تمدید آن را دارید پیدا نشد.";
+            return null;
+        }
+        if (order.UserId != buyerId)
+        {
+            // Same wording as "not found": telling a link holder that the service exists but belongs to
+            // somebody else is more than they need to know.
+            error = "سرویسی که قصد تمدید آن را دارید پیدا نشد.";
+            return null;
+        }
+        if (account.PanelDeletedAtUtc is not null)
+        {
+            error = "این سرویس حذف شده است و دیگر قابل تمدید نیست؛ لطفاً سرویس جدید تهیه کنید.";
+            return null;
+        }
+        if (unit.ProductId != line.ProductId)
+        {
+            error = "پلن انتخاب‌شده برای این سرویس نیست.";
+            return null;
+        }
+
+        var product = _store.GetProduct(line.ProductId);
+        if (product is null || product.V2RayCategoryId <= 0)
+        {
+            error = "این محصول قابل تمدید نیست.";
+            return null;
+        }
+        if (line.PlanId is not int planId || _store.GetV2RayPlan(planId) is not { } plan
+            || plan.CategoryId != product.V2RayCategoryId || !plan.Active || plan.SoldOut)
+        {
+            error = "پلن انتخاب‌شده برای تمدید در دسترس نیست.";
+            return null;
+        }
+        if (plan.PanelId != account.PanelId)
+        {
+            error = "برای تمدید، باید پلنی از همان سرور فعلی سرویس را انتخاب کنید.";
+            return null;
+        }
+
+        return token;
     }
 
     private const int MaxInputLength = 1000;

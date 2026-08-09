@@ -222,4 +222,12 @@ public class V2RayPanelController : ControllerBase
     [HttpDelete("panels/{id:int}")]
     public IActionResult Delete(int id) =>
         _store.DeleteV2RayPanel(id) ? Ok(new { ok = true }) : NotFound();
+
+    // When customers are warned that a service is running out, and how long an ended one is kept before it is
+    // cleared off the panel. Read fresh by the monitor on every cycle, so a change here needs no restart.
+    [HttpGet("alerts")]
+    public V2RayAlertSettings Alerts() => _store.GetV2RayAlertSettings();
+
+    [HttpPut("alerts")]
+    public V2RayAlertSettings SaveAlerts(V2RayAlertSettings input) => _store.UpdateV2RayAlertSettings(input);
 }

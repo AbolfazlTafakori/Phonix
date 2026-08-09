@@ -74,6 +74,29 @@ public class V2RayPanel
     public int InboundCount { get; set; }         // inbounds seen at the last successful check
 }
 
+// When a customer is warned that a service is running out, and when an ended one is cleared off the panel.
+// Every threshold is owner-editable from the admin panel and re-read on each sweep, so changing one takes
+// effect on the next cycle without a restart.
+public class V2RayAlertSettings
+{
+    // The whole sweep — warnings AND clean-up. Off means the panel is never contacted on a schedule.
+    public bool Enabled { get; set; } = true;
+
+    // How long before a service's TIME runs out the customer is warned. 0 disables the time warning.
+    public int ExpiryWarnHours { get; set; } = 48;
+
+    // How little traffic may be left before the customer is warned, in gigabytes. 0 disables the volume
+    // warning. Fractional on purpose: half a gigabyte is a reasonable threshold for a small plan.
+    public double VolumeWarnGb { get; set; } = 1;
+
+    // How long after a service's TIME has run out its account is deleted from the panel, if the customer
+    // hasn't renewed by then. 0 means never delete — the account is simply left expired.
+    //
+    // Deletion is keyed on TIME ONLY. A service whose traffic ran out keeps its account: the customer may
+    // still have days left and renewing must give them back the same config, not a new link.
+    public int DeleteAfterExpiryHours { get; set; } = 48;
+}
+
 public class V2RaySettings
 {
     public List<V2RayPanel> Panels { get; set; } = new();
@@ -84,4 +107,6 @@ public class V2RaySettings
     public List<V2RayPlan> Plans { get; set; } = new();
     public int NextCategoryId { get; set; } = 1;
     public int NextPlanId { get; set; } = 1;
+
+    public V2RayAlertSettings Alerts { get; set; } = new();
 }

@@ -242,9 +242,12 @@ export default function CheckoutPage() {
       const order = await api.orders.place({
         items: items.map((i) => {
           const pl = planFor(i.productId, i.planId);
-          if (!pl?.collectsInfo) return { productId: i.productId, quantity: i.quantity, planId: i.planId ?? null };
+          // A renewal is pinned to one service; the server enforces the same rule and rejects anything else.
+          const renewToken = i.renewToken ?? null;
+          const quantity = renewToken ? 1 : i.quantity;
+          if (!pl?.collectsInfo) return { productId: i.productId, quantity, planId: i.planId ?? null, renewToken };
           // one entry per account purchased on this line
-          const units = Array.from({ length: i.quantity }).map((_, u) => {
+          const units = Array.from({ length: quantity }).map((_, u) => {
             const v = infoValueFor(i.productId, i.planId, u);
             const inputs = pl.inputFields
               .map((f) => ({ label: f.label, value: (v.values[f.label] ?? "").trim() }))
@@ -252,7 +255,7 @@ export default function CheckoutPage() {
             const note = pl.allowNotes ? v.note.trim() || null : null;
             return { inputs, note };
           });
-          return { productId: i.productId, quantity: i.quantity, planId: i.planId ?? null, units };
+          return { productId: i.productId, quantity, planId: i.planId ?? null, units, renewToken };
         }),
         paymentMethod,
         fromWallet: useWallet,
@@ -326,7 +329,7 @@ export default function CheckoutPage() {
             <h3 className="mb-4 text-lg font-bold text-[var(--hl-ink)]">اقلام سفارش</h3>
             <div className="space-y-3">
               {items.map((i) => (
-                <div key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center gap-3">
+                <div key={`${i.productId}:${i.planId ?? ""}:${i.renewToken ?? ""}`} className="flex items-center gap-3">
                   <img loading="lazy" decoding="async" src={i.image || undefined} alt={i.name} className="h-11 w-11 rounded-lg object-cover" />
                   <span className="flex-1 text-sm text-[var(--hl-ink-2)]">
                     {i.name} × {i.quantity}
@@ -374,13 +377,13 @@ export default function CheckoutPage() {
                 </div>
                 <ul className="space-y-2">
                   {overLevelItems.map((i) => (
-                    <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
+                    <li key={`${i.productId}:${i.planId ?? ""}:${i.renewToken ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
                       <div className="flex min-w-0 items-center gap-3">
                         <img loading="lazy" decoding="async" src={i.image || undefined} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
                         <span className="truncate text-sm text-[var(--hl-ink-2)]">{i.name}</span>
                       </div>
                       <button
-                        onClick={() => removeFromCart(i.productId, i.planId ?? null)}
+                        onClick={() => removeFromCart(i.productId, i.planId ?? null, i.renewToken ?? null)}
                         className="shrink-0 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-bold text-rose-500 transition hover:bg-rose-500/10"
                       >
                         حذف از سبد
@@ -578,13 +581,13 @@ export default function CheckoutPage() {
             </p>
             <ul className="mt-4 space-y-2">
               {overLevelItems.map((i) => (
-                <li key={`${i.productId}:${i.planId ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
+                <li key={`${i.productId}:${i.planId ?? ""}:${i.renewToken ?? ""}`} className="flex items-center justify-between gap-3 rounded-xl border border-[var(--hl-border)] bg-[var(--hl-border)]/20 px-4 py-2.5">
                   <div className="flex min-w-0 items-center gap-3">
                     <img loading="lazy" decoding="async" src={i.image || undefined} alt={i.name} className="h-9 w-9 rounded-lg object-cover" />
                     <span className="truncate text-sm text-[var(--hl-ink-2)]">{i.name}</span>
                   </div>
                   <button
-                    onClick={() => removeFromCart(i.productId, i.planId ?? null)}
+                    onClick={() => removeFromCart(i.productId, i.planId ?? null, i.renewToken ?? null)}
                     className="shrink-0 rounded-lg border border-rose-500/40 px-3 py-1.5 text-xs font-bold text-rose-500 transition hover:bg-rose-500/10"
                   >
                     حذف از سبد

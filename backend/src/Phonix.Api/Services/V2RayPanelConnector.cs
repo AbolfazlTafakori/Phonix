@@ -31,11 +31,16 @@ public sealed record V2RayInbound(int Id, string Remark, string Protocol, int Po
 // Live usage for one provisioned client, read straight off the panel. Bytes, because that is what the panel
 // counts; `Total` of 0 means unlimited and `ExpiryTimeMs` of 0 means it never expires, both matching the
 // panel's own convention. `Online` says the client has an active connection right now.
+// `Missing` separates "the panel answered and has no such client" from "the panel could not be reached" —
+// one means the account is gone for good, the other means try again later, and treating them alike would
+// either hide a deleted service or declare a live one dead the first time a server hiccups.
 public sealed record V2RayTraffic(
     bool Ok, string? Error = null, long Up = 0, long Down = 0, long Total = 0,
-    long ExpiryTimeMs = 0, bool Enable = true, bool Online = false)
+    long ExpiryTimeMs = 0, bool Enable = true, bool Online = false,
+    long LastOnlineMs = 0, bool Missing = false)
 {
     public static V2RayTraffic Fail(string error) => new(false, error);
+    public static V2RayTraffic Gone(string error) => new(false, error, Missing: true);
 }
 
 // One config line served by a subscription link: the raw share URI plus the bits worth showing next to it.
@@ -55,6 +60,40 @@ public sealed record V2RaySubscription(
 public sealed record V2RayInboundsResult(bool Ok, string? Error = null, IReadOnlyList<V2RayInbound>? Inbounds = null)
 {
     public static V2RayInboundsResult Fail(string error) => new(false, error);
+}
+
+// One client's live counters as the panel holds them. Same conventions as everywhere else: `Total` 0 is
+// unlimited, `ExpiryTimeMs` 0 never expires. `LastOnlineMs` is 0 when the panel has never seen it connect.
+public sealed record V2RayClientState(
+    string Email, long Up, long Down, long Total, long ExpiryTimeMs, bool Enable, long LastOnlineMs)
+{
+    public long Used => Up + Down;
+}
+
+// Every client on one panel, read in a single call, plus who is connected right now. This is what the
+// monitor sweeps: a shop with hundreds of accounts costs two requests per panel per cycle, not two per
+// account. `Online` is best-effort — a panel that doesn't answer that call still yields usable counters.
+public sealed record V2RayPanelSnapshot(
+    bool Ok, string? Error = null,
+    IReadOnlyDictionary<string, V2RayClientState>? Clients = null,
+    IReadOnlySet<string>? Online = null)
+{
+    public static V2RayPanelSnapshot Fail(string error) => new(false, error);
+
+    public bool IsOnline(string email) => Online is not null && Online.Contains(email);
+}
+
+// The limits a renewal writes back onto an existing client. Everything else about the client — its UUID,
+// password, flow, subscription id — is read off the panel and carried through untouched, so renewing can
+// never rotate a credential the customer's app is already using.
+public sealed record V2RayClientLimits(long TotalGb, int DurationDays, int LimitIp);
+
+// `ExpiryTimeMs` is the expiry the panel now holds, echoed back so the shop's own copy of the account can be
+// stamped with exactly what was written rather than a second, independently computed guess at it.
+public sealed record V2RayOpResult(bool Ok, string? Error = null, long ExpiryTimeMs = 0)
+{
+    public static readonly V2RayOpResult Success = new(true);
+    public static V2RayOpResult Fail(string error) => new(false, error);
 }
 
 // Talks to a V2Ray management panel on the shop's behalf.
@@ -91,6 +130,17 @@ public interface IV2RayPanelConnector
     // Reads a subscription URL the way the customer's own app does: the usage header plus the config list.
     // No panel login — the link itself is the source of truth.
     Task<V2RaySubscription> GetSubscriptionAsync(string subUrl, CancellationToken ct = default);
+
+    // Every client on the panel with its counters, in one round trip, plus the set that is online.
+    Task<V2RayPanelSnapshot> GetSnapshotAsync(V2RayProvider provider, V2RayCredentials credentials, CancellationToken ct = default);
+
+    // Writes new limits onto an existing client and clears its used traffic, which is exactly what renewing
+    // one means. The client keeps its identity; only the quota, the expiry and the device limit move.
+    Task<V2RayOpResult> RenewClientAsync(V2RayProvider provider, V2RayCredentials credentials, string email, V2RayClientLimits limits, CancellationToken ct = default);
+
+    // Removes ONE client by the name it was created under. Other accounts — including the same buyer's other
+    // configs — are untouched, because the panel addresses clients individually by this name.
+    Task<V2RayOpResult> DeleteClientAsync(V2RayProvider provider, V2RayCredentials credentials, string email, CancellationToken ct = default);
 
     static string? NormalizeUrl(string? raw)
     {
@@ -274,6 +324,192 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         }
     }
 
+    public async Task<V2RayPanelSnapshot> GetSnapshotAsync(V2RayProvider provider, V2RayCredentials creds, CancellationToken ct = default)
+    {
+        if (provider != V2RayProvider.Sanaei)
+            return V2RayPanelSnapshot.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
+        var baseUrl = IV2RayPanelConnector.NormalizeUrl(creds.Url);
+        if (baseUrl is null) return V2RayPanelSnapshot.Fail("آدرس پنل معتبر نیست.");
+
+        using var client = NewClient();
+        try
+        {
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
+            if (error is not null) return V2RayPanelSnapshot.Fail(error);
+
+            // The inbound list carries every client's counters inline (clientStats), so the whole panel is
+            // one request. Reading them per account instead would be a request per customer per cycle.
+            var (ok, body, status) = await GetInboundsAsync(session!, ct);
+            if (!ok) return V2RayPanelSnapshot.Fail($"خواندن وضعیت اکانت‌ها ممکن نشد (کد {status}).");
+
+            var clients = ReadClientStates(body);
+            // Optional: a panel that doesn't expose the online list still gives usable counters, so this
+            // failing must not fail the sweep.
+            var online = await ReadOnlineEmailsAsync(session!, ct);
+            return new V2RayPanelSnapshot(true, null, clients, online);
+        }
+        catch (Exception ex)
+        {
+            return V2RayPanelSnapshot.Fail(FriendlyError(ex, baseUrl, ct));
+        }
+    }
+
+    public async Task<V2RayOpResult> RenewClientAsync(V2RayProvider provider, V2RayCredentials creds, string email, V2RayClientLimits limits, CancellationToken ct = default)
+    {
+        if (provider != V2RayProvider.Sanaei)
+            return V2RayOpResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
+        var baseUrl = IV2RayPanelConnector.NormalizeUrl(creds.Url);
+        if (baseUrl is null) return V2RayOpResult.Fail("آدرس پنل معتبر نیست.");
+        email = (email ?? "").Trim();
+        if (email.Length == 0) return V2RayOpResult.Fail("نام (Email) اکانت مشخص نیست.");
+
+        using var client = NewClient();
+        try
+        {
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
+            if (error is not null) return V2RayOpResult.Fail(error);
+
+            // Read the client FIRST and edit a copy of it. The panel's update replaces the client wholesale
+            // (only the UUID/password/auth are preserved when omitted), so composing the payload from
+            // scratch would quietly clear the flow, the subscription id, the comment — anything the operator
+            // had set. Failing here rather than guessing is what keeps a retry safe.
+            var (found, current) = await GetClientRecordAsync(session!, email, ct);
+            if (!found) return V2RayOpResult.Fail("این اکانت روی پنل پیدا نشد.");
+
+            // Renewing EARLY must not throw away the days the customer still has: the new term starts at the
+            // current expiry when that is still in the future, and at now when it has already passed.
+            var nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var currentExpiry = current!.TryGetValue("expiryTime", out var exp) && exp is long e ? e : 0L;
+            var expiry = limits.DurationDays <= 0
+                ? 0L
+                : Math.Max(nowMs, currentExpiry) + (long)limits.DurationDays * 24 * 60 * 60 * 1000;
+
+            var payload = new Dictionary<string, object?>(current)
+            {
+                ["totalGB"] = IV2RayPanelConnector.GbToBytes(limits.TotalGb),
+                ["expiryTime"] = expiry,
+                ["limitIp"] = Math.Max(0, limits.LimitIp),
+                // A client the panel disabled when its traffic or time ran out has to come back on, or the
+                // customer would pay and still have no service.
+                ["enable"] = true,
+            };
+
+            var json = JsonSerializer.Serialize(payload);
+            using var resp = await PostAsync(session!, $"/panel/api/clients/update/{Uri.EscapeDataString(email)}",
+                () => new StringContent(json, Encoding.UTF8, "application/json"), ct);
+            var respBody = await resp.Content.ReadAsStringAsync(ct);
+
+            TryReadSuccess(respBody, out var success, out var msg);
+            if (!resp.IsSuccessStatusCode || !success)
+                return V2RayOpResult.Fail(string.IsNullOrWhiteSpace(msg)
+                    ? $"تمدید اکانت روی پنل ناموفق بود (کد {(int)resp.StatusCode})."
+                    : msg);
+
+            // The new quota is what the customer bought, so the old term's usage has to go with it —
+            // otherwise a plan whose traffic ran out is still exhausted the moment it is renewed. Deliberately
+            // not fatal: the limits are already in place, and a failed reset is recoverable by hand, whereas
+            // failing here would send the whole renewal round again and extend the expiry twice.
+            using var reset = await PostAsync(session!, $"/panel/api/clients/resetTraffic/{Uri.EscapeDataString(email)}",
+                () => new StringContent("", Encoding.UTF8, "application/json"), ct);
+            if (!reset.IsSuccessStatusCode)
+                _logger.LogWarning("Renewed {Email} on {Url} but the traffic reset answered {Status}.", email, baseUrl, (int)reset.StatusCode);
+
+            return new V2RayOpResult(true, null, expiry);
+        }
+        catch (Exception ex)
+        {
+            return V2RayOpResult.Fail(FriendlyError(ex, baseUrl, ct));
+        }
+    }
+
+    public async Task<V2RayOpResult> DeleteClientAsync(V2RayProvider provider, V2RayCredentials creds, string email, CancellationToken ct = default)
+    {
+        if (provider != V2RayProvider.Sanaei)
+            return V2RayOpResult.Fail("این نوع پنل هنوز پشتیبانی نمی‌شود.");
+        var baseUrl = IV2RayPanelConnector.NormalizeUrl(creds.Url);
+        if (baseUrl is null) return V2RayOpResult.Fail("آدرس پنل معتبر نیست.");
+        email = (email ?? "").Trim();
+        if (email.Length == 0) return V2RayOpResult.Fail("نام (Email) اکانت مشخص نیست.");
+
+        using var client = NewClient();
+        try
+        {
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
+            if (error is not null) return V2RayOpResult.Fail(error);
+
+            // Addressed by the client's own name, which is unique to ONE purchased account. A buyer with
+            // fifty configs has fifty names; deleting one cannot touch the other forty-nine.
+            using var resp = await PostAsync(session!, $"/panel/api/clients/del/{Uri.EscapeDataString(email)}",
+                () => new StringContent("", Encoding.UTF8, "application/json"), ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+
+            TryReadSuccess(body, out var success, out var msg);
+            if (!resp.IsSuccessStatusCode || !success)
+                return V2RayOpResult.Fail(string.IsNullOrWhiteSpace(msg)
+                    ? $"حذف اکانت از پنل ناموفق بود (کد {(int)resp.StatusCode})."
+                    : msg);
+
+            return V2RayOpResult.Success;
+        }
+        catch (Exception ex)
+        {
+            return V2RayOpResult.Fail(FriendlyError(ex, baseUrl, ct));
+        }
+    }
+
+    // The panel's own record for one client, as a mutable field map. Returned verbatim (minus the row id,
+    // which the update endpoint would read as a client UUID) so a caller can change the two fields it cares
+    // about and post the rest straight back.
+    private static async Task<(bool found, Dictionary<string, object?>? client)> GetClientRecordAsync(Session session, string email, CancellationToken ct)
+    {
+        using var resp = await session.Client.GetAsync(
+            $"{session.BaseUrl}/panel/api/clients/get/{Uri.EscapeDataString(email)}", ct);
+        if (!resp.IsSuccessStatusCode) return (false, null);
+
+        try
+        {
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+            var root = doc.RootElement;
+            if (root.TryGetProperty("success", out var ok) && ok.ValueKind == JsonValueKind.False) return (false, null);
+            if (!root.TryGetProperty("obj", out var obj) || obj.ValueKind != JsonValueKind.Object) return (false, null);
+            if (!obj.TryGetProperty("client", out var rec) || rec.ValueKind != JsonValueKind.Object) return (false, null);
+
+            var map = new Dictionary<string, object?>(StringComparer.Ordinal);
+            foreach (var prop in rec.EnumerateObject())
+            {
+                switch (prop.Name)
+                {
+                    // The record's own primary key. The update endpoint binds `id` as the client's UUID, so
+                    // sending the numeric row id would replace the customer's credential with "14825".
+                    case "id":
+                    case "createdAt":
+                    case "updatedAt":
+                        continue;
+                }
+                map[prop.Name] = prop.Value.ValueKind switch
+                {
+                    JsonValueKind.String => prop.Value.GetString(),
+                    JsonValueKind.True => true,
+                    JsonValueKind.False => false,
+                    JsonValueKind.Null => null,
+                    JsonValueKind.Number when prop.Value.TryGetInt64(out var n) => n,
+                    JsonValueKind.Number => prop.Value.GetDouble(),
+                    _ => JsonSerializer.Deserialize<JsonElement>(prop.Value.GetRawText()),
+                };
+            }
+
+            // `uuid` is the column name; `id` is what the update payload calls the same value.
+            if (map.Remove("uuid", out var uuid) && uuid is string { Length: > 0 })
+                map["id"] = uuid;
+
+            return (map.Count > 0, map);
+        }
+        catch (JsonException)
+        {
+            return (false, null);
+        }
+    }
+
     // ── Session: CSRF + login ───────────────────────────────────────────────────────────────────────
 
     // Establishes an authenticated session. With an API token there is nothing to establish: the token goes
@@ -409,18 +645,21 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
             var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
             if (error is not null) return V2RayTraffic.Fail(error);
 
-            using var resp = await session!.Client.GetAsync(
-                $"{session.BaseUrl}/panel/api/inbounds/getClientTraffics/{Uri.EscapeDataString(email)}", ct);
-            var body = await resp.Content.ReadAsStringAsync(ct);
-            if (!resp.IsSuccessStatusCode)
-                return V2RayTraffic.Fail($"خواندن مصرف ممکن نشد (کد {(int)resp.StatusCode}).");
+            // 3.4.x serves per-client traffic under /panel/api/clients; the older forks put it on the inbound
+            // controller. Both are tried because a shop may still be running an older panel, and a 404 on the
+            // first would otherwise read as "no usage" rather than "wrong route".
+            var (ok, body) = await GetFirstAsync(session!, ct,
+                $"/panel/api/clients/traffic/{Uri.EscapeDataString(email)}",
+                $"/panel/api/inbounds/getClientTraffics/{Uri.EscapeDataString(email)}");
+            if (!ok) return V2RayTraffic.Fail("خواندن مصرف ممکن نشد.");
 
             var traffic = ReadTraffic(body);
             if (!traffic.Ok) return traffic;
 
             // Whether the account is connected right now. Optional: a panel that doesn't expose it just
             // leaves the flag false rather than failing the whole read.
-            return traffic with { Online = await IsOnlineAsync(session, email, ct) };
+            var online = await ReadOnlineEmailsAsync(session!, ct);
+            return traffic with { Online = online.Contains(email) };
         }
         catch (Exception ex)
         {
@@ -513,20 +752,82 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         catch (FormatException) { return null; }
     }
 
-    private static async Task<bool> IsOnlineAsync(Session session, string email, CancellationToken ct)
+    // GETs the first path that answers, so a route that moved between panel versions reads as a miss on that
+    // path rather than as a failure of the whole call.
+    private static async Task<(bool ok, string body)> GetFirstAsync(Session session, CancellationToken ct, params string[] paths)
     {
+        foreach (var path in paths)
+        {
+            using var resp = await session.Client.GetAsync($"{session.BaseUrl}{path}", ct);
+            if (resp.IsSuccessStatusCode) return (true, await resp.Content.ReadAsStringAsync(ct));
+            if (resp.StatusCode is not (HttpStatusCode.NotFound or HttpStatusCode.MethodNotAllowed)) break;
+        }
+        return (false, "");
+    }
+
+    // The emails connected right now. 3.4.x moved this onto the client controller; the older path is tried
+    // after it. Always returns a set — this is decoration on top of the counters, never a reason to fail.
+    private static async Task<IReadOnlySet<string>> ReadOnlineEmailsAsync(Session session, CancellationToken ct)
+    {
+        var emails = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var path in new[] { "/panel/api/clients/onlines", "/panel/api/inbounds/onlines" })
+        {
+            try
+            {
+                using var resp = await session.Client.PostAsync($"{session.BaseUrl}{path}", null, ct);
+                if (!resp.IsSuccessStatusCode) continue;
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
+                if (!doc.RootElement.TryGetProperty("obj", out var obj) || obj.ValueKind != JsonValueKind.Array) continue;
+                foreach (var el in obj.EnumerateArray())
+                    if (el.ValueKind == JsonValueKind.String && el.GetString() is { Length: > 0 } name)
+                        emails.Add(name);
+                return emails;
+            }
+            catch (Exception) { /* try the next path, then give up quietly */ }
+        }
+        return emails;
+    }
+
+    // Every client's counters, pulled out of the inbound list's inline clientStats. A client attached to
+    // several inbounds can appear more than once, so the row with the most usage wins — the one that is
+    // actually carrying the account's traffic.
+    private static Dictionary<string, V2RayClientState> ReadClientStates(string body)
+    {
+        var states = new Dictionary<string, V2RayClientState>(StringComparer.Ordinal);
         try
         {
-            using var resp = await session.Client.PostAsync($"{session.BaseUrl}/panel/api/inbounds/onlines", null, ct);
-            if (!resp.IsSuccessStatusCode) return false;
-            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync(ct));
-            if (!doc.RootElement.TryGetProperty("obj", out var obj) || obj.ValueKind != JsonValueKind.Array) return false;
-            foreach (var el in obj.EnumerateArray())
-                if (el.ValueKind == JsonValueKind.String && string.Equals(el.GetString(), email, StringComparison.Ordinal))
-                    return true;
-            return false;
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("obj", out var obj) || obj.ValueKind != JsonValueKind.Array)
+                return states;
+
+            static long Num(JsonElement el, string name) =>
+                el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out var n) ? n : 0;
+
+            foreach (var inbound in obj.EnumerateArray())
+            {
+                if (!inbound.TryGetProperty("clientStats", out var stats) || stats.ValueKind != JsonValueKind.Array)
+                    continue;
+                foreach (var row in stats.EnumerateArray())
+                {
+                    if (!row.TryGetProperty("email", out var em) || em.ValueKind != JsonValueKind.String) continue;
+                    if (em.GetString() is not { Length: > 0 } email) continue;
+
+                    var state = new V2RayClientState(
+                        Email: email,
+                        Up: Num(row, "up"),
+                        Down: Num(row, "down"),
+                        Total: Num(row, "total"),
+                        ExpiryTimeMs: Num(row, "expiryTime"),
+                        Enable: !row.TryGetProperty("enable", out var en) || en.ValueKind != JsonValueKind.False,
+                        LastOnlineMs: Num(row, "lastOnline"));
+
+                    if (!states.TryGetValue(email, out var seen) || state.Used > seen.Used)
+                        states[email] = state;
+                }
+            }
         }
-        catch (Exception) { return false; }
+        catch (JsonException) { /* return what we have */ }
+        return states;
     }
 
     private static V2RayTraffic ReadTraffic(string body)
@@ -537,8 +838,10 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
             var root = doc.RootElement;
             if (root.TryGetProperty("success", out var okEl) && okEl.ValueKind == JsonValueKind.False)
                 return V2RayTraffic.Fail("پنل اطلاعات این اکانت را برنگرداند.");
+            // A successful reply carrying no object is the panel saying this client does not exist — the
+            // shape it answers with once an account has been deleted.
             if (!root.TryGetProperty("obj", out var obj) || obj.ValueKind != JsonValueKind.Object)
-                return V2RayTraffic.Fail("اکانت روی پنل پیدا نشد.");
+                return V2RayTraffic.Gone("اکانت روی پنل پیدا نشد.");
 
             static long Num(JsonElement el, string name) =>
                 el.TryGetProperty(name, out var v) && v.TryGetInt64(out var n) ? n : 0;
@@ -549,7 +852,8 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
                 Down: Num(obj, "down"),
                 Total: Num(obj, "total"),
                 ExpiryTimeMs: Num(obj, "expiryTime"),
-                Enable: !obj.TryGetProperty("enable", out var en) || en.ValueKind != JsonValueKind.False);
+                Enable: !obj.TryGetProperty("enable", out var en) || en.ValueKind != JsonValueKind.False,
+                LastOnlineMs: Num(obj, "lastOnline"));
         }
         catch (JsonException)
         {

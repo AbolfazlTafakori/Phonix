@@ -88,6 +88,11 @@ public class OrderUnit
     // stock pool. The panel is the source of truth for live usage; these are the handles needed to find the
     // account again and to render the customer's config page.
     public V2RayAccount? V2Ray { get; set; }
+
+    // Set when the customer bought this unit to EXTEND a config they already hold, rather than to get a new
+    // one. It is the config token of the account being renewed; fulfilment updates that account on the panel
+    // in place — same UUID, same subscription link, same config page — instead of creating a second client.
+    public string? V2RayRenewToken { get; set; }
 }
 
 // The account created on a V2Ray panel for one order unit. `Token` is the unguessable key to the public
@@ -113,6 +118,27 @@ public class V2RayAccount
     // approval. These record how that is going for the staff view.
     public int Attempts { get; set; }
     public string? LastError { get; set; }
+
+    // ── Renewal ─────────────────────────────────────────────────────────────────────────────────────
+    // A renewal extends THIS record in place; the customer keeps the same link. The counters are what the
+    // config page and the staff view read to say "renewed 3 times, last on …".
+    public int RenewCount { get; set; }
+    public DateTime? LastRenewedAtUtc { get; set; }
+
+    // ── Warnings (V2RayMonitorWorker) ───────────────────────────────────────────────────────────────
+    // Stamped the moment a warning is claimed, under the store's write lock, so a customer is warned at most
+    // once per service term even across restarts or a second server in the cluster. A renewal clears both,
+    // which is what re-arms them for the new term.
+    public DateTime? ExpiryWarnSentUtc { get; set; }
+    public DateTime? VolumeWarnSentUtc { get; set; }
+
+    // ── Panel clean-up ──────────────────────────────────────────────────────────────────────────────
+    // Set once the account has been removed from the panel — either by us (the grace period after its time
+    // ran out elapsed with no renewal) or by an operator deleting it by hand, which the sweep notices as the
+    // client no longer being on the panel. Either way it stops the sweep touching this account again, and
+    // the config page says the service has ended rather than showing stale numbers.
+    public DateTime? PanelDeletedAtUtc { get; set; }
+    public string? PanelDeletedReason { get; set; }
 }
 
 public class Order

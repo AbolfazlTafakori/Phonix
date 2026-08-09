@@ -1,13 +1,29 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { QRCodeSVG } from "qrcode.react";
 import { api } from "@/lib/api";
-import { toFa } from "@/lib/format";
-import type { V2RayConfig, V2RayConfigLine } from "@/lib/types";
+import { toFa, formatToman } from "@/lib/format";
+import { addToCart } from "@/lib/cart";
+import { useAuth } from "@/lib/auth";
+import { productPath } from "@/lib/seo";
+import type { V2RayConfig, V2RayConfigLine, V2RayRenewalPlan, V2RayRenewals, V2RayStatus } from "@/lib/types";
 
 // Live usage is polled, so the page tracks the customer's real consumption without a manual refresh.
 const REFRESH_MS = 20000;
+
+// How a finished service is described. Every one of these used to render as a bare "expired" over a row of
+// zeros; the customer could not tell a service that ran out of traffic from one whose time was up, nor from
+// one that had been removed entirely.
+const STATUS: Record<V2RayStatus, { label: string; tone: "ok" | "warn" | "bad"; note: string }> = {
+  active: { label: "فعال", tone: "ok", note: "" },
+  expired: { label: "پایان اعتبار زمانی", tone: "bad", note: "مدت این سرویس به پایان رسیده است. با تمدید، همین کانفیگ‌ها دوباره فعال می‌شوند." },
+  depleted: { label: "اتمام حجم", tone: "bad", note: "حجم این سرویس تمام شده است. با تمدید، حجم تازه روی همین کانفیگ‌ها اعمال می‌شود." },
+  disabled: { label: "غیرفعال", tone: "warn", note: "این سرویس روی سرور غیرفعال است. اگر تمدید کرده‌اید، چند دقیقه صبر کنید یا با پشتیبانی تماس بگیرید." },
+  removed: { label: "حذف شده", tone: "bad", note: "این سرویس پس از پایان مهلت تمدید از سرور حذف شده است و دیگر قابل تمدید نیست." },
+};
 
 function formatBytes(bytes: number): string {
   if (bytes <= 0) return "۰ مگابایت";
@@ -133,10 +149,115 @@ function ConfigRow({ line, onQr }: { line: V2RayConfigLine; onQr: () => void }) 
   );
 }
 
+// The renew panel. Kept beneath the status so the customer sees WHY they are being offered it, and it lists
+// only plans this exact service can move onto — the server refuses anything else, so offering more would
+// only produce a rejected checkout.
+function RenewPanel({ token, renewals }: { token: string; renewals: V2RayRenewals }) {
+  const { user, ready } = useAuth();
+  const router = useRouter();
+  const [picked, setPicked] = useState<number | null>(renewals.plans[0]?.id ?? null);
+
+  if (!renewals.renewable) {
+    return (
+      <p className="rounded-2xl border p-4 text-center text-[12px] leading-6" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)", color: "var(--ac-muted)" }}>
+        {renewals.reason || "تمدید این سرویس در حال حاضر ممکن نیست."}
+      </p>
+    );
+  }
+
+  const plan = renewals.plans.find((p) => p.id === picked) ?? renewals.plans[0];
+
+  function renew() {
+    if (!plan) return;
+    addToCart({
+      productId: renewals.productId,
+      name: `تمدید ${renewals.productName}`,
+      image: "",
+      price: plan.finalPrice,
+      planId: plan.id,
+      plan: plan.title,
+      renewToken: token,
+    });
+    router.push("/cart");
+  }
+
+  return (
+    <div className="rounded-2xl border p-4" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)" }}>
+      <p className="text-[12px] leading-6" style={{ color: "var(--ac-muted)" }}>
+        با تمدید، <b style={{ color: "var(--ac-title)" }}>همین کانفیگ‌ها</b> ادامه پیدا می‌کنند؛ لینک اشتراک و کانفیگ‌های شما عوض نمی‌شوند و نیازی به وارد کردن دوباره‌ی آن‌ها در برنامه نیست.
+      </p>
+
+      <div className="mt-3 space-y-2">
+        {renewals.plans.map((p) => (
+          <PlanOption key={p.id} plan={p} selected={p.id === plan?.id} onSelect={() => setPicked(p.id)} />
+        ))}
+      </div>
+
+      {/* Signed out, the basket would land in a guest cart the account never sees, so sign-in comes first. */}
+      {ready && !user ? (
+        <Link href="/login" className="mt-4 grid h-11 place-items-center rounded-xl text-[13px] font-black text-white transition active:scale-95" style={{ background: "var(--ac-btn)" }}>
+          برای تمدید وارد حساب خود شوید
+        </Link>
+      ) : (
+        <button
+          type="button"
+          onClick={renew}
+          disabled={!plan || !ready}
+          className="mt-4 h-11 w-full rounded-xl text-[13px] font-black text-white transition active:scale-95 disabled:opacity-60"
+          style={{ background: "var(--ac-btn)" }}
+        >
+          {plan ? `تمدید سرویس — ${formatToman(plan.finalPrice)}` : "تمدید سرویس"}
+        </button>
+      )}
+
+      <Link href={productPath({ id: renewals.productId, name: renewals.productName })} className="mt-2 block text-center text-[11px] underline-offset-4 hover:underline" style={{ color: "var(--ac-muted)" }}>
+        مشاهده‌ی همه‌ی پلن‌ها
+      </Link>
+    </div>
+  );
+}
+
+function PlanOption({ plan, selected, onSelect }: { plan: V2RayRenewalPlan; selected: boolean; onSelect: () => void }) {
+  const volume = plan.volumeGb > 0 ? `${toFa(plan.volumeGb)} گیگابایت` : "حجم نامحدود";
+  const duration = plan.durationDays > 0 ? `${toFa(plan.durationDays)} روز` : "بدون محدودیت زمانی";
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className="flex w-full items-center gap-3 rounded-xl border p-3 text-right transition"
+      style={{
+        borderColor: selected ? "#22B573" : "var(--ac-panel-border)",
+        background: selected ? "rgba(34,181,115,0.08)" : "var(--ac-menu-hover)",
+      }}
+    >
+      <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border-2" style={{ borderColor: selected ? "#22B573" : "var(--ac-divider)" }}>
+        {selected && <span className="h-2 w-2 rounded-full" style={{ background: "#22B573" }} />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13px] font-black" style={{ color: "var(--ac-title)" }}>{plan.title}</span>
+        <span className="block text-[11px]" style={{ color: "var(--ac-muted)" }}>{volume} · {duration}</span>
+      </span>
+      <span className="shrink-0 text-[12px] font-black" style={{ color: "var(--ac-title)" }}>{formatToman(plan.finalPrice)}</span>
+    </button>
+  );
+}
+
 export default function ConfigView({ token }: { token: string }) {
   const [config, setConfig] = useState<V2RayConfig | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "missing">("loading");
   const [qr, setQr] = useState<{ value: string; title: string } | null>(null);
+  const [renewals, setRenewals] = useState<V2RayRenewals | null>(null);
+
+  // Fetched once rather than on every poll: the catalogue doesn't move while somebody reads one page, and
+  // this list is far more expensive to re-fetch than the numbers above it.
+  useEffect(() => {
+    let alive = true;
+    api.v2rayConfig.renewals(token)
+      .then((r) => { if (alive) setRenewals(r); })
+      .catch(() => { /* the page still works without the renew panel */ });
+    return () => { alive = false; };
+  }, [token]);
 
   useEffect(() => {
     let alive = true;
@@ -174,8 +295,13 @@ export default function ConfigView({ token }: { token: string }) {
   const unlimited = config.totalBytes <= 0;
   const usedRatio = unlimited ? 0 : Math.min(1, config.usedBytes / config.totalBytes);
   const remaining = unlimited ? 0 : Math.max(0, config.totalBytes - config.usedBytes);
-  const expired = config.remainingDays !== null && config.remainingDays <= 0;
-  const live = config.active && !expired;
+  const status = STATUS[config.status] ?? STATUS.disabled;
+  const live = config.status === "active";
+  const badgeStyle = live
+    ? { background: "rgba(34,181,115,0.14)", color: "#22B573" }
+    : status.tone === "warn"
+      ? { background: "rgba(244,164,58,0.16)", color: "#C77A11" }
+      : { background: "rgba(224,80,80,0.14)", color: "#E05050" };
 
   return (
     <div className="mx-auto w-full max-w-[560px] px-4 py-6 sm:py-9">
@@ -185,11 +311,25 @@ export default function ConfigView({ token }: { token: string }) {
           <div className="min-w-0">
             <p className="text-[12px]" style={{ color: "var(--ac-muted)" }}>سرویس شما</p>
             <h1 className="mt-1 truncate text-[22px] font-black" style={{ color: "var(--ac-title)" }}>{config.server}{config.flag ? ` ${config.flag}` : ""}</h1>
+            {/* Whether anything is actually connected right now — the one question the panel could answer
+                and this page never did. Meaningless once a service has stopped, so it is hidden then. */}
+            {live && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold" style={{ color: config.online ? "#22B573" : "var(--ac-muted)" }}>
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: config.online ? "#22B573" : "var(--ac-divider)" }} />
+                {config.online ? "هم‌اکنون متصل" : config.lastOnlineUtc ? `آخرین اتصال: ${faDate(config.lastOnlineUtc)}` : "در حال حاضر متصل نیست"}
+              </p>
+            )}
           </div>
-          <span className="shrink-0 rounded-full px-3 py-1.5 text-[12px] font-black" style={live ? { background: "rgba(34,181,115,0.14)", color: "#22B573" } : { background: "rgba(224,80,80,0.14)", color: "#E05050" }}>
-            {expired ? "منقضی شده" : config.active ? "فعال" : "غیرفعال"}
+          <span className="shrink-0 rounded-full px-3 py-1.5 text-[12px] font-black" style={badgeStyle}>
+            {status.label}
           </span>
         </div>
+
+        {status.note && (
+          <p className="mt-4 rounded-xl px-3.5 py-2.5 text-[12px] leading-6" style={{ background: "var(--ac-menu-hover)", color: "var(--ac-text)" }}>
+            {status.note}
+          </p>
+        )}
 
         {/* usage bar */}
         <div className="mt-5">
@@ -208,11 +348,24 @@ export default function ConfigView({ token }: { token: string }) {
         </div>
 
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Stat label="باقی‌مانده" value={unlimited ? "نامحدود" : formatBytes(remaining)} />
+          <Stat label="باقی‌مانده" value={unlimited ? "نامحدود" : formatBytes(remaining)} danger={!unlimited && remaining <= 0} />
           <Stat label="دانلود" value={formatBytes(config.downBytes)} />
-          <Stat label="زمان باقی‌مانده" value={config.remainingDays === null ? "نامحدود" : `${toFa(config.remainingDays)} روز`} danger={config.remainingDays !== null && config.remainingDays <= 3} hint={config.expiresAtUtc ? faDate(config.expiresAtUtc) : undefined} />
+          <Stat
+            label="زمان باقی‌مانده"
+            // A finished service reports the day it finished on rather than a bare "0 days", which read as
+            // though the plan had never had a duration at all.
+            value={config.remainingDays === null ? "نامحدود" : config.remainingDays <= 0 ? "به پایان رسید" : `${toFa(config.remainingDays)} روز`}
+            danger={config.remainingDays !== null && config.remainingDays <= 3}
+            hint={config.expiresAtUtc ? faDate(config.expiresAtUtc) : undefined}
+          />
           <Stat label="محدودیت کاربر" value={config.ipLimit > 0 ? `${toFa(config.ipLimit)} کاربر` : "نامحدود"} />
         </div>
+
+        {config.renewCount > 0 && (
+          <p className="mt-3 text-center text-[11px]" style={{ color: "var(--ac-muted)" }}>
+            {toFa(config.renewCount)} بار تمدید شده{config.lastRenewedAtUtc ? ` · آخرین تمدید: ${faDate(config.lastRenewedAtUtc)}` : ""}
+          </p>
+        )}
 
         {!config.statsLive && (
           <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/[0.08] px-3.5 py-2.5 text-[12px] leading-6 text-amber-600">
@@ -221,8 +374,18 @@ export default function ConfigView({ token }: { token: string }) {
         )}
       </div>
 
-      {/* subscription */}
-      {config.subUrl && (
+      {/* Renewal comes before the links: for anyone arriving because their service stopped, it is the answer
+          they are looking for. */}
+      {renewals && config.status !== "removed" && (
+        <div className="mt-5">
+          <SectionTitle>تمدید سرویس</SectionTitle>
+          <RenewPanel token={token} renewals={renewals} />
+        </div>
+      )}
+
+      {/* subscription — hidden once the account is off the server: the link no longer serves anything, and
+          telling someone to import it would send them chasing a config that cannot come back. */}
+      {config.subUrl && config.status !== "removed" && (
         <div className="mt-5">
           <SectionTitle>لینک اشتراک</SectionTitle>
           <div className="flex items-center gap-2 rounded-2xl border p-3.5" style={{ borderColor: "var(--ac-panel-border)", background: "var(--ac-panel-bg)" }}>

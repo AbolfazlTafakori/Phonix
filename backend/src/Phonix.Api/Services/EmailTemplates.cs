@@ -391,4 +391,34 @@ public static class EmailTemplates
             + Button("تمدید اشتراک", renewUrl));
         return (text, html);
     }
+
+    // A V2Ray service that is nearly out of time, out of traffic, or both. One email covers both reasons —
+    // two arriving within seconds of each other would say almost the same thing twice.
+    public static (string text, string html) V2RayRunningOut(string orderCode, string? expiresFa, string? remainingFa, string configUrl)
+    {
+        var reasons = new List<string>();
+        if (expiresFa is not null) reasons.Add($"اعتبار زمانی این سرویس در تاریخ {expiresFa} به پایان می‌رسد");
+        if (remainingFa is not null) reasons.Add($"تنها {remainingFa} از حجم آن باقی مانده است");
+        var reason = string.Join(" و ", reasons);
+
+        var text = $"سرویس شما رو به پایان است\n\nسفارش {orderCode}: {reason}.\nبرای اینکه سرویس بدون وقفه ادامه پیدا کند، همین کانفیگ را تمدید کنید — لینک و کانفیگ‌های شما تغییری نمی‌کند.\n{configUrl}";
+        var html = Shell("سرویس شما رو به پایان است ⏳",
+            $"سفارش {orderCode} — {reason}.",
+            $"<p style=\"margin:0;\">سفارش <b>{WebUtility.HtmlEncode(orderCode)}</b>: {WebUtility.HtmlEncode(reason)}.</p>"
+            + "<p style=\"margin:12px 0 0;\">با تمدید همین کانفیگ، لینک اشتراک و کانفیگ‌های شما دست‌نخورده باقی می‌ماند و نیازی به وارد کردن دوباره‌ی آن‌ها در برنامه نیست.</p>"
+            + Button("مشاهده و تمدید سرویس", configUrl));
+        return (text, html);
+    }
+
+    // Sent once the grace period after a service's time ran out has passed with no renewal and the account
+    // has been removed from the server. Says plainly that renewal is no longer the answer.
+    public static (string text, string html) V2RayRemoved(string orderCode, string shopUrl)
+    {
+        var text = $"سرویس شما پایان یافت\n\nسرویس سفارش {orderCode} تمدید نشد و از سرور حذف شد. برای ادامه‌ی استفاده، سرویس جدیدی تهیه کنید.\n{shopUrl}";
+        var html = Shell("سرویس شما پایان یافت",
+            $"سرویس سفارش {orderCode} از سرور حذف شد.",
+            $"<p style=\"margin:0;\">سرویس سفارش <b>{WebUtility.HtmlEncode(orderCode)}</b> در مهلت تعیین‌شده تمدید نشد و از سرور حذف شد. کانفیگ‌های قبلی دیگر کار نمی‌کنند.</p>"
+            + Button("تهیه‌ی سرویس جدید", shopUrl));
+        return (text, html);
+    }
 }

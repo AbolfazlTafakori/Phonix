@@ -91,6 +91,9 @@ try
     // approval; the worker sweeps approved orders and retries until the account exists.
     builder.Services.AddSingleton<IV2RayFulfillmentService, V2RayFulfillmentService>();
     builder.Services.AddHostedService<V2RayProvisionWorker>();
+    // Once provisioned, each account is watched: the customer is warned before its time or its traffic runs
+    // out, and an account whose TIME lapsed without a renewal is cleared off the panel after the grace period.
+    builder.Services.AddHostedService<V2RayMonitorWorker>();
     // Deposit-receipt review over Telegram: pushes new receipts to the admin chat with approve/reject
     // buttons and long-polls for the admin's decision, applying it through the same store path the panel uses.
     builder.Services.AddSingleton<ITelegramReceiptService, TelegramReceiptService>();

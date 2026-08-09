@@ -32,4 +32,23 @@ public static class OrderNotices
         new("یادآوری تمدید اشتراک",
             $"اشتراک سفارش {order.Code} شما در تاریخ {expiresFa} منقضی می‌شود. برای جلوگیری از قطع سرویس، آن را تمدید کنید.",
             OrdersLink);
+
+    // A V2Ray service running low on time, on traffic, or on both. It links straight to the config page,
+    // where the live numbers are and where the renew button is — not to the order, which says less.
+    public static Notice V2RayRunningOut(string orderCode, string token, string? expiresFa, string? remainingFa)
+    {
+        var body = (expiresFa, remainingFa) switch
+        {
+            (not null, not null) => $"سرویس سفارش {orderCode}: اعتبار زمانی تا {expiresFa} و تنها {remainingFa} حجم باقی مانده است.",
+            (not null, null) => $"سرویس سفارش {orderCode} در تاریخ {expiresFa} به پایان می‌رسد.",
+            (null, not null) => $"از حجم سرویس سفارش {orderCode} تنها {remainingFa} باقی مانده است.",
+            _ => $"سرویس سفارش {orderCode} رو به پایان است.",
+        };
+        return new("سرویس شما رو به پایان است", $"{body} برای جلوگیری از قطع شدن، همین حالا تمدید کنید.", $"/config/{token}");
+    }
+
+    public static Notice V2RayRemoved(string orderCode) =>
+        new("سرویس شما پایان یافت",
+            $"سرویس سفارش {orderCode} تمدید نشد و از سرور حذف شد. برای ادامه، سرویس جدیدی تهیه کنید.",
+            OrdersLink);
 }
