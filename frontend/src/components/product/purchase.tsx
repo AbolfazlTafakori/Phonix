@@ -135,10 +135,11 @@ export function PurchaseProvider({ product, children }: { product: Product; chil
   const [planId, setPlanId] = useState<number | null>(typedPlans[0]?.id ?? null);
   const selected: ProductPlan | undefined = typedPlans.find((p) => p.id === planId) ?? typedPlans[0];
 
-  // A V2Ray-linked product sells per server: the first level is the location the operator named, the second
-  // its plans — so the two headings say that instead of "account type" and "duration".
+  // A V2Ray-linked product sells the same plan list from several places, so the buyer picks WHERE first and
+  // WHAT second. "Location" is the word for it: a customer choosing between Germany and the Netherlands is
+  // not picking a kind of account, and the list grows as servers are added.
   const isV2Ray = (product.v2RayCategoryId ?? 0) > 0;
-  const typeHeading = isV2Ray ? "انتخاب سرور" : "انتخاب نوع اکانت";
+  const typeHeading = isV2Ray ? "انتخاب لوکیشن" : "انتخاب نوع اکانت";
   const planHeading = isV2Ray ? "انتخاب پلن" : "انتخاب مدت زمان";
 
   // Identity-level gate, mirrored here from the server rule (PlaceOrder) so a buyer who can't reach the
