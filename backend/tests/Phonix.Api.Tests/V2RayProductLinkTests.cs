@@ -54,10 +54,10 @@ public class V2RayProductLinkTests
         var product = store.GetProduct(created.Id)!;
 
         Assert.Equal(2, product.Plans.Count); // the inactive one is excluded
-        // First level is the SERVER under the exact name the operator gave it…
-        Assert.Equal("هلند تانل NL", product.Plans[0].Type);
-        Assert.Equal("هلند تانل NL", product.Plans[1].Type);
-        // …and the second level is that server's plans.
+        // First level is the LOCATION, named by the category the operator created for that server…
+        Assert.Equal("سرویس‌های یک‌ماهه", product.Plans[0].Type);
+        Assert.Equal("سرویس‌های یک‌ماهه", product.Plans[1].Type);
+        // …and the second level is that location's plans.
         Assert.Equal("۵ گیگ یک کاربر", product.Plans[0].Label);
         Assert.Equal("۲۰ گیگ دو کاربر", product.Plans[1].Label);
     }
@@ -129,8 +129,58 @@ public class V2RayProductLinkTests
         var created = store.AddProduct(new Product { Name = "V2Ray", CategoryId = 1, IsActive = true, V2RayCategoryId = category.Id, Plans = new() });
         var types = store.GetProduct(created.Id)!.Plans.Select(p => p.Type).Distinct().ToList();
 
+        // What the buyer picks has to decide which panel their account is created on, so a category holding
+        // two servers yields two options — named after the servers, not just the category they share.
         Assert.Equal(2, types.Count);
-        Assert.All(types, t => Assert.StartsWith("هلند NL", t));
+        Assert.All(types, t => Assert.Contains("هلند NL", t));
+    }
+
+    [Fact]
+    public void Every_active_category_is_offered_as_its_own_location()
+    {
+        // The operator makes one category per server. Adding the second must not require re-pointing the
+        // product at it — that manual step is exactly what made a new server invisible until someone
+        // remembered to do it, and it had to be repeated for every server after that.
+        var (store, _) = SeedCatalogue();
+        var germany = store.AddV2RayCategory(new V2RayCategory { Name = "آلمان تانل DE", Active = true });
+        var panel = store.AddV2RayPanel(new V2RayPanel { Url = "https://de.example.com:8080", Name = "آلمان تانل", Flag = "DE" });
+        store.AddV2RayPlan(new V2RayPlan
+        {
+            CategoryId = germany.Id, Title = "۵ گیگ یک کاربر", PanelId = panel.Id, InboundIds = new() { 1 },
+            VolumeGb = 5, DurationDays = 30, IpLimit = 1, Price = 100_000, Active = true,
+        });
+
+        // The product is still linked to the FIRST category only.
+        var created = NewProduct(store, 1);
+        var types = store.GetProduct(created.Id)!.Plans.Select(p => p.Type).Distinct().ToList();
+
+        Assert.Equal(2, types.Count);
+        Assert.Contains("سرویس‌های یک‌ماهه", types);
+        Assert.Contains("آلمان تانل DE", types);
+    }
+
+    [Fact]
+    public void A_deactivated_category_disappears_from_the_storefront()
+    {
+        // Retiring a server is the mirror of adding one: switch its category off and it stops being offered,
+        // without touching the product or deleting the plans it already sold.
+        var (store, categoryId) = SeedCatalogue();
+        var retired = store.AddV2RayCategory(new V2RayCategory { Name = "آلمان تانل DE", Active = true });
+        var panel = store.AddV2RayPanel(new V2RayPanel { Url = "https://de.example.com:8080", Name = "آلمان تانل", Flag = "DE" });
+        store.AddV2RayPlan(new V2RayPlan
+        {
+            CategoryId = retired.Id, Title = "۵ گیگ", PanelId = panel.Id, InboundIds = new() { 1 },
+            VolumeGb = 5, DurationDays = 30, Price = 100_000, Active = true,
+        });
+        var created = NewProduct(store, categoryId);
+        Assert.Equal(2, store.GetProduct(created.Id)!.Plans.Select(p => p.Type).Distinct().Count());
+
+        retired.Active = false;
+        store.UpdateV2RayCategory(retired);
+
+        var types = store.GetProduct(created.Id)!.Plans.Select(p => p.Type).Distinct().ToList();
+        Assert.Single(types);
+        Assert.Equal("سرویس‌های یک‌ماهه", types[0]);
     }
 
     [Fact]

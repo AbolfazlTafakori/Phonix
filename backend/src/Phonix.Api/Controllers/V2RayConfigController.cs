@@ -213,10 +213,13 @@ public class V2RayConfigController : ControllerBase
         if (product is null || !product.IsActive || product.V2RayCategoryId <= 0)
             return Ok(new V2RayRenewalsDto(false, "تمدید این سرویس در حال حاضر ممکن نیست.", 0, "", empty));
 
-        // Same category so the plan belongs to this service's catalogue, and same panel so the new term is
-        // written onto the server the client actually lives on.
+        // Filtered by PANEL, not by category: every active category is a location the product sells, so the
+        // service being renewed may well live in a different one than the product is linked to. What the
+        // renewal genuinely requires is the same server, because it rewrites the term of the client already
+        // there — a plan from another location would be written onto a panel that doesn't hold this client.
+        var activeCategories = _store.GetV2RayCategories().Where(c => c.Active).Select(c => c.Id).ToHashSet();
         var plans = _store.GetV2RayPlans()
-            .Where(p => p.CategoryId == product.V2RayCategoryId && p.PanelId == account.PanelId && p.Active && !p.SoldOut)
+            .Where(p => activeCategories.Contains(p.CategoryId) && p.PanelId == account.PanelId && p.Active && !p.SoldOut)
             .OrderBy(p => p.SortOrder).ThenBy(p => p.FinalPrice)
             .Select(p => new V2RayRenewalPlanDto(
                 p.Id, p.Title, p.Description, p.VolumeGb, p.DurationDays, p.IpLimit,

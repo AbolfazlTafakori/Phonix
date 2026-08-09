@@ -324,8 +324,11 @@ public class OrdersController : ControllerBase
             error = "این محصول قابل تمدید نیست.";
             return null;
         }
+        // Any active category is a location this product offers, so the plan need not share the product's own
+        // linked category — only the panel below still has to match, which is the rule that actually matters:
+        // a renewal rewrites the term of the client where it already lives.
         if (line.PlanId is not int planId || _store.GetV2RayPlan(planId) is not { } plan
-            || plan.CategoryId != product.V2RayCategoryId || !plan.Active || plan.SoldOut)
+            || !plan.Active || plan.SoldOut)
         {
             error = "پلن انتخاب‌شده برای تمدید در دسترس نیست.";
             return null;

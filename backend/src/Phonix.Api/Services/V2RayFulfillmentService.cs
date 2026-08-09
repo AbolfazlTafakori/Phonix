@@ -209,14 +209,19 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
         return true;
     }
 
-    // A V2Ray product's selectable plans ARE the linked category's plans, so the chosen id is a V2RayPlan id.
+    // A V2Ray product's selectable plans are the catalogue's plans, so the chosen id is a V2RayPlan id.
+    //
+    // The plan is NOT required to sit in the product's own linked category: every active category is a
+    // location the product offers (see ApplyV2RayPlans), so a buyer picking the second server legitimately
+    // lands on a plan from a different category. What still has to hold is that the product sells V2Ray at
+    // all and that the plan really exists — otherwise an arbitrary id from a tampered checkout would
+    // provision something nobody bought.
     private V2RayPlan? ResolvePlan(OrderUnit unit)
     {
         if (unit.PlanId is not int planId || planId <= 0) return null;
         var product = _store.GetProduct(unit.ProductId);
         if (product is null || product.V2RayCategoryId <= 0) return null;
-        var plan = _store.GetV2RayPlan(planId);
-        return plan is not null && plan.CategoryId == product.V2RayCategoryId ? plan : null;
+        return _store.GetV2RayPlan(planId);
     }
 
     // Marks the failure on the unit so the panel shows why, and the worker can back off.

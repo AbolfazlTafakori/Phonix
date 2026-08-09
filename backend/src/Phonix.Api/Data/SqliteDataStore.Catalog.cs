@@ -46,10 +46,13 @@ ON CONFLICT(Id) DO UPDATE SET
     // The catalogue's V2Ray plans and panels, read once. Listing products used to re-read both tables for
     // EVERY linked product — two extra full reads per row on pages the storefront loads constantly. Null
     // means "not loaded yet", which is what the single-product path passes.
-    private sealed record V2RayLookups(IReadOnlyList<V2RayPlan> Plans, IReadOnlyDictionary<int, V2RayPanel> Panels);
+    private sealed record V2RayLookups(
+        IReadOnlyList<V2RayPlan> Plans,
+        IReadOnlyDictionary<int, V2RayPanel> Panels,
+        IReadOnlyList<V2RayCategory> Categories);
 
     private V2RayLookups LoadV2RayLookups() =>
-        new(GetV2RayPlans(), GetV2RayPanels().ToDictionary(p => p.Id, p => p));
+        new(GetV2RayPlans(), GetV2RayPanels().ToDictionary(p => p.Id, p => p), GetV2RayCategories());
 
     private Product ApplyV2RayPlans(Product product) =>
         product.V2RayCategoryId <= 0 ? product : ApplyV2RayPlans(product, LoadV2RayLookups());
@@ -58,17 +61,30 @@ ON CONFLICT(Id) DO UPDATE SET
     {
         if (product.V2RayCategoryId <= 0) return product;
 
+        // EVERY active category is offered, not just the one this product is linked to. A category IS a
+        // location here — the operator makes one per server and fills it with that server's plans — so
+        // restricting the product to a single one meant a second server was invisible until somebody
+        // re-pointed the product at it, and a third needed the same manual step again. Listing them all is
+        // what makes adding or retiring a server pure catalogue work: create the category and its plans and
+        // it shows up; deactivate it and it goes. The product's own link is what marks it as selling V2Ray
+        // at all (checked by the caller), not which slice of the catalogue it may show.
+        //
         // A sold-out plan is KEPT here and marked inactive below rather than dropped. The storefront shows
         // only active plans, so it disappears from the picker either way — but order placement resolves the
         // chosen plan through this same list, and removing it outright would leave a stale checkout failing
         // with "no product found" instead of saying the plan is full.
+        var locations = lookups.Categories
+            .Where(c => c.Active)
+            .ToDictionary(c => c.Id, c => c);
         var plans = lookups.Plans
-            .Where(p => p.CategoryId == product.V2RayCategoryId && p.Active)
-            .OrderBy(p => p.SortOrder).ThenBy(p => p.FinalPrice)
+            .Where(p => p.Active && locations.ContainsKey(p.CategoryId))
+            .OrderBy(p => locations[p.CategoryId].SortOrder).ThenBy(p => p.CategoryId)
+            .ThenBy(p => p.SortOrder).ThenBy(p => p.FinalPrice)
             .ToList();
 
-        // The buyer picks a SERVER first, then one of that server's plans — so the storefront's first level is
-        // the server under the exact name the operator gave it ("هلند تانل NL"), not the plan name.
+        // The buyer picks a LOCATION first, then one of its plans. The label is the category's own title —
+        // the operator names it ("هلند تانل NL") and can change it without touching the panel credentials
+        // that the panel name belongs to. An untitled category falls back to the server behind its plans.
         var panels = lookups.Panels;
         string ServerName(int panelId)
         {
@@ -77,16 +93,34 @@ ON CONFLICT(Id) DO UPDATE SET
             return string.IsNullOrWhiteSpace(panel.Flag) ? name : $"{name} {panel.Flag.Trim()}";
         }
 
-        // Two servers sharing a name would silently merge into one option and mix their plans, so a repeated
-        // name is disambiguated rather than collapsed.
-        var nameCounts = plans.Select(p => p.PanelId).Distinct()
-            .GroupBy(ServerName)
+        // What the buyer picks has to determine EXACTLY where their account is created, so the option is keyed
+        // on the (category, panel) pair — the two things provisioning reads. Normally a category holds one
+        // server's plans and that pair collapses to one option per category, which is the clean case. A
+        // category that spans several panels still gets one option each, named after the server, rather than
+        // hiding two different locations behind a single label.
+        var panelsPerCategory = plans.GroupBy(p => p.CategoryId)
+            .ToDictionary(g => g.Key, g => g.Select(p => p.PanelId).Distinct().Count());
+
+        string LocationName(V2RayPlan plan)
+        {
+            var title = locations.TryGetValue(plan.CategoryId, out var c) ? (c.Name ?? "").Trim() : "";
+            if (title.Length == 0) return ServerName(plan.PanelId);
+            return panelsPerCategory.GetValueOrDefault(plan.CategoryId) > 1
+                ? $"{title} · {ServerName(plan.PanelId)}"
+                : title;
+        }
+
+        // Two locations that still end up sharing a name would merge into one option and mix their plans, so
+        // a repeated name is disambiguated rather than collapsed.
+        var nameCounts = plans
+            .Select(p => (p.CategoryId, p.PanelId)).Distinct()
+            .GroupBy(k => LocationName(plans.First(p => p.CategoryId == k.CategoryId && p.PanelId == k.PanelId)))
             .ToDictionary(g => g.Key, g => g.Count());
 
         product.Plans = plans
             .Select(p =>
             {
-                var server = ServerName(p.PanelId);
+                var server = LocationName(p);
                 if (nameCounts.GetValueOrDefault(server) > 1) server = $"{server} #{p.PanelId}";
                 return new ProductPlan
                 {
