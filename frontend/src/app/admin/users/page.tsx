@@ -240,6 +240,7 @@ function UserDrawer({
 }) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const [walletAmount, setWalletAmount] = useState(0);
   const [walletReason, setWalletReason] = useState("");
   const [walletBusy, setWalletBusy] = useState(false);
@@ -268,8 +269,14 @@ function UserDrawer({
   async function save() {
     if (!user || !draft) return;
     setSaving(true);
+    setSaveError("");
     try {
       onApply(await api.users.update(user.id, draft));
+    } catch (e) {
+      // The server refuses a malformed address and one already taken by another account. Swallowing that
+      // left the operator looking at an unchanged row with no idea why — the same silence whether the save
+      // worked or not.
+      setSaveError(e instanceof Error ? e.message : "ذخیره تغییرات ناموفق بود.");
     } finally {
       setSaving(false);
     }
@@ -411,6 +418,10 @@ function UserDrawer({
               placeholder="یادداشت برای تیم پشتیبانی..."
             />
           </label>
+
+          {saveError && (
+            <p className="rounded-xl border border-rose-500/30 bg-rose-500/[0.08] px-4 py-3 text-sm text-rose-300">{saveError}</p>
+          )}
 
           <div className="flex gap-3">
             <button

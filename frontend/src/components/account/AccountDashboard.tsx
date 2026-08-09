@@ -247,6 +247,49 @@ function AccountInfoCard({ me, onSaved }: { me: ProfileFields | null; onSaved: (
   );
 }
 
+// Asks for the verification link again. The server allows five per hour per ACCOUNT and answers a refusal
+// with the wait in minutes, which is shown verbatim — a generic "try later" would leave the customer
+// clicking blindly. The button stays disabled after a success so an impatient second click doesn't spend
+// another one of the five for nothing.
+function ResendVerification() {
+  const [state, setState] = useState<"idle" | "sending" | "sent">("idle");
+  const [err, setErr] = useState("");
+
+  async function send() {
+    setState("sending");
+    setErr("");
+    try {
+      await api.auth.resendVerification();
+      setState("sent");
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "ارسال ایمیل تأیید ناموفق بود؛ کمی بعد دوباره تلاش کنید.");
+      setState("idle");
+    }
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+      {state === "sent" ? (
+        <p className="text-[12px] font-bold text-emerald-600">
+          ایمیل تأیید ارسال شد. اگر در صندوق ورودی نبود، پوشه‌ی اسپم را هم بررسی کنید.
+        </p>
+      ) : (
+        <>
+          {err && <p className="text-[12px] font-bold text-rose-500">{err}</p>}
+          <button
+            onClick={send}
+            disabled={state === "sending"}
+            className="rounded-lg border px-3 py-1.5 text-[12px] font-bold transition hover:opacity-80 disabled:opacity-60"
+            style={{ borderColor: "var(--ac-panel-border)", color: "var(--hl-orange-text)" }}
+          >
+            {state === "sending" ? "در حال ارسال…" : "ارسال مجدد ایمیل تأیید"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Email row: shows the current (confirmed) address and, on request, a small form that starts the
 // change-email flow. Saving here never updates what's displayed — the address only becomes current once the
 // new inbox confirms it (POST /account/confirm-email-change), so this always shows a "check your inbox"
@@ -304,15 +347,20 @@ function ChangeEmailRow({ email, emailVerified }: { email: string; emailVerified
 
   if (!open) {
     return (
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>ایمیل</span>
-        <div className="flex items-center gap-2">
-          <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${emailVerified ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"}`}>
-            {emailVerified ? "تأییدشده" : "تأیید نشده"}
-          </span>
-          <span dir="ltr" className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{email}</span>
-          <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>تغییر</button>
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>ایمیل</span>
+          <div className="flex items-center gap-2">
+            <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${emailVerified ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"}`}>
+              {emailVerified ? "تأییدشده" : "تأیید نشده"}
+            </span>
+            <span dir="ltr" className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{email}</span>
+            <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>تغییر</button>
+          </div>
         </div>
+        {/* An unverified address is a dead end until the link arrives, and the first one goes missing often
+            enough — a full mailbox, an outage on our side — that "wait and hope" is not an answer. */}
+        {!emailVerified && <ResendVerification />}
       </div>
     );
   }

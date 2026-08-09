@@ -73,6 +73,11 @@ ON CONFLICT(Id) DO UPDATE SET
 
     public AppUser? FindByLogin(string identifier)
     {
+        // An empty identifier must match NOBODY. The query below compares against three columns that are
+        // routinely blank — Phone always was, and Email can now be cleared by staff — so without this an
+        // empty login box resolves to whichever account happens to have a blank field, handing an attacker a
+        // named target to guess a password against instead of making them find a username first.
+        if (string.IsNullOrWhiteSpace(identifier)) return null;
         using var conn = OpenConnection();
         // Username/Email are indexed; Phone is a cheap fallback scan (login only, and rate-limited).
         var json = conn.QueryFirstOrDefault<string>(@"
@@ -262,6 +267,44 @@ SELECT last_insert_rowid();",
             user.EmailVerified = false;
             UpsertUser(conn, tx, user);
             return null;
+        });
+
+    // Claims one verification-email send for this account, or refuses and says when the next one is due.
+    //
+    // Per ACCOUNT, not per IP. The thing being protected is the customer's inbox and the shop's sending
+    // reputation, and both belong to the account — an IP limit would let one person hammer a mailbox from a
+    // phone and a laptop, while punishing everyone behind a shared office connection. (The per-IP ceiling in
+    // Program.cs still applies underneath this.)
+    //
+    // A sliding window, not a fixed one: with a fixed hour boundary a user can send the whole allowance at
+    // 10:59 and again at 11:01. Only the sends inside the last hour are kept, so `RetryAtUtc` is the exact
+    // moment the oldest of them ages out. Done under the write lock, so two clicks in the same instant
+    // cannot both find a free slot.
+    public (bool Allowed, DateTime? RetryAtUtc) TryConsumeVerificationSend(int userId, int maxPerHour) =>
+        WriteTx<(bool, DateTime?)>((conn, tx) =>
+        {
+            var user = LoadUser(conn, tx, userId);
+            if (user is null) return (false, null);
+
+            var now = DateTime.UtcNow;
+            var window = TimeSpan.FromHours(1);
+            var recent = (user.VerificationSendsUtc ?? new List<DateTime>())
+                .Where(t => now - t < window)
+                .OrderBy(t => t)
+                .ToList();
+
+            if (maxPerHour > 0 && recent.Count >= maxPerHour)
+            {
+                // Persist the pruning even on a refusal, so the list can't keep stale entries indefinitely.
+                user.VerificationSendsUtc = recent;
+                UpsertUser(conn, tx, user);
+                return (false, recent[0] + window);
+            }
+
+            recent.Add(now);
+            user.VerificationSendsUtc = recent;
+            UpsertUser(conn, tx, user);
+            return (true, null);
         });
 
     public void EnsureOwnerFromEnvironment()

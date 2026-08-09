@@ -239,6 +239,12 @@ public class AuthController : ControllerBase
         return Ok(new { ok = true });
     }
 
+    // How many verification emails one account may ask for per hour. A verification link is the one message a
+    // customer legitimately needs to re-request — the first one gets lost to a typo'd address, a full mailbox,
+    // an outage on our side — so this has to stay generous enough to be useful and tight enough that it can't
+    // be turned into a way to flood somebody's inbox from a signed-in account.
+    private const int VerificationSendsPerHour = 5;
+
     [Authorize]
     [HttpPost("resend-verification")]
     public async Task<IActionResult> ResendVerification()
@@ -246,6 +252,22 @@ public class AuthController : ControllerBase
         var user = this.CurrentUserId() is int id ? _store.GetUser(id) : null;
         if (user is null) return Unauthorized();
         if (user.EmailVerified) return Ok(new { ok = true });
+        // Nothing to send to. Says so plainly rather than reporting a success that produces no email — the
+        // exact silence this endpoint exists to break.
+        if (string.IsNullOrWhiteSpace(user.Email))
+            return BadRequest("ابتدا یک ایمیل برای حساب خود ثبت کنید.");
+
+        // Claimed BEFORE sending: a send that fails still spends its slot, because the failure is usually a
+        // mail server that is struggling, and retrying it without limit is what turns a slow SMTP host into a
+        // stuck queue.
+        var (allowed, retryAt) = _store.TryConsumeVerificationSend(user.Id, VerificationSendsPerHour);
+        if (!allowed)
+        {
+            var minutes = retryAt is DateTime at ? Math.Max(1, (int)Math.Ceiling((at - DateTime.UtcNow).TotalMinutes)) : 60;
+            return StatusCode(429, JalaliDate.ToPersianDigits(
+                $"در هر ساعت حداکثر {VerificationSendsPerHour} بار می‌توانید ایمیل تأیید را درخواست کنید. لطفاً {minutes} دقیقه دیگر دوباره تلاش کنید."));
+        }
+
         await SendVerification(user);
         return Ok(new { ok = true });
     }

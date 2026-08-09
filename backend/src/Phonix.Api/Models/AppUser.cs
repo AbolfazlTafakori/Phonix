@@ -26,6 +26,11 @@ public class AppUser
     // Kept in sync so Verified == (VerificationLevel >= 2). Upgrades are permanent.
     public int VerificationLevel { get; set; }
     public bool EmailVerified { get; set; }
+    // When verification emails were last sent to this account, oldest first. Kept ON THE USER rather than in
+    // process memory so the allowance survives a restart and is shared by every server in the cluster —
+    // an in-memory counter would reset on deploy and be counted separately per node, which is no limit at
+    // all. Pruned to the window on every check, so it never grows past the allowance.
+    public List<DateTime> VerificationSendsUtc { get; set; } = new();
     public bool Blocked { get; set; }
     public string JoinedAt { get; set; } = "";
     public string? Note { get; set; }

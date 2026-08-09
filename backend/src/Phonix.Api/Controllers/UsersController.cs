@@ -76,11 +76,16 @@ public class UsersController : ControllerBase
         // from the store on every request, so the promotion would take effect on their very next call.
         if (input.Role is not null && this.CurrentRole() != UserRole.Admin)
             return StatusCode(403, "تغییر نقش کاربران فقط توسط مدیر امکان‌پذیر است.");
-        // email is a unique identity handle — guard it before the rest of the mutation. Same format rule as
-        // signup: it is the user's contact/verification channel, so it can never be blanked or malformed.
-        if (input.Email is not null && !InputValidation.IsEmail(input.Email.Trim()))
+        // email is a unique identity handle — guard it before the rest of the mutation. A MALFORMED address is
+        // refused, but an empty one is accepted as a deliberate "remove it": an address can be a typo, belong
+        // to somebody else, or simply have to go, and staff need a way to strip it. Clearing it also clears
+        // the verified flag (SetEmail), which parks the account behind the checkout's verified-email gate
+        // until a real address is added back — so no mail is ever sent to a stale inbox in the meantime.
+        // A field the caller didn't send at all (null) is left alone; only an explicit "" clears.
+        var email = input.Email?.Trim();
+        if (email is { Length: > 0 } && !InputValidation.IsEmail(email))
             return BadRequest("ایمیل واردشده معتبر نیست.");
-        if (input.Email is not null && _store.SetEmail(id, input.Email) is string emailError)
+        if (email is not null && _store.SetEmail(id, email) is string emailError)
             return BadRequest(emailError);
         var ok = _store.UpdateUser(id, u =>
         {

@@ -111,6 +111,9 @@ public interface IDataStore
     bool EmailExists(string email);
     string? SetEmail(int userId, string email);
     AppUser? FindByLogin(string identifier);
+    // Claims one verification-email send for this account within a rolling hour, or refuses and returns the
+    // moment the next one becomes available.
+    (bool Allowed, DateTime? RetryAtUtc) TryConsumeVerificationSend(int userId, int maxPerHour);
     AppUser RegisterUser(AppUser user);
     // Signup for anything reachable by two requests at once: settles uniqueness inside the insert's own write
     // lock, so a raced username/e-mail is a clean conflict rather than a duplicate account or a 500.
