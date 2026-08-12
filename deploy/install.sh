@@ -402,9 +402,11 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOF
 
-    cat > /etc/systemd/system/phoenix-web.service <<EOF
+    # The renderer is templated on its port so one unit file covers however many processes this machine
+    # warrants; p-ui's sync_web_instances decides that number and keeps it current on every update.
+    cat > /etc/systemd/system/phoenix-web@.service <<EOF
 [Unit]
-Description=Phoenix Web
+Description=Phoenix Web (port %i)
 After=network.target phoenix-api.service
 
 [Service]
@@ -412,6 +414,7 @@ Type=simple
 User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$CURRENT_LINK/web
+Environment=PORT=%i
 ExecStart=/usr/bin/npm run start
 EnvironmentFile=$ENV_FILE
 Restart=always
@@ -424,12 +427,19 @@ WantedBy=multi-user.target
 EOF
 
     systemctl daemon-reload
-    systemctl enable phoenix-api phoenix-web >/dev/null 2>&1
+    systemctl enable phoenix-api >/dev/null 2>&1
     ok "Services registered"
 }
 
 configure_nginx() {
     heading "Configuring Nginx"
+    # Written before the site file that references it: nginx refuses to start at all if a proxy_pass names
+    # an upstream that does not exist. p-ui replaces this with one entry per renderer once it knows how many
+    # the machine warrants — this is only the floor.
+    mkdir -p /etc/nginx/conf.d
+    printf 'upstream phoenix_web {\n    server 127.0.0.1:%s max_fails=3 fail_timeout=10s;\n    keepalive 32;\n}\n' \
+        "$WEB_PORT" > /etc/nginx/conf.d/phoenix-web-upstream.conf
+
     cat > "$NGINX_SITE" <<EOF
 server {
     listen 80;
@@ -467,7 +477,7 @@ server {
     }
 
     location / {
-        proxy_pass http://127.0.0.1:$WEB_PORT;
+        proxy_pass http://phoenix_web;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -549,7 +559,12 @@ install_pui() {
 start_services() {
     heading "Starting services"
     systemctl restart phoenix-api
-    systemctl restart phoenix-web
+    # How many renderers this machine warrants is p-ui's decision, so it is asked rather than duplicated
+    # here. Dropping p-ui's final line leaves its functions without launching its menu.
+    if ! ( set +e; source <(sed '$ d' "$PUI_PATH"); sync_web_instances ); then
+        warn "Could not size the renderers automatically — starting a single instance."
+        systemctl enable --now "phoenix-web@${WEB_PORT}" >/dev/null 2>&1 || true
+    fi
     ok "Services running"
 }
 

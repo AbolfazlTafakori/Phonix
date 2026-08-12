@@ -245,6 +245,102 @@ cluster_setup_standby() {
     say "Track progress in the admin panel → Cluster Management (pending events should reach 0)."
 }
 
+# Node renders on a single thread, so one process can never use more than one core however big the machine
+# gets — and server-rendering a page is by far the most expensive thing this app does. So the renderer runs
+# as several processes, one per core, with nginx spreading requests over them.
+#
+# The count is worked out from the machine rather than written down anywhere, and re-checked on every
+# update, so resizing the server is enough to use the new capacity — there is nothing to edit afterwards.
+# Memory is the other limit: each renderer holds roughly a quarter gigabyte, and the API and OS need what is
+# left, so a machine with many cores but little RAM is capped by the RAM instead of thrashing.
+web_instance_count() {
+    if [[ -n "${PHONIX_WEB_INSTANCES:-}" ]]; then echo "$PHONIX_WEB_INSTANCES"; return; fi
+    local cores mem_mb by_mem n
+    cores="$(nproc 2>/dev/null || echo 1)"
+    mem_mb="$(awk '/MemTotal/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 1024)"
+    by_mem=$(( (mem_mb - 1024) / 400 ))     # 1 GB reserved for the API and the OS, ~400 MB per renderer
+    (( by_mem < 1 )) && by_mem=1
+    n=$cores
+    (( n > by_mem )) && n=$by_mem
+    (( n < 1 )) && n=1
+    echo "$n"
+}
+
+web_units() {
+    systemctl list-units --no-legend --plain 'phoenix-web@*.service' 2>/dev/null | awk '{print $1}'
+}
+
+# Brings the running renderers in line with what this machine can support. Safe to run repeatedly: it only
+# changes what does not already match, so a normal update where nothing moved is a no-op.
+sync_web_instances() {
+    local want; want="$(web_instance_count)"
+
+    cat > /etc/systemd/system/phoenix-web@.service <<EOF
+[Unit]
+Description=Phoenix Web (port %i)
+After=network.target phoenix-api.service
+
+[Service]
+Type=simple
+User=$APP_USER
+Group=$APP_USER
+WorkingDirectory=$CURRENT_LINK/web
+Environment=PORT=%i
+ExecStart=/usr/bin/npm run start
+EnvironmentFile=$ENV_FILE
+Restart=always
+RestartSec=3
+TimeoutStopSec=20
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+    # The single-instance unit older installs used binds the same port as instance one, so leaving it
+    # enabled means one of the two loses the port race on every boot.
+    if [[ -f /etc/systemd/system/phoenix-web.service ]]; then
+        systemctl disable --now phoenix-web >/dev/null 2>&1 || true
+        rm -f /etc/systemd/system/phoenix-web.service
+    fi
+    systemctl daemon-reload
+
+    # Retire anything outside the range we want, so shrinking the server tidies up after itself too.
+    local unit port
+    for unit in $(web_units); do
+        port="${unit#phoenix-web@}"; port="${port%.service}"
+        if (( port < WEB_PORT || port >= WEB_PORT + want )); then
+            systemctl disable --now "$unit" >/dev/null 2>&1 || true
+        fi
+    done
+
+    local i p ports=()
+    for (( i = 0; i < want; i++ )); do
+        p=$(( WEB_PORT + i )); ports+=("$p")
+        systemctl enable --now "phoenix-web@${p}" >/dev/null 2>&1 || true
+    done
+
+    # Kept in its own file: the site config is managed by certbot, and rewriting it on every update is how
+    # a renewal or a domain change quietly gets clobbered.
+    {
+        echo "upstream phoenix_web {"
+        for p in "${ports[@]}"; do echo "    server 127.0.0.1:${p} max_fails=3 fail_timeout=10s;"; done
+        echo "    keepalive 32;"
+        echo "}"
+    } > /etc/nginx/conf.d/phoenix-web-upstream.conf
+
+    # One-time redirect of the site block onto the upstream; a no-op once it has been done.
+    sed -i -E "s|proxy_pass http://127\.0\.0\.1:${WEB_PORT};|proxy_pass http://phoenix_web;|" "$NGINX_SITE"
+
+    if nginx -t >/dev/null 2>&1; then
+        systemctl reload nginx
+        ok "Renderers: ${want} instance(s) on port(s) ${ports[*]}"
+    else
+        warn "nginx rejected the generated upstream — leaving the previous configuration in place."
+        nginx -t || true
+    fi
+}
+
 prune_releases() {
     ls -1dt "$RELEASES_DIR"/*/ 2>/dev/null | tail -n "+$((KEEP_RELEASES + 1))" | while read -r old; do
         old="${old%/}"
@@ -398,7 +494,12 @@ self_update() {
 
 restart_stack() {
     systemctl restart phoenix-api
-    systemctl restart phoenix-web
+    # Restart whichever renderers are actually enabled rather than one fixed name: the count follows the
+    # machine, so a hardcoded name would silently stop restarting the web tier the moment it changed — and
+    # the release would flip while the old code kept serving.
+    local units; units="$(web_units)"
+    [[ -z "$units" ]] && units="phoenix-web"   # installs that predate the templated units
+    systemctl restart $units
     systemctl reload nginx
 }
 
@@ -440,6 +541,9 @@ hot_update() {
     say "Switching the active release and reloading services..."
     ln -sfn "$rel" "$CURRENT_LINK"
     chown -h "$APP_USER:$APP_USER" "$CURRENT_LINK"
+    # Re-checked here rather than only at install time, so growing (or shrinking) the server is picked up by
+    # the next update on its own.
+    sync_web_instances
     restart_stack
 
     if services_healthy; then
@@ -488,7 +592,8 @@ banner() {
     clear
     printf "%b\n" "${C_BOLD}${C_CYAN}Phoenix Store — System Management${C_RESET}"
     printf "%b\n" "Domain: ${C_CYAN}$(get_env PHONIX_DOMAIN)${C_RESET}"
-    printf "%b\n\n" "Status: API=$(systemctl is-active phoenix-api 2>/dev/null) WEB=$(systemctl is-active phoenix-web 2>/dev/null)"
+    local web_state; web_state="$(web_units | while read -r u; do systemctl is-active "$u"; done | sort | uniq -c | awk '{printf "%s×%s ", $1, $2}')"
+    printf "%b\n\n" "Status: API=$(systemctl is-active phoenix-api 2>/dev/null) WEB=${web_state:-$(systemctl is-active phoenix-web 2>/dev/null)}"
 }
 
 menu() {
