@@ -868,11 +868,6 @@ export const api = {
   comments: {
     list: (params?: { status?: CommentStatus; productId?: number }) => request<Comment[]>(`/comments${qs(params)}`),
     forProduct: (productId: number) => request<Comment[]>(`/products/${productId}/comments`),
-    // The product page's copy. Approved reviews change far more slowly than the 60s window, and an uncached
-    // read here is enough on its own to opt the whole product page out of static rendering — which is what
-    // kept every product view paying for a fresh server render.
-    forProductCached: (productId: number, revalidate = CATALOG_REVALIDATE) =>
-      request<Comment[]>(`/products/${productId}/comments`, { revalidate }),
     mine: () => request<Comment[]>("/comments/mine"),
     submit: (body: CommentInput) => request<Comment>("/comments", { method: "POST", body: json(body) }),
     approve: (id: number) => request<void>(`/comments/${id}/approve`, { method: "POST" }),
