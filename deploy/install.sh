@@ -414,9 +414,12 @@ Type=simple
 User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$CURRENT_LINK/web
-Environment=PORT=%i
 ExecStart=/usr/bin/npm run start
 EnvironmentFile=$ENV_FILE
+# Must come after EnvironmentFile: systemd applies these in the order written and the last one wins, and
+# the shared env file carries its own PORT. Declared before it, every instance would inherit that one port
+# and all but the first would die on an address clash.
+Environment=PORT=%i
 Restart=always
 RestartSec=3
 TimeoutStopSec=20
