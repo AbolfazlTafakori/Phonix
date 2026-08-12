@@ -414,12 +414,11 @@ Type=simple
 User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$CURRENT_LINK/web
-ExecStart=/usr/bin/npm run start
+# The port is passed as an argument rather than through the environment: the shared env file carries a PORT
+# of its own, and it kept winning over anything set here, so every instance tried to bind the same port and
+# all but the first died on an address clash. An explicit flag cannot be overridden by the environment.
+ExecStart=/usr/bin/npm run start -- --port %i
 EnvironmentFile=$ENV_FILE
-# Must come after EnvironmentFile: systemd applies these in the order written and the last one wins, and
-# the shared env file carries its own PORT. Declared before it, every instance would inherit that one port
-# and all but the first would die on an address clash.
-Environment=PORT=%i
 Restart=always
 RestartSec=3
 TimeoutStopSec=20
