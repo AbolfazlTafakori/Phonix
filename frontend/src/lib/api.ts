@@ -141,6 +141,14 @@ type RequestOptions = RequestInit & { revalidate?: number };
 // enough that bursts of traffic and crawlers are served from cache instead of hitting the API.
 export const CATALOG_REVALIDATE = 60;
 
+// A server-side read waits on the API with nothing behind it: during `next build` there may be no API at
+// all, and a socket that accepts the connection but never answers would otherwise hang until Next's
+// 60s page-generation timeout — which is what forced the whole app off the prerender path. Callers that
+// read the catalogue already fall back to defaults on failure, so a bounded wait degrades to those
+// defaults instead of stalling. Browser requests are left alone: uploads and admin actions can legitimately
+// run long, and they always have a user watching.
+const SERVER_REQUEST_TIMEOUT_MS = 15_000;
+
 async function request<T>(path: string, init?: RequestOptions): Promise<T> {
   const csrf = getCsrfToken();
   const { revalidate, ...rest } = init ?? {};
@@ -148,8 +156,13 @@ async function request<T>(path: string, init?: RequestOptions): Promise<T> {
     revalidate != null && typeof window === "undefined"
       ? ({ next: { revalidate } } as RequestInit)
       : { cache: "no-store" };
+  const timeout: RequestInit =
+    typeof window === "undefined" && !rest.signal
+      ? { signal: AbortSignal.timeout(SERVER_REQUEST_TIMEOUT_MS) }
+      : {};
   const res = await fetch(`${BASE}/api${path}`, {
     ...caching,
+    ...timeout,
     credentials: "include",
     ...rest,
     headers: {

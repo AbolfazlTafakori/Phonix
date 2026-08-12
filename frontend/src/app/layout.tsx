@@ -1,7 +1,7 @@
 import type { Metadata, Viewport } from "next";
-import { headers } from "next/headers";
 import Script from "next/script";
 import { getAdvancedSettings } from "@/lib/content";
+import { THEME_INIT_SRC, gaInitSrc, gtagSrc, sanitizeAnalyticsId, sanitizeCustomScript } from "@/lib/inlineScripts";
 import { SITE_URL, absoluteUrl } from "@/lib/seo";
 import LiveChat from "@/components/LiveChat";
 import {
@@ -75,14 +75,13 @@ export const viewport: Viewport = {
   ],
 };
 
-// This layout wraps every route and reads settings over the network, so any page Next decides to
-// prerender has to reach the API during `next build` — which the deploy build deliberately cannot do
-// (b1a9259). Pages carrying no dynamic data of their own, like the auth screens, were the ones that
-// qualified, and their build hung until it timed out. Declaring the layout dynamic keeps the whole app
-// off the build-time export path; `fetchCache` is spelled out because force-dynamic otherwise implies
-// force-no-store and would undo the per-request caching of the fetches below.
-export const dynamic = "force-dynamic";
-export const fetchCache = "default-cache";
+// This layout used to declare `force-dynamic`. It wraps every route and reads settings over the network, and
+// the deploy build pointed the API at an empty host, so prerendering a page with no data of its own (the auth
+// screens) hung on that read until the build timed out. Two things fixed the cause rather than the symptom:
+// the build now gets the loopback API address, and server-side reads carry a timeout and fall back to
+// defaults instead of hanging. Without the export — and with the CSP nonce gone, which was separately
+// forcing every route dynamic via headers() — the pages that declare `revalidate` are cached HTML again
+// instead of re-rendering per visit.
 
 export async function generateMetadata(): Promise<Metadata> {
   const s = await getAdvancedSettings();
@@ -120,12 +119,11 @@ export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const s = await getAdvancedSettings();
-  // GA/GTM ids are alphanumeric + dash; strip anything else so the value can never
-  // break out of the inline script string below.
-  const analyticsId = s.analyticsId.replace(/[^A-Za-z0-9-]/g, "");
-  // Stamped by middleware.ts onto every script below — CSP's script-src only trusts a nonce'd or 'self'-hosted
-  // script now (no more 'unsafe-inline'), so every <Script> here needs this to still run.
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
+  // The inline scripts below come from lib/inlineScripts, which the proxy also hashes into script-src. Their
+  // text has to match byte for byte on both sides or CSP drops them, so neither side builds it by hand —
+  // including the sanitising, which is part of the text that gets hashed.
+  const analyticsId = sanitizeAnalyticsId(s.analyticsId);
+  const customScript = s.customHeadScript ? sanitizeCustomScript(s.customHeadScript) : "";
   return (
     <html
       lang="fa"
@@ -185,17 +183,11 @@ export default async function RootLayout({
             page is open. Runs before paint so there is no flash of the wrong theme. */}
         {/* A plain tag rather than next/script: with `beforeInteractive` this ended up only in the RSC
             payload and was injected after hydration, so it never actually ran before paint — the very thing
-            it exists to do. Written straight into the HTML it runs while the document is still parsing.
-            `suppressHydrationWarning` is required because a browser hides a nonce once it has parsed the tag
-            (the attribute reads back empty), so React would otherwise compare its own nonce against "" and
-            report a hydration mismatch on every page. */}
+            it exists to do. Written straight into the HTML it runs while the document is still parsing. */}
         <script
           id="phonix-theme-init"
-          nonce={nonce}
           suppressHydrationWarning
-          dangerouslySetInnerHTML={{
-            __html: `(function(){try{var mq=window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)');function mode(){try{return localStorage.getItem('phonix-theme')||'system';}catch(e){return 'system';}}function apply(){var m=mode();var dark=m==='dark'||(m==='system'&&!!(mq&&mq.matches));document.documentElement.classList.toggle('home-dark',dark);}apply();window.__phonixApplyTheme=apply;if(mq){var h=function(){if(mode()==='system')apply();};mq.addEventListener?mq.addEventListener('change',h):mq.addListener(h);}}catch(e){}})();`,
-          }}
+          dangerouslySetInnerHTML={{ __html: THEME_INIT_SRC }}
         />
         {children}
 
@@ -203,24 +195,20 @@ export default async function RootLayout({
 
         {analyticsId && (
           <>
-            <Script src={`https://www.googletagmanager.com/gtag/js?id=${analyticsId}`} strategy="afterInteractive" nonce={nonce} />
+            <Script src={gtagSrc(analyticsId)} strategy="afterInteractive" />
             <Script
               id="ga-init"
               strategy="afterInteractive"
-              nonce={nonce}
-              dangerouslySetInnerHTML={{
-                __html: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${analyticsId}');`,
-              }}
+              dangerouslySetInnerHTML={{ __html: gaInitSrc(analyticsId) }}
             />
           </>
         )}
 
-        {s.customHeadScript && (
+        {customScript && (
           <Script
             id="custom-script"
             strategy="afterInteractive"
-            nonce={nonce}
-            dangerouslySetInnerHTML={{ __html: s.customHeadScript.replace(/<\/?script[^>]*>/gi, "") }}
+            dangerouslySetInnerHTML={{ __html: customScript }}
           />
         )}
       </body>
