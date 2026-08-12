@@ -29,12 +29,6 @@ PUI_SRC="$REPO_DIR/deploy/p-ui"
 PUI_PATH="/usr/local/bin/p-ui"
 API_PORT=5228
 WEB_PORT=3000
-# Node runs the renderer on a single thread, so one process can only ever use one core no matter how much
-# CPU the machine has — and server-rendering a page is the most expensive thing this app does. One instance
-# per core, each on its own port, with nginx spreading requests across them. Ports count up from WEB_PORT.
-WEB_INSTANCES=${PHONIX_WEB_INSTANCES:-$(nproc 2>/dev/null || echo 1)}
-web_ports() { local i; for ((i = 0; i < WEB_INSTANCES; i++)); do echo $((WEB_PORT + i)); done; }
-web_units() { local p; for p in $(web_ports); do echo "phoenix-web@${p}"; done; }
 DOTNET_PROJECT="backend/src/Phonix.Api"
 
 C_RESET="\033[0m"; C_BOLD="\033[1m"; C_BLUE="\033[1;34m"; C_GREEN="\033[1;32m"
@@ -373,11 +367,7 @@ build_release() {
         publish_backend "$rel/api"
 
         rsync -a --delete --exclude node_modules --exclude .next "$REPO_DIR/frontend/" "$rel/web/"
-        # Empty NEXT_PUBLIC_API_URL keeps the browser bundle on its own origin; the server half of the
-        # build gets the loopback API so it can prerender against real settings. On a first install
-        # nothing is listening there yet, which is fine — the reads time out quickly and the pages build
-        # with their default content instead.
-        ( cd "$rel/web" && npm ci && NEXT_PUBLIC_API_URL="" PHONIX_INTERNAL_API_URL="http://127.0.0.1:5228" NODE_ENV=production npm run build )
+        ( cd "$rel/web" && npm ci && NEXT_PUBLIC_API_URL="" NODE_ENV=production npm run build )
     fi
 
     chown -R "$APP_USER:$APP_USER" "$rel"
@@ -412,10 +402,9 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOF
 
-    # Templated on the port (%i) so one unit file covers however many renderer processes this machine runs.
-    cat > /etc/systemd/system/phoenix-web@.service <<EOF
+    cat > /etc/systemd/system/phoenix-web.service <<EOF
 [Unit]
-Description=Phoenix Web (port %i)
+Description=Phoenix Web
 After=network.target phoenix-api.service
 
 [Service]
@@ -423,7 +412,6 @@ Type=simple
 User=$APP_USER
 Group=$APP_USER
 WorkingDirectory=$CURRENT_LINK/web
-Environment=PORT=%i
 ExecStart=/usr/bin/npm run start
 EnvironmentFile=$ENV_FILE
 Restart=always
@@ -435,26 +423,14 @@ NoNewPrivileges=true
 WantedBy=multi-user.target
 EOF
 
-    # Supersedes the single-instance unit earlier versions installed; leaving it enabled would keep a second
-    # process bound to the same port and one of the two would fail to start on every boot.
-    if [ -f /etc/systemd/system/phoenix-web.service ]; then
-        systemctl disable --now phoenix-web >/dev/null 2>&1 || true
-        rm -f /etc/systemd/system/phoenix-web.service
-    fi
-
     systemctl daemon-reload
-    systemctl enable phoenix-api $(web_units) >/dev/null 2>&1
-    ok "Services registered ($WEB_INSTANCES web instance(s))"
+    systemctl enable phoenix-api phoenix-web >/dev/null 2>&1
+    ok "Services registered"
 }
 
 configure_nginx() {
     heading "Configuring Nginx"
     cat > "$NGINX_SITE" <<EOF
-upstream phoenix_web {
-$(for p in $(web_ports); do echo "    server 127.0.0.1:${p};"; done)
-    keepalive 32;
-}
-
 server {
     listen 80;
     listen [::]:80;
@@ -491,7 +467,7 @@ server {
     }
 
     location / {
-        proxy_pass http://phoenix_web;
+        proxy_pass http://127.0.0.1:$WEB_PORT;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
@@ -573,7 +549,7 @@ install_pui() {
 start_services() {
     heading "Starting services"
     systemctl restart phoenix-api
-    systemctl restart $(web_units)
+    systemctl restart phoenix-web
     ok "Services running"
 }
 

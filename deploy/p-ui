@@ -398,14 +398,7 @@ self_update() {
 
 restart_stack() {
     systemctl restart phoenix-api
-    # The renderer runs as one templated instance per port (phoenix-web@3000, @3001, …), so restart whichever
-    # ones are actually enabled rather than a fixed name — a hardcoded one would silently stop restarting the
-    # web tier the moment the instance count changed, and the release would flip while the old code kept serving.
-    local units
-    units="$(systemctl list-units --no-legend --plain 'phoenix-web@*.service' 2>/dev/null | awk '{print $1}')"
-    [ -z "$units" ] && units="$(systemctl list-unit-files --no-legend --plain 'phoenix-web@*.service' 2>/dev/null | awk '{print $1}')"
-    [ -z "$units" ] && units="phoenix-web"   # pre-template installs
-    systemctl restart $units
+    systemctl restart phoenix-web
     systemctl reload nginx
 }
 
@@ -440,11 +433,7 @@ hot_update() {
 
     say "Building frontend in a separate staging directory..."
     rsync -a --delete --exclude node_modules --exclude .next "$REPO_DIR/frontend/" "$rel/web/"
-    # NEXT_PUBLIC_API_URL stays empty so the browser bundle calls the API on its own origin. The server
-    # half of the build needs a real address to prerender against, though, and the previous release's API
-    # is still serving on the loopback port throughout this build — so point it there. Pages fall back to
-    # their built-in defaults if it does not answer (the client times out rather than hanging the build).
-    ( cd "$rel/web" && npm ci && NEXT_PUBLIC_API_URL="" PHONIX_INTERNAL_API_URL="http://127.0.0.1:5228" NODE_ENV=production npm run build )
+    ( cd "$rel/web" && npm ci && NEXT_PUBLIC_API_URL="" NODE_ENV=production npm run build )
 
     chown -R "$APP_USER:$APP_USER" "$rel"
 
@@ -499,7 +488,7 @@ banner() {
     clear
     printf "%b\n" "${C_BOLD}${C_CYAN}Phoenix Store — System Management${C_RESET}"
     printf "%b\n" "Domain: ${C_CYAN}$(get_env PHONIX_DOMAIN)${C_RESET}"
-    printf "%b\n\n" "Status: API=$(systemctl is-active phoenix-api 2>/dev/null) WEB=$(systemctl is-active 'phoenix-web@*' 2>/dev/null | sort -u | paste -sd, -)"
+    printf "%b\n\n" "Status: API=$(systemctl is-active phoenix-api 2>/dev/null) WEB=$(systemctl is-active phoenix-web 2>/dev/null)"
 }
 
 menu() {
