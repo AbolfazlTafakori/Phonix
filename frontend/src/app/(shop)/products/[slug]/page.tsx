@@ -141,7 +141,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
   let comments: Comment[] = [];
   try {
-    comments = await api.comments.forProduct(product.id);
+    comments = await api.comments.forProductCached(product.id);
   } catch {
     // reviews are optional
   }
