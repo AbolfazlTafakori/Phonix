@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "@/lib/api";
+import { usePoll } from "@/lib/usePoll";
 import type { Order, OrderUnit } from "@/lib/types";
 import { formatToman } from "@/lib/format";
 import { Card, PageHeader, Spinner, Modal, Field, Toggle, inputCls } from "@/components/admin/ui";
@@ -13,7 +14,6 @@ import AdminIcon from "@/components/admin/AdminIcon";
 export default function OrderFulfillmentPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [templates, setTemplates] = useState<Record<number, string>>({});
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   // active unit being worked on
@@ -53,21 +53,21 @@ export default function OrderFulfillmentPage() {
     }
   }
 
-  useEffect(() => {
-    (async () => {
-      try {
-        // Ask the server for the orders this page is about. Fetching every order ever placed and filtering
-        // here downloaded (and decrypted) the shop's whole history to show the handful still being prepared.
-        const [list, products] = await Promise.all([api.orders.list({ status: "Preparing" }), api.products.list()]);
-        setOrders(list);
-        setTemplates(Object.fromEntries(products.map((p) => [p.id, p.deliveryTemplate])));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "خطا در بارگذاری");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  // Polls every 20s so a newly-paid order shows up without a manual refresh; paused while the delivery or
+  // cancel modal is open, or an action is in flight, so a tick can't yank a unit out from under an edit.
+  const { loading } = usePoll({
+    fn: async () => {
+      // Ask the server for the orders this page is about. Fetching every order ever placed and filtering
+      // here downloaded (and decrypted) the shop's whole history to show the handful still being prepared.
+      const [list, products] = await Promise.all([api.orders.list({ status: "Preparing" }), api.products.list()]);
+      setOrders(list);
+      setTemplates(Object.fromEntries(products.map((p) => [p.id, p.deliveryTemplate])));
+      setError("");
+    },
+    intervalMs: 20000,
+    enabled: !target && !cancelTarget && !busy,
+    onError: (e) => setError(e instanceof Error ? e.message : "خطا در بارگذاری"),
+  });
 
   const { page, setPage, totalPages, slice, total, pageSize } = usePaged(orders, 8);
 

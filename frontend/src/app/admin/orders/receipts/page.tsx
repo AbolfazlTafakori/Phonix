@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "@/lib/api";
+import { usePoll } from "@/lib/usePoll";
 import type { Order } from "@/lib/types";
 import { formatToman } from "@/lib/format";
 import { Card, PageHeader, Spinner, StatusBadge, Modal, inputCls } from "@/components/admin/ui";
@@ -12,25 +13,24 @@ import AdminIcon from "@/components/admin/AdminIcon";
 // fulfillment) or reject (→ cancels and restores stock). Distinct from the technical delivery section.
 export default function OrderReceiptsPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState<number | null>(null);
   const [rejecting, setRejecting] = useState<Order | null>(null);
   const [reason, setReason] = useState("");
 
-  useEffect(() => {
-    (async () => {
-      try {
-        // Server-side filter: this queue is only ever the pending-approval orders, so pulling the whole
-        // history and discarding it in the browser cost more every month the shop stayed open.
-        setOrders(await api.orders.list({ status: "PendingApproval" }));
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "خطا در بارگذاری");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  // Polls every 20s so a newly-submitted receipt shows up without a manual refresh; paused while an approve
+  // /reject is in flight or the reject-reason modal is open, so a tick can't yank a row out from under it.
+  const { loading } = usePoll({
+    fn: async () => {
+      // Server-side filter: this queue is only ever the pending-approval orders, so pulling the whole
+      // history and discarding it in the browser cost more every month the shop stayed open.
+      setOrders(await api.orders.list({ status: "PendingApproval" }));
+      setError("");
+    },
+    intervalMs: 20000,
+    enabled: busy === null && !rejecting,
+    onError: (e) => setError(e instanceof Error ? e.message : "خطا در بارگذاری"),
+  });
 
   const { page, setPage, totalPages, slice, total, pageSize } = usePaged(orders, 10);
   const drop = (id: number) => setOrders((p) => p.filter((o) => o.id !== id));

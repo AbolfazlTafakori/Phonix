@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { addToCart, setQuantity, useCart } from "@/lib/cart";
 import { formatToman, toFa } from "@/lib/format";
+import { usePoll } from "@/lib/usePoll";
 import type { Product, ProductPlan } from "@/lib/types";
 
 // The buying experience, split across the page rather than stacked in one card.
@@ -121,9 +122,31 @@ function useIsDesktopColumns(): boolean {
   return isDesktop;
 }
 
-export function PurchaseProvider({ product, children }: { product: Product; children: ReactNode }) {
+// Only the numbers that can move while someone is sitting on the page — price, discount, stock, and the
+// same three per plan. Everything else (name, description, images…) is static enough that a re-render for
+// it would just be noise, so it's deliberately left out of this comparison.
+function priceOrStockChanged(a: Product, b: Product): boolean {
+  if (a.price !== b.price || a.discountPercent !== b.discountPercent || a.finalPrice !== b.finalPrice || a.stock !== b.stock) {
+    return true;
+  }
+  if (a.plans.length !== b.plans.length) return true;
+  const key = (p: ProductPlan) => `${p.id}:${p.price}:${p.discountPercent}:${p.finalPrice}:${p.isActive}`;
+  return a.plans.map(key).join("|") !== b.plans.map(key).join("|");
+}
+
+export function PurchaseProvider({ product: initialProduct, children }: { product: Product; children: ReactNode }) {
   const router = useRouter();
   const { user } = useAuth();
+
+  const [product, setProduct] = useState(initialProduct);
+  // Silent — only touches state (and re-renders BuyBox/PlanPicker) when a price/discount/stock number
+  // actually differs from what's on screen, so a customer never sees a jump for an unrelated field.
+  usePoll({
+    fn: () => api.products.get(initialProduct.id),
+    intervalMs: 25000,
+    onSuccess: (latest) => setProduct((current) => (priceOrStockChanged(current, latest) ? latest : current)),
+    onError: () => { /* keep showing the last good price/stock on a transient error */ },
+  });
 
   const plans = useMemo(() => product.plans.filter((p) => p.isActive), [product.plans]);
   const types = useMemo(() => [...new Set(plans.map((p) => p.type))], [plans]);

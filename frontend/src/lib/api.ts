@@ -236,6 +236,8 @@ export const api = {
   },
   products: {
     list: (params?: { categoryId?: number; search?: string }) => request<Product[]>(`/products${qs(params)}`),
+    // Single-product read, for polling one product's live price/stock without re-fetching the whole catalog.
+    get: (id: number) => request<Product>(`/products/${id}`),
     // Catalogue read for the public pages: identical data, but cacheable so a storefront request does
     // not wait on the API every time. Admin screens keep using list() and always see live figures.
     listCached: (revalidate = CATALOG_REVALIDATE) => request<Product[]>("/products", { revalidate }),

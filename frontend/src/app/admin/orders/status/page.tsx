@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { api } from "@/lib/api";
+import { usePoll } from "@/lib/usePoll";
 import type { Order, OrderStatus } from "@/lib/types";
 import { formatToman, formatNumber } from "@/lib/format";
 import { orderStatusLabel } from "@/lib/labels";
@@ -16,22 +17,19 @@ type Filter = "all" | OrderStatus;
 // this one only reports their state for any team that needs the bird's-eye view.
 export default function OrderStatusPage() {
   const [orders, setOrders] = useState<Order[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [term, setTerm] = useState("");
 
-  useEffect(() => {
-    (async () => {
-      try {
-        setOrders(await api.orders.list());
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "خطا در بارگذاری");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  // Read-only page — nothing here to pause for, so it just polls every 20s.
+  const { loading } = usePoll({
+    fn: async () => {
+      setOrders(await api.orders.list());
+      setError("");
+    },
+    intervalMs: 20000,
+    onError: (e) => setError(e instanceof Error ? e.message : "خطا در بارگذاری"),
+  });
 
   const counts = useMemo(
     () => ({

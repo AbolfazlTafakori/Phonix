@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { api } from "@/lib/api";
+import { usePoll } from "@/lib/usePoll";
 import type { StockItem, StockItemStatus, StockManagedAccount, StockSummary, StockWaitingOrder } from "@/lib/types";
 import { toFa } from "@/lib/format";
 import { Card, PageHeader, Spinner, Modal, Field, Toggle, inputCls } from "@/components/admin/ui";
@@ -17,7 +18,6 @@ const statusMeta: Record<StockItemStatus, { label: string; cls: string }> = {
 // fulfillment flow pulls them manually, or automatically when the product's switch is on.
 export default function AdminStockPage() {
   const [rows, setRows] = useState<StockSummary[]>([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
@@ -51,17 +51,18 @@ export default function AdminStockPage() {
     }
   }
 
-  useEffect(() => {
-    (async () => {
-      try {
-        await refreshSummary();
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "خطا در بارگذاری");
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
+  // Polls every 20s so a new/changed stock level shows up without a manual refresh; paused while a pool
+  // modal is open (`target`) or a bulk action is running (`busy`) so a tick never yanks the table out from
+  // under an in-progress edit.
+  const { loading } = usePoll({
+    fn: async () => {
+      await refreshSummary();
+      setError("");
+    },
+    intervalMs: 20000,
+    enabled: !busy && !target,
+    onError: (e) => setError(e instanceof Error ? e.message : "خطا در بارگذاری"),
+  });
 
   const filtered = rows.filter((r) => !search.trim() || r.name.includes(search.trim()));
 
