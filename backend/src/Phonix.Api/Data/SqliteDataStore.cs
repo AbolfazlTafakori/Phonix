@@ -5,6 +5,7 @@ using Dapper;
 using Microsoft.Data.Sqlite;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
+using Phonix.Api.Services;
 
 namespace Phonix.Api.Data;
 
@@ -429,7 +430,12 @@ ON CONFLICT(Key) DO UPDATE SET DataJson = excluded.DataJson;",
             new { key, json = Serialize(value) }, tx);
 
     public PricingSettings GetSettings() => GetSingleton<PricingSettings>(PricingKey);
-    public PaymentSettings GetPaymentSettings() => GetSingleton<PaymentSettings>(PaymentKey);
+    public PaymentSettings GetPaymentSettings()
+    {
+        var p = GetSingleton<PaymentSettings>(PaymentKey);
+        p.TelegramBotToken = SensitiveField.Reveal(p.TelegramBotToken ?? "");
+        return p;
+    }
 
     public void UpdateSettings(PricingSettings settings)
     {
@@ -440,6 +446,9 @@ ON CONFLICT(Key) DO UPDATE SET DataJson = excluded.DataJson;",
     public void UpdatePaymentSettings(PaymentSettings settings)
     {
         using var conn = OpenConnection();
+        var p = ReadSingletonNoTx<PaymentSettings>(conn, PaymentKey);
+        var token = (settings.TelegramBotToken ?? "").Trim();
+        settings.TelegramBotToken = string.IsNullOrEmpty(token) ? p.TelegramBotToken : SensitiveField.Protect(token);
         WriteSingleton(conn, null, PaymentKey, settings);
     }
 }

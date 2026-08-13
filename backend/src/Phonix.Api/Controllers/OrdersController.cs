@@ -526,6 +526,8 @@ public class OrdersController : ControllerBase
         var order = _store.GetOrder(id);
         if (order is null) return NotFound();
         if (!this.OwnsOrStaff(order.UserId)) return Forbid();
+        if (!this.IsStaff() && order.Status != OrderStatus.PendingApproval)
+            return BadRequest("سفارش در این وضعیت توسط کاربر قابل لغو نیست. لطفاً با پشتیبانی تماس بگیرید.");
         // a staff cancellation can carry an explicit reason; a customer self-cancel falls back to a default.
         var reason = string.IsNullOrWhiteSpace(input?.Reason)
             ? (this.IsStaff() ? "لغو توسط پشتیبانی" : "لغو توسط کاربر")

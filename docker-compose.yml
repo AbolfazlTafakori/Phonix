@@ -25,6 +25,7 @@ services:
       PHONIX_LOG_DIR: /app/App_Data/logs
       # Set both to "true" only when a TLS-terminating reverse proxy sits in front (see DEPLOY.md).
       PHONIX_BEHIND_PROXY: ${PHONIX_BEHIND_PROXY:-false}
+      PHONIX_TRUSTED_PROXIES: ${PHONIX_TRUSTED_PROXIES:-127.0.0.1}
       PHONIX_FORCE_HTTPS: ${PHONIX_FORCE_HTTPS:-false}
       # (Re)applied on every boot: mints the first admin account if it doesn't exist yet, or fixes its
       # role/password if it does. Without these, a fresh deploy has NO way to reach the admin panel.

@@ -10,7 +10,7 @@ namespace Phonix.Api.Services;
 public static class SensitiveField
 {
     public static string Protect(string value) =>
-        string.IsNullOrEmpty(value) ? value : FieldCrypto.Encrypt(value);
+        string.IsNullOrEmpty(value) ? value : (FieldCrypto.LooksEncrypted(value) ? value : FieldCrypto.Encrypt(value));
 
     public static string Reveal(string value)
     {

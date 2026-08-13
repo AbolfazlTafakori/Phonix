@@ -199,6 +199,9 @@ public class BackupController : ControllerBase
     {
         var stamp = DateTime.Now.ToString("yyyy-MM-dd-HHmm");
         var json = _store.SerializeSnapshot();
+        var username = User.Identity?.Name ?? "admin";
+        _store.RecordBackup("کامل", "دانلود", true, $"by {username}");
+        _logger.LogInformation("[SRV] FULL BACKUP EXPORT by Admin {User}, IP {IP}", username, HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown");
         if (BackupCrypto.IsEnabled)
             return File(Encoding.UTF8.GetBytes(BackupCrypto.Encrypt(json)), "application/octet-stream", $"phonix-backup-{stamp}.phxbak");
         return File(Encoding.UTF8.GetBytes(json), "application/json", $"phonix-backup-{stamp}.json");

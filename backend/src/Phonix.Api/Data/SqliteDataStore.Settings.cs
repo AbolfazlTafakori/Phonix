@@ -26,8 +26,24 @@ public sealed partial class SqliteDataStore
     public void UpdateSiteContent(SiteContent c) { using var conn = OpenConnection(); WriteSingleton(conn, null, SiteContentKey, c); }
     public AdvancedSettings GetAdvancedSettings() => GetSingleton<AdvancedSettings>(AdvancedKey);
     public void UpdateAdvancedSettings(AdvancedSettings s) { using var conn = OpenConnection(); WriteSingleton(conn, null, AdvancedKey, s); }
-    public EmailSettings GetEmailSettings() => GetSingleton<EmailSettings>(EmailKey);
-    public void UpdateEmailSettings(EmailSettings settings) { using var conn = OpenConnection(); WriteSingleton(conn, null, EmailKey, settings); }
+    public EmailSettings GetEmailSettings()
+    {
+        var s = GetSingleton<EmailSettings>(EmailKey);
+        s.Password = SensitiveField.Reveal(s.Password ?? "");
+        return s;
+    }
+
+    public void UpdateEmailSettings(EmailSettings settings)
+    {
+        using var conn = OpenConnection();
+        var current = ReadSingletonNoTx<EmailSettings>(conn, EmailKey);
+        var incoming = settings.Password ?? "";
+        if (string.IsNullOrEmpty(incoming))
+            settings.Password = current.Password;
+        else
+            settings.Password = SensitiveField.Protect(incoming);
+        WriteSingleton(conn, null, EmailKey, settings);
+    }
     public MailboxSettings GetMailboxSettings()
     {
         var m = GetSingleton<MailboxSettings>(MailboxKey);
@@ -264,7 +280,14 @@ public sealed partial class SqliteDataStore
         return s.Alerts;
     }
 
-    public TelegramSettings GetTelegramSettings() => GetSingleton<TelegramSettings>(TelegramKey);
+    public TelegramSettings GetTelegramSettings()
+    {
+        var t = GetSingleton<TelegramSettings>(TelegramKey);
+        t.BotToken = SensitiveField.Reveal(t.BotToken ?? "");
+        t.ReceiptBotToken = SensitiveField.Reveal(t.ReceiptBotToken ?? "");
+        t.OrderBotToken = SensitiveField.Reveal(t.OrderBotToken ?? "");
+        return t;
+    }
 
     public void UpdateTelegramSettings(TelegramSettings settings)
     {
@@ -273,12 +296,15 @@ public sealed partial class SqliteDataStore
         t.BackupEnabled = settings.BackupEnabled;
         t.AlertsEnabled = settings.AlertsEnabled;
         t.ReceiptBotEnabled = settings.ReceiptBotEnabled;
-        t.BotToken = (settings.BotToken ?? "").Trim();
+        var botToken = (settings.BotToken ?? "").Trim();
+        t.BotToken = string.IsNullOrEmpty(botToken) ? t.BotToken : SensitiveField.Protect(botToken);
         t.ChatId = (settings.ChatId ?? "").Trim();
-        t.ReceiptBotToken = (settings.ReceiptBotToken ?? "").Trim();
+        var receiptBotToken = (settings.ReceiptBotToken ?? "").Trim();
+        t.ReceiptBotToken = string.IsNullOrEmpty(receiptBotToken) ? t.ReceiptBotToken : SensitiveField.Protect(receiptBotToken);
         t.ReceiptChatId = (settings.ReceiptChatId ?? "").Trim();
         t.OrderBotEnabled = settings.OrderBotEnabled;
-        t.OrderBotToken = (settings.OrderBotToken ?? "").Trim();
+        var orderBotToken = (settings.OrderBotToken ?? "").Trim();
+        t.OrderBotToken = string.IsNullOrEmpty(orderBotToken) ? t.OrderBotToken : SensitiveField.Protect(orderBotToken);
         t.OrderChatId = (settings.OrderChatId ?? "").Trim();
         t.IntervalHours = settings.IntervalHours < 1 ? 1 : settings.IntervalHours;
         t.LastBackupError = "";
