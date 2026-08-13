@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { productPath } from "@/lib/seo";
+import { absoluteUrl, jsonLdScript, productPath } from "@/lib/seo";
 import { api } from "@/lib/api";
 import ProductCardImage from "@/components/ProductCardImage";
 import ProductsBrowser from "@/components/products/ProductsBrowser";
@@ -11,8 +11,8 @@ import type { Product, Category } from "@/lib/types";
 // whose contents only change when an admin edits them.
 export const revalidate = 60;
 export const metadata = {
-  title: "محصولات",
-  description: "خرید انواع اکانت پریمیوم، اشتراک، گیفت‌کارت، شماره مجازی و لایسنس نرم‌افزار با تحویل آنی و پرداخت امن در فونیکس وریفای.",
+  title: "خرید اکانت پریمیوم و اشتراک قانونی",
+  description: "خرید انواع اکانت پریمیوم، اشتراک هوش مصنوعی، سرویس‌های استریم، فیلترشکن، گیفت‌کارت و لایسنس نرم‌افزار با تحویل آنی و پرداخت امن در فونیکس وریفای.",
 };
 
 const heroStats = [
@@ -41,8 +41,38 @@ export default async function FilmsPage({ searchParams }: { searchParams: Promis
   }
   const activeCats = categories.filter((c) => c.isActive);
 
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "صفحه اصلی", item: absoluteUrl("/") },
+      { "@type": "ListItem", position: 2, name: "محصولات", item: absoluteUrl("/products") },
+    ],
+  };
+
+  const collectionLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "محصولات و اشتراک‌های دیجیتال فونیکس وریفای",
+    description: metadata.description,
+    url: absoluteUrl("/products"),
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: active.length,
+      itemListElement: active.slice(0, 30).map((p, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: p.name,
+        url: absoluteUrl(productPath(p)),
+      })),
+    },
+  };
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(collectionLd) }} />
+
       {/* ── Hero (hidden while searching — a compact results header shows instead) ── */}
       {!query && (
         <section className="overflow-hidden border-b border-[var(--hl-border)] bg-[var(--hl-surface)]">

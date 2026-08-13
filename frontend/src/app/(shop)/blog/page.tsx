@@ -1,29 +1,58 @@
 import Link from "next/link";
 import { getBlogPosts, getSiteContent } from "@/lib/content";
+import { absoluteUrl, jsonLdScript } from "@/lib/seo";
 import Reveal from "@/components/Reveal";
 
 // Rendered per request over a cached read, for the same reason as the category index.
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "بلاگ",
-  description: "مقالات و راهنمای خرید اکانت‌های پریمیوم، وریفای حساب‌ها و خدمات دیجیتال در بلاگ فونیکس وریفای.",
+  title: "بلاگ و مقالات آموزشی",
+  description: "راهنمای خرید اکانت‌های پریمیوم قانونی، مقایسه ابزارهای هوش مصنوعی، وریفای حساب‌ها و اخبار خدمات دیجیتال در بلاگ فونیکس وریفای.",
 };
 
 export default async function BlogPage() {
   const [posts, content] = await Promise.all([getBlogPosts(), getSiteContent()]);
+  const activePosts = posts.filter((p) => p.isActive);
+
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "صفحه اصلی", item: absoluteUrl("/") },
+      { "@type": "ListItem", position: 2, name: "بلاگ", item: absoluteUrl("/blog") },
+    ],
+  };
+
+  const blogLd = {
+    "@context": "https://schema.org",
+    "@type": "Blog",
+    name: "بلاگ فونیکس وریفای",
+    description: metadata.description,
+    url: absoluteUrl("/blog"),
+    blogPost: activePosts.map((post) => ({
+      "@type": "BlogPosting",
+      headline: post.title,
+      description: post.excerpt,
+      image: post.image ? absoluteUrl(post.image) : undefined,
+      url: absoluteUrl(`/blog/${post.slug}`),
+    })),
+  };
 
   return (
     <div className="mx-auto max-w-[1320px] px-5 pb-20 pt-10">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(blogLd) }} />
+
       <div className="hero-anim-text relative mb-10 overflow-hidden rounded-3xl border border-[var(--hl-border)] bg-gradient-to-l from-[var(--hl-red)]/12 via-[var(--hl-orange)]/8 to-transparent px-8 py-12">
         <h1 className="text-3xl font-bold text-[var(--hl-ink)] sm:text-4xl">{content.sections.blogTitle}</h1>
         <p className="mt-3 max-w-xl text-sm leading-7 text-[var(--hl-ink-2)]">آخرین مقالات، آموزش‌ها و اخبار فونیکس وریفای.</p>
       </div>
 
-      {posts.length === 0 ? (
+      {activePosts.length === 0 ? (
         <p className="py-20 text-center text-[var(--hl-muted)]">هنوز مطلبی منتشر نشده است.</p>
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {posts.map((post, i) => (
+          {activePosts.map((post, i) => (
             <Reveal key={post.id} delayMs={Math.min(i * 60, 240)}>
               <Link
                 href={`/blog/${post.slug}`}

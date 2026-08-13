@@ -6,13 +6,14 @@ import HomeNewsletter from "@/components/home/HomeNewsletter";
 import TrustStats from "@/components/home/TrustStats";
 import CategoriesFaq from "@/components/categories/CategoriesFaq";
 import { categoryCardBlurb, categoryPath } from "@/lib/categorySeo";
+import { absoluteUrl, jsonLdScript } from "@/lib/seo";
 
 // Rendered per request, but the category list behind it is cached for a minute — so the page costs a
 // render rather than an API round-trip, and a build never has to reach the API to produce it.
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "دسته‌بندی محصولات",
-  description: "دسته‌بندی کامل خدمات و محصولات دیجیتال فونیکس وریفای: استریم، وریفای، گیفت‌کارت، VPN، شماره مجازی و نرم‌افزار.",
+  title: "دسته‌بندی محصولات و خدمات دیجیتال",
+  description: "دسته‌بندی کامل خدمات و محصولات دیجیتال فونیکس وریفای: هوش مصنوعی، استریم، فیلم و سریال، اسپاتیفای، VPN، شماره مجازی و گیفت‌کارت.",
 };
 
 const heroFeatures = [
@@ -68,8 +69,38 @@ export default async function CategoriesPage() {
     categories = (await api.categories.listCached()).filter((c) => c.isActive);
   } catch {}
 
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "صفحه اصلی", item: absoluteUrl("/") },
+      { "@type": "ListItem", position: 2, name: "دسته‌بندی‌ها", item: absoluteUrl("/categories") },
+    ],
+  };
+
+  const collectionLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "دسته‌بندی محصولات و خدمات دیجیتال فونیکس وریفای",
+    description: metadata.description,
+    url: absoluteUrl("/categories"),
+    mainEntity: {
+      "@type": "ItemList",
+      numberOfItems: categories.length,
+      itemListElement: categories.map((c, index) => ({
+        "@type": "ListItem",
+        position: index + 1,
+        name: c.name,
+        url: absoluteUrl(categoryPath(c)),
+      })),
+    },
+  };
+
   return (
     <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbLd) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(collectionLd) }} />
+
       {/* ── Hero ── */}
       <section className="overflow-hidden border-b border-[var(--hl-border)] bg-[var(--hl-surface)]">
         <div className="mx-auto max-w-[1840px] px-4 sm:px-8 xl:px-16">

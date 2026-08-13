@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBlogPosts } from "@/lib/content";
+import { api } from "@/lib/api";
 import { absoluteUrl, jsonLdScript, plainExcerpt } from "@/lib/seo";
 import RichText from "@/components/RichText";
+import BlogRelatedProducts from "@/components/blog/BlogRelatedProducts";
+import type { Product } from "@/lib/types";
 
 // Served from cache and refreshed in the background, so a visitor never waits on the API for a page
 // whose contents only change when an admin edits them.
@@ -40,9 +43,22 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 export default async function ArticlePage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
-  const posts = await getBlogPosts();
+  const [posts, allProducts] = await Promise.all([
+    getBlogPosts(),
+    api.products.listCached().catch(() => [] as Product[]),
+  ]);
   const post = posts.find((p) => p.slug === slug);
   if (!post) notFound();
+
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "صفحه اصلی", item: absoluteUrl("/") },
+      { "@type": "ListItem", position: 2, name: "بلاگ", item: absoluteUrl("/blog") },
+      { "@type": "ListItem", position: 3, name: post.title, item: absoluteUrl(`/blog/${post.slug}`) },
+    ],
+  };
 
   const articleLd = {
     "@context": "https://schema.org",
@@ -65,6 +81,7 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
 
   return (
     <article className="mx-auto max-w-[820px] px-5 pb-20 pt-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(breadcrumbLd) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(articleLd) }} />
       <nav className="mb-6 flex items-center gap-2 text-sm text-[var(--hl-muted)]">
         <Link href="/" className="hover:text-[var(--hl-ink)]">خانه</Link>
@@ -90,6 +107,14 @@ export default async function ArticlePage({ params }: { params: Promise<{ slug: 
       <div className="mt-6">
         <RichText content={post.content} className="text-[15px] leading-9" />
       </div>
+
+      {/* Internal Linking & Conversion: Related products based on article topic */}
+      <BlogRelatedProducts
+        tag={post.tag}
+        title={post.title}
+        slug={post.slug}
+        allProducts={allProducts}
+      />
 
       <div className="mt-12 border-t border-[var(--hl-border)] pt-6">
         <Link href="/blog" className="text-sm font-bold text-[var(--hl-red-text)] hover:underline">→ بازگشت به بلاگ</Link>

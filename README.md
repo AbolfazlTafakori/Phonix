@@ -103,6 +103,20 @@ Optional two-server clustering for **business continuity** (a datacenter or conn
 
 > Public traffic still follows DNS. When a Standby promotes itself, point the domain at it — that switch is deliberately a human decision.
 
+### 🔄 Screens That Keep Themselves Current
+Operational screens refresh on their own, so nobody has to reload a page to find out whether something
+changed. A shared polling hook handles the scheduling, and every screen that uses it pauses while the tab is
+in the background and while an edit is in flight — so a refresh can never pull a row out from under someone
+mid-action, and a backgrounded tab stops asking.
+
+- **Fulfilment queues** — receipts awaiting approval, orders being prepared, order status and the stock pool
+  pick up new work within seconds of it arriving.
+- **Live price and stock on the product page** — a visitor sitting on a product sees a price or stock change
+  without reloading. The page only re-renders when one of those figures actually moved, so nothing shifts
+  under the reader when nothing changed.
+- **Error backoff** — a degraded API is retried progressively more slowly instead of being hammered, and the
+  last good figures stay on screen rather than collapsing into an error.
+
 ### 🤖 Telegram Automation
 - **Receipt bot** — every card-to-card receipt lands in the admin chat with one-tap approve/reject.
 - **Order bot** — confirmed orders are announced to the fulfillment team exactly once, with claim-based dedup across approval paths.
@@ -138,6 +152,12 @@ current state.
 ### 🚀 DevOps & Observability
 - **Interactive Linux installer** (`install.sh`) — guided, one-command provisioning.
 - **`p-ui` CLI** — zero-downtime hot updates with health-checked auto-rollback, plus domain fallback routing.
+- **Rendering scaled to the machine** — server-rendering a page is the most expensive thing the app does, and
+  Node renders on a single thread, so one process can never use more than one core however large the server
+  is. The renderer therefore runs as several processes behind nginx. How many is derived from the machine —
+  one per core, capped by memory so a box with many cores and little RAM does not thrash — and recalculated
+  on every update, so resizing the server is enough to use the new capacity and shrinking it tidies up after
+  itself. Override with `PHONIX_WEB_INSTANCES` if you want a specific number.
 - **Serilog-powered audit pipeline** — structured, secure audit logging with a gated log-download facility.
 
 ---

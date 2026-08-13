@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import Script from "next/script";
 import { getAdvancedSettings } from "@/lib/content";
-import { SITE_URL, absoluteUrl } from "@/lib/seo";
+import { SITE_URL, absoluteUrl, jsonLdScript } from "@/lib/seo";
 import LiveChat from "@/components/LiveChat";
 import {
   Vazirmatn,
@@ -147,13 +147,18 @@ export default async function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
+            __html: jsonLdScript({
               "@context": "https://schema.org",
               "@type": "Organization",
               name: "Phoenix Verify",
-              alternateName: "فونیکس وریفای",
+              alternateName: ["فونیکس وریفای", "PhoenixVerify"],
               url: SITE_URL,
               logo: absoluteUrl("/figma/logo-phoenix.webp"),
+              image: absoluteUrl("/figma/logo-phoenix.webp"),
+              description: "مرجع تخصصی خرید اکانت پریمیوم، اشتراک قانونی و سرویس‌های دیجیتال با تحویل آنی، ضمانت بازگشت وجه و پرداخت ریالی.",
+              priceRange: "$$",
+              currenciesAccepted: "IRR, TOMAN",
+              paymentAccepted: "کارت به کارت، درگاه بانکی شتاب، ارز دیجیتال، موجودی کیف پول",
               contactPoint: {
                 "@type": "ContactPoint",
                 email: "support@phoenixverify.com",
@@ -166,10 +171,11 @@ export default async function RootLayout({
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
+            __html: jsonLdScript({
               "@context": "https://schema.org",
               "@type": "WebSite",
               name: "Phoenix Verify",
+              alternateName: "فونیکس وریفای",
               url: SITE_URL,
               inLanguage: "fa",
               potentialAction: {

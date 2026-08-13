@@ -119,7 +119,7 @@ export function productMetaDescription(product: MetaProduct): string {
   const price = cheapest > 0 ? ` از ${toFaDigits(cheapest.toLocaleString("en-US"))} تومان` : "";
 
   // Whatever the description already promises isn't promised again a few words later.
-  const assurances = ["تحویل آنی", "پرداخت امن", "پشتیبانی ۲۴ ساعته"]
+  const assurances = ["تحویل آنی و خودکار", "ضمانت تعویض", "پرداخت ریالی", "پشتیبانی ۲۴ ساعته"]
     .filter((phrase) => !base.includes(phrase));
   const tail = assurances.length > 0 ? ` با ${assurances.join("، ")}` : "";
 

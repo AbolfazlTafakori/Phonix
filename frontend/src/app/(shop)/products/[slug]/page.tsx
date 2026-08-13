@@ -179,6 +179,8 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
       highPrice: Math.max(...prices) * 10,
       offerCount: Math.max(plans.length, 1),
       availability: out ? "https://schema.org/OutOfStock" : "https://schema.org/InStock",
+      itemCondition: "https://schema.org/NewCondition",
+      seller: { "@type": "Organization", name: "Phoenix Verify" },
       url: absoluteUrl(productPath(product)),
     },
   };
