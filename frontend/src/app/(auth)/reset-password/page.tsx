@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import AuthShell from "@/components/auth/AuthShell";
@@ -25,19 +25,19 @@ function PwField({ value, onChange, placeholder, show, onToggle }: { value: stri
   );
 }
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
-  const [token, setToken] = useState("");
+  // Read on the server as well as in the browser. Pulling it out of window.location in an effect meant
+  // the first HTML every visitor received was the "this link is invalid" branch, because the token lives
+  // only in the URL — so someone arriving from the emailed link was told it had expired until JavaScript
+  // caught up, and the only way off that screen sends them back to request another one.
+  const token = useSearchParams().get("token") ?? "";
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
-
-  useEffect(() => {
-    setToken(new URLSearchParams(window.location.search).get("token") ?? "");
-  }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -103,5 +103,15 @@ export default function ResetPasswordPage() {
         </>
       )}
     </AuthShell>
+  );
+}
+
+// useSearchParams needs a Suspense boundary above it; without one the route falls back to client rendering
+// and the flash this change removes comes straight back.
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={null}>
+      <ResetPasswordForm />
+    </Suspense>
   );
 }
