@@ -325,10 +325,14 @@ export default function AdminStockPage() {
             </button>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
+            <table className="w-full min-w-[880px] text-sm">
               <thead>
                 <tr className="border-b border-white/8 text-right text-xs text-white/45">
                   <th className="p-4 font-medium">محصول</th>
+                  <th className="p-4 font-medium">موجود</th>
+                  <th className="p-4 font-medium">رزرو شده</th>
+                  <th className="p-4 font-medium">تحویل شده</th>
+                  <th className="p-4 font-medium">غیرفعال</th>
                   <th className="p-4 font-medium">تحویل خودکار</th>
                   <th className="p-4 font-medium">اکانت ظرفیتی</th>
                   <th className="p-4" />
@@ -343,6 +347,10 @@ export default function AdminStockPage() {
                         <span className="font-bold text-white">{r.name}</span>
                       </span>
                     </td>
+                    <td className={`p-4 font-bold ${r.available > 0 ? "text-emerald-400" : "text-rose-400"}`}>{toFa(r.available)}</td>
+                    <td className="p-4 text-amber-300">{toFa(r.reserved)}</td>
+                    <td className="p-4 text-sky-300">{toFa(r.delivered)}</td>
+                    <td className="p-4 text-white/40">{toFa(r.disabled)}</td>
                     <td className="p-4">
                       <Toggle checked={r.autoDeliver} onChange={(v) => toggleAuto(r, v)} />
                     </td>
@@ -375,7 +383,7 @@ export default function AdminStockPage() {
                   </tr>
                 ))}
                 {filtered.length === 0 && (
-                  <tr><td colSpan={4} className="p-10 text-center text-white/40">محصولی یافت نشد</td></tr>
+                  <tr><td colSpan={8} className="p-10 text-center text-white/40">محصولی یافت نشد</td></tr>
                 )}
               </tbody>
             </table>
