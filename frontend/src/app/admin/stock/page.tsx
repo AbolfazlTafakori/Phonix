@@ -347,10 +347,15 @@ export default function AdminStockPage() {
                         <span className="font-bold text-white">{r.name}</span>
                       </span>
                     </td>
-                    <td className={`p-4 font-bold ${r.available > 0 ? "text-emerald-400" : "text-rose-400"}`}>{toFa(r.available)}</td>
-                    <td className="p-4 text-amber-300">{toFa(r.reserved)}</td>
-                    <td className="p-4 text-sky-300">{toFa(r.delivered)}</td>
-                    <td className="p-4 text-white/40">{toFa(r.disabled)}</td>
+                    {/* Stock arrives two ways — loose items in the pool, and seats on capacity accounts — and
+                        these columns only ever counted the first. A shop selling entirely through capacity
+                        accounts therefore read as zero everywhere while holding real, sellable inventory, so
+                        each figure is the total of both. The seat share is spelled out in the capacity column
+                        beside it, and the per-item breakdown stays under مدیریت انبار. */}
+                    <td className={`p-4 font-bold ${r.available + r.slotAvailable > 0 ? "text-emerald-400" : "text-rose-400"}`}>{toFa(r.available + r.slotAvailable)}</td>
+                    <td className="p-4 text-amber-300">{toFa(r.reserved + r.slotReserved)}</td>
+                    <td className="p-4 text-sky-300">{toFa(r.delivered + r.slotDelivered)}</td>
+                    <td className="p-4 text-white/40">{toFa(r.disabled + r.slotDisabled)}</td>
                     <td className="p-4">
                       <Toggle checked={r.autoDeliver} onChange={(v) => toggleAuto(r, v)} />
                     </td>
