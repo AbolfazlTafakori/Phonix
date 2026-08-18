@@ -193,6 +193,8 @@ function AccountInfoCard({ me, onSaved }: { me: ProfileFields | null; onSaved: (
     { label: "شماره تماس", key: "phone", value: me?.phone || "—", ltr: true },
   ];
 
+  const emailRow = <ChangeEmailRow email={me?.email || ""} emailVerified={me?.emailVerified ?? false} />;
+
   return (
     <Card>
       <div className="p-6">
@@ -230,18 +232,26 @@ function AccountInfoCard({ me, onSaved }: { me: ProfileFields | null; onSaved: (
           <div className="grid gap-x-6 gap-y-3.5 sm:grid-cols-2">
             {rows.map((r) => (
               <div key={r.label} className="flex items-center justify-between gap-3 border-b pb-2.5" style={{ borderColor: "var(--ac-divider)" }}>
-                <span className="text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>{r.label}</span>
-                <span className="flex items-center gap-2 truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>
-                  <span dir={r.ltr ? "ltr" : "rtl"} className="truncate">{r.value}</span>
+                <span className="shrink-0 text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>{r.label}</span>
+                {/* min-w-0 is what actually lets the value shrink: a flex child refuses to go below its
+                    content width without it, so `truncate` alone would still push the text past the card. */}
+                <span className="flex min-w-0 items-center gap-2 text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>
+                  <span dir={r.ltr ? "ltr" : "rtl"} title={r.value} className="truncate">{r.value}</span>
                 </span>
               </div>
             ))}
+            {/* Fills the fourth cell, so the phone number has a neighbour and no row is left half empty. */}
+            {emailRow}
           </div>
         )}
 
-        <div className="mt-3.5 border-t pt-3.5" style={{ borderColor: "var(--ac-divider)" }}>
-          <ChangeEmailRow email={me?.email || ""} emailVerified={me?.emailVerified ?? false} />
-        </div>
+        {/* While the other fields are being edited the grid above is replaced by inputs, so the address
+            still needs somewhere to live. */}
+        {editing && (
+          <div className="mt-3.5 border-t pt-3.5" style={{ borderColor: "var(--ac-divider)" }}>
+            {emailRow}
+          </div>
+        )}
       </div>
     </Card>
   );
@@ -348,14 +358,16 @@ function ChangeEmailRow({ email, emailVerified }: { email: string; emailVerified
   if (!open) {
     return (
       <div>
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>ایمیل</span>
-          <div className="flex items-center gap-2">
-            <span className={`rounded-md px-2 py-0.5 text-[10px] font-bold ${emailVerified ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"}`}>
+        <div className="flex items-center justify-between gap-3 border-b pb-2.5" style={{ borderColor: "var(--ac-divider)" }}>
+          <span className="shrink-0 text-[12px] font-bold" style={{ color: "var(--ac-muted)" }}>ایمیل</span>
+          {/* Only the address itself may shrink — the badge and the change button stay legible, and
+              min-w-0 is what allows the address to ellipsize rather than widen the row. */}
+          <div className="flex min-w-0 items-center gap-2">
+            <span className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold ${emailVerified ? "bg-emerald-500/15 text-emerald-600" : "bg-amber-500/15 text-amber-600"}`}>
               {emailVerified ? "تأییدشده" : "تأیید نشده"}
             </span>
-            <span dir="ltr" className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{email}</span>
-            <button onClick={() => setOpen(true)} className="text-[12px] font-bold hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>تغییر</button>
+            <span dir="ltr" title={email} className="truncate text-[13px] font-bold" style={{ color: "var(--ac-title)" }}>{email}</span>
+            <button onClick={() => setOpen(true)} className="shrink-0 text-[12px] font-bold hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>تغییر</button>
           </div>
         </div>
         {/* An unverified address is a dead end until the link arrives, and the first one goes missing often
@@ -731,7 +743,9 @@ export default function AccountDashboard() {
             style={{ background: "var(--ac-stat-icon-orange-bg)", borderColor: "var(--ac-btn-secondary-border)", borderStyle: "dashed" }}
           >
             <p className="mb-1 text-[11px]" style={{ color: "var(--ac-muted)" }}>کد دعوت شما</p>
-            <p className="text-[20px] font-black uppercase tracking-wider" dir="ltr" style={{ color: "var(--hl-orange-text)" }}>
+            {/* px-12 keeps it clear of the copy button pinned to the left edge; without the truncate a long
+                username ran under that button and off the card entirely. */}
+            <p className="truncate px-12 text-[20px] font-black uppercase tracking-wider" dir="ltr" title={username.toUpperCase() || "PHONIX2024"} style={{ color: "var(--hl-orange-text)" }}>
               {username.toUpperCase() || "PHONIX2024"}
             </p>
             {/* The link the copy button actually copies, shown so it is clear what lands on the clipboard. */}
