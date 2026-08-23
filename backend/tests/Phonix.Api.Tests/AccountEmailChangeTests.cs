@@ -86,6 +86,37 @@ public class AccountEmailChangeTests : IClassFixture<PhonixAppFactory>
         Assert.True(after.EmailVerified);
     }
 
+    // Going back to an address the account used before is still a change of address, and the account has no
+    // way of knowing the customer still reads that inbox — the old mailbox may have been closed, reassigned
+    // by an employer, or recycled by the provider since. So the return trip has to be proven exactly like
+    // the outbound one was, and the verified flag must not survive on the strength of a past confirmation.
+    [Fact]
+    public async Task Returning_to_a_previously_verified_address_has_to_prove_it_again()
+    {
+        var (id, token) = await RegisterAndLoginAsync("emailroundtrip", "first-roundtrip@example.com", "pass1234");
+
+        // A -> B, confirmed.
+        await _client.SendAsync(Authed(HttpMethod.Post, "/api/account/change-email", token,
+            new { currentPassword = "pass1234", newEmail = "second-roundtrip@example.com" }));
+        await FreshClient().PostAsJsonAsync("/api/account/confirm-email-change", new { token = ReadToken(id, "change-email") });
+
+        // B -> A: requested but NOT yet confirmed.
+        var back = await _client.SendAsync(Authed(HttpMethod.Post, "/api/account/change-email", token,
+            new { currentPassword = "pass1234", newEmail = "first-roundtrip@example.com" }));
+        Assert.Equal(HttpStatusCode.OK, back.StatusCode);
+
+        var pending = await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/account/me", token))).Content.ReadFromJsonAsync<MeDto>();
+        Assert.Equal("second-roundtrip@example.com", pending!.Email);
+
+        // Confirming is what moves it back, and the flag is earned by that click, not inherited.
+        var confirm = await FreshClient().PostAsJsonAsync("/api/account/confirm-email-change", new { token = ReadToken(id, "change-email") });
+        Assert.Equal(HttpStatusCode.OK, confirm.StatusCode);
+
+        var after = await (await _client.SendAsync(Authed(HttpMethod.Get, "/api/account/me", token))).Content.ReadFromJsonAsync<MeDto>();
+        Assert.Equal("first-roundtrip@example.com", after!.Email);
+        Assert.True(after.EmailVerified);
+    }
+
     [Fact]
     public async Task Confirm_email_change_works_with_no_session_at_all()
     {
