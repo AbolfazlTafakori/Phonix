@@ -92,7 +92,8 @@ public class GoogleAuthTests : IClassFixture<GoogleAuthAppFactory>
             new { userId });
     }
 
-    private static string GoogleCredential(string email, bool emailVerified = true, string aud = "test-client-id", string? name = null) =>
+    private static string GoogleCredential(string email, bool emailVerified = true, string aud = "test-client-id",
+        string? name = null, string iss = "https://accounts.google.com") =>
         System.Text.Json.JsonSerializer.Serialize(new
         {
             aud,
@@ -100,6 +101,7 @@ public class GoogleAuthTests : IClassFixture<GoogleAuthAppFactory>
             email_verified = emailVerified ? "true" : "false",
             name = name ?? email.Split('@')[0],
             sub = "1234567890",
+            iss,
         });
 
     private record AuthResult(string? Token, UserRef? User);
@@ -144,6 +146,28 @@ public class GoogleAuthTests : IClassFixture<GoogleAuthAppFactory>
 
     // Regression for the account-takeover bug: registering with someone else's email (never proving you own
     // it) must not let that same email's later, real Google sign-in be silently absorbed into your account.
+    // The audience says who a token was minted for; the issuer says who minted it. Checking only the first
+    // leaves the endpoint trusting any party that puts our client id in the aud field, so both are required.
+    [Theory]
+    [InlineData("https://accounts.example.com")]
+    [InlineData("")]
+    public async Task Token_from_an_issuer_other_than_google_is_rejected(string issuer)
+    {
+        var resp = await _client.PostAsJsonAsync("/api/auth/google",
+            new { credential = GoogleCredential("forged-issuer@example.com", iss: issuer) });
+        Assert.Equal(HttpStatusCode.Unauthorized, resp.StatusCode);
+    }
+
+    // Google spells its issuer both with and without the scheme and treats them as the same; refusing the
+    // bare form would break sign-in for no security gain.
+    [Fact]
+    public async Task Both_spellings_of_the_google_issuer_are_accepted()
+    {
+        var resp = await _client.PostAsJsonAsync("/api/auth/google",
+            new { credential = GoogleCredential("bare-issuer@example.com", iss: "accounts.google.com") });
+        Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
+    }
+
     [Fact]
     public async Task Google_sign_in_refuses_to_merge_into_an_unverified_squatted_account()
     {

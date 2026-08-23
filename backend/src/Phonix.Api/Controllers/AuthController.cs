@@ -338,7 +338,7 @@ public class AuthController : ControllerBase
     // Google Identity Services sign-in. The browser posts the ID token (JWT); we verify it against Google,
     // confirm the audience matches our own client id, then find-or-create the matching customer and issue a
     // normal main-site session. Configured via PHONIX_GOOGLE_CLIENT_ID (same id the frontend loads GIS with).
-    private sealed record GoogleTokenInfo(string? aud, string? email, string? email_verified, string? name, string? sub);
+    private sealed record GoogleTokenInfo(string? aud, string? email, string? email_verified, string? name, string? sub, string? iss);
 
     private static string? GoogleClientId => Environment.GetEnvironmentVariable("PHONIX_GOOGLE_CLIENT_ID");
 
@@ -391,7 +391,11 @@ public class AuthController : ControllerBase
         }
 
         // Audience check is the critical step: a token minted for another app must never be accepted here.
-        if (info is null || !string.Equals(info.aud, clientId, StringComparison.Ordinal))
+        // The issuer is checked alongside it so the only thing this endpoint will act on is a Google-minted
+        // token for THIS client — the endpoint that vouched for it is a URL, and a URL is configuration.
+        // Google spells the issuer both ways and treats them as equivalent, so both are accepted.
+        if (info is null || !string.Equals(info.aud, clientId, StringComparison.Ordinal)
+            || (info.iss is not "accounts.google.com" and not "https://accounts.google.com"))
         {
             NoteAuthFailure("google", info?.email);
             return Unauthorized("توکن گوگل نامعتبر است.");
