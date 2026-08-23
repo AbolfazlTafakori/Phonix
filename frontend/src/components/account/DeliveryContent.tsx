@@ -4,9 +4,12 @@ import { useState } from "react";
 
 // Renders admin-delivered order text (credentials, links, instructions) safely and legibly:
 // - Preserves the original line structure (each line kept, blank lines become spacing).
-// - Bidi-correct: every line uses dir="auto" so a standalone English/URL line left-aligns while
-//   Persian lines stay right-aligned; embedded Latin/URLs are isolated so they never scramble the
-//   surrounding Persian text.
+// - Bidi-correct: each line picks its own direction so a standalone English/URL line left-aligns while
+//   Persian lines stay right-aligned, and every Latin run inside a Persian line is isolated so it reads
+//   exactly as it was written. That isolation is not cosmetic: trailing punctuation is bidi-neutral, so
+//   on a line like "رمز: Mienbac360@@@@" the @@@@ takes the line's right-to-left direction and is drawn
+//   to the LEFT of the password. It reads as "@@@@Mienbac360" — which is what a customer then types, and
+//   why they cannot log in with a password that was delivered correctly.
 // - URLs become clean, one-tap-copyable links (LTR-isolated) so they can be copied intact.
 // - All colors come from theme tokens (--ac-*), so text stays readable in both light and dark themes.
 
@@ -41,6 +44,23 @@ const URL_RE = /(https?:\/\/[^\s<]+)/g;
 // otherwise-Persian line keep the surrounding text intact.
 const hasRtl = (s: string) => /[؀-ۿ]/.test(s);
 
+// A run of Latin letters/digits plus any ASCII punctuation hanging off it — credentials, emails, codes,
+// keys. Whitespace ends a run, so words stay separate and only the run itself is isolated.
+const LATIN_RUN_RE = /([A-Za-z0-9][!-~]*)/g;
+
+// <bdi> is the element for exactly this: it isolates its contents from the surrounding bidi context, so a
+// password keeps its own internal order and its trailing punctuation stays where it was typed.
+function isolateLatin(text: string, keyPrefix: string) {
+  // split() with a capturing group alternates separator/match chunks, and a matched run always starts with
+  // a letter or digit — testing that is enough. Reusing LATIN_RUN_RE.test() here would not be: a /g regex
+  // carries lastIndex between calls and would answer differently for the same input.
+  return text.split(LATIN_RUN_RE).map((chunk, i) =>
+    /^[A-Za-z0-9]/.test(chunk)
+      ? <bdi key={`${keyPrefix}-${i}`} dir="ltr">{chunk}</bdi>
+      : <span key={`${keyPrefix}-${i}`}>{chunk}</span>,
+  );
+}
+
 // A run of box-drawing/dashes on its own line is a block separator (see StockFulfillmentService.SeatDivider).
 const isDivider = (s: string) => /^[\s]*[─—-]{3,}[\s]*$/.test(s);
 
@@ -66,7 +86,7 @@ function Line({ line, bold }: { line: string; bold?: boolean }) {
             <CopyButton text={part} />
           </span>
         ) : (
-          <span key={i}>{part}</span>
+          <span key={i}>{isolateLatin(part, String(i))}</span>
         ),
       )}
     </p>
