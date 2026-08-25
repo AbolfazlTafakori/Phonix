@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import type { SiteContent, Product, Notification } from "@/lib/types";
-import { formatToman, productDisplayPrice } from "@/lib/format";
+import type { SiteContent, Product, Notification, Category } from "@/lib/types";
+import { formatNumber, formatToman, productDisplayPrice } from "@/lib/format";
 import { useAuth } from "@/lib/auth";
 import { useCart } from "@/lib/cart";
 import { api } from "@/lib/api";
 import { SearchIcon, CartIcon, UserIcon, BellIcon } from "../Icons";
 import ThemeToggle from "./ThemeToggle";
 import { productPath } from "@/lib/seo";
+import { categoryPath } from "@/lib/categorySeo";
 
-type Props = { brand: SiteContent["brand"]; searchPlaceholder: string };
+type Props = { brand: SiteContent["brand"]; searchPlaceholder: string; categories?: Category[] };
 
 const navLinks = [
   { label: "خانه", href: "/" },
@@ -71,7 +72,7 @@ function NotifDropdown({ notifs, onClose }: { notifs: Notification[]; onClose: (
   );
 }
 
-export default function HomeHeader({ brand, searchPlaceholder }: Props) {
+export default function HomeHeader({ brand, searchPlaceholder, categories = [] }: Props) {
   const router = useRouter();
   const pathname = usePathname();
   // On mobile the bottom tab bar already carries cart + account, so the header drops them there. The one
@@ -95,6 +96,11 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
   const [notifs, setNotifs] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
+  // The category icons are full-size catalogue art (~100KB each), so they are not in the header's payload:
+  // the markup ships with the page (crawlable links, no layout shift) and the images mount the first time
+  // the menu is opened. `loading="lazy"` cannot do this job — an image inside a `visibility:hidden` panel
+  // never intersects the viewport, so it is never fetched, not even once the panel opens.
+  const [catsOpened, setCatsOpened] = useState(false);
   const bellRef = useRef<HTMLDivElement>(null);
 
   // Poll the customer's notifications so the bell badge stays current; pause while the tab is hidden.
@@ -218,19 +224,53 @@ export default function HomeHeader({ brand, searchPlaceholder }: Props) {
             </span>
           </Link>
           <nav className="hidden items-center gap-6 text-[17px] font-bold lg:flex">
-            {navLinks.map((l, i) => (
-              <Link
-                key={i}
-                href={l.href}
-                className={`relative py-1 transition ${
-                  i === activeIndex
-                    ? "text-[var(--hl-red-text)] after:absolute after:inset-x-0 after:-bottom-[6px] after:h-[3px] after:rounded-full after:bg-gradient-to-l after:from-[#ef233c] after:to-[#ff5a1f]"
-                    : "text-[var(--hl-ink-2)] hover:text-[var(--hl-ink)]"
-                }`}
-              >
-                {l.label}
-              </Link>
-            ))}
+            {navLinks.map((l, i) => {
+              const cls = `relative py-1 transition ${
+                i === activeIndex
+                  ? "text-[var(--hl-red-text)] after:absolute after:inset-x-0 after:-bottom-[6px] after:h-[3px] after:rounded-full after:bg-gradient-to-l after:from-[#ef233c] after:to-[#ff5a1f]"
+                  : "text-[var(--hl-ink-2)] hover:text-[var(--hl-ink)]"
+              }`;
+              // «دسته‌بندی‌ها» opens the live catalogue on hover instead of making the visitor load the
+              // index page first. The link itself still goes there, and the menu is desktop-only because
+              // the nav it hangs off is (mobile navigates through the tab bar).
+              if (l.href !== "/categories" || categories.length === 0)
+                return <Link key={i} href={l.href} className={cls}>{l.label}</Link>;
+              return (
+                <div key={i} className="group relative" onMouseEnter={() => setCatsOpened(true)} onFocus={() => setCatsOpened(true)}>
+                  <Link href={l.href} className={`${cls} flex items-center gap-1`}>
+                    {l.label}
+                    <svg viewBox="0 0 24 24" aria-hidden="true" className="h-3.5 w-3.5 transition group-hover:rotate-180" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </Link>
+                  {/* the padding is the bridge across the gap below the link — without it the pointer
+                      leaves the group on its way to the panel and the menu closes underneath it */}
+                  <div className="invisible absolute right-0 top-full z-[60] pt-4 opacity-0 transition duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+                    <div className="w-[min(520px,calc(100vw-4rem))] rounded-2xl border border-[var(--hl-border)] bg-white p-2 shadow-[0_24px_50px_-18px_rgba(0,0,0,0.25)]">
+                      <ul className="grid grid-cols-2 gap-1">
+                        {categories.map((c) => (
+                          <li key={c.id}>
+                            <Link href={categoryPath(c)} className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition hover:bg-[#f7f8fa]">
+                              {/* the slot keeps its size whether or not there is an icon to put in it */}
+                              <span className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg">
+                                {catsOpened && c.icon && <img decoding="async" src={c.icon} alt="" className="h-9 w-9 object-contain" />}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[14px] font-bold text-[var(--hl-ink)]">{c.name}</span>
+                                <span className="block text-[11px] font-medium text-[var(--hl-muted)]">{formatNumber(c.productCount)} محصول</span>
+                              </span>
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                      <Link href="/categories" className="mt-1 flex items-center justify-center rounded-xl border-t border-[var(--hl-border)] px-3 py-2.5 text-[13px] font-bold text-[var(--hl-red-text)] transition hover:bg-[#fff6f2]">
+                        همه‌ی دسته‌بندی‌ها
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </nav>
         </div>
 

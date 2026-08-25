@@ -1,4 +1,4 @@
-import { getBlogPosts, getSiteContent } from "@/lib/content";
+import { getBlogPosts, getShopCategories, getSiteContent } from "@/lib/content";
 import TopBar from "@/components/home/TopBar";
 import HomeHeader from "@/components/home/HomeHeader";
 import HomeHero from "@/components/home/HomeHero";
@@ -25,7 +25,7 @@ import { jsonLdScript } from "@/lib/seo";
 export const revalidate = 60;
 
 export default async function Home() {
-  const [content, blogPosts] = await Promise.all([getSiteContent(), getBlogPosts()]);
+  const [content, blogPosts, categories] = await Promise.all([getSiteContent(), getBlogPosts(), getShopCategories()]);
   const faqLd = {
     "@context": "https://schema.org",
     "@type": "FAQPage",
@@ -39,7 +39,7 @@ export default async function Home() {
     <div className="home-light min-h-screen pb-[60px] lg:pb-0">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(faqLd) }} />
       <TopBar />
-      <HomeHeader brand={content.brand} searchPlaceholder="جستجو در فونیکس" />
+      <HomeHeader brand={content.brand} searchPlaceholder="جستجو در فونیکس" categories={categories} />
       <main>
         <HomeHero />
         <TrustStats />

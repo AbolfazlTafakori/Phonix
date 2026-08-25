@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { api } from "./api";
-import type { HeroSlide, HomeCategory, Showcase, BlogPost, SiteContent, AdvancedSettings, Comment } from "./types";
+import type { HeroSlide, HomeCategory, Showcase, BlogPost, SiteContent, AdvancedSettings, Comment, Category } from "./types";
 import {
   categories as homeCats,
   products as homeProducts,
@@ -151,6 +151,18 @@ export const getHomeCategories = cache(async (): Promise<HomeCategory[]> => {
     return sortActive(await api.homeCategories.listCached());
   } catch {
     return defaultHomeCategories;
+  }
+});
+
+// The shop's real categories, for the places that link into them (the header menu). A category with no
+// active products is dropped: /category/[slug] refuses to serve an empty category, so linking to one
+// would be a 404 in the site-wide header. productCount counts exactly what that route filters on.
+// Empty on failure — a catalogue that can't be read should cost the header its menu, not the page.
+export const getShopCategories = cache(async (): Promise<Category[]> => {
+  try {
+    return sortActive(await api.categories.listCached()).filter((c) => c.productCount > 0);
+  } catch {
+    return [];
   }
 });
 
