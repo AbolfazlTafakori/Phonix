@@ -10,6 +10,24 @@ function safeUrl(url: string): string | null {
   return /^https?:\/\//i.test(u) || u.startsWith("/") ? u : null;
 }
 
+// A heading may name its own anchor: "## آیفون و آیپد {#iphone}". The id is written by the author rather
+// than derived from the heading text, because a Persian heading has no dependable slug — anything generated
+// from it would have to be guessed at again on the linking side, and rewording a heading would silently
+// break every link pointing at it.
+const HEADING_ID = /\s*\{#([a-z0-9-]{1,64})\}\s*$/;
+
+function splitHeading(raw: string): { label: string; id?: string } {
+  const m = raw.match(HEADING_ID);
+  return m ? { label: raw.slice(0, m.index), id: m[1] } : { label: raw };
+}
+
+// The links a long article uses to jump to its own sections. Separate from safeUrl because a fragment is
+// a valid destination for a link but never for an image source.
+function safeHref(url: string): string | null {
+  const u = url.trim();
+  return /^#[a-z0-9-]{1,64}$/.test(u) ? u : safeUrl(u);
+}
+
 // A pipe table is a header row, a `| --- | --- |` separator, then body rows. Without this, an
 // admin-written comparison table rendered as literal "| پلن | کیفیت |" text on the page.
 function parseTable(lines: string[]): { header: string[]; rows: string[][] } | null {
@@ -39,7 +57,7 @@ function renderInline(text: string, keyPrefix: string): React.ReactNode[] {
       const src = safeUrl(m[2]);
       if (src) nodes.push(<img loading="lazy" decoding="async" key={key} src={src} alt={m[1]} className="my-2 inline-block max-h-32 rounded-lg align-middle" />);
     } else if (m[3] !== undefined && m[4] !== undefined) {
-      const href = safeUrl(m[4]);
+      const href = safeHref(m[4]);
       // Links to our own pages stay in the tab — sending a reader to another page of the same shop in a
       // new window is disorienting, and the referrer suppression only makes sense for outbound links.
       const internal = href?.startsWith("/") ?? false;
@@ -83,9 +101,20 @@ export default function RichText({ content, className = "" }: { content: string;
           const src = safeUrl(imgOnly[2]);
           return src ? <img loading="lazy" decoding="async" key={bi} src={src} alt={imgOnly[1]} className="mx-auto max-w-full rounded-xl border border-[var(--hl-border)]" /> : null;
         }
-        if (block.startsWith("### ")) return <h4 key={bi} className="text-base font-bold text-[var(--hl-ink)]">{renderInline(block.slice(4), `h${bi}`)}</h4>;
-        if (block.startsWith("## ")) return <h3 key={bi} className="text-lg font-bold text-[var(--hl-ink)]">{renderInline(block.slice(3), `h${bi}`)}</h3>;
-        if (block.startsWith("# ")) return <h2 key={bi} className="text-xl font-bold text-[var(--hl-ink)]">{renderInline(block.slice(2), `h${bi}`)}</h2>;
+        // scroll-mt clears the sticky site header — without it a heading jumped to from the article's own
+        // table of contents lands underneath it and looks like the link went to the wrong place.
+        const heading = (tag: "h2" | "h3" | "h4", raw: string, size: string) => {
+          const { label, id } = splitHeading(raw);
+          const Tag = tag;
+          return (
+            <Tag key={bi} {...(id ? { id } : {})} className={`${size} scroll-mt-28 font-bold text-[var(--hl-ink)]`}>
+              {renderInline(label, `h${bi}`)}
+            </Tag>
+          );
+        };
+        if (block.startsWith("### ")) return heading("h4", block.slice(4), "text-base");
+        if (block.startsWith("## ")) return heading("h3", block.slice(3), "text-lg");
+        if (block.startsWith("# ")) return heading("h2", block.slice(2), "text-xl");
 
         const lines = block.split("\n");
 
