@@ -186,6 +186,22 @@ export default function OrdersPage() {
                             </button>
                           );
                         })}
+
+                        {products.length > 0 && (
+                          /* The logos are the only way into the delivery details, so they carry a label.
+                             It stays on their line rather than dropping below them (where the arrow would
+                             point at nothing): flex-1 makes the sentence wrap within itself when space is
+                             tight. The arrow is sized in em so it tracks the label. */
+                          <span
+                            className="flex flex-1 items-center gap-1.5 font-bold"
+                            style={{ color: "var(--ac-text)", fontSize: "clamp(11px, 0.5rem + 0.6vw, 15px)", minWidth: 0 }}
+                          >
+                            <svg viewBox="0 0 24 24" aria-hidden="true" className="shrink-0" style={{ width: "1.2em", height: "1.2em" }} fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M5 12h13M12 5l7 7-7 7" />
+                            </svg>
+                            برای دیدن اطلاعات سرویس روی لوگو کلیک کنید
+                          </span>
+                        )}
                       </div>
 
                       <div className="flex flex-wrap items-center justify-end gap-2">
