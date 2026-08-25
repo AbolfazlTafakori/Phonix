@@ -65,14 +65,21 @@ public class StockFulfillmentTests
     private static StockFulfillmentService Fulfillment(IDataStore store) =>
         new(store, NullLogger<StockFulfillmentService>.Instance);
 
+    // The bot asks this which accounts build themselves, so it knows which ones not to hand to the group. The
+    // only method it calls is Handles(), which reads the product out of the store and touches neither the
+    // panel connector nor the service provider — no product in these fixtures is linked to a V2Ray category,
+    // so the answer is always "none of them", which is exactly the shape of order these tests are about.
+    private static V2RayFulfillmentService V2Ray(IDataStore store) =>
+        new(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance);
+
     private static TelegramOrderService Bot(IDataStore store, BotHandler handler)
     {
         store.UpdateTelegramSettings(new TelegramSettings
         {
             OrderBotEnabled = true, OrderBotToken = Token, OrderChatId = Chat,
         });
-        return new TelegramOrderService(store, new NoopMailer(), Fulfillment(store), new StubFactory(handler),
-            NullLogger<TelegramOrderService>.Instance);
+        return new TelegramOrderService(store, new NoopMailer(), Fulfillment(store), V2Ray(store),
+            new StubFactory(handler), NullLogger<TelegramOrderService>.Instance);
     }
 
     // A paid order for `qty` ready-made accounts of product 1 (its plans collect nothing from the buyer).

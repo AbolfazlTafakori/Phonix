@@ -14,6 +14,10 @@ namespace Phonix.Api.Services;
 //   • ProcessUpdatesAsync — long-polls for the staff member's taps and replies and applies them through the
 //     SAME store paths the panel uses (DeliverUnit / CancelOrder), so Telegram is just another front-end.
 //
+// A self-provisioning account (V2Ray) is neither: nobody in the group can fulfil it, because the service is
+// created on a panel by the system itself. Those are held back at announce time and posted ONCE, when the
+// account actually exists — a delivery notice with nothing to decide, which is the whole point of them.
+//
 // Two shapes of account exist and the approve button branches on them:
 //   • the customer handed us their own credentials (the plan collects inputs) → we upgraded their account, so
 //     approving simply delivers a confirmation;
@@ -31,6 +35,11 @@ public interface ITelegramOrderService
     // Convenience for the payment-approval paths (panel or receipt bot): given a just-approved order payment,
     // announce that order's accounts. Claims first, so whichever path gets there is the only one that posts.
     Task AnnounceApprovedOrderAsync(Transaction tx, CancellationToken ct = default);
+
+    // Posts ONE account to the orders group, for the paths that fulfil an account after the order was
+    // announced (a V2Ray service, once the panel has actually created it). Claims first, so an account can
+    // never be posted twice however many paths reach it. Never throws.
+    Task NotifyUnitAsync(Order order, OrderUnit unit, CancellationToken ct = default);
 
     // Long-polls one getUpdates cycle from `offset` and applies any staff decisions. Returns the next offset.
     Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default);
@@ -50,15 +59,17 @@ public sealed class TelegramOrderService : ITelegramOrderService
     private readonly IDataStore _store;
     private readonly IUserMailer _mailer;
     private readonly IStockFulfillmentService _stock;
+    private readonly IV2RayFulfillmentService _v2ray;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<TelegramOrderService> _logger;
 
     public TelegramOrderService(IDataStore store, IUserMailer mailer, IStockFulfillmentService stock,
-        IHttpClientFactory httpFactory, ILogger<TelegramOrderService> logger)
+        IV2RayFulfillmentService v2ray, IHttpClientFactory httpFactory, ILogger<TelegramOrderService> logger)
     {
         _store = store;
         _mailer = mailer;
         _stock = stock;
+        _v2ray = v2ray;
         _httpFactory = httpFactory;
         _logger = logger;
     }
@@ -94,6 +105,12 @@ public sealed class TelegramOrderService : ITelegramOrderService
             // specs plus a static «تحویل خودکار» badge — so the group still sees the sale but has nothing to decide.
             foreach (var unit in order.Units.Where(u => !u.Rejected).OrderBy(u => u.UnitIndex))
             {
+                // An undelivered V2Ray account is on its way to being created by the system. Posting it now
+                // would ask the group to fulfil by hand something they cannot fulfil, and the message would be
+                // wrong within the minute; it is posted when the service exists instead.
+                if (!unit.Delivered && _v2ray.Handles(unit)) continue;
+                if (!_store.TryClaimUnitBotNotification(order.Id, unit.Id)) continue;
+
                 string markup;
                 string caption;
                 if (unit.Delivered)
@@ -146,6 +163,42 @@ public sealed class TelegramOrderService : ITelegramOrderService
             _logger.LogWarning(ex, "Telegram order announce failed for tx #{TxId}", tx.Id);
         }
     }
+
+    public async Task NotifyUnitAsync(Order order, OrderUnit unit, CancellationToken ct = default)
+    {
+        try
+        {
+            if (ActiveConfig() is not { } cfg) return;
+            if (unit.Rejected) return;
+            if (!_store.TryClaimUnitBotNotification(order.Id, unit.Id)) return;
+            var (token, chatId) = cfg;
+
+            // Delivered is the ordinary case and needs no decision — the account exists and the customer has
+            // it. The other case is an account the system tried and could not create: that one DOES need a
+            // person, so it says so rather than being quietly absent from the group.
+            var status = unit.Delivered
+                ? "<b>وضعیت: ✅ سرویس ساخته و تحویل شد</b>"
+                : $"<b>وضعیت: ⚠️ ساخت خودکار سرویس ناموفق بود — نیاز به بررسی</b>{FailureReason(unit)}";
+            var button = unit.Delivered ? "✅ سرویس ساخته و تحویل شد" : "⚠️ نیاز به بررسی";
+            var markup = JsonSerializer.Serialize(new
+            {
+                inline_keyboard = new[] { new object[]
+                {
+                    new { text = button, callback_data = $"{DecidedPrefix}{order.Id}:{unit.Id}" },
+                } },
+            });
+            await SendMessageAsync(token, chatId, $"{BuildUnitCaption(order, unit)}\n\n{status}", markup, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram unit notification failed for order {Code} unit {Unit}", order.Code, unit.Id);
+        }
+    }
+
+    // What the panel said the last time we tried, so the group can tell a server that is down from a plan that
+    // is misconfigured without opening the admin panel.
+    private static string FailureReason(OrderUnit unit) =>
+        unit.V2Ray?.LastError is { Length: > 0 } e ? $"\n<code>{Esc(e)}</code>" : "";
 
     public async Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default)
     {

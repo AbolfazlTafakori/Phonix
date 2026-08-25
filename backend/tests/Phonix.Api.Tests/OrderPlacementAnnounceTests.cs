@@ -71,7 +71,10 @@ public class OrderPlacementAnnounceTests
     {
         store.UpdateTelegramSettings(new TelegramSettings { OrderBotEnabled = true, OrderBotToken = Token, OrderChatId = Chat });
         var stock = new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance);
-        var orderBot = new TelegramOrderService(store, new NoopMailer(), stock, new StubFactory(handler),
+        // Only Handles() is ever called on this, and it reads the product out of the store — no panel and no
+        // service provider are touched. No fixture product is linked to a V2Ray category, so it answers "none".
+        var v2ray = new V2RayFulfillmentService(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance);
+        var orderBot = new TelegramOrderService(store, new NoopMailer(), stock, v2ray, new StubFactory(handler),
             NullLogger<TelegramOrderService>.Instance);
         // The real storage service: checkout now verifies that a cited receipt id was uploaded by the buyer,
         // and these orders carry no receipt, so it is only ever asked about an empty value.

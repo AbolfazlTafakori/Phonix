@@ -100,8 +100,15 @@ public class V2RayRenewalTests
             store.GetUser(5)!, new[] { (productId, 1, (int?)planId) }, "wallet", fromWallet: true,
             lineInfo: new List<OrderLineInfo> { new(null, token) }).Order!;
 
+    // No service provider: these tests drive provisioning directly, and the orders-group announcement is
+    // resolved from one — a null provider simply means there is no bot to post to.
     private static V2RayFulfillmentService Service(IDataStore store, IV2RayPanelConnector panel) =>
-        new(store, panel, NullLogger<V2RayFulfillmentService>.Instance);
+        new(store, panel, new NoServices(), NullLogger<V2RayFulfillmentService>.Instance);
+
+    private sealed class NoServices : IServiceProvider
+    {
+        public object? GetService(Type serviceType) => null;
+    }
 
     [Fact]
     public async Task Renewing_extends_the_same_account_and_never_creates_a_second_one()

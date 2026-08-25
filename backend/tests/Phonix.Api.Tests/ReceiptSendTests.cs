@@ -35,6 +35,7 @@ public class ReceiptSendTests
     private sealed class NoopOrderBot : ITelegramOrderService
     {
         public Task NotifyOrderAsync(Order order, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyUnitAsync(Order order, OrderUnit unit, CancellationToken ct = default) => Task.CompletedTask;
         public Task AnnounceApprovedOrderAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
@@ -69,6 +70,7 @@ public class ReceiptSendTests
         var handler = new CapturingHandler();
         var svc = new TelegramReceiptService(store, null!, new NoopMailer(), new NoopOrderBot(),
             new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance),
+            new V2RayFulfillmentService(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance),
             new StubFactory(handler), NullLogger<TelegramReceiptService>.Instance);
 
         // No receipt image → the text path, which is what a wallet top-up without a photo uses.
@@ -95,6 +97,7 @@ public class ReceiptSendTests
         var handler = new CapturingHandler();
         var svc = new TelegramReceiptService(store, null!, new NoopMailer(), new NoopOrderBot(),
             new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance),
+            new V2RayFulfillmentService(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance),
             new StubFactory(handler), NullLogger<TelegramReceiptService>.Instance);
 
         var tx = store.AddTransaction(new Transaction { UserId = 1, Type = TxTypes.WalletTopUp, Amount = 1, Status = TxStatus.Pending });

@@ -96,15 +96,18 @@ public class TransactionsController : ControllerBase
     private readonly ITelegramReceiptService _receiptBot;
     private readonly ITelegramOrderService _orderBot;
     private readonly IStockFulfillmentService _stock;
+    private readonly IV2RayFulfillmentService _v2ray;
     private readonly IUserMailer _mailer;
     public TransactionsController(IDataStore store, IFileStorageService files, ITelegramReceiptService receiptBot,
-        ITelegramOrderService orderBot, IStockFulfillmentService stock, IUserMailer mailer)
+        ITelegramOrderService orderBot, IStockFulfillmentService stock, IV2RayFulfillmentService v2ray,
+        IUserMailer mailer)
     {
         _store = store;
         _files = files;
         _receiptBot = receiptBot;
         _orderBot = orderBot;
         _stock = stock;
+        _v2ray = v2ray;
         _mailer = mailer;
     }
 
@@ -258,11 +261,15 @@ public class TransactionsController : ControllerBase
         var updated = _store.GetTransaction(id)!;
         if (wasPending) _ = _mailer.TransactionDecidedAsync(updated);
         // Approving an order's payment advances that order to «آماده‌سازی»: pool-enabled products deliver
-        // themselves right here, and only what the pool couldn't cover goes to the orders group. The claim
-        // inside the announce keeps a re-approval from posting them twice.
+        // themselves right here, V2Ray services go and build themselves on the panel, and only what neither
+        // could serve goes to the orders group for a person. The claim inside the announce keeps a
+        // re-approval from posting them twice.
         if (wasPending)
         {
             _stock.AutoDeliverForTransaction(updated);
+            // Not awaited: it talks to the panel over the network, and an approval that has already taken the
+            // customer's money must not fail because that server is slow. It never throws.
+            _ = _v2ray.ProvisionForTransactionAsync(updated);
             _ = _orderBot.AnnounceApprovedOrderAsync(updated);
         }
         return updated;

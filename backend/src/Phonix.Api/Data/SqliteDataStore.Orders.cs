@@ -1095,6 +1095,19 @@ LIMIT 1;",
             return true;
         });
 
+    public bool TryClaimUnitBotNotification(int orderId, int unitId) =>
+        WriteTx((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id = @id", new { id = orderId }, tx);
+            if (oj is null) return false;
+            var o = Deserialize<Order>(oj)!;
+            var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit is null || unit.BotNotifiedAtUtc is not null) return false;
+            unit.BotNotifiedAtUtc = DateTime.UtcNow;
+            UpsertOrder(conn, tx, o);
+            return true;
+        });
+
     public IReadOnlyList<RenewalReminder> CollectDueRenewalReminders(int hoursBefore)
     {
         var due = new List<RenewalReminder>();

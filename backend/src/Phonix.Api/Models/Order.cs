@@ -82,6 +82,10 @@ public class OrderUnit
     public bool WaitingForInventory { get; set; }
     // Last staff member who saved a draft or delivered this unit — shown so a second admin sees who's on it.
     public string? HandledBy { get; set; }
+    // Set once this account has been posted to the orders group. The order-level stamp can't serve here: a
+    // self-provisioning account is announced when its service actually exists, which is after the rest of the
+    // order was announced, so each account needs its own claim to be posted exactly once.
+    public DateTime? BotNotifiedAtUtc { get; set; }
 
     // ── V2Ray provisioning ──────────────────────────────────────────────────────────────────────────────
     // Set when this unit was served by creating an account on a V2Ray panel instead of pulling one from the

@@ -9,8 +9,10 @@ namespace Phonix.Api.Services;
 // ordinary product: the moment an order is approved, the unit is fulfilled without anyone touching it.
 //
 // The panel is a network hop, so provisioning is deliberately NOT part of the approval call — an unreachable
-// server would otherwise fail an approval that has already taken the customer's money. Instead the unit is
-// left undelivered with a V2Ray record attached, and V2RayProvisionWorker retries it until the panel answers.
+// server would otherwise fail an approval that has already taken the customer's money. Instead the approval
+// FIRES OFF the attempt and returns; on the happy path the account exists a second later, and when it doesn't,
+// the unit is left undelivered with a V2Ray record attached and V2RayProvisionWorker retries until the panel
+// answers.
 public interface IV2RayFulfillmentService
 {
     // True when this unit is served from a V2Ray panel rather than the stock pool.
@@ -18,21 +20,107 @@ public interface IV2RayFulfillmentService
 
     // Attempts to provision one unit. Returns true once the account exists and the unit has been delivered.
     Task<bool> ProvisionAsync(Order order, OrderUnit unit, CancellationToken ct = default);
+
+    // Provisions every account of a just-approved order that this service handles, and posts each one to the
+    // orders group as it lands. Written to be fired and forgotten from a request path: it awaits nothing the
+    // caller needs and it NEVER throws, so a panel that is down costs the buyer a short wait for the worker's
+    // next sweep rather than costing the approval itself.
+    Task ProvisionOrderAsync(Order order, CancellationToken ct = default);
+
+    // The approval paths' entry point: given a just-approved order payment, provision that order's V2Ray
+    // accounts. Mirrors IStockFulfillmentService.AutoDeliverForTransaction, which does the same job for the
+    // products served out of the stock pool.
+    Task ProvisionForTransactionAsync(Transaction tx, CancellationToken ct = default);
 }
 
 public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
 {
     private const string Actor = "سیستم (V2Ray)";
 
+    // How many times an account is retried before it is left for staff. At the worker's cadence this is a
+    // quarter of an hour of a panel being unreachable, which is a real outage rather than a blip.
+    public const int MaxAttempts = 20;
+
     private readonly IDataStore _store;
     private readonly IV2RayPanelConnector _connector;
+    // Resolved lazily: the orders bot depends on THIS service (it asks what self-provisions), so taking it as a
+    // constructor argument would close a DI cycle.
+    private readonly IServiceProvider _services;
     private readonly ILogger<V2RayFulfillmentService> _logger;
 
-    public V2RayFulfillmentService(IDataStore store, IV2RayPanelConnector connector, ILogger<V2RayFulfillmentService> logger)
+    public V2RayFulfillmentService(IDataStore store, IV2RayPanelConnector connector, IServiceProvider services,
+        ILogger<V2RayFulfillmentService> logger)
     {
         _store = store;
         _connector = connector;
+        _services = services;
         _logger = logger;
+    }
+
+    public async Task ProvisionOrderAsync(Order order, CancellationToken ct = default)
+    {
+        try
+        {
+            foreach (var unit in order.Units.Where(u => !u.Delivered && !u.Rejected).ToList())
+            {
+                if (ct.IsCancellationRequested) return;
+                if (!Handles(unit)) continue;
+
+                var attempts = unit.V2Ray?.Attempts ?? 0;
+                // An account that keeps failing stops being retried and becomes a person's problem. The group
+                // is told once, on the attempt that gives up, so a service nobody can create is never simply
+                // missing from the channel.
+                if (attempts >= MaxAttempts) continue;
+
+                if (await ProvisionAsync(order, unit, ct))
+                {
+                    await AnnounceAsync(order.Id, unit.Id, ct);
+                    continue;
+                }
+                if (attempts + 1 >= MaxAttempts) await AnnounceAsync(order.Id, unit.Id, ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            // The approval already succeeded and the customer already paid; a failure here is the worker's to
+            // pick up on its next sweep, never the caller's to see.
+            _logger.LogWarning(ex, "V2Ray provisioning run failed for order {Code}", order.Code);
+        }
+    }
+
+    public async Task ProvisionForTransactionAsync(Transaction tx, CancellationToken ct = default)
+    {
+        try
+        {
+            if (tx.Type != TxTypes.OrderPayment || tx.Status != TxStatus.Approved) return;
+            if (string.IsNullOrWhiteSpace(tx.OrderCode)) return;
+            var order = _store.GetUserOrders(tx.UserId).FirstOrDefault(o => o.Code == tx.OrderCode);
+            // Only an order the approval actually advanced into fulfillment has anything to provision.
+            if (order is null || order.Status != OrderStatus.Preparing) return;
+            await ProvisionOrderAsync(order, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "V2Ray provisioning for tx #{TxId} failed", tx.Id);
+        }
+    }
+
+    // Posts one finished account to the orders group. The unit is re-read because provisioning wrote to it —
+    // the copy this method was handed says nothing about the service that now exists.
+    public async Task AnnounceAsync(int orderId, int unitId, CancellationToken ct = default)
+    {
+        try
+        {
+            var bot = _services.GetService<ITelegramOrderService>();
+            if (bot is null) return;
+            if (_store.GetOrder(orderId) is not { } fresh) return;
+            if (fresh.Units.FirstOrDefault(u => u.Id == unitId) is not { } unit) return;
+            await bot.NotifyUnitAsync(fresh, unit, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Announcing V2Ray unit {Unit} of order #{Order} failed", unitId, orderId);
+        }
     }
 
     public bool Handles(OrderUnit unit) =>

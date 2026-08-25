@@ -28,7 +28,8 @@ public class TransactionEmailTests
         var sender = new CapturingSender();
         var mailer = new UserMailer(store, sender, NullLogger<UserMailer>.Instance);
         var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(),
-            new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance), mailer);
+            new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance),
+            new V2RayFulfillmentService(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance), mailer);
 
         var tx = store.AddTransaction(new Transaction
         {
@@ -56,7 +57,8 @@ public class TransactionEmailTests
         var sender = new CapturingSender();
         var mailer = new UserMailer(store, sender, NullLogger<UserMailer>.Instance);
         var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(),
-            new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance), mailer);
+            new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance),
+            new V2RayFulfillmentService(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance), mailer);
 
         var tx = store.AddTransaction(new Transaction
         {
@@ -115,6 +117,7 @@ public class TransactionEmailTests
     private sealed class NoopOrderBot : ITelegramOrderService
     {
         public Task NotifyOrderAsync(Order order, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyUnitAsync(Order order, OrderUnit unit, CancellationToken ct = default) => Task.CompletedTask;
         public Task AnnounceApprovedOrderAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);

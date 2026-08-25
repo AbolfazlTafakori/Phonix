@@ -334,6 +334,10 @@ public interface IDataStore
     // Claims the right to announce an order to the Telegram orders group. Returns true exactly once per
     // order — every later caller gets false — so no approval path can post the accounts twice.
     bool TryClaimOrderBotNotification(int orderId);
+    // Per-account counterpart: whoever claims it is the one that posts that account to the orders group. Two
+    // paths race for it — the announce that follows an approval, and the self-provisioning that finishes on
+    // its own schedule — and exactly one must win.
+    bool TryClaimUnitBotNotification(int orderId, int unitId);
     IReadOnlyList<RenewalReminder> CollectDueRenewalReminders(int hoursBefore);
     IReadOnlyList<ReferralEarning> GetReferralEarnings(int referrerId);
     int CountReferredUsers(int referrerId);
