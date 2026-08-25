@@ -168,7 +168,8 @@ export type SeatSubmission = {
   userName: string;
   imageId: string | null;
   text: string;
-  status: "Pending" | "Reviewed";
+  // Rejected: staff turned it down, the text and picture were cleared, and the seat is the buyer's again.
+  status: "Pending" | "Reviewed" | "Rejected";
   editable: boolean;
   createdAtUtc: string;
   updatedAtUtc: string;

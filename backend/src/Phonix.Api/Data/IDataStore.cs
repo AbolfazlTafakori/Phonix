@@ -62,6 +62,10 @@ public interface IDataStore
     SeatSubmission? SaveSeatSubmission(SeatSubmission input);
     SeatSubmission? ReviewSeatSubmission(int id, string? reviewedBy, string? note);
     SeatSubmission? ReopenSeatSubmission(int id, string? note); // hands the seat back for a correction
+    // Turns the seat down: wipes what the customer sent, hands the seat back to them, and notifies them — all
+    // in one transaction. The picture is not this layer's to erase, so the id it just detached is returned for
+    // the caller to remove from storage.
+    SeatRejection? RejectSeatSubmission(int id, string? rejectedBy, string? reason);
 
     // ── Stock accounts (multi-seat shared subscriptions; slots are generated, never typed) ──────────
     IReadOnlyList<StockAccount> GetStockAccounts(int? productId = null);

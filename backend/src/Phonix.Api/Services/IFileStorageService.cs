@@ -43,6 +43,12 @@ public interface IFileStorageService
     // never throws.
     int SweepPublicOrphans(string storeSnapshotJson, TimeSpan minAge);
 
+    // Best-effort delete of one PROTECTED file (KYC document, seat-info picture…). Used when the record that
+    // referenced it is being cleared — a rejected seat submission keeps nothing, so its picture must not
+    // outlive it in storage. Path-hardened exactly like Open(); an already-missing file is a silent no-op and
+    // nothing here ever throws.
+    void DeleteProtected(string category, string? id);
+
     // The owner id encoded in a storage id, or null when the id is malformed.
     int? OwnerOf(string id);
 

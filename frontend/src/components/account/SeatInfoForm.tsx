@@ -10,7 +10,8 @@ import type { SeatSubmission } from "@/lib/types";
 // its own picture, text and review state.
 //
 // Editable until staff review the seat; after that it renders read-only with the reviewer's note (if any), so a
-// customer can still see what they sent but can't change what's already being worked on.
+// customer can still see what they sent but can't change what's already being worked on. A REJECTED seat is the
+// opposite: staff cleared what was sent, so the form comes back empty and open, with the reason above it.
 
 const MAX_TEXT = 2000;
 const MAX_IMAGE_MB = 6; // matches LocalFileStorageService.MaxBytes — reject before the round-trip
@@ -42,6 +43,7 @@ export default function SeatInfoForm({
   const fileRef = useRef<HTMLInputElement>(null);
 
   const locked = submission ? !submission.editable : false;
+  const rejected = submission?.status === "Rejected";
   // A seat with nothing sent yet, or with changes the customer hasn't saved.
   const dirty = !submission || text !== submission.text || pending !== null;
 
@@ -76,11 +78,14 @@ export default function SeatInfoForm({
   const approved = submission?.status === "Reviewed" || (submission?.editsUsed ?? 0) > 0;
   const statusNote = !submission
     ? ""
-    : !approved
-      ? "تا پیش از بررسی، قابل ویرایش است."
-      : submission.editsLeft > 0
-        ? `${submission.editsLeft} بار دیگر می‌توانید این اطلاعات را تغییر دهید؛ هر تغییر دوباره بررسی می‌شود.`
-        : "";
+    : rejected
+      // Re-filing after a rejection is what staff asked for, so it spends none of the plan's allowance.
+      ? "ارسال دوباره‌ی این اطلاعات، از تعداد ویرایش‌های شما کم نمی‌کند."
+      : !approved
+        ? "تا پیش از بررسی، قابل ویرایش است."
+        : submission.editsLeft > 0
+          ? `${submission.editsLeft} بار دیگر می‌توانید این اطلاعات را تغییر دهید؛ هر تغییر دوباره بررسی می‌شود.`
+          : "";
 
   // What to show in the image slot: a freshly picked file wins, otherwise whatever is already on file.
   const imageSrc = pending?.preview ?? (submission?.imageId ? api.seatInfo.imageSrc(submission.imageId) : null);
@@ -99,12 +104,14 @@ export default function SeatInfoForm({
             <span
               className="rounded px-1.5 py-0.5 font-bold"
               style={
-                locked
-                  ? { background: "rgba(16,185,129,0.14)", color: "#059669" }
-                  : { background: "rgba(245,158,11,0.14)", color: "#b45309" }
+                rejected
+                  ? { background: "rgba(225,29,72,0.14)", color: "#be123c" }
+                  : locked
+                    ? { background: "rgba(16,185,129,0.14)", color: "#059669" }
+                    : { background: "rgba(245,158,11,0.14)", color: "#b45309" }
               }
             >
-              {locked ? "بررسی شد" : "در انتظار بررسی"}
+              {rejected ? "رد شد" : locked ? "بررسی شد" : "در انتظار بررسی"}
             </span>
           )}
         </span>
@@ -181,10 +188,21 @@ export default function SeatInfoForm({
         )}
       </div>
 
-      {submission?.reviewNote && (
-        <p className="rounded-lg px-3 py-2 text-xs leading-5" style={{ background: "rgba(59,130,246,0.10)", border: "1px solid rgba(59,130,246,0.28)", color: "var(--ac-text)" }}>
-          <b>پیام پشتیبانی:</b> {submission.reviewNote}
+      {/* A rejection has to explain itself: the customer arrives to find the form empty, and without this
+          they would read that as their upload having been lost. With no reason on file, say what to do. */}
+      {rejected ? (
+        <p className="rounded-lg px-3 py-2 text-xs leading-5" style={{ background: "rgba(225,29,72,0.10)", border: "1px solid rgba(225,29,72,0.28)", color: "var(--ac-text)" }}>
+          <b>اطلاعات قبلی تأیید نشد و پاک شد.</b>{" "}
+          {submission?.reviewNote
+            ? `دلیل: ${submission.reviewNote}`
+            : "دلیلی ثبت نشده است؛ لطفاً اطلاعات را دوباره وارد کنید."}
         </p>
+      ) : (
+        submission?.reviewNote && (
+          <p className="rounded-lg px-3 py-2 text-xs leading-5" style={{ background: "rgba(59,130,246,0.10)", border: "1px solid rgba(59,130,246,0.28)", color: "var(--ac-text)" }}>
+            <b>پیام پشتیبانی:</b> {submission.reviewNote}
+          </p>
+        )
       )}
 
       {error && <p className="text-xs font-bold" style={{ color: "#dc2626" }}>{error}</p>}
@@ -205,7 +223,7 @@ export default function SeatInfoForm({
             className="rounded-lg px-4 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
             style={{ background: "linear-gradient(to left, #1733d6, #3a64f2)" }}
           >
-            {busy ? "در حال ارسال…" : submission ? "ذخیره‌ی تغییرات" : "ارسال"}
+            {busy ? "در حال ارسال…" : rejected ? "ارسال دوباره" : submission ? "ذخیره‌ی تغییرات" : "ارسال"}
           </button>
         </div>
       )}

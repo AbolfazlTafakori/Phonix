@@ -47,6 +47,21 @@ public static class OrderNotices
         return new("سرویس شما رو به پایان است", $"{body} برای جلوگیری از قطع شدن، همین حالا تمدید کنید.", $"/config/{token}");
     }
 
+    // Staff turned down the details a buyer filed for one seat. The reason is the whole point of the message,
+    // so when there isn't one the copy still has to tell them what to DO — «رد شد» on its own leaves a
+    // customer staring at an empty form with no idea why.
+    public static Notice SeatInfoRejected(string orderCode, string productName, string seatLabel, string? reason) =>
+        new("اطلاعات ارسالی شما تأیید نشد",
+            $"اطلاعاتی که برای «{productName}» ({seatLabel}) در سفارش {orderCode} ثبت کرده بودید تأیید نشد. "
+            + SeatInfoRejectionReason(reason),
+            OrdersLink);
+
+    // Shared by the notification and the email so the customer reads the same sentence in both places.
+    public static string SeatInfoRejectionReason(string? reason) =>
+        string.IsNullOrWhiteSpace(reason)
+            ? "دلیلی ثبت نشده است؛ لطفاً اطلاعات را دوباره وارد کنید."
+            : $"دلیل: {reason!.Trim()}";
+
     public static Notice V2RayRemoved(string orderCode) =>
         new("سرویس شما پایان یافت",
             $"سرویس سفارش {orderCode} تمدید نشد و از سرور حذف شد. برای ادامه، سرویس جدیدی تهیه کنید.",

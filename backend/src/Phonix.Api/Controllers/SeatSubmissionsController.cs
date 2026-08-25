@@ -44,10 +44,12 @@ public class SeatSubmissionsController : ControllerBase
 
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
-    public SeatSubmissionsController(IDataStore store, IFileStorageService files)
+    private readonly IUserMailer _mailer;
+    public SeatSubmissionsController(IDataStore store, IFileStorageService files, IUserMailer mailer)
     {
         _store = store;
         _files = files;
+        _mailer = mailer;
     }
 
     // Resolves the unit the caller is addressing and refuses unless they own the order (or are staff). Whether
@@ -163,6 +165,27 @@ public class SeatSubmissionsController : ControllerBase
     {
         var reviewed = _store.ReviewSeatSubmission(id, User.Identity?.Name, (input.Note ?? "").Trim() is { Length: > 0 } n ? n : null);
         return reviewed is null ? NotFound() : Ok(SeatSubmissionDto.From(reviewed));
+    }
+
+    // Turns the seat down. Unlike a reopen — which hands the seat back with what the customer sent still on it
+    // — this clears the entry: the picture is deleted from storage, the note is emptied, and the buyer files
+    // fresh details. They are told twice (in-site notification and email) because the form they come back to
+    // is blank, and a blank form with no explanation looks like data loss.
+    [HttpPost("{id:int}/reject")]
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("seat-info")]
+    public ActionResult<SeatSubmissionDto> Reject(int id, SeatReviewInput input)
+    {
+        var reason = (input.Note ?? "").Trim();
+        if (reason.Length > MaxTextLength) reason = reason[..MaxTextLength];
+        if (_store.RejectSeatSubmission(id, User.Identity?.Name, reason.Length > 0 ? reason : null) is not { } result)
+            return NotFound();
+
+        // Only once the wipe has committed: a file removed ahead of a rolled-back write would leave a record
+        // pointing at nothing.
+        _files.DeleteProtected(FileCategory, result.RemovedImageId);
+        _ = _mailer.SeatInfoRejectedAsync(result.Submission);
+        return Ok(SeatSubmissionDto.From(result.Submission));
     }
 
     // Hands the seat back to the customer — how staff ask for a clearer picture or a correction.

@@ -206,15 +206,20 @@ export default function SeatDelivery({
         )}
         {/* per-seat submission — scoped to the profile selected above, so on a multi-seat purchase each person
             files their own picture and note without touching anyone else's */}
-        {info?.enabled && orderId !== undefined && unitId !== undefined && (
+        {info?.enabled && orderId !== undefined && unitId !== undefined && (() => {
+          const filed = info.submissions.find((s) => s.seatIndex === activeIndex);
+          // The key carries the seat AND the state of what was filed for it, so the form remounts when staff
+          // change that underneath the customer. It matters on a rejection: the server clears the text and the
+          // picture, and a form still holding the old draft in local state would put both straight back.
+          return (
           <SeatInfoForm
-            key={activeIndex}
+            key={`${activeIndex}:${filed?.status ?? "none"}:${filed?.updatedAtUtc ?? ""}`}
             orderId={orderId}
             unitId={unitId}
             seatIndex={activeIndex}
             seatLabel={active.seatLabel}
             hint={info.hint}
-            submission={info.submissions.find((s) => s.seatIndex === activeIndex)}
+            submission={filed}
             onSaved={(saved) =>
               setInfo((prev) =>
                 prev === null
@@ -226,7 +231,8 @@ export default function SeatDelivery({
               )
             }
           />
-        )}
+          );
+        })()}
         {deviceInfo && deviceInfo.length > 0 && (
           <div className="space-y-2 border-t pt-2" style={{ borderColor: "var(--ac-divider)" }}>
             <div className="text-[11px] font-bold" style={{ color: "var(--ac-muted)" }}>اطلاعات دستگاه</div>

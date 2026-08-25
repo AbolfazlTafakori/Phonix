@@ -355,9 +355,13 @@ export const api = {
       request<SeatSubmission>("/seat-info", { method: "POST", body: json(input) }),
     imageSrc: (id: string) => `${BASE}/api/seat-info/image/${encodeURIComponent(id)}`,
     // staff-only
-    all: (status?: "Pending" | "Reviewed") => request<SeatSubmission[]>(`/seat-info${qs({ status })}`),
+    all: (status?: "Pending" | "Reviewed" | "Rejected") => request<SeatSubmission[]>(`/seat-info${qs({ status })}`),
     review: (id: number, note?: string) =>
       request<SeatSubmission>(`/seat-info/${id}/review`, { method: "POST", body: json({ note: note ?? null }) }),
+    // Clears what the buyer sent (picture included) and tells them to file it again — `reason` is what they
+    // are told, by notification and email.
+    reject: (id: number, reason?: string) =>
+      request<SeatSubmission>(`/seat-info/${id}/reject`, { method: "POST", body: json({ note: reason ?? null }) }),
     reopen: (id: number, note?: string) =>
       request<SeatSubmission>(`/seat-info/${id}/reopen`, { method: "POST", body: json({ note: note ?? null }) }),
   },

@@ -382,6 +382,26 @@ public static class EmailTemplates
         return (text, html);
     }
 
+    // The details a buyer filed for one seat were turned down. Everything they sent has already been removed,
+    // so the mail's job is to say why and to send them back to the form — not to have them wonder where their
+    // picture went.
+    public static (string text, string html) SeatInfoRejected(string orderCode, string productName, string seatLabel,
+        string? reason, string ordersUrl)
+    {
+        var reasonFa = string.IsNullOrWhiteSpace(reason)
+            ? "دلیلی ثبت نشده است؛ لطفاً اطلاعات را دوباره وارد کنید."
+            : reason!.Trim();
+        var text = $"اطلاعات ارسالی شما تأیید نشد.\n\nسفارش: {orderCode}\nسرویس: {productName}\nپروفایل: {seatLabel}\n"
+                   + $"دلیل: {reasonFa}\n\nاطلاعات قبلی حذف شد. لطفاً از حساب کاربری خود اطلاعات را دوباره ارسال کنید:\n{ordersUrl}";
+        var html = Shell("اطلاعات ارسالی شما تأیید نشد",
+            $"اطلاعات پروفایل {seatLabel} از سفارش {orderCode} نیاز به ارسال دوباره دارد.",
+            "<p style=\"margin:0;\">اطلاعاتی که برای این پروفایل ثبت کرده بودید پس از بررسی تأیید نشد و حذف شد. لطفاً اطلاعات را دوباره وارد و ارسال کنید.</p>"
+            + Rows(("سفارش", orderCode), ("سرویس", productName), ("پروفایل", seatLabel))
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{WebUtility.HtmlEncode(reasonFa)}")
+            + Button("ارسال دوباره‌ی اطلاعات", ordersUrl));
+        return (text, html);
+    }
+
     public static (string text, string html) SubscriptionReminder(string orderCode, string expiresFa, string renewUrl)
     {
         var text = $"یادآوری تمدید اشتراک\n\nاشتراک سفارش {orderCode} شما در تاریخ {expiresFa} منقضی می‌شود. برای جلوگیری از قطع سرویس، آن را تمدید کنید.\n{renewUrl}";

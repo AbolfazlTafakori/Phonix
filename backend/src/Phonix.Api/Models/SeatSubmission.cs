@@ -4,7 +4,16 @@ public enum SeatSubmissionStatus
 {
     Pending = 0,   // waiting for staff to look at it; the customer may still change it
     Reviewed = 1,  // staff acted on it — locked for the customer from here on
+    // Staff turned it down. What the customer sent is WIPED (text and picture both) and the seat is theirs
+    // again: the point of a rejection is that the details were unusable, so they file fresh ones rather than
+    // editing around the old ones. It is not in the staff queue — this one is waiting on the customer.
+    Rejected = 2,
 }
+
+// The outcome of turning a seat submission down: the cleared record, plus the storage id of the picture it
+// no longer references. The store detaches the picture but does not erase it — file storage is the caller's
+// concern — so the id travels out to be deleted once the write has actually committed.
+public sealed record SeatRejection(SeatSubmission Submission, string? RemovedImageId);
 
 // Information a customer supplies AFTER delivery, for ONE seat of a shared account. Some services need
 // something from the buyer before the seat can actually be set up (a device screenshot, a username, an
@@ -46,8 +55,11 @@ public class SeatSubmission
 
     // The customer's to change right up until staff act on it. After approval it's frozen — the admin must
     // never work from details that shift under them — unless the plan granted post-approval corrections, in
-    // which case each one costs an allowance and returns the seat to the queue for a fresh look.
-    public bool Editable => Status == SeatSubmissionStatus.Pending || EditsUsed < EditLimit;
+    // which case each one costs an allowance and returns the seat to the queue for a fresh look. A rejected
+    // seat is always editable and costs nothing: staff asked for it again, so it is not the buyer's allowance
+    // that should pay for it.
+    public bool Editable => Status is SeatSubmissionStatus.Pending or SeatSubmissionStatus.Rejected
+                            || EditsUsed < EditLimit;
     // Changes still available to the customer once this seat has been approved.
     public int EditsLeft => Math.Max(0, EditLimit - EditsUsed);
 }

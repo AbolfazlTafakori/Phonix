@@ -184,6 +184,18 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         return new StoredFile(stream, contentType, id);
     }
 
+    public void DeleteProtected(string category, string? id)
+    {
+        if (!Categories.Contains(category)) return;
+        if (string.IsNullOrWhiteSpace(id) || !IdPattern().IsMatch(id)) return;
+
+        var dir = Path.GetFullPath(Path.Combine(_root, category));
+        var path = Path.GetFullPath(Path.Combine(dir, id));
+        // same containment check as Open(): a crafted id must never reach outside its category directory.
+        if (!path.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.Ordinal)) return;
+        try { File.Delete(path); } catch { /* best-effort: a file we cannot remove must not fail the request */ }
+    }
+
     public void DeletePublicImageByUrl(string? urlOrId, int? requireOwner = null)
     {
         var id = ExtractId(urlOrId);

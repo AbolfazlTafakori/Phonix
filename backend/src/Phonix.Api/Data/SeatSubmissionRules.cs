@@ -17,6 +17,16 @@ public static class SeatSubmissionRules
             existing.ReviewedAtUtc = null;
             existing.ReviewedBy = null;
         }
+        else if (existing.Status == SeatSubmissionStatus.Rejected)
+        {
+            // Re-filing after a rejection is what staff asked for, so it spends no allowance. The reason goes
+            // with it: it described details that no longer exist, and leaving it up would read as a verdict on
+            // what the customer has just sent.
+            existing.Status = SeatSubmissionStatus.Pending;
+            existing.ReviewedAtUtc = null;
+            existing.ReviewedBy = null;
+            existing.ReviewNote = null;
+        }
         existing.ImageId = input.ImageId ?? existing.ImageId; // keeping the old picture is a valid edit
         existing.Text = input.Text;
         existing.SeatLabel = input.SeatLabel;

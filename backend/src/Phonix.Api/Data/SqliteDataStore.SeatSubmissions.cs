@@ -96,6 +96,38 @@ SELECT last_insert_rowid();",
             s.ReviewNote = note;
         });
 
+    // Rejecting is not "review with a different flag": the details the customer sent are removed, because the
+    // seat is going back to them to be filed again and half-kept old values are what makes staff work from the
+    // wrong picture. The wipe and the notification commit together — a customer must never find their entry
+    // emptied with nothing telling them why.
+    public SeatRejection? RejectSeatSubmission(int id, string? rejectedBy, string? reason) =>
+        WriteTx<SeatRejection?>((conn, tx) =>
+        {
+            var json = conn.QueryFirstOrDefault<string>(
+                "SELECT DataJson FROM SeatSubmissions WHERE Id = @id", new { id }, tx);
+            if (json is null) return null;
+            var item = Deserialize<SeatSubmission>(json)!;
+
+            var removedImageId = item.ImageId;
+            item.ImageId = null;
+            item.Text = "";
+            item.Status = SeatSubmissionStatus.Rejected;
+            item.ReviewedBy = rejectedBy;
+            item.ReviewedAtUtc = DateTime.UtcNow;
+            item.ReviewNote = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+            item.UpdatedAtUtc = DateTime.UtcNow;
+            UpsertSeatSubmission(conn, tx, item);
+
+            Notify(conn, tx, item.UserId,
+                OrderNotices.SeatInfoRejected(item.OrderCode, item.ProductName, SeatName(item), item.ReviewNote));
+            return new SeatRejection(item, removedImageId);
+        });
+
+    // What the customer calls this seat. The label is what they picked it by; the index is the fallback for
+    // rows filed before labels were carried.
+    private static string SeatName(SeatSubmission s) =>
+        string.IsNullOrWhiteSpace(s.SeatLabel) ? $"پروفایل {s.SeatIndex + 1}" : s.SeatLabel;
+
     private SeatSubmission? MutateSeatSubmission(int id, Action<SeatSubmission> apply) =>
         WriteTx<SeatSubmission?>((conn, tx) =>
         {

@@ -23,6 +23,8 @@ public interface IUserMailer
     Task TicketOpenedByStaffAsync(Ticket ticket);
     Task CardDecidedAsync(BankCard card);
     Task KycDecidedAsync(KycRequest kyc);
+    // Only rejection mails: an approved seat needs nothing from the customer, a rejected one needs them back.
+    Task SeatInfoRejectedAsync(SeatSubmission submission);
 }
 
 public sealed class UserMailer : IUserMailer
@@ -145,6 +147,13 @@ public sealed class UserMailer : IUserMailer
                 EmailTemplates.CardRejected(masked, card.RejectionReason ?? card.Note, Url("/account/cards"))),
             _ => Task.CompletedTask,
         };
+    }
+
+    public Task SeatInfoRejectedAsync(SeatSubmission s)
+    {
+        var seat = string.IsNullOrWhiteSpace(s.SeatLabel) ? $"پروفایل {s.SeatIndex + 1}" : s.SeatLabel;
+        return SendAsync(AddressOf(s.UserId), $"اطلاعات ارسالی شما تأیید نشد — سفارش {s.OrderCode}",
+            EmailTemplates.SeatInfoRejected(s.OrderCode, s.ProductName, seat, s.ReviewNote, Url("/account/orders")));
     }
 
     public Task KycDecidedAsync(KycRequest kyc) => kyc.Status switch

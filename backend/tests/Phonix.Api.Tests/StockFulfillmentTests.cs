@@ -59,6 +59,7 @@ public class StockFulfillmentTests
         public Task TicketOpenedByStaffAsync(Ticket ticket) => Task.CompletedTask;
         public Task CardDecidedAsync(BankCard card) => Task.CompletedTask;
         public Task KycDecidedAsync(KycRequest kyc) => Task.CompletedTask;
+        public Task SeatInfoRejectedAsync(SeatSubmission submission) => Task.CompletedTask;
     }
 
     private static StockFulfillmentService Fulfillment(IDataStore store) =>

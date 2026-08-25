@@ -10,10 +10,37 @@ import { Card, PageHeader, Spinner } from "@/components/admin/ui";
 // accounts, newest first. One row per seat, so a five-user purchase shows five independent entries.
 //
 // Marking an entry reviewed freezes it for the customer; reopening hands it back with an optional message, so
-// asking for a clearer picture is a single action rather than a support conversation.
+// asking for a clearer picture is a single action rather than a support conversation. Rejecting goes further:
+// it deletes what the buyer sent and asks them for it again, with the reason delivered by notification and
+// email — so unusable details are cleared out rather than sitting in the queue being re-read.
 
-type Filter = "Pending" | "Reviewed" | "all";
-const filterLabel: Record<Filter, string> = { Pending: "در انتظار بررسی", Reviewed: "بررسی شده", all: "همه" };
+type Action = "review" | "reopen" | "reject";
+type Filter = "Pending" | "Reviewed" | "Rejected" | "all";
+
+const filterLabel: Record<Filter, string> = {
+  Pending: "در انتظار بررسی",
+  Reviewed: "بررسی شده",
+  Rejected: "رد شده",
+  all: "همه",
+};
+
+const statusLabel: Record<SeatSubmission["status"], string> = {
+  Pending: "در انتظار بررسی",
+  Reviewed: "بررسی شده",
+  Rejected: "رد شده — در انتظار ارسال دوباره",
+};
+
+const statusStyle: Record<SeatSubmission["status"], string> = {
+  Pending: "bg-amber-500/15 text-amber-300",
+  Reviewed: "bg-emerald-500/15 text-emerald-400",
+  Rejected: "bg-rose-500/15 text-rose-300",
+};
+
+const promptFor: Record<Action, string> = {
+  review: "یادداشت برای کاربر (اختیاری):",
+  reopen: "پیام برای کاربر (اختیاری) — مثلاً چه چیزی باید اصلاح شود:",
+  reject: "دلیل رد شدن (اختیاری) — برای کاربر ایمیل و اعلان می‌شود. متن و تصویر ارسالی او پاک می‌شود و باید دوباره ارسال کند:",
+};
 
 const faDate = (iso: string) =>
   new Date(iso).toLocaleDateString("fa-IR", { year: "numeric", month: "2-digit", day: "2-digit" });
@@ -43,22 +70,27 @@ export default function AdminSeatInfoPage() {
     () => ({
       Pending: items.filter((s) => s.status === "Pending").length,
       Reviewed: items.filter((s) => s.status === "Reviewed").length,
+      Rejected: items.filter((s) => s.status === "Rejected").length,
       all: items.length,
     }),
     [items],
   );
   const shown = filter === "all" ? items : items.filter((s) => s.status === filter);
 
-  async function act(s: SeatSubmission, kind: "review" | "reopen") {
-    const note = kind === "reopen"
-      ? prompt("پیام برای کاربر (اختیاری) — مثلاً چه چیزی باید اصلاح شود:") ?? ""
-      : prompt("یادداشت برای کاربر (اختیاری):") ?? "";
+  async function act(s: SeatSubmission, kind: Action) {
+    const answer = prompt(promptFor[kind]);
+    // Dismissing the prompt has to mean "don't": rejecting deletes the customer's picture and emails them,
+    // which is not something to do because someone pressed Escape on a note box.
+    if (answer === null && kind === "reject") return;
+    const note = answer ?? "";
     setBusy(s.id);
     setError("");
     try {
       const updated = kind === "review"
         ? await api.seatInfo.review(s.id, note)
-        : await api.seatInfo.reopen(s.id, note);
+        : kind === "reopen"
+          ? await api.seatInfo.reopen(s.id, note)
+          : await api.seatInfo.reject(s.id, note);
       setItems((p) => p.map((x) => (x.id === s.id ? updated : x)));
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در انجام عملیات");
@@ -75,7 +107,7 @@ export default function AdminSeatInfoPage() {
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {(["Pending", "Reviewed", "all"] as Filter[]).map((f) => (
+        {(["Pending", "Reviewed", "Rejected", "all"] as Filter[]).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
@@ -105,12 +137,8 @@ export default function AdminSeatInfoPage() {
                 <span dir="ltr" className="rounded-md bg-sky-500/15 px-2 py-0.5 font-bold text-sky-300" style={{ unicodeBidi: "isolate" }}>
                   {s.seatLabel || `#${s.seatIndex + 1}`}
                 </span>
-                <span
-                  className={`rounded-md px-2 py-0.5 font-bold ${
-                    s.status === "Pending" ? "bg-amber-500/15 text-amber-300" : "bg-emerald-500/15 text-emerald-400"
-                  }`}
-                >
-                  {s.status === "Pending" ? "در انتظار بررسی" : "بررسی شده"}
+                <span className={`rounded-md px-2 py-0.5 font-bold ${statusStyle[s.status]}`}>
+                  {statusLabel[s.status]}
                 </span>
                 <span className="mr-auto text-white/35">{faDate(s.updatedAtUtc)}</span>
               </div>
@@ -141,25 +169,40 @@ export default function AdminSeatInfoPage() {
                       {s.reviewedBy ? ` — ${s.reviewedBy}` : ""}
                     </p>
                   )}
-                  <div className="flex items-center gap-2">
-                    {s.status === "Pending" ? (
+                  {/* A rejected entry has nothing left to act on — it was emptied and is the customer's to
+                      fill in again — so it offers no buttons, only what it is waiting for. */}
+                  {s.status === "Rejected" ? (
+                    <p className="text-xs text-white/40">
+                      اطلاعات ارسالی پاک شد و به کاربر اطلاع داده شد؛ در انتظار ارسال دوباره از سوی اوست.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {s.status === "Pending" ? (
+                        <button
+                          onClick={() => act(s, "review")}
+                          disabled={busy === s.id}
+                          className="rounded-lg border border-emerald-500/30 px-3 py-1.5 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/10 disabled:opacity-50"
+                        >
+                          {busy === s.id ? "..." : "بررسی شد"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => act(s, "reopen")}
+                          disabled={busy === s.id}
+                          className="rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-50"
+                        >
+                          {busy === s.id ? "..." : "بازگشایی برای ویرایش کاربر"}
+                        </button>
+                      )}
                       <button
-                        onClick={() => act(s, "review")}
+                        onClick={() => act(s, "reject")}
                         disabled={busy === s.id}
-                        className="rounded-lg border border-emerald-500/30 px-3 py-1.5 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/10 disabled:opacity-50"
+                        className="rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:opacity-50"
                       >
-                        {busy === s.id ? "..." : "بررسی شد"}
+                        {busy === s.id ? "..." : "رد شد"}
                       </button>
-                    ) : (
-                      <button
-                        onClick={() => act(s, "reopen")}
-                        disabled={busy === s.id}
-                        className="rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-50"
-                      >
-                        {busy === s.id ? "..." : "بازگشایی برای ویرایش کاربر"}
-                      </button>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>
