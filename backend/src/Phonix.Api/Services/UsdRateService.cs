@@ -11,7 +11,11 @@ namespace Phonix.Api.Services;
 // per-request conversion. The last good rate is kept across failures.
 public sealed class UsdRateService : BackgroundService
 {
-    private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
+    // Every 30 seconds. USD-priced products are charged at whatever this last fetched, so a five-minute
+    // cadence meant selling a moving market at a five-minute-old price. Two calls a minute against a public
+    // read endpoint is nothing, and a refresh that finds an unchanged rate writes nothing: ApplyUsdRate only
+    // touches the products whose computed Toman price actually moved.
+    private static readonly TimeSpan Interval = TimeSpan.FromSeconds(30);
 
     // Nobitex serves the same API from more than one host, and they do not stay up together: api.nobitex.ir
     // stopped resolving at all - NXDOMAIN from Google's and Cloudflare's resolvers alike, so not a block on

@@ -533,6 +533,16 @@ function UsdRatePanel({ usd, setUsd }: { usd: UsdRate | null; setUsd: (u: UsdRat
   const [savingManual, setSavingManual] = useState(false);
   const rate = usd?.tomanPerUsd ?? 0;
 
+  // The server refetches from Nobitex every 30 seconds; this reads the published value on the same beat, so
+  // the figure on screen is the one products are actually being priced at rather than whatever it was when
+  // the page happened to load. A read of a cached value — it does not make the server call Nobitex.
+  useEffect(() => {
+    const id = setInterval(() => {
+      api.pricing.usdRate().then(setUsd).catch(() => {});
+    }, 30000);
+    return () => clearInterval(id);
+  }, [setUsd]);
+
   async function refresh() {
     setBusy(true);
     try {
@@ -577,7 +587,7 @@ function UsdRatePanel({ usd, setUsd }: { usd: UsdRate | null; setUsd: (u: UsdRat
           <p className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] p-2.5 text-xs leading-6 text-amber-200/90">⚠ {usd.lastError} — از «نرخ دستی» روبه‌رو استفاده کنید.</p>
         )}
         <p className="mt-5 rounded-xl border border-white/8 bg-white/[0.02] p-3 text-xs leading-6 text-white/55">
-          در حالت خودکار، نرخ هر ۵ دقیقه از نوبیتکس گرفته می‌شود و اگر سرور به نوبیتکس دسترسی نداشته باشد، از «نرخ دستی» زیر استفاده می‌شود. قیمت محصولات دلاری لحظه‌ای با نرخ فعلی به‌روزرسانی می‌شود.
+          در حالت خودکار، نرخ هر ۳۰ ثانیه از نوبیتکس گرفته می‌شود و همین کادر هم خودش به‌روز می‌شود. اگر سرور به نوبیتکس دسترسی نداشته باشد، از «نرخ دستی» زیر استفاده می‌شود. قیمت محصولات دلاری بلافاصله با نرخ جدید بازمحاسبه می‌شود.
         </p>
       </Card>
 
