@@ -111,8 +111,22 @@ export default function AdminCardsPage() {
                 <AdminIcon name="close" className="h-4 w-4" /> رد
               </button>
             </>
+          ) : c.status === "Rejected" ? (
+            // A rejected card was a dead end: the buttons only ever showed for Pending, so an accidental
+            // rejection could be undone only by asking the user to submit the card again. Approving from
+            // here restores it (and the level it carries) in one click.
+            <>
+              <span className="flex-1 text-xs text-white/40 lg:flex-none">{c.note || c.date}</span>
+              <button
+                onClick={() => act(c, "approve")}
+                disabled={busy === c.id}
+                className="flex h-10 items-center justify-center gap-1.5 rounded-lg bg-emerald-500/15 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/25 active:scale-[0.98] lg:h-9 lg:px-4"
+              >
+                {busy === c.id ? <Spinner /> : <><AdminIcon name="check" className="h-4 w-4" /> تایید</>}
+              </button>
+            </>
           ) : (
-            <span className="flex-1 text-xs text-white/40 lg:flex-none">{c.status === "Rejected" && c.note ? c.note : c.date}</span>
+            <span className="flex-1 text-xs text-white/40 lg:flex-none">{c.date}</span>
           )}
           <button
             onClick={() => del(c)}

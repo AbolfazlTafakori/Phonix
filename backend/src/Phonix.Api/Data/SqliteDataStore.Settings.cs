@@ -399,8 +399,12 @@ public sealed partial class SqliteDataStore
             var user = LoadUser(conn, tx, userId);
             if (user is null) return null;
             level = Math.Clamp(level, 0, 2);
+            // Only an actual DROP revokes the evidence. Re-saving the tier the user already holds (the admin
+            // drawer posts the whole draft, so an edit to any other field re-sends the level it was opened
+            // with) must not reject a card or KYC that was approved in the meantime.
+            var dropping = level < user.VerificationLevel;
 
-            if (level < 2)
+            if (dropping && level < 2)
                 foreach (var row in conn.Query("SELECT Id, DataJson FROM Kyc", transaction: tx).ToList())
                 {
                     var k = Deserialize<KycRequest>((string)row.DataJson)!;
@@ -412,7 +416,7 @@ public sealed partial class SqliteDataStore
                         AppendOutbox(conn, tx, "Kyc", k.Id, SyncOp.Upsert, kJson);
                     }
                 }
-            if (level < 1)
+            if (dropping && level < 1)
                 foreach (var c in conn.Query<string>("SELECT DataJson FROM Cards", transaction: tx).ToList())
                 {
                     var card = Deserialize<BankCard>(c)!;

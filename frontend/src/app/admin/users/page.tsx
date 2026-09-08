@@ -271,7 +271,12 @@ function UserDrawer({
     setSaving(true);
     setSaveError("");
     try {
-      onApply(await api.users.update(user.id, draft));
+      // The tier is sent only when this drawer actually changed it. Posting the snapshot it opened with
+      // would re-apply a level that may already be stale — and a lower level revokes the card/KYC behind it,
+      // so saving an unrelated field could silently undo an approval made after the list was loaded.
+      const { verificationLevel, ...rest } = draft;
+      const body = verificationLevel === user.verificationLevel ? rest : draft;
+      onApply(await api.users.update(user.id, body));
     } catch (e) {
       // The server refuses a malformed address and one already taken by another account. Swallowing that
       // left the operator looking at an unchanged row with no idea why — the same silence whether the save

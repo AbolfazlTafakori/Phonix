@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { accountMenu } from "@/data/account";
@@ -10,7 +10,10 @@ import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import MenuIcon from "./MenuIcon";
 
-function KycBadge({ level }: { level: number }) {
+// The badge states the level the account actually holds. "در حال بررسی" belongs only to a level-2 request
+// that is still Pending — a level-1 account with no pending request is approved at its level, and saying it
+// is under review left every card-verified user looking at a review that had already finished.
+function KycBadge({ level, kycPending }: { level: number; kycPending: boolean }) {
   // Translucent tints keep these level badges readable on both the light and dark theme.
   if (level >= 2) return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#8A52FF]/30 bg-[#8A52FF]/12 px-3 py-1.5 text-xs font-bold text-[#8A52FF]">
@@ -20,7 +23,7 @@ function KycBadge({ level }: { level: number }) {
   );
   if (level === 1) return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/12 px-3 py-1.5 text-xs font-bold text-amber-600">
-      سطح ۱ · در حال بررسی
+      {kycPending ? "سطح ۱ · سطح ۲ در حال بررسی" : "سطح ۱ · تأیید شده"}
     </span>
   );
   return (
@@ -37,6 +40,19 @@ export default function Sidebar() {
   const { me, refresh } = useMe();
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState("");
+  // Whether a level-2 request of this user is still awaiting a decision; only that makes the badge say
+  // "در حال بررسی". A failed lookup leaves it false, so the badge falls back to the plain level.
+  const [kycPending, setKycPending] = useState(false);
+
+  useEffect(() => {
+    if (!user) { setKycPending(false); return; }
+    let alive = true;
+    api.kyc
+      .getForUser(user.id)
+      .then((k) => { if (alive) setKycPending(k?.status === "Pending"); })
+      .catch(() => { if (alive) setKycPending(false); });
+    return () => { alive = false; };
+  }, [user, me?.verificationLevel]);
 
   // Upload a new profile picture: store it publicly, save the URL on the account, then refresh so the new
   // avatar shows immediately (the backend also frees the previous file). Errors surface to the user instead
@@ -130,7 +146,7 @@ export default function Sidebar() {
             <p className="mt-0.5 text-[13px]" dir="ltr" style={{ color: "var(--ac-muted)" }}>@{username}</p>
           )}
           <div className="mt-3">
-            <KycBadge level={level} />
+            <KycBadge level={level} kycPending={kycPending} />
           </div>
         </div>
 

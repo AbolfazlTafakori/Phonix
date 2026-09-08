@@ -293,6 +293,54 @@ public class OrderTests
         Assert.Equal(KycStatus.Rejected, store.GetKycForUser(6)!.Status);      // level-2 evidence revoked
     }
 
+    // Re-saving the level a user already holds is not a revoke. The admin drawer posts the whole draft, so
+    // an edit to any other field re-sends the level it was opened with — which was stale often enough to
+    // reject a card approved in between, leaving the user told to verify again after they had been approved.
+    [Fact]
+    public void Saving_the_level_a_user_already_holds_leaves_the_card_and_kyc_approved()
+    {
+        var store = TestStore.Create();
+        var card = store.AddCard(6, "6037991234567893", "نگار شریفی", "/uploads/c.png").Card!;
+        store.SetCardStatus(card.Id, BankCardStatus.Approved, null);                       // → level 1
+        var kyc = store.SubmitKyc(new KycRequest { UserId = 6, FullName = "نگار", NationalId = "001" });
+        store.SetKycStatus(kyc.Id, KycStatus.Approved, null);                              // → level 2
+
+        store.SetVerificationLevel(6, 2);
+
+        Assert.Equal(2, store.GetUser(6)!.VerificationLevel);
+        Assert.Equal(BankCardStatus.Approved, store.GetCard(card.Id)!.Status);
+        Assert.Equal(KycStatus.Approved, store.GetKycForUser(6)!.Status);
+    }
+
+    // Same guard one tier down: a level-1 user saved at level 1 keeps the bank card that earned it.
+    [Fact]
+    public void Saving_level_one_on_a_level_one_user_keeps_the_approved_card()
+    {
+        var store = TestStore.Create();
+        var card = store.AddCard(6, "6037991234567893", "نگار شریفی", "/uploads/c.png").Card!;
+        store.SetCardStatus(card.Id, BankCardStatus.Approved, null);
+        Assert.Equal(1, store.GetUser(6)!.VerificationLevel);
+
+        store.SetVerificationLevel(6, 1);
+
+        Assert.Equal(1, store.GetUser(6)!.VerificationLevel);
+        Assert.Equal(BankCardStatus.Approved, store.GetCard(card.Id)!.Status);
+    }
+
+    // Raising a level never touches the evidence either — nothing to revoke on the way up.
+    [Fact]
+    public void Raising_a_level_leaves_the_approved_card_alone()
+    {
+        var store = TestStore.Create();
+        var card = store.AddCard(6, "6037991234567893", "نگار شریفی", "/uploads/c.png").Card!;
+        store.SetCardStatus(card.Id, BankCardStatus.Approved, null);
+
+        store.SetVerificationLevel(6, 2);
+
+        Assert.Equal(2, store.GetUser(6)!.VerificationLevel);
+        Assert.Equal(BankCardStatus.Approved, store.GetCard(card.Id)!.Status);
+    }
+
     [Fact]
     public void Invoice_number_is_issued_only_once_the_order_is_completed()
     {
