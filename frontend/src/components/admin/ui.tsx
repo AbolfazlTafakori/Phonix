@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import AdminIcon from "./AdminIcon";
+import { formatNumber } from "@/lib/format";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return (
@@ -81,22 +82,35 @@ export function StatusBadge({ status }: { status: string }) {
   );
 }
 
-export function SalesChart({ data }: { data: { label: string; value: number }[] }) {
-  const max = Math.max(...data.map((d) => d.value));
+// Horizontal bars, one row per item. The vertical version this replaces was unreadable with real data: its
+// columns never got a height (the row was items-end, so nothing stretched to the h-56 and every bar resolved
+// its percentage against an auto height of zero), and product names — which run long in Persian — sat under
+// 10px-wide columns with nothing to truncate against, so they spilled straight out of the card. Reading down
+// a list also puts the numbers where they can actually be read, which is the point of the panel.
+export function SalesChart({ data }: { data: { label: string; value: number; caption?: string }[] }) {
+  // An empty set renders nothing; an all-zero set would otherwise divide by zero and give every bar NaN%.
+  const max = Math.max(1, ...data.map((d) => d.value));
   return (
-    <div className="flex h-56 items-end gap-2 sm:gap-3">
+    <ul className="flex flex-col gap-4">
       {data.map((d) => (
-        <div key={d.label} className="group flex flex-1 flex-col items-center gap-2">
-          <div className="relative flex w-full flex-1 items-end">
-            <div
-              className="w-full rounded-t-md bg-gradient-to-t from-[#6d28d9] to-[#e60053] transition-all duration-300 group-hover:brightness-125"
-              style={{ height: `${(d.value / max) * 100}%` }}
-            />
+        <li key={d.label} className="group">
+          <div className="mb-1.5 flex items-baseline justify-between gap-3">
+            {/* min-w-0 is what lets truncate actually clip a long name inside a flex row */}
+            <span className="min-w-0 flex-1 truncate text-[13px] text-white/75" title={d.label}>{d.label}</span>
+            <span className="shrink-0 text-[13px] font-bold text-white">{formatNumber(d.value)}</span>
           </div>
-          <span className="truncate text-[10px] text-white/40">{d.label}</span>
-        </div>
+          <div className="flex items-center gap-3">
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-white/[0.06]">
+              <div
+                className="h-full rounded-full bg-gradient-to-l from-[#6d28d9] to-[#e60053] transition-all duration-500 group-hover:brightness-125"
+                style={{ width: `${Math.max(2, (d.value / max) * 100)}%` }}
+              />
+            </div>
+            {d.caption && <span className="shrink-0 text-[11px] text-white/40">{d.caption}</span>}
+          </div>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }
 

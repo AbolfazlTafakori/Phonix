@@ -79,7 +79,7 @@ export default function AdminDashboard() {
           {top.length === 0 ? (
             <p className="py-12 text-center text-sm text-white/40">هنوز فروشی ثبت نشده است</p>
           ) : (
-            <SalesChart data={top.map((p) => ({ label: p.name, value: p.sold }))} />
+            <SalesChart data={top.map((p) => ({ label: p.name, value: p.sold, caption: formatToman(p.revenue) }))} />
           )}
         </Card>
 
