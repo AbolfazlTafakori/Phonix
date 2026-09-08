@@ -13,6 +13,17 @@ public sealed class UsdRateService : BackgroundService
 {
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(5);
 
+    // Nobitex serves the same API from more than one host, and they do not stay up together: api.nobitex.ir
+    // stopped resolving at all - NXDOMAIN from Google's and Cloudflare's resolvers alike, so not a block on
+    // our address - while apiv2.nobitex.ir answers normally. A single hard-coded host therefore took the rate
+    // down silently and left every USD-priced product on the manual fallback. These are tried in order and
+    // the first that answers wins, so either host disappearing again costs one failed request, not the rate.
+    private static readonly string[] StatsEndpoints =
+    {
+        "https://apiv2.nobitex.ir/market/stats",
+        "https://api.nobitex.ir/market/stats",
+    };
+
     private readonly IHttpClientFactory _http;
     private readonly IDataStore _store;
     private readonly ILogger<UsdRateService> _log;
@@ -62,49 +73,65 @@ public sealed class UsdRateService : BackgroundService
     }
 
     // Pulls the latest USDT price (in Rial) from Nobitex, converts to Toman, publishes it and re-prices USD
-    // products. Returns false (keeping the previous value) on any network/parse failure.
+    // products. Every known host is tried before giving up. Returns false (keeping the previous value) when
+    // none of them answers with a usable price.
     public async Task<bool> RefreshAsync(CancellationToken ct = default)
     {
-        try
+        string? lastFailure = null;
+        foreach (var endpoint in StatsEndpoints)
         {
-            var client = _http.CreateClient();
-            client.Timeout = TimeSpan.FromSeconds(10);
-            // some endpoints reject requests without a UA; send a plain one.
-            client.DefaultRequestHeaders.UserAgent.ParseAdd("PhoenixVerify/1.0");
-
-            using var body = new StringContent("{\"srcCurrency\":\"usdt\",\"dstCurrency\":\"rls\"}", Encoding.UTF8, "application/json");
-            using var resp = await client.PostAsync("https://api.nobitex.ir/market/stats", body, ct);
-            resp.EnsureSuccessStatusCode();
-
-            await using var stream = await resp.Content.ReadAsStreamAsync(ct);
-            using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-
-            if (!doc.RootElement.TryGetProperty("stats", out var stats)) return false;
-            foreach (var market in stats.EnumerateObject())
+            try
             {
-                if (!market.Value.TryGetProperty("latest", out var latest)) continue;
-                var raw = latest.ValueKind == JsonValueKind.String ? latest.GetString() : latest.GetRawText();
-                if (decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var rials) && rials > 0)
-                {
-                    // We query the rls (Rial) market, so the value is always in Rial. Dividing by 10 yields the
-                    // Toman figure shown on nobitex.ir — deterministic, no magnitude guessing.
-                    var toman = (long)Math.Round(rials / 10m);
-                    Interlocked.Exchange(ref _nobitexToman, toman);
-                    Interlocked.Exchange(ref _updatedAtUnixMs, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
-                    _lastError = "";
-                    ApplyCurrent();
-                    return true;
-                }
+                if (await TryEndpointAsync(endpoint, ct)) return true;
+                lastFailure = "پاسخ نوبیتکس قابل خواندن نبود.";
             }
-            _lastError = "پاسخ نوبیتکس قابل خواندن نبود.";
-            return false;
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw; // shutting down - not a rate failure
+            }
+            catch (Exception ex)
+            {
+                lastFailure = ex is HttpRequestException
+                    ? "سرور به نوبیتکس دسترسی ندارد (آدرس در دسترس نیست یا IP خارج از ایران مسدود است)."
+                    : ex.Message;
+                _log.LogWarning(ex, "Failed to refresh USDT-Toman rate from {Endpoint}", endpoint);
+            }
         }
-        catch (Exception ex)
+        _lastError = lastFailure ?? "";
+        return false;
+    }
+
+    private async Task<bool> TryEndpointAsync(string endpoint, CancellationToken ct)
+    {
+        var client = _http.CreateClient();
+        client.Timeout = TimeSpan.FromSeconds(10);
+        // some endpoints reject requests without a UA; send a plain one.
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("PhoenixVerify/1.0");
+
+        using var body = new StringContent("{\"srcCurrency\":\"usdt\",\"dstCurrency\":\"rls\"}", Encoding.UTF8, "application/json");
+        using var resp = await client.PostAsync(endpoint, body, ct);
+        resp.EnsureSuccessStatusCode();
+
+        await using var stream = await resp.Content.ReadAsStreamAsync(ct);
+        using var doc = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
+
+        if (!doc.RootElement.TryGetProperty("stats", out var stats)) return false;
+        foreach (var market in stats.EnumerateObject())
         {
-            // Most common cause: the server's IP is outside Iran and Nobitex geo-blocks it.
-            _lastError = ex is HttpRequestException ? "سرور به نوبیتکس دسترسی ندارد (احتمالاً IP خارج از ایران مسدود است)." : ex.Message;
-            _log.LogWarning(ex, "Failed to refresh USDT→Toman rate from Nobitex");
-            return false;
+            if (!market.Value.TryGetProperty("latest", out var latest)) continue;
+            var raw = latest.ValueKind == JsonValueKind.String ? latest.GetString() : latest.GetRawText();
+            if (decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var rials) && rials > 0)
+            {
+                // We query the rls (Rial) market, so the value is always in Rial. Dividing by 10 yields the
+                // Toman figure shown on nobitex.ir - deterministic, no magnitude guessing.
+                var toman = (long)Math.Round(rials / 10m);
+                Interlocked.Exchange(ref _nobitexToman, toman);
+                Interlocked.Exchange(ref _updatedAtUnixMs, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds());
+                _lastError = "";
+                ApplyCurrent();
+                return true;
+            }
         }
+        return false;
     }
 }
