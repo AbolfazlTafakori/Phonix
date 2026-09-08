@@ -114,6 +114,9 @@ try
     // Sends subscription renewal reminders (bell notification + HTML email) before time-based plans expire,
     // on an admin-configured threshold read dynamically each cycle.
     builder.Services.AddHostedService<SubscriptionExpiryWorker>();
+    // Closes support tickets left without a message from either side for 24 hours (the customer can reopen
+    // one by replying), so the open-ticket queue reflects conversations that are actually live.
+    builder.Services.AddHostedService<TicketAutoCloseWorker>();
     // Read-only access to the Serilog output directory for the admin "system logs" page (list + download).
     builder.Services.AddSingleton(new LogFileService(logDir));
     // Background CPU sampler: one owner produces the rate, the dashboard endpoint reads it lock-free.

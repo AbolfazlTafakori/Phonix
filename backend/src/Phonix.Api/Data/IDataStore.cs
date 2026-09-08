@@ -352,6 +352,8 @@ public interface IDataStore
         string authorName, TicketPriority priority = TicketPriority.Medium, string attachment = "");
     Ticket? ReplyTicket(int id, string author, string body, bool isAdmin, string? attachment = null);
     bool SetTicketStatus(int id, TicketStatus status);
+    // Closes tickets nobody has written on for `idleFor` and returns them, so the caller can notify.
+    IReadOnlyList<Ticket> CloseIdleTickets(TimeSpan idleFor);
 
     // ── Backup / snapshot (implementation-agnostic; SQLite will export/import the same shape) ──────────
     string SerializeSnapshot();

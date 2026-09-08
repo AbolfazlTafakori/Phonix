@@ -1194,6 +1194,9 @@ export type Ticket = {
   status: TicketStatus;
   messages: TicketMessage[];
   date: string;
+  // Set when the 24-hour idle sweep closed the ticket rather than support closing it deliberately. Such a
+  // ticket still takes a reply, which reopens it; one support closed stays closed.
+  autoClosedAtUtc: string | null;
 };
 
 export type OverviewStats = {

@@ -29,10 +29,11 @@ public sealed partial class SqliteDataStore
         {
             UserId = userId, UserName = userName, Subject = subject, Department = department, Priority = priority,
             Attachment = attachment ?? "", Status = TicketStatus.Open, Date = Today(),
+            LastMessageAtUtc = DateTime.UtcNow,
         };
         InsertJson("Tickets", t, (x, id) => { x.Id = id; x.Code = $"T-{5800 + id}"; });
         // append the opening message and re-save (Code/Id were just assigned).
-        t.Messages.Add(new TicketMessage { Author = userName, Body = body, IsAdmin = false, Date = Today() });
+        t.Messages.Add(new TicketMessage { Author = userName, Body = body, IsAdmin = false, Date = Today(), SentAtUtc = DateTime.UtcNow });
         UpdateJson("Tickets", t.Id, t);
         return t;
     }
@@ -43,10 +44,10 @@ public sealed partial class SqliteDataStore
         var t = new Ticket
         {
             UserId = userId, UserName = userName, Subject = subject, Department = department, Priority = priority,
-            Status = TicketStatus.Answered, Date = Today(),
+            Status = TicketStatus.Answered, Date = Today(), LastMessageAtUtc = DateTime.UtcNow,
         };
         InsertJson("Tickets", t, (x, id) => { x.Id = id; x.Code = $"T-{5800 + id}"; });
-        t.Messages.Add(new TicketMessage { Author = authorName, Body = body, IsAdmin = true, Date = Today(), Attachment = attachment ?? "" });
+        t.Messages.Add(new TicketMessage { Author = authorName, Body = body, IsAdmin = true, Date = Today(), SentAtUtc = DateTime.UtcNow, Attachment = attachment ?? "" });
         UpdateJson("Tickets", t.Id, t);
         AddNotification(userId, "تیکت جدید از پشتیبانی", $"پشتیبانی فونیکس برای شما تیکت «{subject}» باز کرد.", "/account/tickets");
         return t;
@@ -56,8 +57,12 @@ public sealed partial class SqliteDataStore
     {
         var t = OneJson<Ticket>("Tickets", id);
         if (t is null) return null;
-        t.Messages.Add(new TicketMessage { Author = author, Body = body, IsAdmin = isAdmin, Date = Today(), Attachment = attachment ?? "" });
+        t.Messages.Add(new TicketMessage { Author = author, Body = body, IsAdmin = isAdmin, Date = Today(), SentAtUtc = DateTime.UtcNow, Attachment = attachment ?? "" });
         t.Status = isAdmin ? TicketStatus.Answered : TicketStatus.Open;
+        // A reply is what the idle sweep measures from, and a customer replying on a ticket the sweep closed
+        // reopens it — so the automatic-close stamp has to go with it.
+        t.LastMessageAtUtc = DateTime.UtcNow;
+        t.AutoClosedAtUtc = null;
         UpdateJson("Tickets", id, t);
         if (isAdmin) AddNotification(t.UserId, "پاسخ تیکت پشتیبانی", $"به تیکت «{t.Subject}» پاسخ داده شد.", "/account/tickets");
         return t;
@@ -69,6 +74,30 @@ public sealed partial class SqliteDataStore
         if (t is null) return false;
         t.Status = status;
         return UpdateJson("Tickets", id, t);
+    }
+
+    // Closes every ticket that has been silent for `idleFor`, whichever side spoke last, and returns the ids
+    // it closed so the caller can tell those customers. Tickets from before LastMessageAtUtc existed carry no
+    // instant to measure from: they are stamped with now and left open, which gives each one a full window
+    // instead of closing the entire backlog the first time this runs.
+    public IReadOnlyList<Ticket> CloseIdleTickets(TimeSpan idleFor)
+    {
+        var cutoff = DateTime.UtcNow - idleFor;
+        var closed = new List<Ticket>();
+        foreach (var t in AllJson<Ticket>("Tickets").Where(t => t.Status != TicketStatus.Closed))
+        {
+            if (t.LastMessageAtUtc is not { } last)
+            {
+                t.LastMessageAtUtc = DateTime.UtcNow;
+                UpdateJson("Tickets", t.Id, t);
+                continue;
+            }
+            if (last > cutoff) continue;
+            t.Status = TicketStatus.Closed;
+            t.AutoClosedAtUtc = DateTime.UtcNow;
+            if (UpdateJson("Tickets", t.Id, t)) closed.Add(t);
+        }
+        return closed;
     }
 
     // ── Live chat ───────────────────────────────────────────────────────────────────────────────────────

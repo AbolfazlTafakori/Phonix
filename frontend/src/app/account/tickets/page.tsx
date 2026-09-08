@@ -194,7 +194,15 @@ export default function TicketsPage() {
             ))}
           </div>
 
-          {selected.status !== "Closed" && (
+          {/* An auto-closed ticket is a tidy-up, not a verdict: the box stays so the customer can pick the
+              thread back up. A ticket support closed on purpose stays closed. */}
+          {selected.status === "Closed" && selected.autoClosedAtUtc && (
+            <p className="mt-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs leading-6 text-amber-600 dark:text-amber-400">
+              این تیکت پس از ۲۴ ساعت بدون پیام جدید به‌صورت خودکار بسته شد. اگر هنوز به کمک نیاز دارید، همین‌جا پاسخ دهید تا دوباره باز شود.
+            </p>
+          )}
+
+          {(selected.status !== "Closed" || selected.autoClosedAtUtc) && (
             <div className="mt-4">
               <div className="flex items-start gap-2">
                 <textarea
