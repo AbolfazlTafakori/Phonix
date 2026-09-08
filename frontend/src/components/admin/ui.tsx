@@ -89,7 +89,7 @@ export function StatusBadge({ status }: { status: string }) {
 // a list also puts the numbers where they can actually be read, which is the point of the panel.
 export function SalesChart({
   data,
-  visibleRows = 4,
+  visibleRows = 5,
 }: {
   data: { label: string; value: number; caption?: string }[];
   visibleRows?: number;
@@ -97,15 +97,15 @@ export function SalesChart({
   // An empty set renders nothing; an all-zero set would otherwise divide by zero and give every bar NaN%.
   const max = Math.max(1, ...data.map((d) => d.value));
   // Past `visibleRows` the list scrolls INSIDE the card instead of growing it: the panel keeps its height in
-  // the dashboard grid however many products sell. The height stops mid-row on purpose — a half-visible row
-  // is what tells the reader there is more below. overscroll-contain keeps the wheel in this list rather than
-  // handing the gesture on to the page once the end is reached.
+  // the dashboard grid however many products sell. The scrollbar itself is hidden — the height stops mid-row
+  // on purpose, and that half-visible row is what says there is more below. overscroll-contain keeps the
+  // wheel in this list rather than handing the gesture on to the page once the end is reached.
   const scrolls = data.length > visibleRows;
   // One row is a 18px name line + 6px gap + 8px bar = 32px, and rows sit 16px apart.
   const maxHeight = visibleRows * 32 + (visibleRows - 1) * 16 + 26;
   return (
     <div
-      className={scrolls ? "overflow-y-auto overscroll-contain pl-2 [scrollbar-width:thin]" : ""}
+      className={scrolls ? "overflow-y-auto overscroll-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : ""}
       style={scrolls ? { maxHeight } : undefined}
     >
       <ul className="flex flex-col gap-4">
