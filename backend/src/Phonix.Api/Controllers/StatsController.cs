@@ -47,7 +47,9 @@ public class StatsController : ControllerBase
             .GroupBy(i => i.ProductId)
             .Select(g => new TopProductDto(g.Key, g.First().Name, g.First().Image, g.Sum(x => x.Quantity), g.Sum(x => x.LineTotal)))
             .OrderByDescending(x => x.Sold)
-            .Take(6)
+            // The dashboard panel scrolls its own list now, so it is no longer limited to what fits in a
+            // fixed-height card — a shop with a wide catalogue gets a ranking worth scrolling through.
+            .Take(12)
             .ToList();
     }
 }
