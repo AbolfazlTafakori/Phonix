@@ -431,13 +431,24 @@ export default function AccountDashboard() {
   const recentOrders  = orders.slice(0, 2);
   const recentTickets = tickets.slice(0, 2);
 
-  // Real profile-completion signals (was hardcoded 70%). The security card is dismissed entirely once the
-  // user has BOTH verified their email AND completed identity verification — the two security milestones.
+  // Profile completion, step by step. The bar used to average four coarse signals (one of them the avatar),
+  // so it moved in jumps of 25% and never said WHICH thing was missing — it read as decoration. Each step
+  // below is one concrete thing the user can go and finish, and the list under the bar names the ones left,
+  // each linking to the page that completes it. The card disappears at 100%, so the bar and the card agree.
   const emailVerified    = me?.emailVerified ?? false;
   const identityVerified = kycLevel >= 2;
-  const completionChecks = [Boolean(me?.avatar), Boolean(me?.phone?.trim()), emailVerified, identityVerified];
-  const completionPct    = Math.round((completionChecks.filter(Boolean).length / completionChecks.length) * 100);
-  const profileComplete  = emailVerified && identityVerified;
+  const completionSteps: { label: string; done: boolean; href: string }[] = [
+    { label: "نام و نام خانوادگی", done: Boolean(me?.name?.trim()),     href: "/account" },
+    { label: "نام کاربری",         done: Boolean(me?.username?.trim()), href: "/account" },
+    { label: "ایمیل",              done: Boolean(me?.email?.trim()),    href: "/account" },
+    { label: "تأیید ایمیل",        done: emailVerified,                 href: "/account" },
+    { label: "شماره موبایل",       done: Boolean(me?.phone?.trim()),    href: "/account" },
+    { label: "احراز هویت سطح ۱ (کارت بانکی)", done: kycLevel >= 1,      href: "/account/cards" },
+    { label: "احراز هویت سطح ۲ (کارت ملی)",   done: identityVerified,   href: "/account/kyc" },
+  ];
+  const completionDone = completionSteps.filter((s) => s.done).length;
+  const completionPct  = Math.round((completionDone / completionSteps.length) * 100);
+  const profileComplete = completionDone === completionSteps.length;
 
   // The same link /account/invite hands out — the copy button puts this on the clipboard, not the bare code,
   // so what a friend receives is something they can click straight through to signup.
@@ -539,9 +550,33 @@ export default function AccountDashboard() {
               <span style={{ color: "var(--ac-text)" }}>پیشرفت تکمیل پروفایل</span>
               <span style={{ color: "var(--hl-orange-text)" }}>{toFa(completionPct)}٪ تکمیل شده</span>
             </div>
-            <div className="mb-5 h-[8px] overflow-hidden rounded-full" style={{ background: "var(--ac-divider)" }}>
+            <div className="mb-4 h-[8px] overflow-hidden rounded-full" style={{ background: "var(--ac-divider)" }}>
               <div className="h-full rounded-full transition-[width] duration-500" style={{ width: `${completionPct}%`, background: "linear-gradient(90deg, #FF8A2B 0%, #FF3D2E 100%)" }} />
             </div>
+
+            {/* What the percentage is actually made of. A finished step is stated plainly; an unfinished one
+                is a link straight to the page that completes it, so the bar is a to-do list, not a gauge. */}
+            <ul className="mb-5 grid gap-x-5 gap-y-2 sm:grid-cols-2">
+              {completionSteps.map((step) => (
+                <li key={step.label} className="flex items-center gap-2 text-[13px]">
+                  {step.done ? (
+                    <>
+                      <span className="grid h-[18px] w-[18px] shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-600">
+                        <Ico paths={I.check} className="h-3 w-3" />
+                      </span>
+                      <span style={{ color: "var(--ac-muted)" }}>{step.label}</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="h-[18px] w-[18px] shrink-0 rounded-full border" style={{ borderColor: "var(--ac-panel-border)" }} />
+                      <Link href={step.href} className="font-bold transition hover:opacity-70" style={{ color: "var(--hl-orange-text)" }}>
+                        {step.label}
+                      </Link>
+                    </>
+                  )}
+                </li>
+              ))}
+            </ul>
 
             <div className="flex flex-wrap items-center gap-3">
               <Link
