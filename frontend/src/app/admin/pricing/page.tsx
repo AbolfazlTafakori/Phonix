@@ -543,6 +543,15 @@ function UsdRatePanel({ usd, setUsd }: { usd: UsdRate | null; setUsd: (u: UsdRat
     return () => clearInterval(id);
   }, [setUsd]);
 
+  // Ticks the "… ago" line every second. Null until the first tick so the server-rendered markup and the
+  // first client render agree; a clock read during render would differ between the two.
+  const [now, setNow] = useState<number | null>(null);
+  useEffect(() => {
+    setNow(Date.now());
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   async function refresh() {
     setBusy(true);
     try {
@@ -564,6 +573,14 @@ function UsdRatePanel({ usd, setUsd }: { usd: UsdRate | null; setUsd: (u: UsdRat
   const updated = usd?.updatedAtUnixMs
     ? new Date(usd.updatedAtUnixMs).toLocaleString("fa-IR", { dateStyle: "short", timeStyle: "short" })
     : "—";
+  // How long ago that was, counted up live — the point of the card is that the number is current, and only
+  // a figure that visibly moves says so.
+  const agoSeconds = now && usd?.updatedAtUnixMs ? Math.max(0, Math.round((now - usd.updatedAtUnixMs) / 1000)) : null;
+  const ago = agoSeconds === null
+    ? ""
+    : agoSeconds < 60
+      ? `${formatNumber(agoSeconds)} ثانیه پیش`
+      : `${formatNumber(Math.round(agoSeconds / 60))} دقیقه پیش`;
   const source = usd?.auto && (usd?.nobitex ?? 0) > 0 ? "خودکار (نوبیتکس)" : "دستی";
 
   return (
@@ -582,7 +599,15 @@ function UsdRatePanel({ usd, setUsd }: { usd: UsdRate | null; setUsd: (u: UsdRat
         </div>
         <p className="mt-5 text-3xl font-black text-emerald-400">{rate ? formatToman(rate) : "تعیین نشده"}</p>
         <p className="mt-1 text-xs text-white/45">به ازای هر ۱ دلار · منبع فعلی: {source}</p>
-        <p className="mt-3 text-xs text-white/40">آخرین دریافت از نوبیتکس: {updated}{usd && usd.nobitex > 0 ? ` (${formatToman(usd.nobitex)})` : " — در دسترس نبود"}</p>
+        <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/40">
+          {ago && (usd?.nobitex ?? 0) > 0 && (
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/12 px-2 py-0.5 font-bold text-emerald-400">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+              زنده · {ago}
+            </span>
+          )}
+          <span>آخرین دریافت از نوبیتکس: {updated}{usd && usd.nobitex > 0 ? ` (${formatToman(usd.nobitex)})` : " — در دسترس نبود"}</span>
+        </p>
         {usd?.lastError && (usd?.nobitex ?? 0) <= 0 && (
           <p className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/[0.07] p-2.5 text-xs leading-6 text-amber-200/90">⚠ {usd.lastError} — از «نرخ دستی» روبه‌رو استفاده کنید.</p>
         )}

@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useCart, clearCart, removeFromCart, repriceCart } from "@/lib/cart";
+import { useCart, clearCart, removeFromCart } from "@/lib/cart";
+import { useLivePrices } from "@/lib/useLivePrices";
 import { formatToman, toFa } from "@/lib/format";
 import type { PaymentMethod, BankCard, DiscountResult, Product, ProductPlan } from "@/lib/types";
 import { CardToCardForm, emptyCardToCard, isCardToCardComplete, type CardToCardValue } from "@/components/account/CardToCardForm";
@@ -109,10 +110,9 @@ export default function CheckoutPage() {
   useEffect(() => {
     (async () => {
       try {
-        const [m, me, prods, pricing] = await Promise.all([
+        const [m, me, pricing] = await Promise.all([
           api.paymentMethods.list(),
           api.account.me().catch(() => null),
-          api.products.list().catch(() => []),
           api.pricing.getSettings().catch(() => null),
         ]);
         setMethods(m.filter((x) => x.isActive));
@@ -120,25 +120,6 @@ export default function CheckoutPage() {
           setVatPercent(pricing.vatPercent);
           setGatewayFeePercent(pricing.gatewayFeePercent);
         }
-        setLevelMap(Object.fromEntries(prods.map((p) => [p.id, p.requiredLevel])));
-        setProductsById(Object.fromEntries(prods.map((p) => [p.id, p])));
-
-        // Bring the basket up to today's catalogue before anything is totalled. The server prices the order
-        // when it is placed, so a basket carrying last month's numbers would quote one figure and charge
-        // another. Say what moved instead of changing the total under the buyer.
-        const byId = new Map(prods.map((p) => [p.id, p]));
-        const moved = repriceCart((line) => {
-          const product = byId.get(line.productId);
-          if (!product) return null;
-          if (line.planId == null) return product.finalPrice;
-          return product.plans.find((pl) => pl.id === line.planId)?.finalPrice ?? null;
-        });
-        if (moved.length > 0)
-          setPriceNotice(
-            moved.length === 1
-              ? `قیمت «${moved[0].name}» به‌روز شد: ${formatToman(moved[0].from)} ← ${formatToman(moved[0].to)}`
-              : `قیمت ${toFa(moved.length)} مورد از سبد شما به‌روز شد.`,
-          );
         if (me) {
           setWallet(me.wallet);
           setEmailVerified(me.emailVerified);
@@ -154,6 +135,24 @@ export default function CheckoutPage() {
       }
     })();
   }, []);
+
+  // The catalogue is re-read every 30 seconds while this page is open, because USD-priced products follow a
+  // live rate: the order is priced by the SERVER at the moment it is placed, so a checkout page that priced
+  // itself once at load would quote one total and charge another the longer the buyer sat on it.
+  const priceMoves = useLivePrices((prods) => {
+    setLevelMap(Object.fromEntries(prods.map((p) => [p.id, p.requiredLevel])));
+    setProductsById(Object.fromEntries(prods.map((p) => [p.id, p])));
+  });
+
+  // Say what moved rather than letting the number shift under the buyer unannounced.
+  useEffect(() => {
+    if (priceMoves.length === 0) return;
+    setPriceNotice(
+      priceMoves.length === 1
+        ? `قیمت «${priceMoves[0].name}» به‌روز شد: ${formatToman(priceMoves[0].from)} ← ${formatToman(priceMoves[0].to)}`
+        : `قیمت ${toFa(priceMoves.length)} مورد از سبد شما به‌روز شد.`,
+    );
+  }, [priceMoves]);
 
   // once the user removes every over-level item, dismiss the upgrade modal automatically.
   useEffect(() => {

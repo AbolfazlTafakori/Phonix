@@ -3,13 +3,25 @@
 import Link from "next/link";
 import { useCart, setQuantity, removeFromCart } from "@/lib/cart";
 import { formatToman } from "@/lib/format";
+import { useLivePrices } from "@/lib/useLivePrices";
 
 export default function CartPage() {
   const { items, total, count, ready } = useCart();
+  // Prices follow a live USD rate, so a basket sitting open here has to keep up with the catalogue — the
+  // checkout is charged at the server's price either way, and finding that out at the last step is worse.
+  const priceMoves = useLivePrices();
 
   return (
     <div className="mx-auto max-w-[900px] px-5 pb-20 pt-10">
       <h1 className="mb-6 text-2xl font-bold text-[var(--hl-ink)]">سبد خرید</h1>
+
+      {priceMoves.length > 0 && (
+        <div className="mb-4 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm leading-7 text-amber-600 dark:text-amber-400">
+          {priceMoves.length === 1
+            ? `قیمت «${priceMoves[0].name}» به‌روز شد: ${formatToman(priceMoves[0].from)} ← ${formatToman(priceMoves[0].to)}`
+            : "قیمت برخی از اقلام سبد شما به‌روز شد."}
+        </div>
+      )}
 
       {!ready ? null : items.length === 0 ? (
         <div className="hl-card rounded-2xl p-12 text-center">
