@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { useCart, clearCart, removeFromCart } from "@/lib/cart";
-import { useLivePrices } from "@/lib/useLivePrices";
+import { useCart, clearCart, removeFromCart, getCart, repriceCart } from "@/lib/cart";
 import { formatToman, toFa } from "@/lib/format";
 import type { PaymentMethod, BankCard, DiscountResult, Product, ProductPlan } from "@/lib/types";
 import { CardToCardForm, emptyCardToCard, isCardToCardComplete, type CardToCardValue } from "@/components/account/CardToCardForm";
@@ -47,6 +46,9 @@ export default function CheckoutPage() {
 
   // Set when the basket was re-priced against the live catalogue on load (see the fetch effect).
   const [priceNotice, setPriceNotice] = useState("");
+  // The signed quote this basket is priced from, and the instant it stops being good.
+  const [priceLockToken, setPriceLockToken] = useState<string | null>(null);
+  const [lockExpiresAt, setLockExpiresAt] = useState<number | null>(null);
   const [codeInput, setCodeInput] = useState("");
   const [discount, setDiscount] = useState<DiscountResult | null>(null);
   // The basket total the applied code was validated against — see discountStale below.
@@ -136,23 +138,97 @@ export default function CheckoutPage() {
     })();
   }, []);
 
-  // The catalogue is re-read every 30 seconds while this page is open, because USD-priced products follow a
-  // live rate: the order is priced by the SERVER at the moment it is placed, so a checkout page that priced
-  // itself once at load would quote one total and charge another the longer the buyer sat on it.
-  const priceMoves = useLivePrices((prods) => {
-    setLevelMap(Object.fromEntries(prods.map((p) => [p.id, p.requiredLevel])));
-    setProductsById(Object.fromEntries(prods.map((p) => [p.id, p])));
-  });
+  // ── Live prices, then a lock ────────────────────────────────────────────────────────────────────────
+  //
+  // USD-priced products follow a rate the server refreshes every 30 seconds, so while the buyer is still
+  // deciding, this page keeps up with it: an open checkout must never show a price the shop has stopped
+  // charging. Each pass also asks the server to QUOTE the basket and sign the quote (api.orders.priceLock).
+  //
+  // The moment they commit to paying — picking the method is what reveals the destination card and the exact
+  // figure to transfer — the refreshing stops and the held quote becomes the price. That matters because
+  // card-to-card has them pay BEFORE the order exists: they read an amount, go to their banking app, come
+  // back with a receipt. Without the lock the order would be filed at whatever the rate said on their return,
+  // which is not the amount they transferred. The token travels with the order and the server files it at
+  // exactly these prices.
+  const paymentCommitted = needsMethod && methodId !== null;
 
-  // Say what moved rather than letting the number shift under the buyer unannounced.
   useEffect(() => {
-    if (priceMoves.length === 0) return;
-    setPriceNotice(
-      priceMoves.length === 1
-        ? `قیمت «${priceMoves[0].name}» به‌روز شد: ${formatToman(priceMoves[0].from)} ← ${formatToman(priceMoves[0].to)}`
-        : `قیمت ${toFa(priceMoves.length)} مورد از سبد شما به‌روز شد.`,
-    );
-  }, [priceMoves]);
+    if (paymentCommitted) return; // committed: the amount the buyer is about to transfer must not move
+    let alive = true;
+
+    async function sync() {
+      if (typeof document !== "undefined" && document.hidden) return;
+      const prods = await api.products.list().catch(() => null);
+      if (!prods || !alive) return;
+      setLevelMap(Object.fromEntries(prods.map((p) => [p.id, p.requiredLevel])));
+      setProductsById(Object.fromEntries(prods.map((p) => [p.id, p])));
+
+      const lines = getCart().map((i) => ({ productId: i.productId, planId: i.planId ?? null }));
+      if (lines.length === 0) return;
+      const quote = await api.orders.priceLock(lines).catch(() => null);
+      if (!quote || !alive) return;
+      setPriceLockToken(quote.token);
+      setLockExpiresAt(Date.now() + quote.expiresInSeconds * 1000);
+
+      // The quote is the authority: the basket is re-priced from it, so what is displayed and what the
+      // server will charge are the same numbers by construction.
+      const quoted = new Map(quote.lines.map((l) => [`${l.productId}:${l.planId ?? ""}`, l.unitPrice]));
+      const moved = repriceCart((line) => quoted.get(`${line.productId}:${line.planId ?? ""}`) ?? null);
+      if (moved.length > 0 && alive)
+        setPriceNotice(
+          moved.length === 1
+            ? `قیمت «${moved[0].name}» به‌روز شد: ${formatToman(moved[0].from)} ← ${formatToman(moved[0].to)}`
+            : `قیمت ${toFa(moved.length)} مورد از سبد شما به‌روز شد.`,
+        );
+    }
+
+    sync();
+    const id = setInterval(sync, 30_000);
+    // A tab in the background is skipped above; sync it the instant the buyer looks at it again rather than
+    // showing them a price from whenever they wandered off.
+    const onWake = () => sync();
+    window.addEventListener("focus", onWake);
+    document.addEventListener("visibilitychange", onWake);
+    return () => {
+      alive = false;
+      clearInterval(id);
+      window.removeEventListener("focus", onWake);
+      document.removeEventListener("visibilitychange", onWake);
+    };
+  }, [paymentCommitted]);
+
+  // Counts the held quote down while the buyer is away paying, so the page can say how long the amount is
+  // good for and stop them placing against a quote that has run out.
+  const [nowTick, setNowTick] = useState<number | null>(null);
+  useEffect(() => {
+    if (!paymentCommitted) { setNowTick(null); return; }
+    setNowTick(Date.now());
+    const id = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [paymentCommitted]);
+
+  const lockSecondsLeft = nowTick && lockExpiresAt ? Math.max(0, Math.round((lockExpiresAt - nowTick) / 1000)) : null;
+  const lockExpired = lockSecondsLeft !== null && lockSecondsLeft === 0;
+
+  // Re-quotes the basket and shows what it costs now. Used when the held quote runs out: the buyer sees the
+  // new amount and decides, rather than paying one figure and having the order filed at another.
+  async function requote(): Promise<boolean> {
+    const lines = getCart().map((i) => ({ productId: i.productId, planId: i.planId ?? null }));
+    if (lines.length === 0) return false;
+    const quote = await api.orders.priceLock(lines).catch(() => null);
+    if (!quote) return false;
+    setPriceLockToken(quote.token);
+    setLockExpiresAt(Date.now() + quote.expiresInSeconds * 1000);
+    const quoted = new Map(quote.lines.map((l) => [`${l.productId}:${l.planId ?? ""}`, l.unitPrice]));
+    const moved = repriceCart((line) => quoted.get(`${line.productId}:${line.planId ?? ""}`) ?? null);
+    if (moved.length > 0)
+      setPriceNotice(
+        moved.length === 1
+          ? `قیمت «${moved[0].name}» به‌روز شد: ${formatToman(moved[0].from)} ← ${formatToman(moved[0].to)}`
+          : `قیمت ${toFa(moved.length)} مورد از سبد شما به‌روز شد.`,
+      );
+    return moved.length === 0;
+  }
 
   // once the user removes every over-level item, dismiss the upgrade modal automatically.
   useEffect(() => {
@@ -233,6 +309,18 @@ export default function CheckoutPage() {
         return;
       }
     }
+    // The held quote has run out. Re-quote first: if the amount moved, the buyer must see the new figure and
+    // press again — never file an order for more than the sum they were shown and may already have transferred.
+    if (lockExpired) {
+      setPlacing(true);
+      const unchanged = await requote();
+      setPlacing(false);
+      if (!unchanged) {
+        setError("مدت اعتبار مبلغ به پایان رسید و قیمت‌ها به‌روز شد. مبلغ جدید را ببینید و دوباره ثبت سفارش را بزنید.");
+        return;
+      }
+    }
+
     setPlacing(true);
     setError("");
     try {
@@ -264,6 +352,7 @@ export default function CheckoutPage() {
         receiptUrl: needsMethod ? pay.receiptUrl : null,
         trackingNumber: needsMethod ? pay.tracking.trim() : null,
         paymentDate: needsMethod ? pay.payDate.trim() : null,
+        priceLockToken,
         description: needsMethod ? pay.desc.trim() || null : null,
       });
       // wallet covered the whole order → already paid; otherwise the payment is now pending review.
@@ -431,6 +520,21 @@ export default function CheckoutPage() {
                     ))
                   )}
                 </div>
+
+                {/* The buyer transfers the money before the order exists, so from here the figure is fixed and
+                    says for how long. Letting it drift would file the order for a sum they never paid. */}
+                {selectedMethod && lockSecondsLeft !== null && (
+                  lockExpired ? (
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-xs leading-6 text-amber-600 dark:text-amber-400">
+                      مهلت این مبلغ به پایان رسید. با زدن «ثبت سفارش» مبلغ به‌روز می‌شود؛ اگر تغییری کرده باشد، رقم جدید را می‌بینید و قبل از واریز می‌توانید تصمیم بگیرید.
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/[0.07] px-4 py-3 text-xs leading-6 text-emerald-700 dark:text-emerald-400">
+                      مبلغ این سفارش برای شما ثابت شد — تا {toFa(Math.ceil(lockSecondsLeft / 60))} دقیقه‌ی دیگر
+                      دقیقاً همین مبلغ ثبت می‌شود، حتی اگر نرخ دلار در این فاصله تغییر کند. همین رقم را واریز کنید.
+                    </div>
+                  )
+                )}
 
                 {selectedMethod && (
                   <CardToCardForm

@@ -17,7 +17,14 @@ public record UnitInputDto(List<CustomerInputDto>? Inputs, string? Note);
 // link, a fresh term. It is the config page's own token, and it is validated against the signed-in buyer
 // before the order is placed (see ResolveRenewal).
 public record OrderLineInput(int ProductId, int Quantity, int? PlanId, List<UnitInputDto>? Units = null, List<CustomerInputDto>? Inputs = null, string? Note = null, string? RenewToken = null);
-public record PlaceOrderInput(List<OrderLineInput> Items, string PaymentMethod, bool FromWallet, string? DiscountCode, int? PaymentMethodId, int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
+// `PriceLockToken` is the signed quote the buyer was holding when they committed to paying (see IPriceLock).
+// Absent on any flow that never quoted one; the catalogue's current price is then used, as before.
+public record PlaceOrderInput(List<OrderLineInput> Items, string PaymentMethod, bool FromWallet, string? DiscountCode, int? PaymentMethodId, int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description, string? PriceLockToken = null);
+// One basket line to quote, and what the quote says it costs per unit.
+public record PriceLockLineInput(int ProductId, int? PlanId);
+public record PriceLockInput(List<PriceLockLineInput> Items);
+public record PriceLockLineDto(int ProductId, int? PlanId, long UnitPrice);
+public record PriceLockDto(string Token, int ExpiresInSeconds, List<PriceLockLineDto> Lines);
 public record DeliverInput(string Content, bool Email, string? EmailSubject, string? EmailBody);
 public record RejectOrderInput(string? Reason);
 public record DeliverUnitInput(string Content, bool Email, string? EmailSubject, string? EmailBody, bool Final);
@@ -44,17 +51,55 @@ public class OrdersController : ControllerBase
     private readonly IStockFulfillmentService _stock;
     private readonly IUserMailer _mailer;
     private readonly IFileStorageService _files;
+    private readonly IPriceLock _priceLock;
     public OrdersController(IDataStore store, IEmailSender email, ITelegramReceiptService receiptBot,
         ITelegramOrderService orderBot, IStockFulfillmentService stock, IUserMailer mailer,
-        IFileStorageService files)
+        IFileStorageService files, IPriceLock priceLock)
     {
         _files = files;
+        _priceLock = priceLock;
         _store = store;
         _email = email;
         _receiptBot = receiptBot;
         _orderBot = orderBot;
         _stock = stock;
         _mailer = mailer;
+    }
+
+    // Quotes the current price of the basket and signs it, for the buyer who is about to pay.
+    //
+    // Called the moment checkout commits to a payment — the point past which the displayed amount must not
+    // move, because it is the amount the buyer is about to transfer. The response is what the page must
+    // display from then on: if the rate moved since the page last refreshed, these are the real numbers and
+    // the page says so rather than quietly charging something else. The order is then placed with this token
+    // and filed at exactly these prices.
+    [HttpPost("price-lock")]
+    public ActionResult<PriceLockDto> LockPrices(PriceLockInput input)
+    {
+        if (this.CurrentUserId() is not int userId) return Unauthorized();
+        if (input.Items is not { Count: > 0 }) return BadRequest("سبد خرید خالی است.");
+        if (input.Items.Count > MaxOrderLines) return BadRequest("تعداد اقلام سبد بیش از حد مجاز است.");
+
+        var lines = new List<PriceLockLineDto>();
+        foreach (var item in input.Items.DistinctBy(i => (i.ProductId, i.PlanId)))
+        {
+            var product = _store.GetProduct(item.ProductId);
+            if (product is null) continue;
+            long price;
+            if (item.PlanId is int planId)
+            {
+                var plan = product.Plans.FirstOrDefault(x => x.Id == planId && x.IsActive);
+                if (plan is null) continue; // gone or disabled: nothing to quote, placement reports it properly
+                price = plan.FinalPrice;
+            }
+            else price = product.FinalPrice;
+            if (price <= 0) continue;
+            lines.Add(new PriceLockLineDto(product.Id, item.PlanId, price));
+        }
+        if (lines.Count == 0) return BadRequest("قیمتی برای اقلام سبد یافت نشد.");
+
+        var token = _priceLock.Issue(userId, lines.Select(l => (l.ProductId, l.PlanId, l.UnitPrice)));
+        return new PriceLockDto(token, (int)PriceLock.Lifetime.TotalSeconds, lines);
     }
 
     // Announces an order's accounts to the orders group. The claim makes this safe to call from every approval
@@ -240,6 +285,11 @@ public class OrdersController : ControllerBase
             lineInfo.Add(info with { RenewToken = renewToken });
         }
 
+        // A quote this buyer was given minutes ago, if they are holding one. Invalid or expired resolves to
+        // null and the catalogue price applies — the page re-quotes and shows the new amount before anyone
+        // pays, which is the only safe way for the number to change.
+        var locked = _priceLock.Resolve(input.PriceLockToken, user.Id);
+
         var result = _store.PlaceOrder(
             user,
             mergedLines.Select(i => (i.ProductId, i.Quantity, i.PlanId)),
@@ -249,7 +299,8 @@ public class OrdersController : ControllerBase
             input.PaymentMethodId,
             new RemainderPayment(input.CardId, input.ReceiptUrl, input.TrackingNumber, input.PaymentDate, input.Description),
             customerCheckout: true,
-            lineInfo: lineInfo);
+            lineInfo: lineInfo,
+            lockedPrices: locked);
         if (result.Error is not null) return BadRequest(result.Error);
 
         var order = result.Order!;

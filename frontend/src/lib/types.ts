@@ -1214,6 +1214,14 @@ export type OverviewStats = {
 
 export type TopProductStat = { productId: number; name: string; image: string; sold: number; revenue: number };
 
+// A signed quote of the basket's unit prices, held from the moment the buyer commits to paying until the
+// order is placed, so the amount they were shown is the amount they are charged.
+export type PriceLockQuote = {
+  token: string;
+  expiresInSeconds: number;
+  lines: { productId: number; planId: number | null; unitPrice: number }[];
+};
+
 export type KycStatus = "Pending" | "Approved" | "Rejected";
 
 export type KycRequest = {

@@ -1,4 +1,5 @@
 import type {
+  PriceLockQuote,
   Category,
   CategoryInput,
   Product,
@@ -492,8 +493,12 @@ export const api = {
     invoice: (id: number) => request<Invoice>(`/orders/${id}/invoice`),
     // `renewToken` turns a line into a renewal of the V2Ray config that token belongs to: the same account
     // gets a fresh term instead of a second one being created.
-    place: (body: { items: { productId: number; quantity: number; planId?: number | null; units?: { inputs?: { label: string; value: string }[]; note?: string | null }[]; inputs?: { label: string; value: string }[]; note?: string | null; renewToken?: string | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null; cardId?: number | null; receiptUrl?: string | null; trackingNumber?: string | null; paymentDate?: string | null; description?: string | null }) =>
+    place: (body: { items: { productId: number; quantity: number; planId?: number | null; units?: { inputs?: { label: string; value: string }[]; note?: string | null }[]; inputs?: { label: string; value: string }[]; note?: string | null; renewToken?: string | null }[]; paymentMethod: string; fromWallet?: boolean; discountCode?: string | null; paymentMethodId?: number | null; cardId?: number | null; receiptUrl?: string | null; trackingNumber?: string | null; paymentDate?: string | null; description?: string | null; priceLockToken?: string | null }) =>
       request<Order>("/orders", { method: "POST", body: json(body) }),
+    // Asks the server to quote the basket and sign the quote. What comes back is what the page must show
+    // from then on, and what the order will be filed at.
+    priceLock: (items: { productId: number; planId: number | null }[]) =>
+      request<PriceLockQuote>("/orders/price-lock", { method: "POST", body: json({ items }) }),
     approve: (id: number) => request<Order>(`/orders/${id}/approve`, { method: "POST" }),
     reject: (id: number, reason?: string) => request<Order>(`/orders/${id}/reject`, { method: "POST", body: json({ reason: reason ?? null }) }),
     complete: (id: number) => request<Order>(`/orders/${id}/complete`, { method: "POST" }),

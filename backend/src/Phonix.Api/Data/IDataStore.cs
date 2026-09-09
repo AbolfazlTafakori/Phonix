@@ -311,9 +311,12 @@ public interface IDataStore
     IReadOnlyList<Order> GetUserOrders(int userId);
     Order? GetOrder(int id);
     void RefreshAllUserOrderStats();
+    // lockedPrices: the unit price this buyer was quoted for a (product, plan) when they committed to paying,
+    // honoured in place of the catalogue's current price. See IPriceLock.
     PlaceOrderResult PlaceOrder(AppUser user, IEnumerable<(int productId, int quantity, int? planId)> items,
         string paymentMethod, bool fromWallet, string? discountCode = null, int? paymentMethodId = null,
-        RemainderPayment? payment = null, bool customerCheckout = false, IReadOnlyList<OrderLineInfo>? lineInfo = null);
+        RemainderPayment? payment = null, bool customerCheckout = false, IReadOnlyList<OrderLineInfo>? lineInfo = null,
+        IReadOnlyDictionary<(int productId, int? planId), long>? lockedPrices = null);
     Order? SetOrderStatus(int id, OrderStatus status, string? changedBy = null, string? reason = null);
     Order? DeliverOrder(int id, string content, string? changedBy = null);
     Order? SaveUnitDraft(int orderId, int unitId, string content, string? changedBy = null);

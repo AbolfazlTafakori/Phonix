@@ -79,7 +79,7 @@ public class OrderPlacementAnnounceTests
         // The real storage service: checkout now verifies that a cited receipt id was uploaded by the buyer,
         // and these orders carry no receipt, so it is only ever asked about an empty value.
         var controller = new OrdersController(store, new NoopEmail(), new NoopReceiptBot(), orderBot, stock,
-            new NoopMailer(), new LocalFileStorageService())
+            new NoopMailer(), new LocalFileStorageService(), TestPriceLock.Create())
         {
             ControllerContext = new ControllerContext
             {

@@ -111,6 +111,9 @@ try
     // Identity images (KYC docs, selfies, card photos) are stored outside the web root and only ever
     // streamed back through the authenticated, ownership-checked KYC/Cards download endpoints.
     builder.Services.AddSingleton<IFileStorageService, LocalFileStorageService>();
+    // Signs the price a buyer was quoted when they committed to paying, so the order is filed at the amount
+    // they actually saw and transferred rather than whatever the live USD rate says minutes later.
+    builder.Services.AddSingleton<IPriceLock, PriceLock>();
     // Sends subscription renewal reminders (bell notification + HTML email) before time-based plans expire,
     // on an admin-configured threshold read dynamically each cycle.
     builder.Services.AddHostedService<SubscriptionExpiryWorker>();

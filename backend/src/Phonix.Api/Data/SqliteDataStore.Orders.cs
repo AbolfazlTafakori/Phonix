@@ -61,7 +61,8 @@ public sealed partial class SqliteDataStore
     // half-charged wallet, no phantom stock decrement. This is the per-operation replacement for `_gate`.
     public PlaceOrderResult PlaceOrder(AppUser user, IEnumerable<(int productId, int quantity, int? planId)> items,
         string paymentMethod, bool fromWallet, string? discountCode = null, int? paymentMethodId = null,
-        RemainderPayment? payment = null, bool customerCheckout = false, IReadOnlyList<OrderLineInfo>? lineInfo = null)
+        RemainderPayment? payment = null, bool customerCheckout = false, IReadOnlyList<OrderLineInfo>? lineInfo = null,
+        IReadOnlyDictionary<(int productId, int? planId), long>? lockedPrices = null)
     {
         var itemList = items.ToList();
         return WriteTx<PlaceOrderResult>((conn, tx) =>
@@ -118,11 +119,21 @@ public sealed partial class SqliteDataStore
 
                 var qty = Math.Min(quantity, 100);
                 var planLabel = plan is null ? null : $"{plan.Type} · {plan.Months} ماهه";
+                // The catalogue price, unless this buyer holds a live quote for the line. USD-priced products
+                // follow a moving rate and the card-to-card flow has the buyer transfer the money BEFORE the
+                // order exists, so charging today's catalogue at this moment could file the order for more
+                // than they were shown and actually paid. The quote is server-issued and signed (IPriceLock),
+                // so this can only ever be a price this server itself quoted, to this buyer, minutes ago.
+                var catalogue = plan?.FinalPrice ?? p.FinalPrice;
+                var unitPrice = lockedPrices is not null
+                    && lockedPrices.TryGetValue((p.Id, plan?.Id), out var quoted) && quoted > 0
+                        ? quoted
+                        : catalogue;
                 lines.Add(new OrderItem
                 {
                     ProductId = p.Id, Name = p.Name, Image = p.Image, Plan = planLabel,
                     PlanMonths = plan?.Months, PlanId = plan?.Id, UserCount = plan?.UserCount ?? 0,
-                    UnitPrice = plan?.FinalPrice ?? p.FinalPrice, Quantity = qty,
+                    UnitPrice = unitPrice, Quantity = qty,
                 });
 
                 // A slot-fulfilled product's quantity is USERS ON ONE SHARED ACCOUNT (consecutive slots), so
