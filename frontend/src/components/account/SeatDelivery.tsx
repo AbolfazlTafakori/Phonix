@@ -96,15 +96,15 @@ function InfoRow({ label, value, sensitive = false }: { label: string; value: st
       type="button"
       onClick={handleClick}
       dir="ltr"
-      className="flex w-full flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left transition hover:brightness-105"
+      className="flex w-full min-w-0 flex-col items-start gap-0.5 rounded-lg px-3 py-2 text-left transition hover:brightness-105"
       style={{ background: "var(--ac-menu-hover)", border: "1px solid var(--ac-panel-border)" }}
     >
-      <span className="text-[11px]" style={{ color: "var(--ac-muted)" }}>
+      <span className="max-w-full truncate text-[11px]" style={{ color: "var(--ac-muted)" }}>
         {label}
         {copied ? " · کپی شد ✓" : sensitive && !revealed ? " · برای نمایش و کپی لمس کنید" : ""}
       </span>
       <span
-        className="truncate text-sm font-bold"
+        className="block max-w-full truncate text-sm font-bold"
         style={{ color: "var(--ac-text)", unicodeBidi: "isolate", letterSpacing: sensitive && !showPlain ? "2px" : undefined }}
       >
         {showPlain ? value : masked}
