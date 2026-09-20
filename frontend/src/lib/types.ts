@@ -429,6 +429,133 @@ export type V2RayPlanInput = {
   sortOrder: number;
 };
 
+// ── WireGuard (W-UI) panels — owner-only, mirroring the V2Ray types above ─────────────────────────
+export type WireGuardProvider = "WUi";
+
+export type WireGuardProviderInfo = {
+  provider: WireGuardProvider;
+  name: string;
+  available: boolean;
+};
+
+// Credentials are intentionally absent; `hasPassword` / `hasApiToken` are all the panel is told.
+export type WireGuardPanelInfo = {
+  id: number;
+  provider: WireGuardProvider;
+  url: string;
+  username: string;
+  hasPassword: boolean;
+  hasApiToken: boolean;
+  enabled: boolean;
+  createdAtUtc: string;
+  lastCheckAtUtc: string;
+  lastCheckOk: boolean;
+  lastCheckError: string;
+  interfaceCount: number;
+  panelVersion: string;
+  name: string;
+  remark: string;
+  flag: string;
+  capacity: number;
+};
+
+export type WireGuardPanelInput = {
+  provider: WireGuardProvider;
+  url: string;
+  username: string;
+  password: string;
+  // Preferred: a `wui_…` access token is the credential W-UI means for machines.
+  apiToken: string;
+  name: string;
+  remark: string;
+  flag: string;
+  capacity: number;
+};
+
+// One tunnel as W-UI reports it.
+export type WireGuardInterface = {
+  id: number;
+  name: string;
+  protocol: string;   // wireguard / openvpn
+  mode: string;       // standard / amnezia (WireGuard only)
+  listenPort: number;
+  endpointHost: string;
+  enabled: boolean;
+  running: boolean;
+  clients: number;
+  devices: number;
+  allocated: number;
+  capacity: number;
+  nodeName: string;
+};
+
+export type WireGuardCategory = {
+  id: number;
+  name: string;
+  icon: string;
+  sortOrder: number;
+  active: boolean;
+  planCount: number;
+};
+
+export type WireGuardCategoryInput = {
+  name: string;
+  icon: string;
+  sortOrder: number;
+  active: boolean;
+};
+
+export type WireGuardPlan = {
+  id: number;
+  categoryId: number;
+  title: string;
+  description: string;
+  panelId: number;
+  interfaceIds: number[];
+  protocol: string;     // wireguard / amneziawg / openvpn
+  volumeGb: number;     // 0 = unlimited
+  durationDays: number; // 0 = never expires
+  deviceLimit: number;  // ≥ 1
+  quantity: number;     // sales cap; 0 = unlimited
+  price: number;
+  discountPercent: number;
+  finalPrice: number;
+  active: boolean;
+  sortOrder: number;
+  sold: number;
+  soldOut: boolean;
+};
+
+export type WireGuardPublicPlan = {
+  id: number;
+  title: string;
+  description: string;
+  protocol: string;
+  volumeGb: number;
+  durationDays: number;
+  deviceLimit: number;
+  price: number;
+  discountPercent: number;
+  finalPrice: number;
+};
+
+export type WireGuardPlanInput = {
+  categoryId: number;
+  title: string;
+  description: string;
+  panelId: number;
+  interfaceIds: number[];
+  protocol: string;
+  volumeGb: number;
+  durationDays: number;
+  deviceLimit: number;
+  quantity: number;
+  price: number;
+  discountPercent: number;
+  active: boolean;
+  sortOrder: number;
+};
+
 export type LoginResult = {
   requiresTwoFactor: boolean;
   challengeToken: string | null;

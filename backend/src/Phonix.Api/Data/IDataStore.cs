@@ -227,6 +227,28 @@ public interface IDataStore
     V2RayNotifyTarget? ClaimV2RayWarning(int orderId, int unitId, bool expiry, bool volume, string expiresFa, string remainingFa);
     V2RayNotifyTarget? MarkV2RayPanelDeleted(int orderId, int unitId, string reason, bool notify);
 
+    // ── WireGuard (W-UI) panels — same contract as the V2Ray panels above ───────────────────────────
+    // Panels come back with credentials DECRYPTED, ready for the connector; the controller strips them
+    // before they reach the browser. AddWireGuardPanel returns the stored panel (with its assigned id).
+    IReadOnlyList<WireGuardPanel> GetWireGuardPanels();
+    WireGuardPanel? GetWireGuardPanel(int id);
+    WireGuardPanel AddWireGuardPanel(WireGuardPanel panel);
+    WireGuardPanel? UpdateWireGuardPanel(int id, WireGuardPanel panel);
+    bool DeleteWireGuardPanel(int id);
+    void RecordWireGuardPanelCheck(int id, bool ok, string error, int interfaceCount, string version);
+
+    // ── WireGuard sales catalogue (categories + plans) ──────────────────────────────────────────────
+    IReadOnlyList<WireGuardCategory> GetWireGuardCategories();
+    WireGuardCategory AddWireGuardCategory(WireGuardCategory category);
+    WireGuardCategory? UpdateWireGuardCategory(WireGuardCategory category);
+    bool DeleteWireGuardCategory(int id);
+
+    IReadOnlyList<WireGuardPlan> GetWireGuardPlans();
+    WireGuardPlan? GetWireGuardPlan(int id);
+    WireGuardPlan AddWireGuardPlan(WireGuardPlan plan);
+    WireGuardPlan? UpdateWireGuardPlan(WireGuardPlan plan);
+    bool DeleteWireGuardPlan(int id);
+
     // ── Content: hero slides ────────────────────────────────────────────────────────────────────────
     IReadOnlyList<HeroSlide> GetHeroSlides();
     HeroSlide? GetHeroSlide(int id);

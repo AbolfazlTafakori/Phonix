@@ -75,6 +75,8 @@ try
     // Signs in to the owner-configured Xray panels (Sanaei/3x-ui) to test connectivity and, later, provision
     // the accounts customers buy. Stateless — a fresh cookie jar per call — so a singleton is just reuse.
     builder.Services.AddSingleton<IV2RayPanelConnector, V2RayPanelConnector>();
+    // Same job against the owner's W-UI (WireGuard/AmneziaWG/OpenVPN) panels.
+    builder.Services.AddSingleton<IWireGuardPanelConnector, WireGuardPanelConnector>();
     builder.Services.AddHttpClient();
     // Live USDT→Toman rate for USD-priced products: one instance serves both the background refresher and
     // the controllers that read/refresh the rate.

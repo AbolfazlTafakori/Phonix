@@ -54,6 +54,15 @@ import type {
   V2RayPublicPlan,
   V2RayRenewals,
   V2RayAlertSettings,
+  WireGuardProviderInfo,
+  WireGuardPanelInfo,
+  WireGuardPanelInput,
+  WireGuardInterface,
+  WireGuardCategory,
+  WireGuardCategoryInput,
+  WireGuardPlan,
+  WireGuardPlanInput,
+  WireGuardPublicPlan,
   TelegramSettings,
   TelegramSettingsInput,
   Transaction,
@@ -657,6 +666,36 @@ export const api = {
       add: (body: V2RayPlanInput) => request<V2RayPlan>("/v2ray/catalog/plans", { method: "POST", body: json(body) }),
       update: (id: number, body: V2RayPlanInput) => request<V2RayPlan>(`/v2ray/catalog/plans/${id}`, { method: "PUT", body: json(body) }),
       remove: (id: number) => request<{ ok: boolean }>(`/v2ray/catalog/plans/${id}`, { method: "DELETE" }),
+    },
+  },
+  // The W-UI (WireGuard / AmneziaWG / OpenVPN) panels and their separate catalogue — the same surface as
+  // `v2ray` above, with tunnels (interfaces) where that has inbounds and a device limit where that has IPs.
+  wireguard: {
+    publicPlans: (categoryId: number) => request<WireGuardPublicPlan[]>(`/wireguard/public/plans?categoryId=${categoryId}`),
+    providers: () => request<WireGuardProviderInfo[]>("/wireguard/providers"),
+    panels: () => request<WireGuardPanelInfo[]>("/wireguard/panels"),
+    test: (body: WireGuardPanelInput) =>
+      request<{ ok: boolean; interfaceCount: number; version: string }>("/wireguard/test", { method: "POST", body: json(body) }),
+    add: (body: WireGuardPanelInput) => request<WireGuardPanelInfo>("/wireguard/panels", { method: "POST", body: json(body) }),
+    update: (id: number, body: WireGuardPanelInput) => request<WireGuardPanelInfo>(`/wireguard/panels/${id}`, { method: "PUT", body: json(body) }),
+    testStored: (id: number) =>
+      request<{ ok: boolean; interfaceCount: number; version: string }>(`/wireguard/panels/${id}/test`, { method: "POST" }),
+    interfaces: (id: number) => request<WireGuardInterface[]>(`/wireguard/panels/${id}/interfaces`),
+    addClient: (id: number, body: { name: string; totalGb: number; deviceLimit: number; durationDays: number; startOnFirstUse: boolean; interfaceIds: number[] }) =>
+      request<{ ok: boolean; clientId: number; subId: string; interfacesAdded: number; subscriptionUrl: string }>(`/wireguard/panels/${id}/client`, { method: "POST", body: json(body) }),
+    remove: (id: number) => request<{ ok: boolean }>(`/wireguard/panels/${id}`, { method: "DELETE" }),
+
+    categories: {
+      list: () => request<WireGuardCategory[]>("/wireguard/catalog/categories"),
+      add: (body: WireGuardCategoryInput) => request<WireGuardCategory>("/wireguard/catalog/categories", { method: "POST", body: json(body) }),
+      update: (id: number, body: WireGuardCategoryInput) => request<WireGuardCategory>(`/wireguard/catalog/categories/${id}`, { method: "PUT", body: json(body) }),
+      remove: (id: number) => request<{ ok: boolean }>(`/wireguard/catalog/categories/${id}`, { method: "DELETE" }),
+    },
+    plans: {
+      list: () => request<WireGuardPlan[]>("/wireguard/catalog/plans"),
+      add: (body: WireGuardPlanInput) => request<WireGuardPlan>("/wireguard/catalog/plans", { method: "POST", body: json(body) }),
+      update: (id: number, body: WireGuardPlanInput) => request<WireGuardPlan>(`/wireguard/catalog/plans/${id}`, { method: "PUT", body: json(body) }),
+      remove: (id: number) => request<{ ok: boolean }>(`/wireguard/catalog/plans/${id}`, { method: "DELETE" }),
     },
   },
   emailSettings: {

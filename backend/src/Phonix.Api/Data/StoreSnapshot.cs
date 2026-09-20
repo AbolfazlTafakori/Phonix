@@ -51,6 +51,8 @@ public class StoreSnapshot
     // Panels and the V2Ray sales catalogue. The accounts provisioned for customers are NOT here: they live on
     // the order units that sold them, and travel with the Commerce section.
     public V2RaySettings? V2Ray { get; set; }
+    // The W-UI (WireGuard) panels and their catalogue, nullable for the same reason as V2Ray above.
+    public WireGuardSettings? WireGuard { get; set; }
 
     public SeqState Seq { get; set; } = new();
 

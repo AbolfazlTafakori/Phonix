@@ -86,6 +86,7 @@ public sealed partial class SqliteDataStore
             TelegramSettings = GetTelegramSettings(),
             MailboxSettings = GetMailboxSettings(),
             V2Ray = GetSingleton<V2RaySettings>(V2RayKey),
+            WireGuard = GetSingleton<WireGuardSettings>(WireGuardKey),
             Seq = new StoreSnapshot.SeqState
             {
                 Category = MaxId(conn, "Categories"),
@@ -196,6 +197,7 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
             // Absent in an older backup → keep what is configured now (see StoreSnapshot).
             if (s.MailboxSettings is not null) WriteSingleton(conn, tx, MailboxKey, s.MailboxSettings);
             if (s.V2Ray is not null) WriteSingleton(conn, tx, V2RayKey, s.V2Ray);
+            if (s.WireGuard is not null) WriteSingleton(conn, tx, WireGuardKey, s.WireGuard);
             WriteSingleton(conn, tx, PlanTypesKey, s.PlanTypes);
             WriteSingleton(conn, tx, FavoritesKey, s.Favorites);
             return null;
@@ -259,6 +261,7 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
             // order that bought it, so it is backed up with Commerce rather than here.
             case BackupSection.V2Ray:
                 s.V2Ray = GetSingleton<V2RaySettings>(V2RayKey);
+                s.WireGuard = GetSingleton<WireGuardSettings>(WireGuardKey);
                 break;
             // Both halves of email: the outgoing sender and the support mailbox that is read back.
             case BackupSection.Mail:
@@ -353,6 +356,7 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
                     break;
                 case BackupSection.V2Ray:
                     if (s.V2Ray is not null) WriteSingleton(conn, tx, V2RayKey, s.V2Ray);
+                    if (s.WireGuard is not null) WriteSingleton(conn, tx, WireGuardKey, s.WireGuard);
                     break;
                 case BackupSection.Mail:
                     WriteSingleton(conn, tx, EmailKey, s.EmailSettings);

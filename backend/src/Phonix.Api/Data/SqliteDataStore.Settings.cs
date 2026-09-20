@@ -19,6 +19,7 @@ public sealed partial class SqliteDataStore
     private const string TelegramKey = "telegram";
     private const string MailboxKey = "mailbox";
     private const string V2RayKey = "v2ray";
+    private const string WireGuardKey = "wireguard";
     private const string PlanTypesKey = "plantypes";
     private const string FavoritesKey = "favorites";
 
@@ -256,6 +257,191 @@ public sealed partial class SqliteDataStore
         var s = ReadSingletonNoTx<V2RaySettings>(conn, V2RayKey);
         var removed = s.Plans.RemoveAll(p => p.Id == id) > 0;
         if (removed) WriteSingleton(conn, null, V2RayKey, s);
+        return removed;
+    }
+
+    // ── WireGuard (W-UI) panels ─────────────────────────────────────────────────────────────────────
+    // A copy of the V2Ray panel store above rather than a shared generic: the two singletons evolve
+    // separately (alerts, sub-servers, tunnels vs inbounds) and a generic over both would only hide that.
+    public IReadOnlyList<WireGuardPanel> GetWireGuardPanels()
+    {
+        var s = GetSingleton<WireGuardSettings>(WireGuardKey);
+        foreach (var p in s.Panels)
+        {
+            p.Password = SensitiveField.Reveal(p.Password ?? "");
+            p.ApiToken = SensitiveField.Reveal(p.ApiToken ?? "");
+        }
+        return s.Panels;
+    }
+
+    public WireGuardPanel? GetWireGuardPanel(int id) => GetWireGuardPanels().FirstOrDefault(p => p.Id == id);
+
+    public WireGuardPanel AddWireGuardPanel(WireGuardPanel panel)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        if (s.NextId < 1) s.NextId = 1;
+
+        panel.Id = s.NextId++;
+        panel.CreatedAtUtc = DateTime.UtcNow.ToString("O");
+        // Credentials arrive in plaintext from the controller; they never sit unencrypted in the store.
+        panel.Password = string.IsNullOrEmpty(panel.Password) ? "" : SensitiveField.Protect(panel.Password);
+        panel.ApiToken = string.IsNullOrEmpty(panel.ApiToken) ? "" : SensitiveField.Protect(panel.ApiToken);
+        s.Panels.Add(panel);
+        WriteSingleton(conn, null, WireGuardKey, s);
+
+        panel.Password = SensitiveField.Reveal(panel.Password);
+        panel.ApiToken = SensitiveField.Reveal(panel.ApiToken);
+        return panel;
+    }
+
+    // Same "blank means unchanged" convention as UpdateV2RayPanel: the browser never receives the stored
+    // password/token back, so an empty field on save must not wipe out a credential.
+    public WireGuardPanel? UpdateWireGuardPanel(int id, WireGuardPanel panel)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        var existing = s.Panels.FirstOrDefault(p => p.Id == id);
+        if (existing is null) return null;
+
+        existing.Provider = panel.Provider;
+        existing.Url = panel.Url;
+        existing.Username = panel.Username;
+        existing.Password = string.IsNullOrEmpty(panel.Password) ? "" : SensitiveField.Protect(panel.Password);
+        existing.ApiToken = string.IsNullOrEmpty(panel.ApiToken) ? "" : SensitiveField.Protect(panel.ApiToken);
+        existing.Name = panel.Name;
+        existing.Remark = panel.Remark;
+        existing.Flag = panel.Flag;
+        existing.Capacity = panel.Capacity;
+        existing.LastCheckAtUtc = panel.LastCheckAtUtc;
+        existing.LastCheckOk = panel.LastCheckOk;
+        existing.LastCheckError = "";
+        existing.InterfaceCount = panel.InterfaceCount;
+        existing.PanelVersion = panel.PanelVersion;
+
+        WriteSingleton(conn, null, WireGuardKey, s);
+
+        existing.Password = SensitiveField.Reveal(existing.Password);
+        existing.ApiToken = SensitiveField.Reveal(existing.ApiToken);
+        return existing;
+    }
+
+    public bool DeleteWireGuardPanel(int id)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        var removed = s.Panels.RemoveAll(p => p.Id == id) > 0;
+        if (removed) WriteSingleton(conn, null, WireGuardKey, s);
+        return removed;
+    }
+
+    public void RecordWireGuardPanelCheck(int id, bool ok, string error, int interfaceCount, string version)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        var panel = s.Panels.FirstOrDefault(p => p.Id == id);
+        if (panel is null) return;
+        panel.LastCheckAtUtc = DateTime.UtcNow.ToString("O");
+        panel.LastCheckOk = ok;
+        panel.LastCheckError = ok ? "" : (error ?? "");
+        if (ok)
+        {
+            panel.InterfaceCount = interfaceCount;
+            if (!string.IsNullOrWhiteSpace(version)) panel.PanelVersion = version;
+        }
+        WriteSingleton(conn, null, WireGuardKey, s);
+    }
+
+    // ── WireGuard catalogue: categories ─────────────────────────────────────────────────────────────
+    public IReadOnlyList<WireGuardCategory> GetWireGuardCategories() =>
+        GetSingleton<WireGuardSettings>(WireGuardKey).Categories.OrderBy(c => c.SortOrder).ThenBy(c => c.Id).ToList();
+
+    public WireGuardCategory AddWireGuardCategory(WireGuardCategory category)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        if (s.NextCategoryId < 1) s.NextCategoryId = 1;
+        category.Id = s.NextCategoryId++;
+        category.CreatedAtUtc = DateTime.UtcNow.ToString("O");
+        s.Categories.Add(category);
+        WriteSingleton(conn, null, WireGuardKey, s);
+        return category;
+    }
+
+    public WireGuardCategory? UpdateWireGuardCategory(WireGuardCategory category)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        var existing = s.Categories.FirstOrDefault(c => c.Id == category.Id);
+        if (existing is null) return null;
+        existing.Name = category.Name;
+        existing.Icon = category.Icon;
+        existing.SortOrder = category.SortOrder;
+        existing.Active = category.Active;
+        WriteSingleton(conn, null, WireGuardKey, s);
+        return existing;
+    }
+
+    public bool DeleteWireGuardCategory(int id)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        var removed = s.Categories.RemoveAll(c => c.Id == id) > 0;
+        // Plans orphaned by a deleted category go with it — a plan with no category can't be shown or sold.
+        if (removed) s.Plans.RemoveAll(p => p.CategoryId == id);
+        if (removed) WriteSingleton(conn, null, WireGuardKey, s);
+        return removed;
+    }
+
+    // ── WireGuard catalogue: plans ──────────────────────────────────────────────────────────────────
+    public IReadOnlyList<WireGuardPlan> GetWireGuardPlans() =>
+        GetSingleton<WireGuardSettings>(WireGuardKey).Plans.OrderBy(p => p.SortOrder).ThenBy(p => p.Id).ToList();
+
+    public WireGuardPlan? GetWireGuardPlan(int id) =>
+        GetSingleton<WireGuardSettings>(WireGuardKey).Plans.FirstOrDefault(p => p.Id == id);
+
+    public WireGuardPlan AddWireGuardPlan(WireGuardPlan plan)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        if (s.NextPlanId < 1) s.NextPlanId = 1;
+        plan.Id = s.NextPlanId++;
+        plan.CreatedAtUtc = DateTime.UtcNow.ToString("O");
+        s.Plans.Add(plan);
+        WriteSingleton(conn, null, WireGuardKey, s);
+        return plan;
+    }
+
+    public WireGuardPlan? UpdateWireGuardPlan(WireGuardPlan plan)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        var e = s.Plans.FirstOrDefault(p => p.Id == plan.Id);
+        if (e is null) return null;
+        e.CategoryId = plan.CategoryId;
+        e.Title = plan.Title;
+        e.Description = plan.Description;
+        e.PanelId = plan.PanelId;
+        e.InterfaceIds = plan.InterfaceIds;
+        e.Protocol = plan.Protocol;
+        e.Quantity = plan.Quantity;
+        e.VolumeGb = plan.VolumeGb;
+        e.DurationDays = plan.DurationDays;
+        e.DeviceLimit = plan.DeviceLimit;
+        e.Price = plan.Price;
+        e.DiscountPercent = plan.DiscountPercent;
+        e.Active = plan.Active;
+        e.SortOrder = plan.SortOrder;
+        WriteSingleton(conn, null, WireGuardKey, s);
+        return e;
+    }
+
+    public bool DeleteWireGuardPlan(int id)
+    {
+        using var conn = OpenConnection();
+        var s = ReadSingletonNoTx<WireGuardSettings>(conn, WireGuardKey);
+        var removed = s.Plans.RemoveAll(p => p.Id == id) > 0;
+        if (removed) WriteSingleton(conn, null, WireGuardKey, s);
         return removed;
     }
 
