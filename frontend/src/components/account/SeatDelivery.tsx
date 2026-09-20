@@ -65,7 +65,7 @@ export function parseSeats(content: string): Seat[] {
 // a tap reveals the real value just long enough to read/paste, then it re-masks itself automatically.
 const REVEAL_MS = 4000;
 
-function InfoRow({ label, value, sensitive = false }: { label: string; value: string; sensitive?: boolean }) {
+export function InfoRow({ label, value, sensitive = false }: { label: string; value: string; sensitive?: boolean }) {
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
 

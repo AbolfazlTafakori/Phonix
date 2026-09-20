@@ -9,6 +9,7 @@ import { orderStatusLabel } from "@/lib/labels";
 import { PageTitle, Panel } from "@/components/account/Panel";
 import DeliveryContent from "@/components/account/DeliveryContent";
 import SeatDelivery, { parseSeats } from "@/components/account/SeatDelivery";
+import PanelDelivery from "@/components/account/PanelDelivery";
 import { StatusBadge } from "@/components/admin/ui";
 import type { Order } from "@/lib/types";
 
@@ -274,6 +275,10 @@ export default function OrdersPage() {
                                 </div>
                                 {seats.length > 0 ? (
                                   <SeatDelivery seats={seats} deviceInfo={u.customerInputs} orderId={o.id} unitId={u.id} />
+                                ) : u.v2Ray || u.wireGuard ? (
+                                  // A panel-provisioned service is a handful of fields, shown as tiles like a
+                                  // seat's credentials rather than as raw lines.
+                                  <PanelDelivery content={u.deliveryContent} />
                                 ) : (
                                   <DeliveryContent content={u.deliveryContent} />
                                 )}
