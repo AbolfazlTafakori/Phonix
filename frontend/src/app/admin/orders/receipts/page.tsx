@@ -35,11 +35,17 @@ export default function OrderReceiptsPage() {
   const { page, setPage, totalPages, slice, total, pageSize } = usePaged(orders, 10);
   const drop = (id: number) => setOrders((p) => p.filter((o) => o.id !== id));
 
+  const [actionError, setActionError] = useState("");
+
   async function approve(o: Order) {
     setBusy(o.id);
+    setActionError("");
     try {
       await api.orders.approve(o.id);
       drop(o.id);
+    } catch (e) {
+      // Swallowing this left the row in place with no explanation, which read as "the button does nothing".
+      setActionError(`تأیید سفارش ${o.code} ناموفق بود: ${e instanceof Error ? e.message : "خطای نامشخص"}`);
     } finally {
       setBusy(null);
     }
@@ -61,6 +67,8 @@ export default function OrderReceiptsPage() {
   return (
     <div>
       <PageHeader title="تأیید رسید واریز" desc="بررسی رسید پرداخت سفارش‌های در انتظار تأیید — تأیید یا رد" />
+
+      {actionError && <Card className="mb-4 p-4 text-center text-rose-400">{actionError}</Card>}
 
       {loading ? (
         <div className="grid place-items-center py-24"><Spinner className="h-8 w-8" /></div>

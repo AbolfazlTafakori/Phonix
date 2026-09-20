@@ -96,12 +96,18 @@ export default function OrderFulfillmentPage() {
     }
   }
 
+  // A failed delivery used to vanish: the request threw, nothing caught it, the modal stayed open with no
+  // message, and the operator was left guessing whether the account had gone out. The server's reason is
+  // shown where the pull error is, and the modal stays so the content isn't lost.
   async function deliver() {
     if (!target) return;
     setBusy(true);
+    setPullError("");
     try {
       applyOrder(await api.orders.deliverUnit(target.order.id, target.unit.id, { content, email: sendEmail, emailSubject, emailBody }));
       setTarget(null);
+    } catch (e) {
+      setPullError(e instanceof Error ? e.message : "تحویل ناموفق بود؛ دوباره تلاش کنید.");
     } finally {
       setBusy(false);
     }

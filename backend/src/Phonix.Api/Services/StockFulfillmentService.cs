@@ -49,16 +49,31 @@ public sealed class StockFulfillmentService : IStockFulfillmentService
     {
         try
         {
-            if (order.Status != OrderStatus.Preparing) return;
+            if (order.Status != OrderStatus.Preparing)
+            {
+                _logger.LogInformation("Auto delivery skipped order {Code}: status is {Status}, not Preparing.", order.Code, order.Status);
+                return;
+            }
+            // Every reason a unit is NOT delivered here is logged, because "I approved it and nothing
+            // happened" is otherwise undiagnosable from the panel.
             foreach (var unit in order.Units.Where(u => !u.Delivered && !u.Rejected).ToList())
             {
                 var product = _store.GetProduct(unit.ProductId);
-                if (product is null) continue;
+                if (product is null)
+                {
+                    _logger.LogWarning("Auto delivery skipped order {Code} unit {Unit}: product {Product} no longer exists.", order.Code, unit.Id, unit.ProductId);
+                    continue;
+                }
                 // A V2Ray unit is served by creating an account on the panel, which V2RayProvisionWorker does
                 // out of band — approval must not wait on a network hop it can't guarantee.
                 if (product.IsPanelProvisioned) continue;
-                if (!product.AutoDeliverStock) continue;
-                ServeUnit(order, unit, Actor);
+                if (!product.AutoDeliverStock)
+                {
+                    _logger.LogInformation("Order {Code} unit {Unit} left for manual delivery: auto-deliver is off for {Product}.", order.Code, unit.Id, product.Name);
+                    continue;
+                }
+                if (ServeUnit(order, unit, Actor) is null)
+                    _logger.LogWarning("Auto delivery could not serve order {Code} unit {Unit} of {Product}: pool empty, seats short, or delivery refused.", order.Code, unit.Id, product.Name);
             }
         }
         catch (Exception ex)
