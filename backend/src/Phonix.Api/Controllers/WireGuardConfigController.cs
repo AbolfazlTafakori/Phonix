@@ -19,7 +19,7 @@ public sealed record WireGuardProfileDto(
 public sealed record WireGuardConfigDto(
     string Name, string Server, string Flag, string Protocol,
     string SubUrl, string SubId,
-    long UsedBytes, long TotalBytes,
+    long UsedBytes, long UpBytes, long DownBytes, long TotalBytes,
     int DeviceLimit, int OnlineNow,
     int? RemainingDays, DateTime? ExpiresAtUtc, DateTime? CreatedAtUtc,
     string Status, bool Active, bool StatsLive,
@@ -143,6 +143,8 @@ public class WireGuardConfigController : ControllerBase
             SubUrl: account.SubUrl,
             SubId: account.SubId,
             UsedBytes: used,
+            UpBytes: live.Ok ? live.UpBytes : 0,
+            DownBytes: live.Ok ? live.DownBytes : 0,
             TotalBytes: totalBytes,
             DeviceLimit: live.Ok && live.DeviceLimit > 0 ? live.DeviceLimit : account.DeviceLimit,
             OnlineNow: live.Ok ? live.OnlineNow : 0,

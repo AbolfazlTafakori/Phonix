@@ -44,7 +44,8 @@ public sealed record WireGuardInterfacesResult(bool Ok, string? Error = null, IR
 public sealed record WireGuardClientState(
     bool Ok, string? Error = null,
     long UsedBytes = 0, long QuotaBytes = 0, DateTimeOffset? ExpiresAt = null,
-    string Status = "", int DeviceLimit = 0, int OnlineNow = 0, bool Missing = false)
+    string Status = "", int DeviceLimit = 0, int OnlineNow = 0, bool Missing = false,
+    long UpBytes = 0, long DownBytes = 0)
 {
     public static WireGuardClientState Fail(string error) => new(false, error);
     public static WireGuardClientState Gone(string error) => new(false, error, Missing: true);
@@ -593,7 +594,9 @@ public sealed class WireGuardPanelConnector : IWireGuardPanelConnector
             ExpiresAt: expires,
             Status: ReadString(root, "status"),
             DeviceLimit: (int)Num(root, "deviceLimit"),
-            OnlineNow: (int)Num(root, "onlineNow"));
+            OnlineNow: (int)Num(root, "onlineNow"),
+            UpBytes: Num(root, "upBytes"),
+            DownBytes: Num(root, "downBytes"));
     }
 
     // ── Session ─────────────────────────────────────────────────────────────────────────────────────

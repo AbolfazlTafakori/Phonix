@@ -1299,6 +1299,8 @@ export type WireGuardConfig = {
   subUrl: string;
   subId: string;
   usedBytes: number;
+  upBytes: number;
+  downBytes: number;
   totalBytes: number;
   deviceLimit: number;
   onlineNow: number;
