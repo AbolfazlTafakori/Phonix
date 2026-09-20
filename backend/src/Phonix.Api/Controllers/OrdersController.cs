@@ -52,12 +52,17 @@ public class OrdersController : ControllerBase
     private readonly IUserMailer _mailer;
     private readonly IFileStorageService _files;
     private readonly IPriceLock _priceLock;
+    private readonly IV2RayFulfillmentService? _v2ray;
+    private readonly IWireGuardFulfillmentService? _wireguard;
     public OrdersController(IDataStore store, IEmailSender email, ITelegramReceiptService receiptBot,
         ITelegramOrderService orderBot, IStockFulfillmentService stock, IUserMailer mailer,
-        IFileStorageService files, IPriceLock priceLock)
+        IFileStorageService files, IPriceLock priceLock,
+        IV2RayFulfillmentService? v2ray = null, IWireGuardFulfillmentService? wireguard = null)
     {
         _files = files;
         _priceLock = priceLock;
+        _v2ray = v2ray;
+        _wireguard = wireguard;
         _store = store;
         _email = email;
         _receiptBot = receiptBot;
@@ -502,6 +507,12 @@ public class OrdersController : ControllerBase
         // Pool first, announce second: an account the pool just delivered must never reach the group with
         // approve/reject buttons on it.
         _stock.AutoDeliverOrder(o);
+        // Panel-provisioned services build themselves, exactly as they do when the payment is approved from
+        // the transactions page or the receipt bot. This path used to leave them to the background sweep
+        // alone, so an approval from the orders page looked like it had done nothing for up to a minute.
+        // Not awaited: never let a panel's network hop fail an approval.
+        if (_v2ray is not null) _ = _v2ray.ProvisionOrderAsync(o);
+        if (_wireguard is not null) _ = _wireguard.ProvisionOrderAsync(o);
         var fresh = _store.GetOrder(o.Id) ?? o;
         AnnounceToOrderBot(fresh);
         return RevealInputs(fresh);

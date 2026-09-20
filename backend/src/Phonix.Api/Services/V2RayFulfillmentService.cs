@@ -41,6 +41,16 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
     // quarter of an hour of a panel being unreachable, which is a real outage rather than a blip.
     public const int MaxAttempts = 20;
 
+    // Past the attempts cap an account is retried once an hour rather than never: the cap exists to stop
+    // hammering a dead panel, not to abandon a paid order.
+    public static readonly TimeSpan RetryAfterCap = TimeSpan.FromHours(1);
+
+    // One unit is provisioned by one caller at a time. An approval fires provisioning off and the worker
+    // sweeps every 45 seconds, so the two can and do meet on the same unit; without this, the loser of that
+    // race could record its failure OVER the winner's account, leaving a delivered unit whose config link
+    // pointed nowhere.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
+
     private readonly IDataStore _store;
     private readonly IV2RayPanelConnector _connector;
     // Resolved lazily: the orders bot depends on THIS service (it asks what self-provisions), so taking it as a
@@ -67,10 +77,12 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
                 if (!Handles(unit)) continue;
 
                 var attempts = unit.V2Ray?.Attempts ?? 0;
-                // An account that keeps failing stops being retried and becomes a person's problem. The group
-                // is told once, on the attempt that gives up, so a service nobody can create is never simply
-                // missing from the channel.
-                if (attempts >= MaxAttempts) continue;
+                // An account that keeps failing is handed to a person (the group is told once, on the attempt
+                // that hits the cap) but NOT abandoned: it is retried again every hour, so a panel that comes
+                // back delivers the order without anyone clicking anything.
+                if (attempts >= MaxAttempts
+                    && unit.V2Ray?.LastAttemptAtUtc is DateTime last
+                    && DateTime.UtcNow - last < RetryAfterCap) continue;
 
                 if (await ProvisionAsync(order, unit, ct))
                 {
@@ -127,6 +139,22 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
         _store.GetProduct(unit.ProductId) is { V2RayCategoryId: > 0 };
 
     public async Task<bool> ProvisionAsync(Order order, OrderUnit unit, CancellationToken ct = default)
+    {
+        var gate = Locks.GetOrAdd($"{order.Id}:{unit.Id}", _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try
+        {
+            // The copy handed in may predate another caller's work on this same unit; act on what is stored.
+            var fresh = _store.GetOrder(order.Id)?.Units.FirstOrDefault(u => u.Id == unit.Id) ?? unit;
+            return await ProvisionLockedAsync(order, fresh, ct);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<bool> ProvisionLockedAsync(Order order, OrderUnit unit, CancellationToken ct)
     {
         if (unit.Delivered || unit.Rejected) return false;
 
@@ -195,6 +223,7 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
             CreatedAtUtc = now,
             ExpiresAtUtc = plan.DurationDays > 0 ? now.AddDays(plan.DurationDays) : null,
             Attempts = (unit.V2Ray?.Attempts ?? 0) + 1,
+            LastAttemptAtUtc = now,
             LastError = null,
         };
 
@@ -320,6 +349,7 @@ public sealed class V2RayFulfillmentService : IV2RayFulfillmentService
         var account = unit.V2Ray
             ?? new V2RayAccount { Token = unit.V2RayRenewToken is { Length: > 0 } ? "" : NewToken() };
         account.Attempts += 1;
+        account.LastAttemptAtUtc = DateTime.UtcNow;
         account.LastError = error;
         _store.SetUnitV2Ray(order.Id, unit.Id, account);
         _logger.LogWarning("V2Ray provisioning failed for order {Code} unit {Unit}: {Error}", order.Code, unit.Id, error);

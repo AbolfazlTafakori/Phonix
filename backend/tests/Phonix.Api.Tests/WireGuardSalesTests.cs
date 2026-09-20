@@ -148,6 +148,53 @@ public class WireGuardSalesTests
         Assert.Single(panel.Created);
     }
 
+    // An approval fires provisioning off while the worker sweeps the same order: both must land on ONE
+    // customer, and the loser must not overwrite the winner's account with a failure record.
+    [Fact]
+    public async Task Concurrent_provisioning_of_one_unit_creates_one_customer()
+    {
+        var (store, productId, planId, _) = Seed();
+        var panel = new FakeWireGuardPanel();
+        var order = Buy(store, productId, planId);
+        var fulfil = Fulfil(store, panel);
+
+        var results = await Task.WhenAll(
+            Enumerable.Range(0, 6).Select(_ => fulfil.ProvisionAsync(order, order.Units[0])));
+
+        Assert.Single(results.Where(r => r));
+        Assert.Single(panel.Created);
+        var unit = store.GetOrder(order.Id)!.Units[0];
+        Assert.True(unit.Delivered);
+        Assert.Equal(41, unit.WireGuard!.ClientId);
+        Assert.Null(unit.WireGuard.LastError);
+    }
+
+    // Past the cap the unit is not abandoned: it is retried again once the hour is up.
+    [Fact]
+    public async Task A_capped_unit_is_retried_after_an_hour()
+    {
+        var (store, productId, planId, _) = Seed();
+        var panel = new FakeWireGuardPanel { AddResult = WireGuardClientResult.Fail("down") };
+        var order = Buy(store, productId, planId);
+        var fulfil = Fulfil(store, panel);
+
+        for (var i = 0; i < WireGuardFulfillmentService.MaxAttempts; i++)
+            await fulfil.ProvisionAsync(store.GetOrder(order.Id)!, order.Units[0]);
+        Assert.Equal(WireGuardFulfillmentService.MaxAttempts, store.GetOrder(order.Id)!.Units[0].WireGuard!.Attempts);
+
+        // Within the hour the sweep leaves it alone …
+        panel.AddResult = new WireGuardClientResult(true, null, 41, "s", "u", 1);
+        await fulfil.ProvisionOrderAsync(store.GetOrder(order.Id)!);
+        Assert.False(store.GetOrder(order.Id)!.Units[0].Delivered);
+
+        // … and once it is up, tries again and delivers.
+        var stale = store.GetOrder(order.Id)!.Units[0].WireGuard!;
+        stale.LastAttemptAtUtc = DateTime.UtcNow.AddHours(-2);
+        store.SetUnitWireGuard(order.Id, 1, stale);
+        await fulfil.ProvisionOrderAsync(store.GetOrder(order.Id)!);
+        Assert.True(store.GetOrder(order.Id)!.Units[0].Delivered);
+    }
+
     [Fact]
     public async Task A_panel_failure_is_recorded_and_retried_rather_than_delivered()
     {

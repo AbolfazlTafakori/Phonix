@@ -123,6 +123,7 @@ public class WireGuardAccount
     public DateTime? ExpiresAtUtc { get; set; }
     public int Attempts { get; set; }
     public string? LastError { get; set; }
+    public DateTime? LastAttemptAtUtc { get; set; }
 
     public int RenewCount { get; set; }
     public DateTime? LastRenewedAtUtc { get; set; }
@@ -157,6 +158,9 @@ public class V2RayAccount
     // approval. These record how that is going for the staff view.
     public int Attempts { get; set; }
     public string? LastError { get; set; }
+    // When the last attempt was made. Past the attempt cap the account is still retried, but only once an
+    // hour — a panel that was down for an afternoon must not leave paid orders stuck until someone notices.
+    public DateTime? LastAttemptAtUtc { get; set; }
 
     // ── Renewal ─────────────────────────────────────────────────────────────────────────────────────
     // A renewal extends THIS record in place; the customer keeps the same link. The counters are what the

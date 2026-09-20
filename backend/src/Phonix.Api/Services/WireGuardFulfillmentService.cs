@@ -21,6 +21,8 @@ public sealed class WireGuardFulfillmentService : IWireGuardFulfillmentService
 {
     private const string Actor = "سیستم (WireGuard)";
     public const int MaxAttempts = 20;
+    public static readonly TimeSpan RetryAfterCap = TimeSpan.FromHours(1);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Locks = new();
 
     private readonly IDataStore _store;
     private readonly IWireGuardPanelConnector _connector;
@@ -46,7 +48,9 @@ public sealed class WireGuardFulfillmentService : IWireGuardFulfillmentService
                 if (!Handles(unit)) continue;
 
                 var attempts = unit.WireGuard?.Attempts ?? 0;
-                if (attempts >= MaxAttempts) continue;
+                if (attempts >= MaxAttempts
+                    && unit.WireGuard?.LastAttemptAtUtc is DateTime last
+                    && DateTime.UtcNow - last < RetryAfterCap) continue;
 
                 if (await ProvisionAsync(order, unit, ct))
                 {
@@ -99,6 +103,22 @@ public sealed class WireGuardFulfillmentService : IWireGuardFulfillmentService
         _store.GetProduct(unit.ProductId) is { V2RayCategoryId: <= 0, WireGuardCategoryId: > 0 };
 
     public async Task<bool> ProvisionAsync(Order order, OrderUnit unit, CancellationToken ct = default)
+    {
+        // See V2RayFulfillmentService.ProvisionAsync: one caller per unit, acting on the stored state.
+        var gate = Locks.GetOrAdd($"{order.Id}:{unit.Id}", _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try
+        {
+            var fresh = _store.GetOrder(order.Id)?.Units.FirstOrDefault(u => u.Id == unit.Id) ?? unit;
+            return await ProvisionLockedAsync(order, fresh, ct);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private async Task<bool> ProvisionLockedAsync(Order order, OrderUnit unit, CancellationToken ct)
     {
         if (unit.Delivered || unit.Rejected) return false;
 
@@ -158,6 +178,7 @@ public sealed class WireGuardFulfillmentService : IWireGuardFulfillmentService
             CreatedAtUtc = now,
             ExpiresAtUtc = plan.DurationDays > 0 ? now.AddDays(plan.DurationDays) : null,
             Attempts = (unit.WireGuard?.Attempts ?? 0) + 1,
+            LastAttemptAtUtc = now,
             LastError = null,
         };
 
@@ -257,6 +278,7 @@ public sealed class WireGuardFulfillmentService : IWireGuardFulfillmentService
         var account = unit.WireGuard
             ?? new WireGuardAccount { Token = unit.WireGuardRenewToken is { Length: > 0 } ? "" : NewToken() };
         account.Attempts += 1;
+        account.LastAttemptAtUtc = DateTime.UtcNow;
         account.LastError = error;
         _store.SetUnitWireGuard(order.Id, unit.Id, account);
         _logger.LogWarning("WireGuard provisioning failed for order {Code} unit {Unit}: {Error}", order.Code, unit.Id, error);
