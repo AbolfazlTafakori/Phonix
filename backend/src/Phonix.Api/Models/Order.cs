@@ -97,6 +97,41 @@ public class OrderUnit
     // one. It is the config token of the account being renewed; fulfilment updates that account on the panel
     // in place — same UUID, same subscription link, same config page — instead of creating a second client.
     public string? V2RayRenewToken { get; set; }
+
+    // ── WireGuard (W-UI) provisioning — the same two handles for the other panel kind ─────────────────
+    public WireGuardAccount? WireGuard { get; set; }
+    public string? WireGuardRenewToken { get; set; }
+}
+
+// The customer created on a W-UI panel for one order unit. Same role as V2RayAccount: `Token` is the
+// unguessable key to the public config page, `ClientId` is how the panel is asked about the customer again.
+public class WireGuardAccount
+{
+    public int PanelId { get; set; }
+    public int PlanId { get; set; }
+    public int ClientId { get; set; }          // W-UI's own id for the customer; the lookup key for every later call
+    public string Name { get; set; } = "";     // the customer's name on the panel
+    public string SubId { get; set; } = "";
+    public string SubUrl { get; set; } = "";
+    public string Token { get; set; } = "";
+    public string Protocol { get; set; } = "";
+    public List<int> InterfaceIds { get; set; } = new();
+    public long VolumeGb { get; set; }
+    public int DurationDays { get; set; }
+    public int DeviceLimit { get; set; }
+    public DateTime? CreatedAtUtc { get; set; }
+    public DateTime? ExpiresAtUtc { get; set; }
+    public int Attempts { get; set; }
+    public string? LastError { get; set; }
+
+    public int RenewCount { get; set; }
+    public DateTime? LastRenewedAtUtc { get; set; }
+
+    public DateTime? ExpiryWarnSentUtc { get; set; }
+    public DateTime? VolumeWarnSentUtc { get; set; }
+
+    public DateTime? PanelDeletedAtUtc { get; set; }
+    public string? PanelDeletedReason { get; set; }
 }
 
 // The account created on a V2Ray panel for one order unit. `Token` is the unguessable key to the public

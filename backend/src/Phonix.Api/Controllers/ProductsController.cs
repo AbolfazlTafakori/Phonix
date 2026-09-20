@@ -76,7 +76,7 @@ public class ProductsController : ControllerBase
         // Seeded with the current V2Ray link so a payload that omits the field keeps it (Map only writes the
         // field when the input actually carries one). Seeding it BEFORE Map rather than restoring it after
         // also keeps Map's own "a linked product owns no plans" rule reading the right value.
-        var product = Map(new Product { Id = id, V2RayCategoryId = existing?.V2RayCategoryId ?? 0 }, input);
+        var product = Map(new Product { Id = id, V2RayCategoryId = existing?.V2RayCategoryId ?? 0, WireGuardCategoryId = existing?.WireGuardCategoryId ?? 0 }, input);
         // The product form doesn't carry the stock-pool switches (they live on the stock page) — a
         // full-replace edit must not silently reset them.
         product.AutoDeliverStock = existing?.AutoDeliverStock ?? false;
@@ -179,6 +179,7 @@ public class ProductsController : ControllerBase
         // anywhere. The whole payload is otherwise a full replacement, so this is the one field where the
         // difference between "not supplied" and "set to zero" carries real weight.
         if (input.V2RayCategoryId is int v2rayCategory) target.V2RayCategoryId = Math.Max(0, v2rayCategory);
+        if (input.WireGuardCategoryId is int wgCategory) target.WireGuardCategoryId = Math.Max(0, wgCategory);
         target.DeliveryTemplate = input.DeliveryTemplate ?? "";
         target.Features = input.Features ?? new();
         target.Faq = (input.Faq ?? new())
@@ -188,7 +189,7 @@ public class ProductsController : ControllerBase
         // A V2Ray-linked product owns no plans: its list is projected from the linked category on every read
         // (see ApplyV2RayPlans). Writing the incoming list back would persist that projection as if it were
         // the product's own plans, and the two would then drift apart. Keep it empty instead.
-        target.Plans = target.V2RayCategoryId > 0
+        target.Plans = target.IsPanelProvisioned
             ? new()
             : (input.Plans ?? new()).Select(NormalizePlan).ToList();
         ApplyUsdPrice(target);

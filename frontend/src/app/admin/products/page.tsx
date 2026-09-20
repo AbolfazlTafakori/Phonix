@@ -26,6 +26,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   warning: "",
   requiredLevel: 1,
   v2RayCategoryId: 0,
+  wireGuardCategoryId: 0,
   deliveryTemplate: "",
   priceUsd: 0,
   features: [
@@ -117,12 +118,18 @@ export default function AdminProductsPage() {
 
   const set = <K extends keyof ProductInput>(key: K, value: ProductInput[K]) => setForm((f) => ({ ...f, [key]: value }));
 
+  const [v2rayCats, setV2rayCats] = useState<{ id: number; name: string }[]>([]);
+  const [wgCats, setWgCats] = useState<{ id: number; name: string }[]>([]);
   // The V2Ray catalogue is owner-only; a non-owner simply gets nothing and the selector stays hidden.
   useEffect(() => {
     api.v2ray.categories
       .list()
       .then((list) => setV2rayCats(list.map((c) => ({ id: c.id, name: c.name }))))
       .catch(() => setV2rayCats([]));
+    api.wireguard.categories
+      .list()
+      .then((list) => setWgCats(list.map((c) => ({ id: c.id, name: c.name }))))
+      .catch(() => setWgCats([]));
   }, []);
 
   function openNew() {
@@ -143,6 +150,7 @@ export default function AdminProductsPage() {
       isActive: p.isActive,
       featured: p.featured,
       v2RayCategoryId: p.v2RayCategoryId,
+      wireGuardCategoryId: p.wireGuardCategoryId ?? 0,
       image: p.image,
       logo: p.logo,
       listImage: p.listImage ?? "",
@@ -204,7 +212,6 @@ export default function AdminProductsPage() {
   const removeFaq = (i: number) => setForm((f) => ({ ...f, faq: f.faq.filter((_, idx) => idx !== i) }));
 
   // Import a product-content .md file: auto-fills the description + FAQ fields (no manual entry).
-  const [v2rayCats, setV2rayCats] = useState<{ id: number; name: string }[]>([]);
   const [importMsg, setImportMsg] = useState("");
   function importMd(file: File) {
     const reader = new FileReader();
@@ -413,6 +420,27 @@ export default function AdminProductsPage() {
                 اگر یک دسته‌بندی V2Ray انتخاب کنید، این محصول لوگو و توضیحات و بقیه‌ی نمایش را از همین‌جا می‌گیرد،
                 ولی پلن‌های قابل‌انتخابش از پلن‌های همان دسته خوانده می‌شود. هر پلنی که بعداً به آن دسته اضافه کنید،
                 خودکار اینجا هم می‌آید.
+              </p>
+            </Field>
+          )}
+
+          {wgCats.length > 0 && (
+            <Field label="اتصال به پلن‌های WireGuard (اختیاری)">
+              <select
+                value={form.wireGuardCategoryId}
+                onChange={(e) => set("wireGuardCategoryId", Number(e.target.value))}
+                disabled={form.v2RayCategoryId > 0}
+                className={`${inputCls} h-12 disabled:opacity-50`}
+              >
+                <option value={0} className="bg-[#15151f]">— محصول عادی (پلن‌های خودش) —</option>
+                {wgCats.map((c) => (
+                  <option key={c.id} value={c.id} className="bg-[#15151f]">{c.name}</option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-xs text-white/45">
+                مثل بالا، ولی از کاتالوگ WireGuard (پنل W-UI). یک محصول فقط می‌تواند به یکی از دو کاتالوگ وصل باشد؛
+                تا وقتی دسته‌ی V2Ray انتخاب شده، این گزینه غیرفعال است. بعد از پرداخت، مشتری خودکار روی پنل ساخته و
+                لینک اشتراک و کانفیگ‌ها تحویل داده می‌شود.
               </p>
             </Field>
           )}

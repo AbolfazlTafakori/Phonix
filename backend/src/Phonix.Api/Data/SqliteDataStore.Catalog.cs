@@ -34,7 +34,16 @@ ON CONFLICT(Id) DO UPDATE SET
     {
         using var conn = OpenConnection();
         var json = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @id", new { id });
-        return json is null ? null : ApplyV2RayPlans(Deserialize<Product>(json)!);
+        return json is null ? null : ApplyPanelPlans(Deserialize<Product>(json)!);
+    }
+
+    // Both panel catalogues, through one door. A product links to one of them; V2Ray is tried first because
+    // its projection is the older one and an accidental double link should behave the way it always has.
+    private Product ApplyPanelPlans(Product product)
+    {
+        if (product.V2RayCategoryId > 0) return ApplyV2RayPlans(product);
+        if (product.WireGuardCategoryId > 0) return ApplyWireGuardPlans(product, LoadWireGuardLookups());
+        return product;
     }
 
     // A product linked to the V2Ray catalogue has NO plans of its own — its selectable plans are the plans of
@@ -146,6 +155,77 @@ ON CONFLICT(Id) DO UPDATE SET
         return Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Host : url;
     }
 
+    // ── WireGuard: the same projection against the W-UI catalogue ──────────────────────────────────
+    // Identical rules to ApplyV2RayPlans (every active category is a location, the option is keyed on the
+    // (category, panel) pair, sold-out plans are kept inactive). The one difference in what the buyer sees is
+    // the seat count: a WireGuard plan sells DEVICES, so that is what lands in UserCount.
+    private sealed record WireGuardLookups(
+        IReadOnlyList<WireGuardPlan> Plans,
+        IReadOnlyDictionary<int, WireGuardPanel> Panels,
+        IReadOnlyList<WireGuardCategory> Categories);
+
+    private WireGuardLookups LoadWireGuardLookups() =>
+        new(GetWireGuardPlans(), GetWireGuardPanels().ToDictionary(p => p.Id, p => p), GetWireGuardCategories());
+
+    private Product ApplyWireGuardPlans(Product product, WireGuardLookups lookups)
+    {
+        if (product.WireGuardCategoryId <= 0) return product;
+
+        var locations = lookups.Categories.Where(c => c.Active).ToDictionary(c => c.Id, c => c);
+        var plans = lookups.Plans
+            .Where(p => p.Active && locations.ContainsKey(p.CategoryId))
+            .OrderBy(p => locations[p.CategoryId].SortOrder).ThenBy(p => p.CategoryId)
+            .ThenBy(p => p.SortOrder).ThenBy(p => p.FinalPrice)
+            .ToList();
+
+        var panels = lookups.Panels;
+        string ServerName(int panelId)
+        {
+            if (!panels.TryGetValue(panelId, out var panel)) return "سرور";
+            var name = string.IsNullOrWhiteSpace(panel.Name) ? HostOf(panel.Url) : panel.Name.Trim();
+            return string.IsNullOrWhiteSpace(panel.Flag) ? name : $"{name} {panel.Flag.Trim()}";
+        }
+
+        var panelsPerCategory = plans.GroupBy(p => p.CategoryId)
+            .ToDictionary(g => g.Key, g => g.Select(p => p.PanelId).Distinct().Count());
+
+        string LocationName(WireGuardPlan plan)
+        {
+            var title = locations.TryGetValue(plan.CategoryId, out var c) ? (c.Name ?? "").Trim() : "";
+            if (title.Length == 0) return ServerName(plan.PanelId);
+            return panelsPerCategory.GetValueOrDefault(plan.CategoryId) > 1
+                ? $"{title} · {ServerName(plan.PanelId)}"
+                : title;
+        }
+
+        var nameCounts = plans
+            .Select(p => (p.CategoryId, p.PanelId)).Distinct()
+            .GroupBy(k => LocationName(plans.First(p => p.CategoryId == k.CategoryId && p.PanelId == k.PanelId)))
+            .ToDictionary(g => g.Key, g => g.Count());
+
+        product.Plans = plans
+            .Select(p =>
+            {
+                var server = LocationName(p);
+                if (nameCounts.GetValueOrDefault(server) > 1) server = $"{server} #{p.PanelId}";
+                return new ProductPlan
+                {
+                    Id = p.Id,
+                    Type = server,
+                    Label = p.Title,
+                    Months = p.DurationDays <= 0 ? 1 : Math.Max(1, (int)Math.Round(p.DurationDays / 30.0)),
+                    Price = p.Price,
+                    DiscountPercent = p.DiscountPercent,
+                    IsActive = !p.SoldOut,
+                    UserCount = p.DeviceLimit,
+                    Rules = p.Description,
+                };
+            })
+            .ToList();
+
+        return product;
+    }
+
     public IReadOnlyList<Product> GetProducts(int? categoryId = null, string? search = null)
     {
         using var conn = OpenConnection();
@@ -159,6 +239,11 @@ ON CONFLICT(Id) DO UPDATE SET
         {
             var lookups = LoadV2RayLookups();
             products = products.Select(p => ApplyV2RayPlans(p, lookups)).ToList();
+        }
+        if (products.Any(p => p.V2RayCategoryId <= 0 && p.WireGuardCategoryId > 0))
+        {
+            var lookups = LoadWireGuardLookups();
+            products = products.Select(p => p.V2RayCategoryId <= 0 ? ApplyWireGuardPlans(p, lookups) : p).ToList();
         }
 
         if (!string.IsNullOrWhiteSpace(search))

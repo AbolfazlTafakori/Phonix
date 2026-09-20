@@ -85,7 +85,7 @@ public sealed partial class SqliteDataStore
                 // empty plan list, and the chosen plan would never be found. Project the linked category's
                 // plans in — exactly as every other read of a product does — so the plan the customer picked
                 // resolves here too.
-                if (pj is not null) products[pid] = ApplyV2RayPlans(Deserialize<Product>(pj)!);
+                if (pj is not null) products[pid] = ApplyPanelPlans(Deserialize<Product>(pj)!);
             }
 
             var lines = new List<OrderItem>();
@@ -104,6 +104,8 @@ public sealed partial class SqliteDataStore
                     // when the page was opened.
                     if (p.V2RayCategoryId > 0 && GetV2RayPlan(pid) is { SoldOut: true } full)
                         return new PlaceOrderResult(null, $"ظرفیت فروش «{full.Title}» تکمیل شده است.");
+                    if (p.V2RayCategoryId <= 0 && p.WireGuardCategoryId > 0 && GetWireGuardPlan(pid) is { SoldOut: true } fullWg)
+                        return new PlaceOrderResult(null, $"ظرفیت فروش «{fullWg.Title}» تکمیل شده است.");
 
                     // a referenced plan must exist and be active; otherwise reject the line rather than
                     // silently charging the base price.
@@ -151,7 +153,8 @@ public sealed partial class SqliteDataStore
                         UnitIndex = u + 1, CustomerInputs = ui?.Inputs ?? new(), CustomerNote = ui?.Note,
                         // A renewal is always exactly one account (the checkout refuses any other quantity),
                         // so the token belongs to the line's single unit.
-                        V2RayRenewToken = info?.RenewToken,
+                        V2RayRenewToken = p.V2RayCategoryId > 0 ? info?.RenewToken : null,
+                        WireGuardRenewToken = p.V2RayCategoryId <= 0 && p.WireGuardCategoryId > 0 ? info?.RenewToken : null,
                     });
                 }
             }
@@ -173,7 +176,7 @@ public sealed partial class SqliteDataStore
                 // A V2Ray product is supplied by its panel, which provisions on demand — it has no finite
                 // counter to check, and gating on one would stop sales until an operator topped up a number
                 // that means nothing here.
-                if (p.V2RayCategoryId > 0) continue;
+                if (p.IsPanelProvisioned) continue;
                 var needed = group.Sum(l => l.Quantity);
                 if (p.Stock < needed) return new PlaceOrderResult(null, $"موجودی «{p.Name}» کافی نیست.");
             }
@@ -195,6 +198,25 @@ public sealed partial class SqliteDataStore
                     if (vp is null || vp.Quantity <= 0) continue;
                     if (vp.Sold + wanted > vp.Quantity)
                         return new PlaceOrderResult(null, $"ظرفیت فروش «{vp.Title}» تکمیل شده است.");
+                }
+            }
+
+            // The WireGuard catalogue caps its plans the same way.
+            var wgDemand = lines
+                .Where(l => products[l.ProductId] is { V2RayCategoryId: <= 0, WireGuardCategoryId: > 0 } && l.PlanId is int)
+                .GroupBy(l => l.PlanId!.Value)
+                .ToDictionary(g => g.Key, g => g.Sum(l => l.Quantity));
+
+            WireGuardSettings? wireguard = null;
+            if (wgDemand.Count > 0)
+            {
+                wireguard = ReadSingleton<WireGuardSettings>(conn, tx, WireGuardKey);
+                foreach (var (planId, wanted) in wgDemand)
+                {
+                    var wp = wireguard.Plans.FirstOrDefault(x => x.Id == planId);
+                    if (wp is null || wp.Quantity <= 0) continue;
+                    if (wp.Sold + wanted > wp.Quantity)
+                        return new PlaceOrderResult(null, $"ظرفیت فروش «{wp.Title}» تکمیل شده است.");
                 }
             }
 
@@ -266,7 +288,7 @@ public sealed partial class SqliteDataStore
             {
                 var p = products[line.ProductId];
                 // Nothing to spend for a panel-provisioned product (see the stock check above).
-                if (p.V2RayCategoryId <= 0) p.Stock = Math.Max(0, p.Stock - line.Quantity);
+                if (!p.IsPanelProvisioned) p.Stock = Math.Max(0, p.Stock - line.Quantity);
             }
             foreach (var p in products.Values) UpsertProduct(conn, tx, p); // persist decremented stock
 
@@ -278,6 +300,15 @@ public sealed partial class SqliteDataStore
                     if (vp is not null && vp.Quantity > 0) vp.Sold += wanted;
                 }
                 WriteSingleton(conn, tx, V2RayKey, v2ray);
+            }
+            if (wireguard is not null)
+            {
+                foreach (var (planId, wanted) in wgDemand)
+                {
+                    var wp = wireguard.Plans.FirstOrDefault(x => x.Id == planId);
+                    if (wp is not null && wp.Quantity > 0) wp.Sold += wanted;
+                }
+                WriteSingleton(conn, tx, WireGuardKey, wireguard);
             }
 
             if (walletUsed > 0)
@@ -652,7 +683,7 @@ LIMIT 1;",
                 var pj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @pid", new { pid = line.ProductId }, tx);
                 if (pj is null) continue;
                 var p = Deserialize<Product>(pj)!;
-                if (p.V2RayCategoryId > 0) continue;   // never spent a counter, so nothing to give back
+                if (p.IsPanelProvisioned) continue;   // never spent a counter, so nothing to give back
                 p.Stock += OrderRules.UndeliveredQuantity(o, line);
                 UpsertProduct(conn, tx, p);
             }
@@ -660,7 +691,10 @@ LIMIT 1;",
             // slot was already released by RejectUnit — including it here would free the same slot twice,
             // letting the plan oversell past its real cap.
             ReleaseV2RayPlanSlots(conn, tx, o.Units
-                .Where(u => !u.Delivered && !u.Rejected && u.PlanId is int)
+                .Where(u => !u.Delivered && !u.Rejected && u.PlanId is int && IsV2RayUnit(conn, tx, u))
+                .Select(u => (u.PlanId!.Value, 1)));
+            ReleaseWireGuardPlanSlots(conn, tx, o.Units
+                .Where(u => !u.Delivered && !u.Rejected && u.PlanId is int && IsWireGuardUnit(conn, tx, u))
                 .Select(u => (u.PlanId!.Value, 1)));
             // Put back any seats still merely reserved for a still-outstanding unit (no-op for the item pool).
             // A rejected unit's reservation was already released by RejectUnit.
@@ -763,6 +797,122 @@ LIMIT 1;",
             UpsertOrder(conn, tx, o);
             return true;
         });
+
+    public bool SetUnitWireGuard(int orderId, int unitId, WireGuardAccount account) =>
+        WriteTx((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id=@orderId", new { orderId }, tx);
+            if (oj is null) return false;
+            var o = Deserialize<Order>(oj)!;
+            var unit = o.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit is null) return false;
+
+            unit.WireGuard = account;
+            UpsertOrder(conn, tx, o);
+            return true;
+        });
+
+    // Same lookup as FindUnitByV2RayToken, on the WireGuard account instead. Tokens share one shape, so a
+    // token is either one or the other and the two lookups never both answer.
+    public (Order order, OrderUnit unit)? FindUnitByWireGuardToken(string token)
+    {
+        if (!IsV2RayToken(token)) return null;
+        using var conn = OpenConnection();
+        var rows = conn.Query<string>(
+            "SELECT DataJson FROM Orders WHERE DataJson LIKE '%' || @token || '%'", new { token });
+        foreach (var json in rows)
+        {
+            var order = Deserialize<Order>(json)!;
+            var unit = order.Units.FirstOrDefault(u =>
+                u.WireGuard is not null && string.Equals(u.WireGuard.Token, token, StringComparison.Ordinal));
+            if (unit is not null) return (order, unit);
+        }
+        return null;
+    }
+
+    public IReadOnlyList<WireGuardServiceRef> GetWireGuardServices()
+    {
+        using var conn = OpenConnection();
+        var services = new List<WireGuardServiceRef>();
+        foreach (var json in conn.Query<string>("SELECT DataJson FROM Orders WHERE Status=@s", new { s = (int)OrderStatus.Completed })
+                     .Concat(conn.Query<string>("SELECT DataJson FROM Orders WHERE Status=@s", new { s = (int)OrderStatus.Preparing })))
+        {
+            var order = Deserialize<Order>(json)!;
+            foreach (var unit in order.Units)
+            {
+                if (unit.WireGuard is not { ClientId: > 0, Token.Length: > 0 } a) continue;
+                if (a.PanelDeletedAtUtc is not null) continue;
+                services.Add(new WireGuardServiceRef(
+                    order.Id, unit.Id, order.Code, order.UserId,
+                    a.PanelId, a.ClientId, a.Name, a.Token,
+                    a.ExpiresAtUtc, a.VolumeGb,
+                    a.ExpiryWarnSentUtc is not null, a.VolumeWarnSentUtc is not null));
+            }
+        }
+        return services;
+    }
+
+    public V2RayNotifyTarget? ClaimWireGuardWarning(int orderId, int unitId, bool expiry, bool volume, string expiresFa, string remainingFa) =>
+        WriteTx<V2RayNotifyTarget?>((conn, tx) =>
+        {
+            if (!expiry && !volume) return null;
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id=@orderId", new { orderId }, tx);
+            if (oj is null) return null;
+            var order = Deserialize<Order>(oj)!;
+            var unit = order.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit?.WireGuard is not { } account) return null;
+
+            var claimExpiry = expiry && account.ExpiryWarnSentUtc is null;
+            var claimVolume = volume && account.VolumeWarnSentUtc is null;
+            if (!claimExpiry && !claimVolume) return null;
+
+            var now = DateTime.UtcNow;
+            if (claimExpiry) account.ExpiryWarnSentUtc = now;
+            if (claimVolume) account.VolumeWarnSentUtc = now;
+
+            var user = LoadUser(conn, tx, order.UserId);
+            UpsertOrder(conn, tx, order);
+            if (user is null) return null;
+
+            Notify(conn, tx, user.Id, OrderNotices.PanelServiceRunningOut(
+                order.Code, $"/wg/{account.Token}", claimExpiry ? expiresFa : null, claimVolume ? remainingFa : null));
+            return new V2RayNotifyTarget(user.Id, user.Email, order.Code, account.Token);
+        });
+
+    public V2RayNotifyTarget? MarkWireGuardPanelDeleted(int orderId, int unitId, string reason, bool notify) =>
+        WriteTx<V2RayNotifyTarget?>((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id=@orderId", new { orderId }, tx);
+            if (oj is null) return null;
+            var order = Deserialize<Order>(oj)!;
+            var unit = order.Units.FirstOrDefault(u => u.Id == unitId);
+            if (unit?.WireGuard is not { } account) return null;
+            if (account.PanelDeletedAtUtc is not null) return null;
+
+            account.PanelDeletedAtUtc = DateTime.UtcNow;
+            account.PanelDeletedReason = reason;
+
+            var user = notify ? LoadUser(conn, tx, order.UserId) : null;
+            UpsertOrder(conn, tx, order);
+            if (user is null) return null;
+
+            Notify(conn, tx, user.Id, OrderNotices.V2RayRemoved(order.Code));
+            return new V2RayNotifyTarget(user.Id, user.Email, order.Code, account.Token);
+        });
+
+    // Which catalogue a unit's plan id belongs to, read off its product. Needed wherever a plan slot is
+    // released, because the two catalogues number their plans independently.
+    private static bool IsV2RayUnit(SqliteConnection conn, SqliteTransaction tx, OrderUnit unit) =>
+        LoadProductLink(conn, tx, unit.ProductId) is { V2RayCategoryId: > 0 };
+
+    private static bool IsWireGuardUnit(SqliteConnection conn, SqliteTransaction tx, OrderUnit unit) =>
+        LoadProductLink(conn, tx, unit.ProductId) is { V2RayCategoryId: <= 0, WireGuardCategoryId: > 0 };
+
+    private static Product? LoadProductLink(SqliteConnection conn, SqliteTransaction tx, int productId)
+    {
+        var pj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Products WHERE Id = @pid", new { pid = productId }, tx);
+        return pj is null ? null : Deserialize<Product>(pj);
+    }
 
     // The order unit a public config token belongs to, or null when the token is unknown. The token is the
     // only key the config page has, so the lookup deliberately reveals nothing else about the order.
@@ -956,6 +1106,24 @@ LIMIT 1;",
         if (touched) WriteSingleton(conn, tx, V2RayKey, settings);
     }
 
+    private void ReleaseWireGuardPlanSlots(SqliteConnection conn, SqliteTransaction tx, IEnumerable<(int planId, int count)> released)
+    {
+        var wanted = released.Where(r => r.count > 0).GroupBy(r => r.planId)
+            .ToDictionary(g => g.Key, g => g.Sum(x => x.count));
+        if (wanted.Count == 0) return;
+
+        var settings = ReadSingleton<WireGuardSettings>(conn, tx, WireGuardKey);
+        var touched = false;
+        foreach (var (planId, count) in wanted)
+        {
+            var plan = settings.Plans.FirstOrDefault(x => x.Id == planId);
+            if (plan is null || plan.Quantity <= 0) continue;
+            plan.Sold = Math.Max(0, plan.Sold - count);
+            touched = true;
+        }
+        if (touched) WriteSingleton(conn, tx, WireGuardKey, settings);
+    }
+
     public IReadOnlyList<Order> GetOrdersAwaitingV2Ray()
     {
         using var conn = OpenConnection();
@@ -1014,7 +1182,7 @@ LIMIT 1;",
             if (pj is not null)
             {
                 var p = Deserialize<Product>(pj)!;
-                if (p.V2RayCategoryId <= 0)
+                if (!p.IsPanelProvisioned)
                 {
                     var line = o.Items.FirstOrDefault(i => i.ProductId == unit.ProductId && (i.Plan ?? "") == (unit.Plan ?? ""));
                     var unitsOfLine = Math.Max(1, o.Units.Count(u =>
@@ -1024,7 +1192,8 @@ LIMIT 1;",
                 }
                 else if (unit.PlanId is int rejectedPlan)
                 {
-                    ReleaseV2RayPlanSlots(conn, tx, new[] { (rejectedPlan, 1) });
+                    if (p.V2RayCategoryId > 0) ReleaseV2RayPlanSlots(conn, tx, new[] { (rejectedPlan, 1) });
+                    else ReleaseWireGuardPlanSlots(conn, tx, new[] { (rejectedPlan, 1) });
                 }
             }
             // Any slots still held for this unit go back into rotation (no-op for item-pool products).

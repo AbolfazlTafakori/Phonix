@@ -107,6 +107,8 @@ export type Product = {
   plans: ProductPlan[];
   // When > 0 this product sells the V2Ray plans of that category instead of its own `plans` list.
   v2RayCategoryId: number;
+  // Same for the WireGuard (W-UI) catalogue. A product links to one of the two.
+  wireGuardCategoryId: number;
 };
 
 export type StockItemStatus = "Available" | "Reserved" | "Delivered" | "Disabled";
@@ -267,6 +269,7 @@ export type ProductInput = {
   faq: ProductFaq[];
   plans: ProductPlanInput[];
   v2RayCategoryId: number;
+  wireGuardCategoryId: number;
 };
 
 export type User = {
@@ -1177,6 +1180,23 @@ export type OrderUnit = {
   handledBy: string | null;
   // Present when this unit was served by provisioning a V2Ray account; `token` opens its config page.
   v2Ray: OrderUnitV2Ray | null;
+  // Present when this unit was served by creating a customer on a W-UI panel; `token` opens /wg/{token}.
+  wireGuard: OrderUnitWireGuard | null;
+};
+
+export type OrderUnitWireGuard = {
+  token: string;
+  clientId: number;
+  name: string;
+  subUrl: string;
+  protocol: string;
+  volumeGb: number;
+  durationDays: number;
+  deviceLimit: number;
+  expiresAtUtc: string | null;
+  renewCount: number;
+  lastRenewedAtUtc: string | null;
+  panelDeletedAtUtc: string | null;
 };
 
 export type OrderUnitV2Ray = {
@@ -1256,6 +1276,61 @@ export type V2RayRenewals = {
   productId: number;
   productName: string;
   plans: V2RayRenewalPlan[];
+};
+
+// ── WireGuard config page (the W-UI twin of V2RayConfig) ───────────────────────────────────────────
+// One device's configuration file as the panel hands it out; OpenVPN devices also carry credentials.
+export type WireGuardProfile = {
+  deviceId: number;
+  deviceName: string;
+  interfaceName: string;
+  protocol: string;   // wireguard / amneziawg / openvpn
+  filename: string;
+  body: string;
+  username: string;
+  password: string;
+};
+
+export type WireGuardConfig = {
+  name: string;
+  server: string;
+  flag: string;
+  protocol: string;
+  subUrl: string;
+  subId: string;
+  usedBytes: number;
+  totalBytes: number;
+  deviceLimit: number;
+  onlineNow: number;
+  remainingDays: number | null;
+  expiresAtUtc: string | null;
+  createdAtUtc: string | null;
+  status: V2RayStatus;
+  active: boolean;
+  statsLive: boolean;
+  renewCount: number;
+  lastRenewedAtUtc: string | null;
+  profiles: WireGuardProfile[];
+};
+
+export type WireGuardRenewalPlan = {
+  id: number;
+  title: string;
+  description: string;
+  volumeGb: number;
+  durationDays: number;
+  deviceLimit: number;
+  price: number;
+  discountPercent: number;
+  finalPrice: number;
+};
+
+export type WireGuardRenewals = {
+  renewable: boolean;
+  reason: string;
+  productId: number;
+  productName: string;
+  plans: WireGuardRenewalPlan[];
 };
 
 // When customers are warned that a service is running out, and how long an ended one survives on the panel.

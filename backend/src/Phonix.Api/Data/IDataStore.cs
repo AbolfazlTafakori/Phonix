@@ -344,6 +344,11 @@ public interface IDataStore
     Order? SaveUnitDraft(int orderId, int unitId, string content, string? changedBy = null);
     (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null);
     bool SetUnitV2Ray(int orderId, int unitId, V2RayAccount account);
+    bool SetUnitWireGuard(int orderId, int unitId, WireGuardAccount account);
+    (Order order, OrderUnit unit)? FindUnitByWireGuardToken(string token);
+    IReadOnlyList<WireGuardServiceRef> GetWireGuardServices();
+    V2RayNotifyTarget? ClaimWireGuardWarning(int orderId, int unitId, bool expiry, bool volume, string expiresFa, string remainingFa);
+    V2RayNotifyTarget? MarkWireGuardPanelDeleted(int orderId, int unitId, string reason, bool notify);
     (Order order, OrderUnit unit)? FindUnitByV2RayToken(string token);
     // Flags/clears a unit as waiting for inventory (its held seats stay Reserved until the pool can complete it).
     bool SetUnitWaitingForInventory(int orderId, int unitId, bool waiting);

@@ -346,11 +346,10 @@ public class OrdersController : ControllerBase
             return null;
         }
 
+        // The token names either a V2Ray or a WireGuard service; both share one token shape, so at most one
+        // lookup answers.
         if (_store.FindUnitByV2RayToken(token) is not var (order, unit) || unit.V2Ray is not { Uuid.Length: > 0 } account)
-        {
-            error = "سرویسی که قصد تمدید آن را دارید پیدا نشد.";
-            return null;
-        }
+            return ResolveWireGuardRenewal(line, buyerId, token, out error);
         if (order.UserId != buyerId)
         {
             // Same wording as "not found": telling a link holder that the service exists but belongs to
@@ -379,6 +378,52 @@ public class OrdersController : ControllerBase
         // linked category — only the panel below still has to match, which is the rule that actually matters:
         // a renewal rewrites the term of the client where it already lives.
         if (line.PlanId is not int planId || _store.GetV2RayPlan(planId) is not { } plan
+            || !plan.Active || plan.SoldOut)
+        {
+            error = "پلن انتخاب‌شده برای تمدید در دسترس نیست.";
+            return null;
+        }
+        if (plan.PanelId != account.PanelId)
+        {
+            error = "برای تمدید، باید پلنی از همان سرور فعلی سرویس را انتخاب کنید.";
+            return null;
+        }
+
+        return token;
+    }
+
+    // The WireGuard half of ResolveRenewal: the same rules against the W-UI catalogue and account record.
+    private string? ResolveWireGuardRenewal(OrderLineInput line, int buyerId, string token, out string? error)
+    {
+        error = null;
+        if (_store.FindUnitByWireGuardToken(token) is not var (order, unit) || unit.WireGuard is not { ClientId: > 0 } account)
+        {
+            error = "سرویسی که قصد تمدید آن را دارید پیدا نشد.";
+            return null;
+        }
+        if (order.UserId != buyerId)
+        {
+            error = "سرویسی که قصد تمدید آن را دارید پیدا نشد.";
+            return null;
+        }
+        if (account.PanelDeletedAtUtc is not null)
+        {
+            error = "این سرویس حذف شده است و دیگر قابل تمدید نیست؛ لطفاً سرویس جدید تهیه کنید.";
+            return null;
+        }
+        if (unit.ProductId != line.ProductId)
+        {
+            error = "پلن انتخاب‌شده برای این سرویس نیست.";
+            return null;
+        }
+
+        var product = _store.GetProduct(line.ProductId);
+        if (product is null || product.V2RayCategoryId > 0 || product.WireGuardCategoryId <= 0)
+        {
+            error = "این محصول قابل تمدید نیست.";
+            return null;
+        }
+        if (line.PlanId is not int planId || _store.GetWireGuardPlan(planId) is not { } plan
             || !plan.Active || plan.SoldOut)
         {
             error = "پلن انتخاب‌شده برای تمدید در دسترس نیست.";

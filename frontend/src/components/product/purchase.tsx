@@ -161,7 +161,8 @@ export function PurchaseProvider({ product: initialProduct, children }: { produc
   // A V2Ray-linked product sells the same plan list from several places, so the buyer picks WHERE first and
   // WHAT second. "Location" is the word for it: a customer choosing between Germany and the Netherlands is
   // not picking a kind of account, and the list grows as servers are added.
-  const isV2Ray = (product.v2RayCategoryId ?? 0) > 0;
+  // A WireGuard-linked product is sold exactly the same way (location first, then plan).
+  const isV2Ray = (product.v2RayCategoryId ?? 0) > 0 || (product.wireGuardCategoryId ?? 0) > 0;
   const typeHeading = isV2Ray ? "انتخاب لوکیشن" : "انتخاب نوع اکانت";
   const planHeading = isV2Ray ? "انتخاب پلن" : "انتخاب مدت زمان";
 

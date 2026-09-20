@@ -63,6 +63,8 @@ import type {
   WireGuardPlan,
   WireGuardPlanInput,
   WireGuardPublicPlan,
+  WireGuardConfig,
+  WireGuardRenewals,
   TelegramSettings,
   TelegramSettingsInput,
   Transaction,
@@ -925,6 +927,11 @@ export const api = {
     remove: (id: number) => request<void>(`/comments/${id}`, { method: "DELETE" }),
   },
   // The public config page for one provisioned V2Ray account, addressed by its own token.
+  // The public page for one provisioned W-UI customer, addressed by its own token (see /wg/[token]).
+  wireguardConfig: {
+    get: (token: string) => request<WireGuardConfig>(`/wireguard/config/${encodeURIComponent(token)}`),
+    renewals: (token: string) => request<WireGuardRenewals>(`/wireguard/config/${encodeURIComponent(token)}/renewals`),
+  },
   v2rayConfig: {
     get: (token: string) => request<V2RayConfig>(`/v2ray/config/${encodeURIComponent(token)}`),
     // The plans this service can be extended onto. Public like the page itself; placing the renewal order

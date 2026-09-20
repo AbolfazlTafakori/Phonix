@@ -45,12 +45,14 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
     private readonly ITelegramOrderService _orderBot;
     private readonly IStockFulfillmentService _stock;
     private readonly IV2RayFulfillmentService _v2ray;
+    private readonly IWireGuardFulfillmentService? _wireguard;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<TelegramReceiptService> _logger;
 
     public TelegramReceiptService(IDataStore store, IFileStorageService files, IUserMailer mailer,
         ITelegramOrderService orderBot, IStockFulfillmentService stock, IV2RayFulfillmentService v2ray,
-        IHttpClientFactory httpFactory, ILogger<TelegramReceiptService> logger)
+        IHttpClientFactory httpFactory, ILogger<TelegramReceiptService> logger,
+        IWireGuardFulfillmentService? wireguard = null)
     {
         _store = store;
         _files = files;
@@ -58,6 +60,7 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         _orderBot = orderBot;
         _stock = stock;
         _v2ray = v2ray;
+        _wireguard = wireguard;
         _httpFactory = httpFactory;
         _logger = logger;
     }
@@ -245,6 +248,7 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
         // V2Ray services build themselves on the panel, and only the accounts left over go to the orders group.
         _stock.AutoDeliverForTransaction(updated);
         _ = _v2ray.ProvisionForTransactionAsync(updated);
+        if (_wireguard is not null) _ = _wireguard.ProvisionForTransactionAsync(updated);
         _ = _orderBot.AnnounceApprovedOrderAsync(updated, ct);
         await AnswerCallbackAsync(token, callbackId, "✅ تأیید شد.", ct);
         if (chatId is not null && messageId is not null)

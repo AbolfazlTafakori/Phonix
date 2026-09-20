@@ -40,6 +40,13 @@ public sealed record V2RayServiceRef(
 // pass (or another server in the cluster) got there first, which is what makes each message go out once.
 public sealed record V2RayNotifyTarget(int UserId, string Email, string OrderCode, string Token);
 
+// The WireGuard sibling of V2RayServiceRef: the panel asks about a customer by ClientId, not by name.
+public sealed record WireGuardServiceRef(
+    int OrderId, int UnitId, string OrderCode, int UserId,
+    int PanelId, int ClientId, string Name, string Token,
+    DateTime? ExpiresAtUtc, long VolumeGb,
+    bool ExpiryWarned, bool VolumeWarned);
+
 // Live "needs attention" counters for the admin sidebar badges.
 public sealed record AdminBadgeCounts(
     int PendingOrders,

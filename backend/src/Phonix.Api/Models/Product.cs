@@ -119,6 +119,14 @@ public class Product
     // selectable plans come from this V2Ray category instead of its own Plans list. 0 = an ordinary product.
     // Adding a plan to that category makes it appear here automatically — the two stay linked, not copied.
     public int V2RayCategoryId { get; set; }
+    // The same link for the W-UI (WireGuard) catalogue. A product links to ONE of the two; when both are
+    // set the V2Ray link wins, since that projection runs first.
+    public int WireGuardCategoryId { get; set; }
+
+    // A product whose accounts are created on a panel at purchase time rather than taken from the stock pool.
+    // Every "no stock counter, no stock decrement, no stock refund" rule keys on this rather than on one of
+    // the two links, so a third panel kind is one more term here instead of one more branch everywhere.
+    public bool IsPanelProvisioned => V2RayCategoryId > 0 || WireGuardCategoryId > 0;
 
     public bool IsActive { get; set; } = true;
     public bool Featured { get; set; }

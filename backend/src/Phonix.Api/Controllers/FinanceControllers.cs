@@ -97,10 +97,11 @@ public class TransactionsController : ControllerBase
     private readonly ITelegramOrderService _orderBot;
     private readonly IStockFulfillmentService _stock;
     private readonly IV2RayFulfillmentService _v2ray;
+    private readonly IWireGuardFulfillmentService? _wireguard;
     private readonly IUserMailer _mailer;
     public TransactionsController(IDataStore store, IFileStorageService files, ITelegramReceiptService receiptBot,
         ITelegramOrderService orderBot, IStockFulfillmentService stock, IV2RayFulfillmentService v2ray,
-        IUserMailer mailer)
+        IUserMailer mailer, IWireGuardFulfillmentService? wireguard = null)
     {
         _store = store;
         _files = files;
@@ -108,6 +109,7 @@ public class TransactionsController : ControllerBase
         _orderBot = orderBot;
         _stock = stock;
         _v2ray = v2ray;
+        _wireguard = wireguard;
         _mailer = mailer;
     }
 
@@ -270,6 +272,7 @@ public class TransactionsController : ControllerBase
             // Not awaited: it talks to the panel over the network, and an approval that has already taken the
             // customer's money must not fail because that server is slow. It never throws.
             _ = _v2ray.ProvisionForTransactionAsync(updated);
+            if (_wireguard is not null) _ = _wireguard.ProvisionForTransactionAsync(updated);
             _ = _orderBot.AnnounceApprovedOrderAsync(updated);
         }
         return updated;

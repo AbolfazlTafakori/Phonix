@@ -96,6 +96,10 @@ try
     // Once provisioned, each account is watched: the customer is warned before its time or its traffic runs
     // out, and an account whose TIME lapsed without a renewal is cleared off the panel after the grace period.
     builder.Services.AddHostedService<V2RayMonitorWorker>();
+    // The same three pieces for the W-UI (WireGuard) panels.
+    builder.Services.AddSingleton<IWireGuardFulfillmentService, WireGuardFulfillmentService>();
+    builder.Services.AddHostedService<WireGuardProvisionWorker>();
+    builder.Services.AddHostedService<WireGuardMonitorWorker>();
     // Deposit-receipt review over Telegram: pushes new receipts to the admin chat with approve/reject
     // buttons and long-polls for the admin's decision, applying it through the same store path the panel uses.
     builder.Services.AddSingleton<ITelegramReceiptService, TelegramReceiptService>();

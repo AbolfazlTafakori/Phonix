@@ -60,16 +60,19 @@ public sealed class TelegramOrderService : ITelegramOrderService
     private readonly IUserMailer _mailer;
     private readonly IStockFulfillmentService _stock;
     private readonly IV2RayFulfillmentService _v2ray;
+    private readonly IWireGuardFulfillmentService? _wireguard;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<TelegramOrderService> _logger;
 
     public TelegramOrderService(IDataStore store, IUserMailer mailer, IStockFulfillmentService stock,
-        IV2RayFulfillmentService v2ray, IHttpClientFactory httpFactory, ILogger<TelegramOrderService> logger)
+        IV2RayFulfillmentService v2ray, IHttpClientFactory httpFactory, ILogger<TelegramOrderService> logger,
+        IWireGuardFulfillmentService? wireguard = null)
     {
         _store = store;
         _mailer = mailer;
         _stock = stock;
         _v2ray = v2ray;
+        _wireguard = wireguard;
         _httpFactory = httpFactory;
         _logger = logger;
     }
@@ -108,7 +111,7 @@ public sealed class TelegramOrderService : ITelegramOrderService
                 // An undelivered V2Ray account is on its way to being created by the system. Posting it now
                 // would ask the group to fulfil by hand something they cannot fulfil, and the message would be
                 // wrong within the minute; it is posted when the service exists instead.
-                if (!unit.Delivered && _v2ray.Handles(unit)) continue;
+                if (!unit.Delivered && (_v2ray.Handles(unit) || (_wireguard?.Handles(unit) ?? false))) continue;
                 if (!_store.TryClaimUnitBotNotification(order.Id, unit.Id)) continue;
 
                 string markup;
@@ -198,7 +201,8 @@ public sealed class TelegramOrderService : ITelegramOrderService
     // What the panel said the last time we tried, so the group can tell a server that is down from a plan that
     // is misconfigured without opening the admin panel.
     private static string FailureReason(OrderUnit unit) =>
-        unit.V2Ray?.LastError is { Length: > 0 } e ? $"\n<code>{Esc(e)}</code>" : "";
+        unit.V2Ray?.LastError is { Length: > 0 } e ? $"\n<code>{Esc(e)}</code>"
+        : unit.WireGuard?.LastError is { Length: > 0 } w ? $"\n<code>{Esc(w)}</code>" : "";
 
     public async Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default)
     {

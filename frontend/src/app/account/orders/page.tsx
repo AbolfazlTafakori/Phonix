@@ -293,6 +293,21 @@ export default function OrdersPage() {
                                     مشاهده مشخصات و مصرف سرویس
                                   </a>
                                 )}
+                                {/* Same for a WireGuard service: its own page at /wg/{token}. */}
+                                {u.wireGuard?.token && (
+                                  <a
+                                    href={`/wg/${u.wireGuard.token}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-xl text-[13px] font-black text-white transition hover:brightness-105"
+                                    style={{ background: "var(--ac-btn)" }}
+                                  >
+                                    <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z" /><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20z" />
+                                    </svg>
+                                    مشاهده کانفیگ و مصرف سرویس
+                                  </a>
+                                )}
                               </div>
                             );
                           })

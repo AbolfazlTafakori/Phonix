@@ -35,7 +35,11 @@ public static class OrderNotices
 
     // A V2Ray service running low on time, on traffic, or on both. It links straight to the config page,
     // where the live numbers are and where the renew button is — not to the order, which says less.
-    public static Notice V2RayRunningOut(string orderCode, string token, string? expiresFa, string? remainingFa)
+    public static Notice V2RayRunningOut(string orderCode, string token, string? expiresFa, string? remainingFa) =>
+        PanelServiceRunningOut(orderCode, $"/config/{token}", expiresFa, remainingFa);
+
+    // The same notice for any panel-provisioned service; the link is the service's own page.
+    public static Notice PanelServiceRunningOut(string orderCode, string link, string? expiresFa, string? remainingFa)
     {
         var body = (expiresFa, remainingFa) switch
         {
@@ -44,7 +48,7 @@ public static class OrderNotices
             (null, not null) => $"از حجم سرویس سفارش {orderCode} تنها {remainingFa} باقی مانده است.",
             _ => $"سرویس سفارش {orderCode} رو به پایان است.",
         };
-        return new("سرویس شما رو به پایان است", $"{body} برای جلوگیری از قطع شدن، همین حالا تمدید کنید.", $"/config/{token}");
+        return new("سرویس شما رو به پایان است", $"{body} برای جلوگیری از قطع شدن، همین حالا تمدید کنید.", link);
     }
 
     // Staff turned down the details a buyer filed for one seat. The reason is the whole point of the message,

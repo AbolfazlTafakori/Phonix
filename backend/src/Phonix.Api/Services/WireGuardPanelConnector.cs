@@ -56,6 +56,33 @@ public sealed record WireGuardOpResult(bool Ok, string? Error = null)
     public static WireGuardOpResult Fail(string error) => new(false, error);
 }
 
+// The limits a renewal writes back onto an existing customer. Identity, devices, keys and the subscription
+// link all stay as they are; only the term moves.
+public sealed record WireGuardClientLimits(long TotalGb, int DurationDays, int DeviceLimit);
+
+// `ExpiresAt` echoes what the panel now holds, so the shop's copy is stamped with what was written.
+public sealed record WireGuardRenewResult(bool Ok, string? Error = null, DateTimeOffset? ExpiresAt = null)
+{
+    public static WireGuardRenewResult Fail(string error) => new(false, error);
+}
+
+// Every customer on one panel with their counters, read in a few paged calls, keyed by W-UI client id.
+public sealed record WireGuardPanelSnapshot(bool Ok, string? Error = null, IReadOnlyDictionary<int, WireGuardClientState>? Clients = null)
+{
+    public static WireGuardPanelSnapshot Fail(string error) => new(false, error);
+}
+
+// One device's configuration as the panel hands it out: the file the customer imports (or scans as a QR),
+// named after the device and the tunnel it belongs to. OpenVPN devices also carry a username/password.
+public sealed record WireGuardProfile(
+    int DeviceId, string DeviceName, int InterfaceId, string InterfaceName, string Protocol,
+    string Filename, string Body, string Username = "", string Password = "");
+
+public sealed record WireGuardProfilesResult(bool Ok, string? Error = null, IReadOnlyList<WireGuardProfile>? Profiles = null, bool Missing = false)
+{
+    public static WireGuardProfilesResult Fail(string error) => new(false, error);
+}
+
 // How to authenticate to a panel. A `wui_…` access token is preferred: W-UI treats it as a machine
 // credential and skips the session cookie binding a browser login carries.
 public sealed record WireGuardCredentials(string Url, string Username, string Password, string ApiToken = "")
@@ -89,6 +116,18 @@ public interface IWireGuardPanelConnector
 
     // Removes ONE customer and releases their addresses on every tunnel. Other customers are untouched.
     Task<WireGuardOpResult> DeleteClientAsync(WireGuardProvider provider, WireGuardCredentials credentials, int clientId, CancellationToken ct = default);
+
+    // Writes new limits onto an existing customer, re-activates them and clears their used traffic — which
+    // is exactly what renewing means. Renewing early keeps the days the customer still has.
+    Task<WireGuardRenewResult> RenewClientAsync(WireGuardProvider provider, WireGuardCredentials credentials, int clientId, WireGuardClientLimits limits, CancellationToken ct = default);
+
+    // Every customer on the panel with their counters, so the monitor costs a handful of requests per panel
+    // per cycle rather than one per account.
+    Task<WireGuardPanelSnapshot> GetSnapshotAsync(WireGuardProvider provider, WireGuardCredentials credentials, CancellationToken ct = default);
+
+    // The configuration file of every device the customer holds — what the config page shows and turns into
+    // QR codes.
+    Task<WireGuardProfilesResult> GetProfilesAsync(WireGuardProvider provider, WireGuardCredentials credentials, int clientId, CancellationToken ct = default);
 
     static string? NormalizeUrl(string? raw)
     {
@@ -289,20 +328,7 @@ public sealed class WireGuardPanelConnector : IWireGuardPanelConnector
             if (!ok) return WireGuardClientState.Fail(AuthOrStatusError(status, "خواندن وضعیت مشتری ممکن نشد"));
 
             using var doc = JsonDocument.Parse(body);
-            var root = doc.RootElement;
-            DateTimeOffset? expires = null;
-            if (root.TryGetProperty("expiresAt", out var exp) && exp.ValueKind == JsonValueKind.String
-                && DateTimeOffset.TryParse(exp.GetString(), out var parsed))
-                expires = parsed;
-
-            return new WireGuardClientState(
-                true, null,
-                UsedBytes: Num(root, "usedBytes"),
-                QuotaBytes: Num(root, "quotaBytes"),
-                ExpiresAt: expires,
-                Status: ReadString(root, "status"),
-                DeviceLimit: (int)Num(root, "deviceLimit"),
-                OnlineNow: (int)Num(root, "onlineNow"));
+            return ReadClientState(doc.RootElement);
         }
         catch (JsonException)
         {
@@ -339,6 +365,200 @@ public sealed class WireGuardPanelConnector : IWireGuardPanelConnector
         {
             return WireGuardOpResult.Fail(FriendlyError(ex, baseUrl, ct));
         }
+    }
+
+    public async Task<WireGuardRenewResult> RenewClientAsync(WireGuardProvider provider, WireGuardCredentials creds, int clientId, WireGuardClientLimits limits, CancellationToken ct = default)
+    {
+        if (provider != WireGuardProvider.WUi)
+            return WireGuardRenewResult.Fail("این نوع پنل پشتیبانی نمی‌شود.");
+        var baseUrl = IWireGuardPanelConnector.NormalizeUrl(creds.Url);
+        if (baseUrl is null) return WireGuardRenewResult.Fail("آدرس پنل معتبر نیست.");
+        if (clientId <= 0) return WireGuardRenewResult.Fail("شناسه مشتری مشخص نیست.");
+
+        using var client = NewClient();
+        try
+        {
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
+            if (error is not null) return WireGuardRenewResult.Fail(error);
+
+            // Read first: renewing EARLY must not throw away the days the customer still has, so the new
+            // term starts at the current expiry when that is still ahead, and at now when it has passed.
+            var (ok, body, status) = await GetAsync(session!, $"/api/clients/{clientId}", ct);
+            if (status == 404) return WireGuardRenewResult.Fail("این مشتری روی پنل پیدا نشد.");
+            if (!ok) return WireGuardRenewResult.Fail(AuthOrStatusError(status, "خواندن مشتری ممکن نشد"));
+
+            DateTimeOffset? current;
+            using (var doc = JsonDocument.Parse(body))
+                current = ReadClientState(doc.RootElement).ExpiresAt;
+
+            var now = DateTimeOffset.UtcNow;
+            DateTimeOffset? expiry = limits.DurationDays <= 0
+                ? null
+                : (current is { } c && c > now ? c : now).AddDays(limits.DurationDays);
+
+            // PATCH takes only what changes, and only fields every W-UI build knows (the panel rejects a
+            // request carrying one it doesn't). `expiresAt: null` is an explicit "never expires"; the customer
+            // is put back to active because the panel marks a client whose time or traffic ran out.
+            var payload = new Dictionary<string, object?>
+            {
+                ["quotaBytes"] = IWireGuardPanelConnector.GbToBytes(limits.TotalGb),
+                ["deviceLimit"] = Math.Max(1, limits.DeviceLimit),
+                ["expiresAt"] = expiry?.UtcDateTime.ToString("O"),
+                ["status"] = "active",
+            };
+            using var req = new HttpRequestMessage(HttpMethod.Patch, $"{baseUrl}/api/clients/{clientId}")
+            {
+                Content = new StringContent(JsonSerializer.Serialize(payload, JsonOpts), Encoding.UTF8, "application/json"),
+            };
+            using var resp = await session!.Client.SendAsync(req, ct);
+            var respBody = await resp.Content.ReadAsStringAsync(ct);
+            if (!resp.IsSuccessStatusCode)
+                return WireGuardRenewResult.Fail(ReadError(respBody) ?? $"تمدید مشتری روی پنل ناموفق بود (کد {(int)resp.StatusCode}).");
+
+            // The new quota is what the customer bought, so the old term's usage goes with it. Not fatal: the
+            // limits are already in place and a failed reset is recoverable by hand, whereas failing here
+            // would run the whole renewal again and extend the expiry twice.
+            using var reset = await session.Client.PostAsync($"{baseUrl}/api/clients/{clientId}/reset",
+                new StringContent("{}", Encoding.UTF8, "application/json"), ct);
+            if (!reset.IsSuccessStatusCode)
+                _logger.LogWarning("Renewed W-UI client {Id} on {Url} but the traffic reset answered {Status}.", clientId, baseUrl, (int)reset.StatusCode);
+
+            return new WireGuardRenewResult(true, null, expiry);
+        }
+        catch (JsonException)
+        {
+            return WireGuardRenewResult.Fail("پاسخ پنل قابل خواندن نبود.");
+        }
+        catch (Exception ex)
+        {
+            return WireGuardRenewResult.Fail(FriendlyError(ex, baseUrl, ct));
+        }
+    }
+
+    public async Task<WireGuardPanelSnapshot> GetSnapshotAsync(WireGuardProvider provider, WireGuardCredentials creds, CancellationToken ct = default)
+    {
+        if (provider != WireGuardProvider.WUi)
+            return WireGuardPanelSnapshot.Fail("این نوع پنل پشتیبانی نمی‌شود.");
+        var baseUrl = IWireGuardPanelConnector.NormalizeUrl(creds.Url);
+        if (baseUrl is null) return WireGuardPanelSnapshot.Fail("آدرس پنل معتبر نیست.");
+
+        using var client = NewClient();
+        try
+        {
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
+            if (error is not null) return WireGuardPanelSnapshot.Fail(error);
+
+            // W-UI caps a page at 200; a shop's worth of customers is a few pages, walked until the total
+            // the panel reports has been seen.
+            var clients = new Dictionary<int, WireGuardClientState>();
+            for (var page = 1; page <= 100; page++)
+            {
+                var (ok, body, status) = await GetAsync(session!, $"/api/clients?page={page}&perPage=200", ct);
+                if (!ok) return WireGuardPanelSnapshot.Fail(AuthOrStatusError(status, "خواندن مشتری‌ها ممکن نشد"));
+
+                using var doc = JsonDocument.Parse(body);
+                var root = doc.RootElement;
+                if (!root.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array) break;
+                var total = Num(root, "total");
+                foreach (var el in items.EnumerateArray())
+                {
+                    var id = (int)Num(el, "id");
+                    if (id <= 0) continue;
+                    clients[id] = ReadClientState(el);
+                }
+                if (items.GetArrayLength() == 0 || clients.Count >= total) break;
+            }
+            return new WireGuardPanelSnapshot(true, null, clients);
+        }
+        catch (JsonException)
+        {
+            return WireGuardPanelSnapshot.Fail("پاسخ پنل قابل خواندن نبود.");
+        }
+        catch (Exception ex)
+        {
+            return WireGuardPanelSnapshot.Fail(FriendlyError(ex, baseUrl, ct));
+        }
+    }
+
+    public async Task<WireGuardProfilesResult> GetProfilesAsync(WireGuardProvider provider, WireGuardCredentials creds, int clientId, CancellationToken ct = default)
+    {
+        if (provider != WireGuardProvider.WUi)
+            return WireGuardProfilesResult.Fail("این نوع پنل پشتیبانی نمی‌شود.");
+        var baseUrl = IWireGuardPanelConnector.NormalizeUrl(creds.Url);
+        if (baseUrl is null) return WireGuardProfilesResult.Fail("آدرس پنل معتبر نیست.");
+        if (clientId <= 0) return WireGuardProfilesResult.Fail("شناسه مشتری مشخص نیست.");
+
+        using var client = NewClient();
+        try
+        {
+            var (session, error) = await OpenSessionAsync(client, baseUrl, creds, ct);
+            if (error is not null) return WireGuardProfilesResult.Fail(error);
+
+            // The customer record lists their devices (W-UI calls each one an account: one per tunnel);
+            // the profile of each is a separate read.
+            var (ok, body, status) = await GetAsync(session!, $"/api/clients/{clientId}", ct);
+            if (status == 404) return new WireGuardProfilesResult(false, "این مشتری روی پنل پیدا نشد.", null, Missing: true);
+            if (!ok) return WireGuardProfilesResult.Fail(AuthOrStatusError(status, "خواندن مشتری ممکن نشد"));
+
+            var (ifOk, ifBody, _) = await GetAsync(session, "/api/interfaces", ct);
+            var interfaces = ifOk ? ReadInterfaces(ifBody).ToDictionary(i => i.Id, i => i) : new Dictionary<int, WireGuardInterface>();
+
+            var devices = new List<(int id, string name, int ifaceId, string username, string password)>();
+            using (var doc = JsonDocument.Parse(body))
+            {
+                if (doc.RootElement.TryGetProperty("accounts", out var accounts) && accounts.ValueKind == JsonValueKind.Array)
+                    foreach (var el in accounts.EnumerateArray())
+                    {
+                        var id = (int)Num(el, "id");
+                        if (id <= 0) continue;
+                        devices.Add((id, ReadString(el, "deviceName"), (int)Num(el, "interfaceId"), ReadString(el, "username"), ReadString(el, "password")));
+                    }
+            }
+
+            var profiles = new List<WireGuardProfile>();
+            foreach (var d in devices)
+            {
+                var (pOk, pBody, _) = await GetAsync(session, $"/api/devices/{d.id}/profile", ct);
+                if (!pOk) continue;
+                using var pdoc = JsonDocument.Parse(pBody);
+                var root = pdoc.RootElement;
+                var iface = interfaces.GetValueOrDefault(d.ifaceId);
+                var username = ReadString(root, "username");
+                var secret = ReadString(root, "secret");
+                profiles.Add(new WireGuardProfile(
+                    d.id, d.name, d.ifaceId,
+                    iface?.Name ?? "",
+                    iface is null ? "" : (iface.Protocol == "wireguard" && iface.Mode == "amnezia" ? "amneziawg" : iface.Protocol),
+                    ReadString(root, "filename"), ReadString(root, "body"),
+                    username.Length > 0 ? username : d.username,
+                    secret.Length > 0 ? secret : d.password));
+            }
+            return new WireGuardProfilesResult(true, null, profiles);
+        }
+        catch (JsonException)
+        {
+            return WireGuardProfilesResult.Fail("پاسخ پنل قابل خواندن نبود.");
+        }
+        catch (Exception ex)
+        {
+            return WireGuardProfilesResult.Fail(FriendlyError(ex, baseUrl, ct));
+        }
+    }
+
+    private static WireGuardClientState ReadClientState(JsonElement root)
+    {
+        DateTimeOffset? expires = null;
+        if (root.TryGetProperty("expiresAt", out var exp) && exp.ValueKind == JsonValueKind.String
+            && DateTimeOffset.TryParse(exp.GetString(), out var parsed))
+            expires = parsed;
+        return new WireGuardClientState(
+            true, null,
+            UsedBytes: Num(root, "usedBytes"),
+            QuotaBytes: Num(root, "quotaBytes"),
+            ExpiresAt: expires,
+            Status: ReadString(root, "status"),
+            DeviceLimit: (int)Num(root, "deviceLimit"),
+            OnlineNow: (int)Num(root, "onlineNow"));
     }
 
     // ── Session ─────────────────────────────────────────────────────────────────────────────────────
