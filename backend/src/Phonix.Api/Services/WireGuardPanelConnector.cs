@@ -260,14 +260,32 @@ public sealed class WireGuardPanelConnector : IWireGuardPanelConnector
             if (targets.Count == 0)
                 return WireGuardClientResult.Fail("تانل‌های انتخاب‌شده روی پنل پیدا نشدند یا غیرفعال‌اند.");
 
+            // W-UI does not refuse a repeated name, so a creation whose result was lost (a crash between the
+            // panel answering and the shop recording it) would quietly make a SECOND customer for one
+            // purchase on retry. Names are unique per purchase on our side, so an exact match is that
+            // lost customer: adopt it instead of creating again.
+            var existing = await FindClientByNameAsync(session, name, ct);
+            if (existing > 0)
+            {
+                var (subOk0, subBody0, _) = await GetAsync(session, $"/api/clients/{existing}/subscription", ct);
+                return new WireGuardClientResult(true, null, existing,
+                    subOk0 ? ReadString(subBody0, "token") : "", subOk0 ? ReadString(subBody0, "link") : "", targets.Count);
+            }
+
             // W-UI's CreateInput. `expiresAt` is a fixed date; with `startOnFirstUse` the panel wants
             // `durationDays` instead and starts the clock on the first handshake.
+            //
+            // `deviceNames` is sent explicitly: a plan for N devices is N configuration files, and while
+            // current W-UI seeds that many from deviceLimit on its own, older builds seed exactly one and
+            // the customer of a two-device plan would be handed a single file.
+            var devices = Math.Max(1, req.DeviceLimit);
             var payload = new Dictionary<string, object?>
             {
                 ["name"] = name,
                 ["interfaceIds"] = targets,
                 ["quotaBytes"] = IWireGuardPanelConnector.GbToBytes(req.TotalGb),
-                ["deviceLimit"] = Math.Max(1, req.DeviceLimit),
+                ["deviceLimit"] = devices,
+                ["deviceNames"] = Enumerable.Range(1, devices).Select(i => $"device-{i}").ToList(),
                 ["resetCycle"] = "none",
                 ["note"] = "Phonix",
             };
@@ -543,6 +561,23 @@ public sealed class WireGuardPanelConnector : IWireGuardPanelConnector
         {
             return WireGuardProfilesResult.Fail(FriendlyError(ex, baseUrl, ct));
         }
+    }
+
+    // The id of the customer with exactly this name, or 0. The list endpoint's search is a substring match,
+    // so the exact comparison happens here.
+    private static async Task<int> FindClientByNameAsync(Session session, string name, CancellationToken ct)
+    {
+        var (ok, body, _) = await GetAsync(session, $"/api/clients?search={Uri.EscapeDataString(name)}&perPage=50", ct);
+        if (!ok) return 0;
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            if (!doc.RootElement.TryGetProperty("items", out var items) || items.ValueKind != JsonValueKind.Array) return 0;
+            foreach (var el in items.EnumerateArray())
+                if (string.Equals(ReadString(el, "name"), name, StringComparison.Ordinal)) return (int)Num(el, "id");
+        }
+        catch (JsonException) { /* treat as not found; creation proceeds */ }
+        return 0;
     }
 
     private static WireGuardClientState ReadClientState(JsonElement root)
