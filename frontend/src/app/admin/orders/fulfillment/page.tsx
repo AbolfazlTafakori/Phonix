@@ -4,7 +4,7 @@ import { useState } from "react";
 import { api } from "@/lib/api";
 import { usePoll } from "@/lib/usePoll";
 import type { Order, OrderUnit } from "@/lib/types";
-import { formatToman } from "@/lib/format";
+import { formatToman, toFa } from "@/lib/format";
 import { Card, PageHeader, Spinner, Modal, Field, Toggle, inputCls } from "@/components/admin/ui";
 import { Pagination, usePaged } from "@/components/admin/Pagination";
 import AdminIcon from "@/components/admin/AdminIcon";
@@ -24,6 +24,23 @@ export default function OrderFulfillmentPage() {
   const [emailBody, setEmailBody] = useState("");
   const [busy, setBusy] = useState(false);
   const [pullError, setPullError] = useState("");
+
+  // Retrying a panel service is per-unit: several rows can be on screen and the operator may push one while
+  // reading another, so the spinner and the error belong to the unit, not to the page.
+  const [provisioning, setProvisioning] = useState<number | null>(null);
+  const [provisionError, setProvisionError] = useState<Record<number, string>>({});
+
+  async function provision(order: Order, unit: OrderUnit) {
+    setProvisioning(unit.id);
+    setProvisionError((p) => ({ ...p, [unit.id]: "" }));
+    try {
+      applyOrder(await api.orders.provisionUnit(order.id, unit.id));
+    } catch (e) {
+      setProvisionError((p) => ({ ...p, [unit.id]: e instanceof Error ? e.message : "ساخت سرویس ناموفق بود" }));
+    } finally {
+      setProvisioning(null);
+    }
+  }
 
   // Cancelling one account of an order (the service turned out to be unavailable). Separate from `target` so
   // the two flows can never be confused: this one pays money back and cannot be undone.
@@ -221,6 +238,30 @@ export default function OrderFulfillmentPage() {
                     {u.handledBy && !u.delivered && (
                       <p className="mt-2 text-[11px] text-amber-300/70">پیش‌نویس ذخیره‌شده توسط {u.handledBy}</p>
                     )}
+
+                    {/* A panel-provisioned account builds itself; when it hasn't, this is the only place an
+                        operator can see why and push it along. */}
+                    {!u.delivered && !u.rejected && (u.v2Ray || u.wireGuard) && (() => {
+                      const acc = u.v2Ray ?? u.wireGuard!;
+                      const err = provisionError[u.id] || acc.lastError || "";
+                      return (
+                        <div className="mt-2 rounded-md border border-amber-500/25 bg-amber-500/[0.06] p-2">
+                          <p className="text-[11px] font-bold text-amber-300">
+                            در انتظار ساخت روی پنل
+                            {acc.attempts > 0 && <span className="font-normal text-amber-300/70"> · {toFa(acc.attempts)} تلاش</span>}
+                          </p>
+                          {err && <p className="mt-1 text-[11px] leading-6 text-rose-300/90">{err}</p>}
+                          <button
+                            onClick={() => provision(o, u)}
+                            disabled={provisioning === u.id}
+                            className="mt-2 flex h-8 items-center gap-1.5 rounded-lg border border-amber-400/30 px-3 text-[11px] font-bold text-amber-200 transition hover:bg-amber-500/10 disabled:opacity-60"
+                          >
+                            {provisioning === u.id ? <Spinner className="h-3.5 w-3.5" /> : <AdminIcon name="refresh" className="h-3.5 w-3.5" />}
+                            تلاش دوباره برای ساخت سرویس
+                          </button>
+                        </div>
+                      );
+                    })()}
 
                     {!u.rejected && (
                       <div className="mt-3 flex gap-2">

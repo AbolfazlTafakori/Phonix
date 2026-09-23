@@ -518,6 +518,10 @@ export const api = {
       request<Order>(`/orders/${id}/deliver`, { method: "POST", body: json(body) }),
     saveUnitDraft: (id: number, unitId: number, body: { content: string }) =>
       request<Order>(`/orders/${id}/units/${unitId}/draft`, { method: "POST", body: json({ ...body, email: false }) }),
+    // Builds a V2Ray/WireGuard unit's service on the panel right now and waits for the answer; rejects with
+    // the panel's own message when it fails.
+    provisionUnit: (id: number, unitId: number) =>
+      request<Order>(`/orders/${id}/units/${unitId}/provision`, { method: "POST" }),
     deliverUnit: (id: number, unitId: number, body: { content: string; email: boolean; emailSubject?: string; emailBody?: string; final?: boolean }) =>
       request<Order>(`/orders/${id}/units/${unitId}/deliver`, { method: "POST", body: json(body) }),
     // What cancelling this one account would refund, asked before the operator confirms. The split lives in

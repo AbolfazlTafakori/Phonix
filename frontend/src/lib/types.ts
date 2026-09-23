@@ -1186,6 +1186,9 @@ export type OrderUnit = {
 
 export type OrderUnitWireGuard = {
   token: string;
+  attempts: number;
+  lastError: string | null;
+  lastAttemptAtUtc: string | null;
   clientId: number;
   name: string;
   subUrl: string;
@@ -1202,6 +1205,11 @@ export type OrderUnitWireGuard = {
 export type OrderUnitV2Ray = {
   // Empty on a renewal's own unit: the service is still reached through the original config link.
   token: string;
+  // How provisioning is going, for the admin's fulfillment view: how many attempts, and why the last one
+  // failed (empty once it succeeds).
+  attempts: number;
+  lastError: string | null;
+  lastAttemptAtUtc: string | null;
   uuid: string;
   subUrl: string;
   protocol: string;

@@ -572,6 +572,39 @@ public class OrdersController : ControllerBase
         return RevealInputs(order);
     }
 
+    // Builds the panel service for ONE unit, now, and waits for the answer.
+    //
+    // Provisioning is otherwise fire-and-forget (an approval must never fail because a panel is slow), which
+    // leaves an operator looking at an undelivered order with no way to push it along and no way to see why.
+    // This is that button: it runs the same code the approval and the sweep run, and — because the operator
+    // is standing there — it AWAITS the result and reports the panel's own words when it fails.
+    [Authorize(Roles = AuthExtensions.StaffRoles)]
+    [AdminPermission("orders", "orders-fulfillment")]
+    [HttpPost("{id:int}/units/{unitId:int}/provision")]
+    public async Task<ActionResult<Order>> ProvisionUnit(int id, int unitId, CancellationToken ct)
+    {
+        var order = _store.GetOrder(id);
+        var unit = order?.Units.FirstOrDefault(u => u.Id == unitId);
+        if (order is null || unit is null) return NotFound("سفارش یا اکانت آن پیدا نشد.");
+        if (unit.Delivered) return BadRequest("این اکانت قبلاً تحویل شده است.");
+        if (unit.Rejected) return BadRequest("این اکانت لغو شده است.");
+
+        var ok = _v2ray is not null && _v2ray.Handles(unit)
+            ? await _v2ray.ProvisionAsync(order, unit, ct)
+            : _wireguard is not null && _wireguard.Handles(unit)
+                ? await _wireguard.ProvisionAsync(order, unit, ct)
+                : throw new InvalidOperationException("not a panel unit");
+
+        var fresh = _store.GetOrder(id);
+        if (ok) return RevealInputs(fresh ?? order);
+
+        // The attempt recorded why on the unit; hand that straight to the operator rather than a generic
+        // failure they would then have to go and look up in the logs.
+        var after = fresh?.Units.FirstOrDefault(u => u.Id == unitId);
+        var reason = after?.V2Ray?.LastError ?? after?.WireGuard?.LastError;
+        return BadRequest(string.IsNullOrWhiteSpace(reason) ? "ساخت سرویس روی پنل ناموفق بود." : reason);
+    }
+
     // What the buyer would get back if THIS account were cancelled now. Read-only, and computed by the same
     // OrderRules the cancellation itself uses, so the number shown in the confirmation is the number paid.
     [Authorize(Roles = AuthExtensions.StaffRoles)]
