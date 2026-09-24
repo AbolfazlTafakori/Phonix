@@ -407,13 +407,86 @@ public sealed class WireGuardPanelConnector : IWireGuardPanelConnector
             if (!ok) return WireGuardRenewResult.Fail(AuthOrStatusError(status, "خواندن مشتری ممکن نشد"));
 
             DateTimeOffset? current;
+            int currentDeviceLimit;
             using (var doc = JsonDocument.Parse(body))
-                current = ReadClientState(doc.RootElement).ExpiresAt;
+            {
+                var state = ReadClientState(doc.RootElement);
+                current = state.ExpiresAt;
+                currentDeviceLimit = state.DeviceLimit;
+            }
 
             var now = DateTimeOffset.UtcNow;
             DateTimeOffset? expiry = limits.DurationDays <= 0
                 ? null
                 : (current is { } c && c > now ? c : now).AddDays(limits.DurationDays);
+
+            // Renewing onto a BIGGER plan is more devices as well as more traffic, and on W-UI a device is a
+            // configuration file the customer imports — raising deviceLimit alone would leave someone who paid
+            // for three still holding one.
+            //
+            // The order below is the whole of the care here. The panel refuses to issue a file past the limit
+            // the client CURRENTLY holds ("already has 1 of 1 devices"), so the allowance has to be raised
+            // first; but the term must be written LAST, because writing it is the one step that cannot be
+            // repeated safely — a retry after a half-finished renewal would stack a second month onto the
+            // expiry. Raising the allowance and issuing the missing files are both safe to repeat, so a
+            // failure anywhere before the term leaves the customer exactly where they started.
+            //
+            // Renewing onto a SMALLER plan takes no file away: the limit is what the panel enforces on
+            // connections at once, and deleting a file the customer may already have imported would break a
+            // device they are using. The final write lowers the limit instead.
+            var devices = ReadDevices(body);
+            var names = devices.Select(d => d.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var wanted = Math.Max(1, limits.DeviceLimit);
+
+            if (devices.Count < wanted)
+            {
+                // The panel refuses to issue a file past the limit the client currently holds ("already has
+                // 1 of 1 devices"), so the allowance is raised before the files are asked for.
+                if (currentDeviceLimit < wanted)
+                {
+                    var raise = new Dictionary<string, object?> { ["deviceLimit"] = wanted, ["status"] = "active" };
+                    using var lift = new HttpRequestMessage(HttpMethod.Patch, $"{baseUrl}/api/clients/{clientId}")
+                    {
+                        Content = new StringContent(JsonSerializer.Serialize(raise, JsonOpts), Encoding.UTF8, "application/json"),
+                    };
+                    using var lifted = await session!.Client.SendAsync(lift, ct);
+                    if (!lifted.IsSuccessStatusCode)
+                        return WireGuardRenewResult.Fail(ReadError(await lifted.Content.ReadAsStringAsync(ct))
+                            ?? $"افزایش تعداد دستگاه این سرویس ممکن نشد (کد {(int)lifted.StatusCode}).");
+                }
+
+                for (var next = 1; names.Count < wanted && next <= wanted + 64; next++)
+                {
+                    var deviceName = $"device-{next}";
+                    if (!names.Add(deviceName)) continue;   // that one already exists; try the next number
+
+                    using var add = await session!.Client.PostAsync($"{baseUrl}/api/clients/{clientId}/devices",
+                        new StringContent(JsonSerializer.Serialize(new { name = deviceName }, JsonOpts), Encoding.UTF8, "application/json"), ct);
+                    if (!add.IsSuccessStatusCode)
+                        return WireGuardRenewResult.Fail(ReadError(await add.Content.ReadAsStringAsync(ct))
+                            ?? $"افزودن دستگاه تازه به این سرویس ممکن نشد (کد {(int)add.StatusCode}).");
+                }
+            }
+            else if (devices.Count > wanted)
+            {
+                // Renewing onto a SMALLER plan has to give the files back: the panel refuses a limit below the
+                // number already issued ("Limit 1 is below the 3 devices already issued"), and a customer who
+                // now pays for one device should hold one.
+                //
+                // The ones kept are the EARLIEST issued — the first file a customer imports is the one they
+                // are most likely still using, and the later ones are what the upgrade added. A device is one
+                // file per tunnel, so every account carrying its name goes with it.
+                foreach (var device in devices.Skip(wanted))
+                {
+                    foreach (var accountId in device.AccountIds)
+                    {
+                        using var drop = await session!.Client.DeleteAsync($"{baseUrl}/api/devices/{accountId}", ct);
+                        if (!drop.IsSuccessStatusCode && drop.StatusCode != HttpStatusCode.NotFound)
+                            return WireGuardRenewResult.Fail(ReadError(await drop.Content.ReadAsStringAsync(ct))
+                                ?? $"کم‌کردن تعداد دستگاه این سرویس ممکن نشد (کد {(int)drop.StatusCode}).");
+                    }
+                }
+            }
 
             // PATCH takes only what changes, and only fields every W-UI build knows (the panel rejects a
             // request carrying one it doesn't). `expiresAt: null` is an explicit "never expires"; the customer
@@ -579,6 +652,36 @@ public sealed class WireGuardPanelConnector : IWireGuardPanelConnector
         }
         catch (JsonException) { /* treat as not found; creation proceeds */ }
         return 0;
+    }
+
+    // The devices a customer holds, earliest issued first. W-UI issues one account per (device × tunnel), so
+    // a device is a NAME and the accounts under it are its file on each tunnel — the distinct names, not the
+    // account count, are how many configuration files the customer has.
+    private static List<(string Name, List<int> AccountIds)> ReadDevices(string clientBody)
+    {
+        var byName = new Dictionary<string, List<int>>(StringComparer.OrdinalIgnoreCase);
+        var order = new List<string>();
+        try
+        {
+            using var doc = JsonDocument.Parse(clientBody);
+            if (doc.RootElement.TryGetProperty("accounts", out var accounts) && accounts.ValueKind == JsonValueKind.Array)
+                foreach (var el in accounts.EnumerateArray())
+                {
+                    var name = ReadString(el, "deviceName");
+                    var id = (int)Num(el, "id");
+                    if (name.Length == 0 || id <= 0) continue;
+                    if (!byName.TryGetValue(name, out var ids))
+                    {
+                        byName[name] = ids = new List<int>();
+                        order.Add(name);
+                    }
+                    ids.Add(id);
+                }
+        }
+        catch (JsonException) { /* nothing we can account for; the top-up issues what the plan wants */ }
+
+        // The panel lists accounts in the order they were issued, so first seen is first issued.
+        return order.Select(n => (n, byName[n])).ToList();
     }
 
     private static WireGuardClientState ReadClientState(JsonElement root)

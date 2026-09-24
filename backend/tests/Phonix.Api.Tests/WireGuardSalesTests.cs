@@ -242,6 +242,45 @@ public class WireGuardSalesTests
         Assert.Contains("تمدید", store.GetOrder(renewal.Id)!.Units[0].DeliveryContent);
     }
 
+    // A customer on a small plan renewing onto a bigger one — the whole way through: checkout accepts the
+    // different plan, and the panel is given the BIGGER plan's terms, not the ones originally bought.
+    [Fact]
+    public async Task A_renewal_may_move_the_service_onto_a_bigger_or_a_smaller_plan()
+    {
+        var (store, productId, smallId, panelId) = Seed();
+        var category = store.GetWireGuardCategories()[0];
+        var big = store.AddWireGuardPlan(new WireGuardPlan
+        {
+            CategoryId = category.Id, Title = "۸۰ گیگ", PanelId = panelId, InterfaceIds = new() { 1 },
+            VolumeGb = 80, DurationDays = 30, DeviceLimit = 3, Price = 400_000, Active = true,
+        });
+        var panel = new FakeWireGuardPanel();
+        var first = Buy(store, productId, smallId);
+        Assert.True(await Fulfil(store, panel).ProvisionAsync(first, first.Units[0]));
+        var token = store.GetOrder(first.Id)!.Units[0].WireGuard!.Token;
+
+        // Upgrade: a different plan id, on the same server.
+        var up = Buy(store, productId, big.Id, renewToken: token);
+        Assert.True(await Fulfil(store, panel).ProvisionAsync(up, up.Units[0]));
+
+        var renewed = Assert.Single(panel.Renewed);
+        Assert.Equal(80, renewed.limits.TotalGb);
+        Assert.Equal(3, renewed.limits.DeviceLimit);
+
+        // The shop's own copy moves with it, so the customer's page shows what they now own.
+        var account = store.GetOrder(first.Id)!.Units[0].WireGuard!;
+        Assert.Equal(big.Id, account.PlanId);
+        Assert.Equal(80, account.VolumeGb);
+        Assert.Equal(3, account.DeviceLimit);
+
+        // …and back down again.
+        var down = Buy(store, productId, smallId, renewToken: token);
+        Assert.True(await Fulfil(store, panel).ProvisionAsync(down, down.Units[0]));
+        Assert.Equal(20, panel.Renewed[^1].limits.TotalGb);
+        Assert.Equal(1, panel.Renewed[^1].limits.DeviceLimit);
+        Assert.Equal(1, store.GetOrder(first.Id)!.Units[0].WireGuard!.DeviceLimit);
+    }
+
     [Fact]
     public void The_monitor_decides_like_the_v2ray_one()
     {
