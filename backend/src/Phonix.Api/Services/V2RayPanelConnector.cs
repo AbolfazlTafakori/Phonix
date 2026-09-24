@@ -394,16 +394,33 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
                 ["enable"] = true,
             };
 
-            var json = JsonSerializer.Serialize(payload);
-            using var resp = await PostAsync(session!, $"/panel/api/clients/update/{Uri.EscapeDataString(email)}",
-                () => new StringContent(json, Encoding.UTF8, "application/json"), ct);
-            var respBody = await resp.Content.ReadAsStringAsync(ct);
+            // The record is echoed back as the panel returned it, and some builds SERVE a field in one shape
+            // and BIND it in another — `allowedIPs` comes back as a string and is bound as []string, so a
+            // faithful echo is rejected with "cannot unmarshal string into Go struct field …". The panel names
+            // the offending field in that message, so each one is repaired and the update retried, rather than
+            // this connector carrying a hard-coded list of a panel's type quirks that would go stale.
+            var attempted = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            while (true)
+            {
+                var json = JsonSerializer.Serialize(payload);
+                using var resp = await PostAsync(session!, $"/panel/api/clients/update/{Uri.EscapeDataString(email)}",
+                    () => new StringContent(json, Encoding.UTF8, "application/json"), ct);
+                var respBody = await resp.Content.ReadAsStringAsync(ct);
 
-            TryReadSuccess(respBody, out var success, out var msg);
-            if (!resp.IsSuccessStatusCode || !success)
+                TryReadSuccess(respBody, out var success, out var msg);
+                if (resp.IsSuccessStatusCode && success) break;
+
+                if (TryRepairArrayField(msg, payload, attempted))
+                {
+                    _logger.LogInformation("Retrying the renewal of {Email} on {Url} after reshaping a field the panel rejected: {Message}",
+                        email, baseUrl, msg);
+                    continue;
+                }
+
                 return V2RayOpResult.Fail(string.IsNullOrWhiteSpace(msg)
                     ? $"تمدید اکانت روی پنل ناموفق بود (کد {(int)resp.StatusCode})."
                     : msg);
+            }
 
             // The new quota is what the customer bought, so the old term's usage has to go with it —
             // otherwise a plan whose traffic ran out is still exhausted the moment it is renewed. Deliberately
@@ -896,6 +913,41 @@ public sealed class V2RayPanelConnector : IV2RayPanelConnector
         }
         catch (JsonException) { /* ignore */ }
         return 0;
+    }
+
+    // "json: cannot unmarshal string into Go struct field Client.allowedIPs of type []string" — the panel
+    // telling us a field it just served us as a string is bound as a list. The field is turned into the list
+    // the panel wants ("" → [], "a, b" → ["a","b"]) and the caller retries.
+    //
+    // Each field is repaired at most once: a panel that keeps rejecting the same one would otherwise spin
+    // here forever, and a value we cannot reshape is a real failure the operator should see.
+    private static bool TryRepairArrayField(string? message, Dictionary<string, object?> payload, HashSet<string> attempted)
+    {
+        if (string.IsNullOrWhiteSpace(message)) return false;
+        var m = System.Text.RegularExpressions.Regex.Match(
+            message,
+            @"cannot unmarshal \w+ into Go struct field [\w.]*?(?<field>\w+) of type \[\]",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (!m.Success) return false;
+
+        var name = m.Groups["field"].Value;
+        if (!attempted.Add(name)) return false;
+
+        // The panel's message lower-cases nothing, but its JSON keys and its Go field names differ in case
+        // ("AllowedIPs" vs "allowedIPs"), so the payload key is matched without regard to it.
+        var key = payload.Keys.FirstOrDefault(k => string.Equals(k, name, StringComparison.OrdinalIgnoreCase));
+        if (key is null) return false;
+
+        payload[key] = payload[key] switch
+        {
+            null => Array.Empty<string>(),
+            string text => text.Split(new[] { ',', '\n' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(x => x.Trim()).Where(x => x.Length > 0).ToArray(),
+            // Anything else already had a shape of its own; dropping it to an empty list is the safest thing
+            // left, and it is what an absent value would have meant anyway.
+            _ => Array.Empty<string>(),
+        };
+        return true;
     }
 
     private static string RandomToken(int length)

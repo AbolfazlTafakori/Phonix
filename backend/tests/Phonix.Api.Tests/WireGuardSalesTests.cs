@@ -161,7 +161,7 @@ public class WireGuardSalesTests
         var results = await Task.WhenAll(
             Enumerable.Range(0, 6).Select(_ => fulfil.ProvisionAsync(order, order.Units[0])));
 
-        Assert.Single(results.Where(r => r));
+        Assert.Single(results, r => r);
         Assert.Single(panel.Created);
         var unit = store.GetOrder(order.Id)!.Units[0];
         Assert.True(unit.Delivered);
