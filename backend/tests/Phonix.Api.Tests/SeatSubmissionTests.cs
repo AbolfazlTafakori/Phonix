@@ -274,3 +274,86 @@ public class SeatSubmissionTests
         Assert.Null(store.RejectSeatSubmission(4242, "admin", "nope"));
     }
 }
+
+// Reopening a seat for a correction hands it back with what was sent still on it, and the customer's new
+// details must not erase the old ones: staff still need the device they set up last time.
+public class SeatSubmissionHistoryTests
+{
+    private static SeatSubmission Input(string text, string? imageId = null) => new()
+    {
+        UserId = 5, OrderId = 1, UnitId = 1, SeatIndex = 0, SeatLabel = "A - 1", ProductId = 1,
+        ProductName = "Windscribe", OrderCode = "ORD-1", UserName = "reza", ImageId = imageId, Text = text,
+    };
+
+    [Fact]
+    public void New_details_after_a_reopen_keep_the_previous_device()
+    {
+        var store = TestStore.Create();
+        var first = store.SaveSeatSubmission(Input("ASUS K550VX", imageId: "img-old"))!;
+        store.ReviewSeatSubmission(first.Id, "admin", null);
+        store.ReopenSeatSubmission(first.Id, "دستگاه جدید را ثبت کنید");
+
+        // The reopened seat still carries what was sent, so the form comes back filled in.
+        var reopened = store.GetSeatSubmission(first.Id)!;
+        Assert.Equal("ASUS K550VX", reopened.Text);
+        Assert.Equal("img-old", reopened.ImageId);
+        Assert.True(reopened.Editable);
+
+        var updated = store.SaveSeatSubmission(Input("Lenovo ThinkPad", imageId: "img-new"))!;
+
+        Assert.Equal("Lenovo ThinkPad", updated.Text);
+        Assert.Equal("img-new", updated.ImageId);
+        Assert.Equal(SeatSubmissionStatus.Pending, updated.Status);
+        var previous = Assert.Single(store.GetSeatSubmission(first.Id)!.History);
+        Assert.Equal("ASUS K550VX", previous.Text);
+        Assert.Equal("img-old", previous.ImageId);
+        Assert.Equal(SeatSubmissionStatus.Pending, previous.Status);
+        Assert.Equal("دستگاه جدید را ثبت کنید", previous.ReviewNote);
+    }
+
+    [Fact]
+    public void Versions_pile_up_newest_first()
+    {
+        var store = TestStore.Create();
+        store.SaveSeatSubmission(Input("one"));
+        store.SaveSeatSubmission(Input("two"));
+        var id = store.SaveSeatSubmission(Input("three"))!.Id;
+
+        Assert.Equal(new[] { "two", "one" }, store.GetSeatSubmission(id)!.History.Select(v => v.Text));
+    }
+
+    [Fact]
+    public void Saving_the_same_details_again_is_not_a_new_version()
+    {
+        var store = TestStore.Create();
+        store.SaveSeatSubmission(Input("same", imageId: "img"));
+        var id = store.SaveSeatSubmission(Input("same"))!.Id;
+
+        Assert.Empty(store.GetSeatSubmission(id)!.History);
+    }
+
+    [Fact]
+    public void Re_filing_after_a_rejection_adds_no_empty_version()
+    {
+        var store = TestStore.Create();
+        var first = store.SaveSeatSubmission(Input("blurry", imageId: "img"))!;
+        store.RejectSeatSubmission(first.Id, "admin", "unreadable");
+
+        var refiled = store.SaveSeatSubmission(Input("clear"))!;
+
+        Assert.Empty(refiled.History);
+    }
+
+    [Fact]
+    public void History_is_capped()
+    {
+        var store = TestStore.Create();
+        var id = 0;
+        for (var i = 0; i < SeatSubmissionRules.MaxHistory + 5; i++)
+            id = store.SaveSeatSubmission(Input($"v{i}"))!.Id;
+
+        var history = store.GetSeatSubmission(id)!.History;
+        Assert.Equal(SeatSubmissionRules.MaxHistory, history.Count);
+        Assert.Equal($"v{SeatSubmissionRules.MaxHistory + 3}", history[0].Text);
+    }
+}

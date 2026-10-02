@@ -182,6 +182,18 @@ export type SeatSubmission = {
   editLimit: number;
   editsUsed: number;
   editsLeft: number;
+  // Earlier details this seat held, newest first — kept when the customer replaces them (e.g. a new device
+  // after staff reopen the seat). A rejection wipes instead, so it leaves nothing here.
+  history: SeatSubmissionVersion[];
+};
+
+export type SeatSubmissionVersion = {
+  imageId: string | null;
+  text: string;
+  seatLabel: string;
+  submittedAtUtc: string;
+  status: "Pending" | "Reviewed" | "Rejected";
+  reviewNote: string | null;
 };
 
 // Whether a delivered unit's service asks for seat info at all, plus what's already been filed for it.

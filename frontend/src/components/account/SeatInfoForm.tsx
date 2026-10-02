@@ -44,6 +44,9 @@ export default function SeatInfoForm({
 
   const locked = submission ? !submission.editable : false;
   const rejected = submission?.status === "Rejected";
+  // Staff looked at it and handed it back: the form opens with what was sent, and saving keeps that on record.
+  const reopened = submission?.status === "Pending" && !!submission.reviewedBy;
+  const history = submission?.history ?? [];
   // A seat with nothing sent yet, or with changes the customer hasn't saved.
   const dirty = !submission || text !== submission.text || pending !== null;
 
@@ -205,6 +208,13 @@ export default function SeatInfoForm({
         )
       )}
 
+      {reopened && (
+        <p className="rounded-lg px-3 py-2 text-xs leading-5" style={{ background: "rgba(245,158,11,0.10)", border: "1px solid rgba(245,158,11,0.28)", color: "var(--ac-text)" }}>
+          این اطلاعات برای ویرایش باز شده است. اطلاعات فعلی را اصلاح کنید یا مشخصات دستگاه جدید را وارد و ارسال کنید؛
+          اطلاعات قبلی شما پاک نمی‌شود و در سوابق باقی می‌ماند.
+        </p>
+      )}
+
       {error && <p className="text-xs font-bold" style={{ color: "#dc2626" }}>{error}</p>}
 
       {locked ? (
@@ -226,6 +236,34 @@ export default function SeatInfoForm({
             {busy ? "در حال ارسال…" : rejected ? "ارسال دوباره" : submission ? "ذخیره‌ی تغییرات" : "ارسال"}
           </button>
         </div>
+      )}
+
+      {history.length > 0 && (
+        <details className="rounded-lg px-3 py-2" style={{ background: "var(--ac-menu-hover)", border: "1px solid var(--ac-panel-border)" }}>
+          <summary className="cursor-pointer text-[11px] font-bold" style={{ color: "var(--ac-muted)" }}>
+            اطلاعات قبلی ثبت‌شده ({history.length.toLocaleString("fa-IR")})
+          </summary>
+          <div className="mt-2 space-y-3">
+            {history.map((v, i) => (
+              <div key={i} className="flex gap-3 border-t pt-3 first:border-t-0 first:pt-0" style={{ borderColor: "var(--ac-divider)" }}>
+                {v.imageId && (
+                  <img
+                    src={api.seatInfo.imageSrc(v.imageId)}
+                    alt={`تصویر قبلی ${v.seatLabel}`}
+                    className="h-16 w-16 shrink-0 rounded-md object-cover"
+                    style={{ border: "1px solid var(--ac-panel-border)" }}
+                  />
+                )}
+                <div className="min-w-0 space-y-1">
+                  <p className="text-[11px]" style={{ color: "var(--ac-muted)" }}>
+                    {new Date(v.submittedAtUtc).toLocaleDateString("fa-IR")}
+                  </p>
+                  <p className="whitespace-pre-wrap text-xs" style={{ color: "var(--ac-text)" }}>{v.text || "—"}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
       )}
     </div>
   );

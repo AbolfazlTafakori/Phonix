@@ -15,6 +15,17 @@ public enum SeatSubmissionStatus
 // concern — so the id travels out to be deleted once the write has actually committed.
 public sealed record SeatRejection(SeatSubmission Submission, string? RemovedImageId);
 
+// One earlier state of a seat submission, kept when the customer replaces it.
+public class SeatSubmissionVersion
+{
+    public string? ImageId { get; set; }
+    public string Text { get; set; } = "";
+    public string SeatLabel { get; set; } = "";
+    public DateTime SubmittedAtUtc { get; set; }
+    public SeatSubmissionStatus Status { get; set; }   // what staff had made of it when it was replaced
+    public string? ReviewNote { get; set; }
+}
+
 // Information a customer supplies AFTER delivery, for ONE seat of a shared account. Some services need
 // something from the buyer before the seat can actually be set up (a device screenshot, a username, an
 // address). A purchase that covers several seats gets one of these PER SEAT, so each person on the account
@@ -52,6 +63,11 @@ public class SeatSubmission
     public string? ReviewedBy { get; set; }
     public DateTime? ReviewedAtUtc { get; set; }
     public string? ReviewNote { get; set; }  // optional message from staff, shown to the customer
+
+    // What this seat held before each change, newest first. A seat reopened for a correction usually comes
+    // back with a different device, and staff still need the one they set up last time — so an edit moves the
+    // previous details here instead of overwriting them. A rejection is the exception: it wipes on purpose.
+    public List<SeatSubmissionVersion> History { get; set; } = new();
 
     // The customer's to change right up until staff act on it. After approval it's frozen — the admin must
     // never work from details that shift under them — unless the plan granted post-approval corrections, in

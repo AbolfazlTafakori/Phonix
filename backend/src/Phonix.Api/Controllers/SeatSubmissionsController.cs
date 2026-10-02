@@ -20,12 +20,12 @@ public record SeatUnitInfoDto(bool Enabled, string Hint, IReadOnlyList<SeatSubmi
 public record SeatSubmissionDto(int Id, int OrderId, int UnitId, int SeatIndex, string SeatLabel, int ProductId,
     string ProductName, string OrderCode, string UserName, string? ImageId, string Text, SeatSubmissionStatus Status,
     bool Editable, DateTime CreatedAtUtc, DateTime UpdatedAtUtc, string? ReviewedBy, DateTime? ReviewedAtUtc,
-    string? ReviewNote, int EditLimit, int EditsUsed, int EditsLeft)
+    string? ReviewNote, int EditLimit, int EditsUsed, int EditsLeft, IReadOnlyList<SeatSubmissionVersion> History)
 {
     public static SeatSubmissionDto From(SeatSubmission s) =>
         new(s.Id, s.OrderId, s.UnitId, s.SeatIndex, s.SeatLabel, s.ProductId, s.ProductName, s.OrderCode, s.UserName,
             s.ImageId, s.Text, s.Status, s.Editable, s.CreatedAtUtc, s.UpdatedAtUtc, s.ReviewedBy, s.ReviewedAtUtc,
-            s.ReviewNote, s.EditLimit, s.EditsUsed, s.EditsLeft);
+            s.ReviewNote, s.EditLimit, s.EditsUsed, s.EditsLeft, s.History ?? new());
 }
 
 // Per-seat information a buyer files after delivery. A purchase covering several seats gets one submission per

@@ -205,6 +205,42 @@ export default function AdminSeatInfoPage() {
                   )}
                 </div>
               </div>
+
+              {/* What this seat held before the customer replaced it — the previous device stays on record. */}
+              {s.history?.length > 0 && (
+                <details className="mt-3 rounded-lg border border-white/8 bg-white/[0.02] p-3">
+                  <summary className="cursor-pointer text-xs font-bold text-white/60">
+                    اطلاعات قبلی ({formatNumber(s.history.length)})
+                  </summary>
+                  <div className="mt-3 space-y-3">
+                    {s.history.map((v, i) => (
+                      <div key={i} className="grid gap-3 border-t border-white/5 pt-3 first:border-t-0 first:pt-0 sm:grid-cols-[100px_1fr]">
+                        {v.imageId ? (
+                          <button
+                            type="button"
+                            onClick={() => setZoom(api.seatInfo.imageSrc(v.imageId!))}
+                            className="overflow-hidden rounded-lg border border-white/10 transition hover:border-[#3a64f2]/60"
+                            title="نمایش در اندازه کامل"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={api.seatInfo.imageSrc(v.imageId)} alt={`تصویر قبلی ${v.seatLabel}`} className="h-20 w-full object-cover" />
+                          </button>
+                        ) : (
+                          <div className="grid h-20 place-items-center rounded-lg border border-dashed border-white/10 text-[11px] text-white/30">
+                            بدون تصویر
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          <p className="text-[11px] text-white/35">
+                            ثبت‌شده در {faDate(v.submittedAtUtc)} · {statusLabel[v.status]}
+                          </p>
+                          <p className="whitespace-pre-wrap text-xs text-white/65">{v.text || "—"}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </details>
+              )}
             </Card>
           ))}
         </div>
