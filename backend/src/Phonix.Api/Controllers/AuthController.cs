@@ -123,7 +123,8 @@ public class AuthController : ControllerBase
 
     private Task SendVerification(AppUser user)
     {
-        var token = _store.CreateToken(user.Id, "verify", TimeSpan.FromHours(1));
+        // Bound to the address it goes to — see VerifyEmail.
+        var token = _store.CreateToken(user.Id, "verify", TimeSpan.FromHours(1), user.Email);
         var link = $"{FrontendUrl}/verify-email?token={token}";
         var (text, html) = EmailTemplates.VerifyEmail(link);
         return _email.SendAsync(user.Email, "تأیید ایمیل حساب فونیکس", text, html);
@@ -229,8 +230,14 @@ public class AuthController : ControllerBase
     [HttpPost("verify-email")]
     public IActionResult VerifyEmail(TokenInput input)
     {
-        if (_store.ConsumeToken(input.Token, "verify") is not int userId)
+        if (_store.ConsumeTokenWithData(input.Token, "verify") is not (int userId, var sentTo))
             return BadRequest("لینک تأیید نامعتبر یا منقضی شده است.");
+        // A link proves the inbox it was mailed to, nothing else. Staff can repoint an account at a new
+        // address while an older link is still live; clicking that one must not mark the new address
+        // verified. Links issued before this binding carry no address and keep working until they expire.
+        if (sentTo is not null && _store.GetUser(userId) is { } current &&
+            !string.Equals(sentTo, current.Email, StringComparison.OrdinalIgnoreCase))
+            return BadRequest("این لینک برای ایمیل قبلی حساب ارسال شده است. لطفاً از لینک تأیید جدید استفاده کنید.");
         // Greet only on the first confirmation: someone who requests a fresh link and verifies again
         // shouldn't be welcomed twice.
         var firstTime = _store.GetUser(userId) is { EmailVerified: false };

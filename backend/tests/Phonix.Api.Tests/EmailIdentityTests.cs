@@ -15,10 +15,10 @@ namespace Phonix.Api.Tests;
 // meaning, from "invalid" to "clear it".
 public class AdminClearsEmailTests
 {
-    private static UsersController Controller(IDataStore store, int callerId)
+    private static UsersController Controller(IDataStore store, int callerId, RecordingEmailSender? sender = null)
     {
         var caller = store.GetUser(callerId)!;
-        return new UsersController(store, new LocalFileStorageService())
+        return new UsersController(store, new LocalFileStorageService(), sender ?? new RecordingEmailSender())
         {
             ControllerContext = new ControllerContext
             {
@@ -47,13 +47,13 @@ public class AdminClearsEmailTests
         store.GetUsers().First(u => u.Role == UserRole.Customer && u.Email.Length > 0).Id;
 
     [Fact]
-    public void Clearing_an_email_empties_it_and_withdraws_the_verified_flag()
+    public async Task Clearing_an_email_empties_it_and_withdraws_the_verified_flag()
     {
         var store = TestStore.Create();
         var id = CustomerId(store);
         store.UpdateUser(id, u => u.EmailVerified = true);
 
-        var result = Controller(store, AdminId(store)).Update(id, Update(email: ""));
+        var result = await Controller(store, AdminId(store)).Update(id, Update(email: ""));
 
         Assert.IsNotType<BadRequestObjectResult>(result.Result);
         var after = store.GetUser(id)!;
@@ -64,13 +64,13 @@ public class AdminClearsEmailTests
     }
 
     [Fact]
-    public void Clearing_an_email_keeps_the_rest_of_the_account_intact()
+    public async Task Clearing_an_email_keeps_the_rest_of_the_account_intact()
     {
         var store = TestStore.Create();
         var id = CustomerId(store);
         var before = store.GetUser(id)!;
 
-        Controller(store, AdminId(store)).Update(id, Update(email: ""));
+        await Controller(store, AdminId(store)).Update(id, Update(email: ""));
 
         var after = store.GetUser(id)!;
         Assert.Equal(before.Username, after.Username);
@@ -80,20 +80,20 @@ public class AdminClearsEmailTests
     }
 
     [Fact]
-    public void A_malformed_email_is_still_refused()
+    public async Task A_malformed_email_is_still_refused()
     {
         var store = TestStore.Create();
         var id = CustomerId(store);
         var original = store.GetUser(id)!.Email;
 
-        var result = Controller(store, AdminId(store)).Update(id, Update(email: "not-an-email"));
+        var result = await Controller(store, AdminId(store)).Update(id, Update(email: "not-an-email"));
 
         Assert.IsType<BadRequestObjectResult>(result.Result);
         Assert.Equal(original, store.GetUser(id)!.Email);
     }
 
     [Fact]
-    public void An_omitted_email_field_leaves_the_address_alone()
+    public async Task An_omitted_email_field_leaves_the_address_alone()
     {
         var store = TestStore.Create();
         var id = CustomerId(store);
@@ -102,7 +102,7 @@ public class AdminClearsEmailTests
 
         // null means "not supplied" — editing someone's note must not silently reset their email or
         // un-verify them.
-        Controller(store, AdminId(store)).Update(id, Update(note: "بررسی شد"));
+        await Controller(store, AdminId(store)).Update(id, Update(note: "بررسی شد"));
 
         var after = store.GetUser(id)!;
         Assert.Equal(original, after.Email);
@@ -110,7 +110,7 @@ public class AdminClearsEmailTests
     }
 
     [Fact]
-    public void Several_accounts_can_sit_with_no_email_at_once()
+    public async Task Several_accounts_can_sit_with_no_email_at_once()
     {
         var store = TestStore.Create();
         var admin = AdminId(store);
@@ -119,7 +119,7 @@ public class AdminClearsEmailTests
 
         var controller = Controller(store, admin);
         foreach (var id in customers)
-            Assert.IsNotType<BadRequestObjectResult>(controller.Update(id, Update(email: "")).Result);
+            Assert.IsNotType<BadRequestObjectResult>((await controller.Update(id, Update(email: ""))).Result);
 
         // Blank is an absence, not a value, so the uniqueness rule must not treat the second one as a
         // duplicate of the first.
@@ -127,10 +127,10 @@ public class AdminClearsEmailTests
     }
 
     [Fact]
-    public void An_empty_login_identifier_matches_nobody()
+    public async Task An_empty_login_identifier_matches_nobody()
     {
         var store = TestStore.Create();
-        Controller(store, AdminId(store)).Update(CustomerId(store), Update(email: ""));
+        await Controller(store, AdminId(store)).Update(CustomerId(store), Update(email: ""));
 
         // Username, Email and Phone are all compared against the identifier, and all three are routinely
         // blank — so an empty box must not resolve to whichever row happens to have one.
@@ -227,5 +227,188 @@ public class VerificationResendLimitTests
         // verifying would be the worst possible reading of it.
         for (var i = 0; i < 20; i++)
             Assert.True(store.TryConsumeVerificationSend(id, 0).Allowed);
+    }
+}
+
+internal sealed class RecordingEmailSender : IEmailSender
+{
+    public List<(string To, string Subject, string Body)> Sent { get; } = new();
+    public Task<bool> SendAsync(string to, string subject, string body, string? htmlBody = null)
+    {
+        Sent.Add((to, subject, body));
+        return Task.FromResult(true);
+    }
+}
+
+// Staff set a customer's email from the panel whatever state the old one was in. The new address applies at
+// once and its verification link goes out by itself; a verified old address is also told about the change.
+public class AdminSetsEmailTests
+{
+    private static UsersController Controller(IDataStore store, RecordingEmailSender sender)
+    {
+        var admin = store.GetUsers().First(u => u.Role == UserRole.Admin);
+        return new UsersController(store, new LocalFileStorageService(), sender)
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, admin.Id.ToString()),
+                        new Claim(ClaimTypes.Role, nameof(UserRole.Admin)),
+                        new Claim(ClaimTypes.Name, admin.Username),
+                    }, "test")),
+                },
+            },
+        };
+    }
+
+    private static UserUpdateInput Update(string email) => new(null, email, null, null, null, null, null, null);
+
+    private static AppUser Customer(IDataStore store) =>
+        store.GetUsers().First(u => u.Role == UserRole.Customer && u.Email.Length > 0);
+
+    [Fact]
+    public async Task Replacing_a_verified_email_mails_the_link_to_the_new_one_and_tells_the_old_one()
+    {
+        var store = TestStore.Create();
+        var customer = Customer(store);
+        store.UpdateUser(customer.Id, u => u.EmailVerified = true);
+        var sender = new RecordingEmailSender();
+
+        var result = await Controller(store, sender).Update(customer.Id, Update("fresh.inbox@example.com"));
+
+        Assert.IsNotType<BadRequestObjectResult>(result.Result);
+        var after = store.GetUser(customer.Id)!;
+        Assert.Equal("fresh.inbox@example.com", after.Email);
+        Assert.False(after.EmailVerified);
+        Assert.Contains(sender.Sent, m => m.To == "fresh.inbox@example.com" && m.Body.Contains("/verify-email?token="));
+        Assert.Contains(sender.Sent, m => m.To == customer.Email && !m.Body.Contains("/verify-email"));
+        Assert.Equal(2, sender.Sent.Count);
+    }
+
+    [Fact]
+    public async Task Replacing_an_unverified_email_only_mails_the_new_one()
+    {
+        var store = TestStore.Create();
+        var customer = Customer(store);
+        store.UpdateUser(customer.Id, u => u.EmailVerified = false);
+        var sender = new RecordingEmailSender();
+
+        await Controller(store, sender).Update(customer.Id, Update("fresh.inbox@example.com"));
+
+        Assert.Equal("fresh.inbox@example.com", store.GetUser(customer.Id)!.Email);
+        // The old address was never proven to be theirs, so it gets nothing.
+        var only = Assert.Single(sender.Sent);
+        Assert.Equal("fresh.inbox@example.com", only.To);
+        Assert.Contains("/verify-email?token=", only.Body);
+    }
+
+    [Fact]
+    public async Task The_link_is_bound_to_the_address_it_was_sent_to()
+    {
+        var store = TestStore.Create();
+        var customer = Customer(store);
+        var sender = new RecordingEmailSender();
+
+        await Controller(store, sender).Update(customer.Id, Update("fresh.inbox@example.com"));
+
+        var token = sender.Sent.Single(m => m.To == "fresh.inbox@example.com").Body.Split("token=")[1].Split(new[] { '\n', ' ' })[0].Trim();
+        Assert.Equal((customer.Id, "fresh.inbox@example.com"), store.ConsumeTokenWithData(token, "verify"));
+    }
+
+    [Fact]
+    public async Task Saving_the_same_email_again_sends_nothing_and_keeps_it_verified()
+    {
+        var store = TestStore.Create();
+        var customer = Customer(store);
+        store.UpdateUser(customer.Id, u => u.EmailVerified = true);
+        var sender = new RecordingEmailSender();
+
+        // The drawer posts every field on save, so editing just the name re-sends the unchanged email.
+        await Controller(store, sender).Update(customer.Id, Update(customer.Email.ToUpperInvariant()));
+
+        Assert.Empty(sender.Sent);
+        Assert.True(store.GetUser(customer.Id)!.EmailVerified);
+    }
+
+    [Fact]
+    public async Task Staff_can_resend_the_link_to_an_unverified_address()
+    {
+        var store = TestStore.Create();
+        var customer = Customer(store);
+        store.UpdateUser(customer.Id, u => u.EmailVerified = false);
+        var sender = new RecordingEmailSender();
+
+        var result = await Controller(store, sender).SendVerification(customer.Id);
+
+        Assert.IsType<OkObjectResult>(result);
+        Assert.Equal(customer.Email, Assert.Single(sender.Sent).To);
+    }
+
+    [Fact]
+    public async Task Resending_to_a_verified_address_is_refused()
+    {
+        var store = TestStore.Create();
+        var customer = Customer(store);
+        store.UpdateUser(customer.Id, u => u.EmailVerified = true);
+        var sender = new RecordingEmailSender();
+
+        Assert.IsType<BadRequestObjectResult>(await Controller(store, sender).SendVerification(customer.Id));
+        Assert.Empty(sender.Sent);
+    }
+}
+
+// A customer with a payment on record is the money ledger's, not the panel's, to remove: the database refuses
+// the delete by foreign key, and the panel has to say why instead of answering with a bare 500.
+public class DeleteUserWithTransactionsTests
+{
+    private static UsersController Controller(IDataStore store)
+    {
+        var admin = store.GetUsers().First(u => u.Role == UserRole.Admin);
+        return new UsersController(store, new LocalFileStorageService(), new RecordingEmailSender())
+        {
+            ControllerContext = new ControllerContext
+            {
+                HttpContext = new DefaultHttpContext
+                {
+                    User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                    {
+                        new Claim(ClaimTypes.NameIdentifier, admin.Id.ToString()),
+                        new Claim(ClaimTypes.Role, nameof(UserRole.Admin)),
+                        new Claim(ClaimTypes.Name, admin.Username),
+                    }, "test")),
+                },
+            },
+        };
+    }
+
+    [Fact]
+    public void A_customer_with_a_transaction_is_refused_with_a_reason_and_kept()
+    {
+        var store = TestStore.Create();
+        var customer = store.GetUsers().First(u => u.Role == UserRole.Customer);
+        store.AddTransaction(new Transaction
+        {
+            UserId = customer.Id, UserName = customer.Name, Type = TxTypes.AdminAdjustment, Amount = 1000,
+            Status = TxStatus.Approved, Method = "test",
+        });
+
+        var result = Controller(store).Delete(customer.Id);
+
+        var conflict = Assert.IsType<ConflictObjectResult>(result);
+        Assert.Contains("تراکنش", (string)conflict.Value!);
+        Assert.NotNull(store.GetUser(customer.Id));
+    }
+
+    [Fact]
+    public void A_customer_with_no_transactions_is_still_deleted()
+    {
+        var store = TestStore.Create();
+        var customer = store.GetUsers().First(u => u.Role == UserRole.Customer && store.GetUserTransactions(u.Id).Count == 0);
+
+        Assert.IsType<NoContentResult>(Controller(store).Delete(customer.Id));
+        Assert.Null(store.GetUser(customer.Id));
     }
 }

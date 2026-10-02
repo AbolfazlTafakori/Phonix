@@ -174,6 +174,21 @@ public static class EmailTemplates
         return (text, html);
     }
 
+    // Sent to the OLD, verified address when staff repoint the account at a new one from the panel. Unlike
+    // EmailChangeRequested the change has already happened — support did it — so this is a notice, with the
+    // support channel as the way to object, not a "you can still stop this" warning.
+    public static (string text, string html) EmailChangedByStaff(string newEmailMasked, string supportUrl)
+    {
+        var text = $"ایمیل حساب {Brand} شما توسط پشتیبانی به «{newEmailMasked}» تغییر کرد. از این پس ایمیل‌های حساب به نشانی جدید ارسال می‌شود و لینک تأیید هم برای همان نشانی فرستاده شد.\n\nاگر از این تغییر اطلاع ندارید، با پشتیبانی تماس بگیرید:\n{supportUrl}";
+        var html = Shell("ایمیل حساب شما تغییر کرد",
+            $"ایمیل حساب شما توسط پشتیبانی به {newEmailMasked} تغییر کرد.",
+            $"<p style=\"margin:0;\">ایمیل حساب <b>فونیکس وریفای</b> شما توسط پشتیبانی به <b dir=\"ltr\" style=\"unicode-bidi:embed;\">{WebUtility.HtmlEncode(newEmailMasked)}</b> تغییر کرد. از این پس ایمیل‌های حساب به نشانی جدید ارسال می‌شود و لینک تأیید هم برای همان نشانی فرستاده شد.</p>"
+            + WarnNote("<b style=\"color:" + Accent + ";\">از این تغییر اطلاع ندارید؟</b><br>با پشتیبانی تماس بگیرید.")
+            + Button("تماس با پشتیبانی", supportUrl)
+            + LinkFallback(supportUrl));
+        return (text, html);
+    }
+
     public static (string text, string html) OrderDelivered(string orderCode, string accountUrl, string? customMessage)
     {
         var message = string.IsNullOrWhiteSpace(customMessage)

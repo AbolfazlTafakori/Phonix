@@ -335,6 +335,7 @@ export const api = {
     update: (id: number, body: UserUpdateInput) => request<User>(`/users/${id}`, { method: "PUT", body: json(body) }),
     adjustWallet: (id: number, body: WalletInput) => request<User>(`/users/${id}/wallet`, { method: "POST", body: json(body) }),
     remove: (id: number) => request<void>(`/users/${id}`, { method: "DELETE" }),
+    sendVerification: (id: number) => request<{ ok: boolean }>(`/users/${id}/send-verification`, { method: "POST" }),
   },
   account: {
     me: () => request<User>("/account/me"),

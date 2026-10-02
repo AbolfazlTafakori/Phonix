@@ -20,11 +20,24 @@ public class UsersController : ControllerBase
 {
     private readonly IDataStore _store;
     private readonly Services.IFileStorageService _files;
+    private readonly Services.IEmailSender _email;
 
-    public UsersController(IDataStore store, Services.IFileStorageService files)
+    public UsersController(IDataStore store, Services.IFileStorageService files, Services.IEmailSender email)
     {
         _store = store;
         _files = files;
+        _email = email;
+    }
+
+    private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
+
+    // The same link /auth/verify-email consumes, bound to the address it was sent to: staff can repoint an
+    // account more than once, and a link still sitting in the previous inbox must not verify the next one.
+    private async Task SendVerificationAsync(AppUser user)
+    {
+        var token = _store.CreateToken(user.Id, "verify", TimeSpan.FromHours(1), user.Email);
+        var (text, html) = Services.EmailTemplates.VerifyEmail($"{FrontendUrl}/verify-email?token={token}");
+        await _email.SendAsync(user.Email, "تأیید ایمیل حساب فونیکس", text, html);
     }
 
     // This controller edits ACCOUNTS, and an account's email is the reset-password channel — so writing to one
@@ -67,7 +80,7 @@ public class UsersController : ControllerBase
 
     [AdminPermission("users")]
     [HttpPut("{id:int}")]
-    public ActionResult<UserDto> Update(int id, UserUpdateInput input)
+    public async Task<ActionResult<UserDto>> Update(int id, UserUpdateInput input)
     {
         if (_store.GetUser(id) is not { } target) return NotFound();
         if (GuardTarget(target) is { } denied) return denied;
@@ -82,10 +95,16 @@ public class UsersController : ControllerBase
         // the verified flag (SetEmail), which parks the account behind the checkout's verified-email gate
         // until a real address is added back — so no mail is ever sent to a stale inbox in the meantime.
         // A field the caller didn't send at all (null) is left alone; only an explicit "" clears.
+        //
+        // Staff may set a new address whatever state the old one was in — verified, unverified, or none. The
+        // new one takes effect at once, unverified, and its verification link goes out straight away, so the
+        // customer is one click from checkout again instead of having to find the resend button. When the old
+        // address had been verified it belonged to the customer, so it is told about the change too.
         var email = input.Email?.Trim();
         if (email is { Length: > 0 } && !InputValidation.IsEmail(email))
             return BadRequest("ایمیل واردشده معتبر نیست.");
-        if (email is not null && _store.SetEmail(id, email) is string emailError)
+        var emailChanged = email is not null && !string.Equals(email, target.Email, StringComparison.OrdinalIgnoreCase);
+        if (emailChanged && _store.SetEmail(id, email!) is string emailError)
             return BadRequest(emailError);
         var ok = _store.UpdateUser(id, u =>
         {
@@ -99,7 +118,35 @@ public class UsersController : ControllerBase
         if (!ok) return NotFound();
         // identity tier goes through the dedicated path so a downgrade also revokes the backing card/KYC.
         if (input.VerificationLevel is int level) _store.SetVerificationLevel(id, level);
-        return _store.GetUser(id)!.ToDto();
+        var updated = _store.GetUser(id)!;
+        if (emailChanged && updated.Email.Length > 0)
+        {
+            await SendVerificationAsync(updated);
+            if (target.EmailVerified && target.Email.Length > 0)
+            {
+                var (text, html) = Services.EmailTemplates.EmailChangedByStaff(
+                    AccountController.MaskEmail(updated.Email), $"{FrontendUrl}/account/tickets");
+                await _email.SendAsync(target.Email, "ایمیل حساب فونیکس شما تغییر کرد", text, html);
+            }
+        }
+        return updated.ToDto();
+    }
+
+    // Staff re-sending the verification link, for a customer whose first one never arrived. Counted against
+    // the same per-account hourly budget as the customer's own resend button, so the panel can't be used to
+    // flood an inbox either.
+    [AdminPermission("users")]
+    [HttpPost("{id:int}/send-verification")]
+    public async Task<IActionResult> SendVerification(int id)
+    {
+        if (_store.GetUser(id) is not { } target) return NotFound();
+        if (GuardTarget(target) is { } denied) return denied;
+        if (string.IsNullOrWhiteSpace(target.Email)) return BadRequest("این کاربر ایمیلی ثبت نکرده است.");
+        if (target.EmailVerified) return BadRequest("ایمیل این کاربر قبلاً تأیید شده است.");
+        var (allowed, _) = _store.TryConsumeVerificationSend(id, 5);
+        if (!allowed) return StatusCode(429, "سقف ارسال لینک تأیید برای این کاربر در این ساعت پر شده است.");
+        await SendVerificationAsync(target);
+        return Ok(new { ok = true });
     }
 
     // Requires "transactions", not "users" — see the class comment. A reason is mandatory and persisted as a
@@ -142,6 +189,11 @@ public class UsersController : ControllerBase
         // included; an owner handover is a redeploy with a new PHONIX_OWNER_USERNAME, not a delete button.
         if (OwnerAccount.IsOwner(target.Username))
             return StatusCode(403, "حساب مالک مجموعه قابل حذف نیست.");
+        // Transactions are the money ledger and reference their user by key, so the database refuses the
+        // delete anyway. This turns that bare 500 into a reason: someone who has paid for something is kept
+        // for the record and blocked instead.
+        if (_store.GetUserTransactions(id).Count > 0)
+            return Conflict("این کاربر تراکنش مالی دارد و برای حفظ سوابق قابل حذف نیست. به‌جای حذف، حساب را مسدود کنید.");
         // Read the avatar before removing the account so the orphaned file can be cleaned up afterwards.
         var avatar = target.Avatar;
         if (!_store.DeleteUser(id)) return NotFound();

@@ -83,7 +83,13 @@ export default function AdminUsersPage() {
 
   async function removeUser(u: User) {
     if (!confirm(`کاربر «${u.name}» حذف شود؟`)) return;
-    await api.users.remove(u.id);
+    try {
+      await api.users.remove(u.id);
+    } catch (e) {
+      // A customer with a payment on record is refused with a reason; without this the click just did nothing.
+      alert(e instanceof Error ? e.message : "حذف کاربر ناموفق بود.");
+      return;
+    }
     setUsers((prev) => prev.filter((x) => x.id !== u.id));
     setSelected(null);
   }
@@ -244,6 +250,8 @@ function UserDrawer({
   const [walletAmount, setWalletAmount] = useState(0);
   const [walletReason, setWalletReason] = useState("");
   const [walletBusy, setWalletBusy] = useState(false);
+  const [verifyBusy, setVerifyBusy] = useState(false);
+  const [verifyMessage, setVerifyMessage] = useState("");
 
   useEffect(() => {
     if (user) {
@@ -258,6 +266,7 @@ function UserDrawer({
       });
       setWalletAmount(0);
       setWalletReason("");
+      setVerifyMessage("");
     } else {
       setDraft(null);
     }
@@ -284,6 +293,20 @@ function UserDrawer({
       setSaveError(e instanceof Error ? e.message : "ذخیره تغییرات ناموفق بود.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function resendVerification() {
+    if (!user) return;
+    setVerifyBusy(true);
+    setVerifyMessage("");
+    try {
+      await api.users.sendVerification(user.id);
+      setVerifyMessage("لینک تأیید به ایمیل کاربر ارسال شد.");
+    } catch (e) {
+      setVerifyMessage(e instanceof Error ? e.message : "ارسال لینک تأیید ناموفق بود.");
+    } finally {
+      setVerifyBusy(false);
     }
   }
 
@@ -334,9 +357,30 @@ function UserDrawer({
               <input value={draft.name} onChange={(e) => set("name", e.target.value)} className={inputCls} />
             </label>
             <label>
-              <span className="mb-2 block text-sm text-white/70">ایمیل</span>
+              <span className="mb-2 flex items-center justify-between text-sm text-white/70">
+                ایمیل
+                {user.email && (
+                  <span className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${user.emailVerified ? "bg-emerald-500/15 text-emerald-400" : "bg-amber-500/15 text-amber-400"}`}>
+                    {user.emailVerified ? "تأیید شده" : "تأیید نشده"}
+                  </span>
+                )}
+              </span>
               <input value={draft.email} onChange={(e) => set("email", e.target.value)} dir="ltr" className={`${inputCls} text-left`} />
+              <span className="mt-2 block text-[11px] leading-5 text-white/40">
+                با ثبت ایمیل جدید، لینک تأیید خودکار برای آن ارسال می‌شود و تا تأیید، کاربر امکان ثبت سفارش ندارد.
+              </span>
             </label>
+            {user.email && !user.emailVerified && draft.email.trim() === user.email && (
+              <button
+                type="button"
+                onClick={resendVerification}
+                disabled={verifyBusy}
+                className="flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 text-sm text-white/75 transition hover:border-white/25 hover:text-white disabled:opacity-40"
+              >
+                {verifyBusy ? <Spinner /> : "ارسال مجدد لینک تأیید ایمیل"}
+              </button>
+            )}
+            {verifyMessage && <p className="text-xs text-white/60">{verifyMessage}</p>}
             <label>
               <span className="mb-2 block text-sm text-white/70">شماره تماس</span>
               <input value={draft.phone} onChange={(e) => set("phone", e.target.value)} dir="ltr" className={`${inputCls} text-left`} />

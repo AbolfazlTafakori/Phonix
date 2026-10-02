@@ -146,7 +146,7 @@ public class AccountController : ControllerBase
 
     // ab*****@example.com — enough for the owner to recognise the address, not enough to read it off outright
     // if the (old) mailbox is later exposed. Mirrors UserMailer's MaskCard.
-    private static string MaskEmail(string email)
+    internal static string MaskEmail(string email)
     {
         var at = email.IndexOf('@');
         if (at <= 1) return email;
