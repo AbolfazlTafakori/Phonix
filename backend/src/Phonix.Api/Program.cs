@@ -7,6 +7,8 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.AspNetCore.ResponseCompression;
+using System.IO.Compression;
 using Phonix.Api.Data;
 using Phonix.Api.Security;
 using Phonix.Api.Services;
@@ -147,6 +149,20 @@ try
     builder.Services.AddAuthentication(TokenAuthenticationHandler.SchemeName)
         .AddScheme<AuthenticationSchemeOptions, TokenAuthenticationHandler>(TokenAuthenticationHandler.SchemeName, null);
     builder.Services.AddAuthorization();
+
+    // JSON compresses to a fraction of its size, and the catalogue alone is ~500 KB raw — on a slow mobile
+    // connection that is seconds per page. nginx only gzips text/html, so the API compresses its own JSON.
+    // Fastest level: the win is in the bytes on the wire, not the last few percent, and the box has 2 cores.
+    // HTTPS is on because the request arrives as https through the forwarded headers; see the UseWhen below
+    // for what is kept out of it.
+    builder.Services.AddResponseCompression(options =>
+    {
+        options.EnableForHttps = true;
+        options.Providers.Add<BrotliCompressionProvider>();
+        options.Providers.Add<GzipCompressionProvider>();
+    });
+    builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+    builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
     // throttle auth endpoints per client IP to blunt credential brute-forcing.
     const string authRateLimit = "auth";
@@ -369,6 +385,14 @@ try
         headers["Referrer-Policy"] = "no-referrer";
         await next();
     });
+
+    // Only reads, and never the auth endpoints. Compressing a response that carries a secret next to input
+    // an attacker controls is what BREACH measures; reads of catalogue and account data are where the bytes
+    // are, while auth responses are small and the ones most worth keeping out of it.
+    app.UseWhen(
+        context => (HttpMethods.IsGet(context.Request.Method) || HttpMethods.IsHead(context.Request.Method))
+                   && !context.Request.Path.StartsWithSegments("/api/auth"),
+        branch => branch.UseResponseCompression());
 
     // Configure the HTTP request pipeline.
     if (app.Environment.IsDevelopment())

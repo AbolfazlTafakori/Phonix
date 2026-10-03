@@ -111,6 +111,7 @@ import type {
   V2RayConfig,
 } from "./types";
 import { getCsrfToken } from "./token";
+import { shrinkImage } from "./image";
 
 // Client requests go same-origin (relative) so the app serves correctly behind any domain — including the
 // p-ui fallback domain — with no rebuild. Server-side rendering and middleware can't use a relative URL, so
@@ -208,10 +209,26 @@ async function uploadForm<T>(path: string, file: File): Promise<T> {
   if (!res.ok) {
     if (res.status === 401) handleUnauthorized();
     let msg = `خطای ارتباط با سرور (${res.status})`;
-    try { const text = await res.text(); if (text) msg = text.replace(/^"|"$/g, ""); } catch { /* ignore */ }
+    // 408/413 come from nginx, not the API, and their body is an HTML page — which used to be shown to the
+    // customer verbatim. Say what happened instead.
+    if (res.status === 408) msg = "ارسال فایل به‌دلیل کندی اینترنت نیمه‌کاره ماند. لطفاً دوباره تلاش کنید.";
+    else if (res.status === 413) msg = "حجم فایل بیش از حد مجاز است.";
+    else {
+      try {
+        const text = await res.text();
+        if (text && !text.trimStart().startsWith("<")) msg = text.replace(/^"|"$/g, "");
+      } catch { /* ignore */ }
+    }
     throw new Error(msg);
   }
   return (await res.json()) as T;
+}
+
+// A customer's photo for protected storage (card, KYC, receipt, seat info): shrunk in the browser first so it
+// goes up in a few hundred KB instead of several MB — see shrinkImage. Returns the stored id.
+async function uploadPhoto(path: string, file: File): Promise<string> {
+  const ready = await shrinkImage(file);
+  return (await uploadForm<{ id: string }>(path, ready)).id;
 }
 
 // Builds the src for a stored identity image. New images are opaque ids streamed from the authenticated,
@@ -363,7 +380,7 @@ export const api = {
   seatInfo: {
     forUnit: (orderId: number, unitId: number) =>
       request<SeatUnitInfo>(`/seat-info/unit/${orderId}/${unitId}`),
-    upload: (file: File) => uploadForm<{ id: string }>("/seat-info/upload", file).then((r) => r.id),
+    upload: (file: File) => uploadPhoto("/seat-info/upload", file),
     save: (input: { orderId: number; unitId: number; seatIndex: number; seatLabel: string; imageId: string | null; text: string }) =>
       request<SeatSubmission>("/seat-info", { method: "POST", body: json(input) }),
     imageSrc: (id: string) => `${BASE}/api/seat-info/image/${encodeURIComponent(id)}`,
@@ -552,7 +569,7 @@ export const api = {
     approve: (id: number) => request<KycRequest>(`/kyc/${id}/approve`, { method: "POST" }),
     reject: (id: number, note?: string) => request<KycRequest>(`/kyc/${id}/reject`, { method: "POST", body: json({ note: note ?? null }) }),
     // uploads a KYC image to protected storage and returns its opaque id (stored as cardImage/selfieImage).
-    upload: (file: File) => uploadForm<{ id: string }>("/kyc/upload", file).then((r) => r.id),
+    upload: (file: File) => uploadPhoto("/kyc/upload", file),
     imageSrc: (value: string) => protectedSrc("kyc", value),
   },
   siteContent: {
@@ -859,7 +876,7 @@ export const api = {
     approve: (id: number, note?: string) => request<Transaction>(`/transactions/${id}/approve`, { method: "POST", body: json({ note: note ?? null }) }),
     reject: (id: number, note?: string) => request<Transaction>(`/transactions/${id}/reject`, { method: "POST", body: json({ note: note ?? null }) }),
     // uploads a bank-transfer receipt to protected storage and returns its opaque id (stored as receiptUrl).
-    uploadReceipt: (file: File) => uploadForm<{ id: string }>("/transactions/upload-receipt", file).then((r) => r.id),
+    uploadReceipt: (file: File) => uploadPhoto("/transactions/upload-receipt", file),
     receiptSrc: (value: string) => receiptSrc(value),
   },
   notifications: {
@@ -879,7 +896,7 @@ export const api = {
     approve: (id: number) => request<BankCard>(`/cards/${id}/approve`, { method: "POST" }),
     reject: (id: number, note?: string) => request<BankCard>(`/cards/${id}/reject`, { method: "POST", body: json({ note: note ?? null }) }),
     // uploads a bank-card photo to protected storage and returns its opaque id (stored as cardImage).
-    upload: (file: File) => uploadForm<{ id: string }>("/cards/upload", file).then((r) => r.id),
+    upload: (file: File) => uploadPhoto("/cards/upload", file),
     imageSrc: (value: string) => protectedSrc("cards", value),
   },
   captcha: {

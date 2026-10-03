@@ -14,7 +14,6 @@ import type { SeatSubmission } from "@/lib/types";
 // opposite: staff cleared what was sent, so the form comes back empty and open, with the reason above it.
 
 const MAX_TEXT = 2000;
-const MAX_IMAGE_MB = 6; // matches LocalFileStorageService.MaxBytes — reject before the round-trip
 
 export default function SeatInfoForm({
   orderId,
@@ -54,7 +53,8 @@ export default function SeatInfoForm({
     setError("");
     if (!file) return;
     if (!file.type.startsWith("image/")) return setError("فقط فایل تصویری قابل ارسال است.");
-    if (file.size > MAX_IMAGE_MB * 1024 * 1024) return setError(`حجم تصویر باید کمتر از ${MAX_IMAGE_MB} مگابایت باشد.`);
+    // No size check here: the upload shrinks the photo first (api.seatInfo.upload), so a large camera photo
+    // goes through, and anything still too big is refused by the server with its own message.
     setPending({ file, preview: URL.createObjectURL(file) });
   }
 
@@ -167,7 +167,6 @@ export default function SeatInfoForm({
           >
             <span className="text-lg" aria-hidden>＋</span>
             انتخاب تصویر
-            <span className="font-normal">حداکثر {MAX_IMAGE_MB} مگابایت</span>
           </button>
         )}
       </div>
