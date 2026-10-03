@@ -152,7 +152,9 @@ try
 
     // JSON compresses to a fraction of its size, and the catalogue alone is ~500 KB raw — on a slow mobile
     // connection that is seconds per page. nginx only gzips text/html, so the API compresses its own JSON.
-    // Fastest level: the win is in the bytes on the wire, not the last few percent, and the box has 2 cores.
+    // Levels measured on the real catalogue, written in slices the way a response is: "Fastest" Brotli barely
+    // compresses it (~216 KB), while "Optimal" gives ~78 KB for ~4 ms — the same CPU. Brotli is what browsers ask for, so it
+    // gets Optimal; gzip is only the fallback and stays at Fastest (~114 KB, ~3 ms).
     // HTTPS is on because the request arrives as https through the forwarded headers; see the UseWhen below
     // for what is kept out of it.
     builder.Services.AddResponseCompression(options =>
@@ -161,7 +163,7 @@ try
         options.Providers.Add<BrotliCompressionProvider>();
         options.Providers.Add<GzipCompressionProvider>();
     });
-    builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
+    builder.Services.Configure<BrotliCompressionProviderOptions>(o => o.Level = CompressionLevel.Optimal);
     builder.Services.Configure<GzipCompressionProviderOptions>(o => o.Level = CompressionLevel.Fastest);
 
     // throttle auth endpoints per client IP to blunt credential brute-forcing.
