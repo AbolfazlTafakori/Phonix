@@ -51,8 +51,8 @@ export default function CheckoutPage() {
   const [lockExpiresAt, setLockExpiresAt] = useState<number | null>(null);
   const [codeInput, setCodeInput] = useState("");
   const [discount, setDiscount] = useState<DiscountResult | null>(null);
-  // The basket total the applied code was validated against — see discountStale below.
-  const [discountBasis, setDiscountBasis] = useState<number | null>(null);
+  // The basket the applied code was validated against — see discountStale below.
+  const [discountBasis, setDiscountBasis] = useState<string | null>(null);
   const [applyingCode, setApplyingCode] = useState(false);
   const [codeError, setCodeError] = useState("");
 
@@ -60,7 +60,11 @@ export default function CheckoutPage() {
   // basket. Editing the basket afterwards used to leave that number on screen, quoting a discount the order
   // would never carry. Derived rather than cleared in an effect: the code stops counting the moment the
   // basket it was priced against no longer matches, and the buyer is told to re-apply it.
-  const discountStale = discount !== null && discountBasis !== total;
+  //
+  // Keyed on the lines, not just the total: a code can be limited to certain products, so swapping one item
+  // for another at the same price changes what it is worth.
+  const basketKey = items.map((i) => `${i.productId}:${i.planId ?? ""}:${i.quantity}:${i.price}`).join("|");
+  const discountStale = discount !== null && discountBasis !== basketKey;
   const activeDiscount = discount?.valid && !discountStale ? discount : null;
 
   // goods after discount → VAT on the discounted goods → payable (mirrors the backend's PlaceOrder).
@@ -242,10 +246,11 @@ export default function CheckoutPage() {
     setApplyingCode(true);
     setCodeError("");
     try {
-      const result = await api.discounts.validate(code, total);
+      const lines = items.map((i) => ({ productId: i.productId, lineTotal: i.price * i.quantity }));
+      const result = await api.discounts.validate(code, total, lines);
       if (result.valid) {
         setDiscount(result);
-        setDiscountBasis(total);   // what it was priced against; the basket must still match at checkout
+        setDiscountBasis(basketKey);   // what it was priced against; the basket must still match at checkout
       } else {
         setDiscount(null);
         setDiscountBasis(null);

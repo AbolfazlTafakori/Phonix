@@ -185,7 +185,7 @@ public interface IDataStore
     DiscountCode AddDiscountCode(DiscountCode code);
     bool UpdateDiscountCode(DiscountCode code);
     bool DeleteDiscountCode(int id);
-    DiscountResult ResolveDiscount(string? code, long subtotal);
+    DiscountResult ResolveDiscount(string? code, IReadOnlyList<DiscountLine> lines);
 
     // ── Email settings ──────────────────────────────────────────────────────────────────────────────
     EmailSettings GetEmailSettings();

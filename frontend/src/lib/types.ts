@@ -654,6 +654,8 @@ export type DiscountCode = {
   usedCount: number;
   isActive: boolean;
   expiresAt: string | null;
+  // Products the code works on; empty = every product. When set, only those lines of the basket are discounted.
+  productIds: number[];
 };
 
 export type DiscountCodeInput = Omit<DiscountCode, "id" | "usedCount">;

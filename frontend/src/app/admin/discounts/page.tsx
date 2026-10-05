@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import type { DiscountCode, DiscountCodeInput, DiscountType } from "@/lib/types";
+import type { DiscountCode, DiscountCodeInput, DiscountType, Product } from "@/lib/types";
 import { formatToman, formatNumber, toFa } from "@/lib/format";
 import { Card, PageHeader, Spinner, Toggle, StatusBadge, Modal, DataTable, Field, inputCls, type Column } from "@/components/admin/ui";
 import AdminIcon from "@/components/admin/AdminIcon";
@@ -16,6 +16,7 @@ const emptyForm = (): DiscountCodeInput => ({
   usageLimit: 0,
   isActive: true,
   expiresAt: null,
+  productIds: [],
 });
 
 const typeLabel: Record<DiscountType, string> = { Percent: "درصدی", Fixed: "مبلغ ثابت" };
@@ -51,10 +52,16 @@ export default function AdminDiscountsPage() {
   const [expDays, setExpDays] = useState(0);
   const [expHours, setExpHours] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  // The catalogue, for choosing which products a code works on and for naming them in the table.
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productSearch, setProductSearch] = useState("");
 
   async function load() {
     try {
-      setCodes(await api.discounts.list());
+      const [list, prods] = await Promise.all([api.discounts.list(), api.products.list().catch(() => [] as Product[])]);
+      setCodes(list);
+      setProducts(prods);
     } catch (e) {
       setError(e instanceof Error ? e.message : "خطا در بارگذاری");
     } finally {
@@ -72,18 +79,23 @@ export default function AdminDiscountsPage() {
     setForm(emptyForm());
     setExpDays(0);
     setExpHours(0);
+    setSaveError("");
+    setProductSearch("");
     setModalOpen(true);
   }
   function openEdit(c: DiscountCode) {
     setEditingId(c.id);
-    setForm({ code: c.code, type: c.type, value: c.value, minOrder: c.minOrder, maxDiscount: c.maxDiscount, usageLimit: c.usageLimit, isActive: c.isActive, expiresAt: c.expiresAt });
+    setForm({ code: c.code, type: c.type, value: c.value, minOrder: c.minOrder, maxDiscount: c.maxDiscount, usageLimit: c.usageLimit, isActive: c.isActive, expiresAt: c.expiresAt, productIds: c.productIds ?? [] });
     const { days, hours } = remainingDH(c.expiresAt);
     setExpDays(days);
     setExpHours(hours);
+    setSaveError("");
+    setProductSearch("");
     setModalOpen(true);
   }
   async function submit() {
     setSaving(true);
+    setSaveError("");
     try {
       const totalHours = expDays * 24 + expHours;
       const expiresAt = totalHours > 0 ? new Date(Date.now() + totalHours * HOUR).toISOString() : null;
@@ -96,6 +108,8 @@ export default function AdminDiscountsPage() {
         setCodes((c) => c.map((x) => (x.id === editingId ? updated : x)));
       }
       setModalOpen(false);
+    } catch (e) {
+      setSaveError(e instanceof Error ? e.message : "ذخیره کد تخفیف ناموفق بود.");
     } finally {
       setSaving(false);
     }
@@ -106,12 +120,35 @@ export default function AdminDiscountsPage() {
     setCodes((prev) => prev.filter((x) => x.id !== c.id));
   }
 
+  const productName = useMemo(() => new Map(products.map((p) => [p.id, p.name])), [products]);
+  const shownProducts = useMemo(() => {
+    const q = productSearch.trim().toLowerCase();
+    return q ? products.filter((p) => p.name.toLowerCase().includes(q)) : products;
+  }, [products, productSearch]);
+  const restricted = form.productIds.length > 0;
+
+  function toggleProduct(id: number) {
+    setForm((f) => ({
+      ...f,
+      productIds: f.productIds.includes(id) ? f.productIds.filter((x) => x !== id) : [...f.productIds, id],
+    }));
+  }
+
+  // "All products", or the names it is limited to — a product deleted since is shown by its id.
+  function scopeText(c: DiscountCode): string {
+    const ids = c.productIds ?? [];
+    if (ids.length === 0) return "همه محصولات";
+    const names = ids.map((id) => productName.get(id) ?? `محصول #${toFa(id)}`);
+    return names.length <= 2 ? names.join("، ") : `${names.slice(0, 2).join("، ")} و ${toFa(names.length - 2)} مورد دیگر`;
+  }
+
   const valueText = (c: DiscountCode) => (c.type === "Percent" ? `${toFa(c.value)}٪` : formatToman(c.value));
 
   const columns: Column<DiscountCode>[] = [
     { header: "کد", primary: true, cell: (c) => <span className="font-mono font-bold text-white" dir="ltr">{c.code}</span> },
     { header: "نوع", td: "text-white/65", cell: (c) => typeLabel[c.type] },
     { header: "مقدار", cell: (c) => valueText(c) },
+    { header: "محصولات", td: "text-white/65", cell: (c) => <span className="line-clamp-2 max-w-[220px]">{scopeText(c)}</span> },
     { header: "حداقل سفارش", td: "text-white/65", cell: (c) => (c.minOrder > 0 ? formatToman(c.minOrder) : "—") },
     { header: "استفاده", td: "text-white/70", cell: (c) => `${formatNumber(c.usedCount)} / ${c.usageLimit > 0 ? formatNumber(c.usageLimit) : "∞"}` },
     { header: "انقضا", td: "text-white/65", cell: (c) => expiryLabel(c.expiresAt) },
@@ -151,7 +188,7 @@ export default function AdminDiscountsPage() {
         <Card className="p-8 text-center text-rose-400">{error}</Card>
       ) : (
         <Card className="overflow-hidden">
-          <DataTable columns={columns} rows={codes} rowKey={(c) => c.id} minWidth={820} empty="هنوز کد تخفیفی ثبت نشده است" />
+          <DataTable columns={columns} rows={codes} rowKey={(c) => c.id} minWidth={960} empty="هنوز کد تخفیفی ثبت نشده است" />
         </Card>
       )}
 
@@ -175,12 +212,57 @@ export default function AdminDiscountsPage() {
                 <input type="number" dir="ltr" value={form.maxDiscount} onChange={(e) => set("maxDiscount", Number(e.target.value))} className={`${inputCls} text-left`} />
               </Field>
             )}
-            <Field label="حداقل مبلغ سفارش (تومان)">
+            <Field label={restricted ? "حداقل مبلغ محصولات مشمول (تومان)" : "حداقل مبلغ سفارش (تومان)"}>
               <input type="number" dir="ltr" value={form.minOrder} onChange={(e) => set("minOrder", Number(e.target.value))} className={`${inputCls} text-left`} />
             </Field>
             <Field label="سقف دفعات استفاده (۰ = نامحدود)">
               <input type="number" dir="ltr" value={form.usageLimit} onChange={(e) => set("usageLimit", Number(e.target.value))} className={`${inputCls} text-left`} />
             </Field>
+          </div>
+
+          <div className="rounded-xl border border-white/8 p-4">
+            <p className="mb-1 text-sm font-bold text-white">محصولات مشمول</p>
+            <p className="mb-3 text-xs leading-5 text-white/40">
+              اگر محصولی انتخاب شود، کد فقط روی همان محصولات اعمال می‌شود و برای سبدی که هیچ‌کدام از آن‌ها را ندارد کار نمی‌کند.
+              در سبد ترکیبی، تخفیف فقط از مبلغ محصولات انتخاب‌شده کم می‌شود. اگر چیزی انتخاب نشود، کد روی همه محصولات کار می‌کند.
+            </p>
+            <div className="mb-3 flex items-center justify-between gap-2 rounded-lg bg-white/[0.03] px-3 py-2 text-xs">
+              <span className={restricted ? "font-bold text-white" : "text-white/55"}>
+                {restricted ? `فقط ${toFa(form.productIds.length)} محصول انتخاب‌شده` : "همه محصولات"}
+              </span>
+              {restricted && (
+                <button type="button" onClick={() => set("productIds", [])} className="font-bold text-[#6f93ff] transition hover:text-white">
+                  پاک کردن انتخاب‌ها
+                </button>
+              )}
+            </div>
+            {products.length === 0 ? (
+              <p className="text-xs text-white/40">فهرست محصولات بارگذاری نشد.</p>
+            ) : (
+              <>
+                <input
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  placeholder="جستجوی محصول…"
+                  className={`${inputCls} mb-2 h-10`}
+                />
+                <div className="max-h-56 space-y-1 overflow-y-auto rounded-lg bg-white/[0.02] p-1">
+                  {shownProducts.map((p) => (
+                    <label key={p.id} className="flex cursor-pointer items-center gap-3 rounded-md px-2 py-1.5 text-sm text-white/80 hover:bg-white/5">
+                      <input
+                        type="checkbox"
+                        checked={form.productIds.includes(p.id)}
+                        onChange={() => toggleProduct(p.id)}
+                        className="h-4 w-4 accent-[#3a64f2]"
+                      />
+                      <span className="flex-1 truncate">{p.name}</span>
+                      {!p.isActive && <span className="text-[10px] text-white/35">غیرفعال</span>}
+                    </label>
+                  ))}
+                  {shownProducts.length === 0 && <p className="px-2 py-3 text-xs text-white/40">محصولی پیدا نشد.</p>}
+                </div>
+              </>
+            )}
           </div>
 
           <div className="rounded-xl border border-white/8 p-4">
@@ -200,6 +282,10 @@ export default function AdminDiscountsPage() {
             <span className="text-sm text-white/80">فعال</span>
             <Toggle checked={form.isActive} onChange={(v) => set("isActive", v)} />
           </label>
+
+          {saveError && (
+            <p className="rounded-xl border border-rose-500/30 bg-rose-500/[0.08] px-4 py-3 text-sm text-rose-300">{saveError}</p>
+          )}
 
           <div className="flex gap-3">
             <button onClick={submit} disabled={saving || !form.code.trim()} className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#e60053] to-[#9c0038] px-8 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50">

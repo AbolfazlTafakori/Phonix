@@ -400,8 +400,9 @@ export const api = {
     create: (body: DiscountCodeInput) => request<DiscountCode>("/discounts", { method: "POST", body: json(body) }),
     update: (id: number, body: DiscountCodeInput) => request<DiscountCode>(`/discounts/${id}`, { method: "PUT", body: json(body) }),
     remove: (id: number) => request<void>(`/discounts/${id}`, { method: "DELETE" }),
-    validate: (code: string, subtotal: number) =>
-      request<DiscountResult>("/discounts/validate", { method: "POST", body: json({ code, subtotal }) }),
+    // Sent line by line so a code limited to certain products is priced against just those.
+    validate: (code: string, subtotal: number, items: { productId: number; lineTotal: number }[]) =>
+      request<DiscountResult>("/discounts/validate", { method: "POST", body: json({ code, subtotal, items }) }),
   },
   planTypes: {
     list: () => request<string[]>("/plan-types"),

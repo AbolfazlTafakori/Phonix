@@ -221,7 +221,8 @@ public sealed partial class SqliteDataStore
             }
 
             var subtotal = lines.Sum(l => l.LineTotal);
-            var discount = ResolveDiscountTx(conn, tx, discountCode, subtotal);
+            var discount = ResolveDiscountTx(conn, tx, discountCode,
+                lines.Select(l => new DiscountLine(l.ProductId, l.LineTotal)).ToList());
             if (discount.Error is not null) return new PlaceOrderResult(null, discount.Error);
             var goodsTotal = subtotal - discount.Amount;
 
@@ -364,21 +365,14 @@ SELECT last_insert_rowid();",
 
     // ── Discount helpers (transaction-scoped) ───────────────────────────────────────────────────────────
 
-    private static DiscountResult ResolveDiscountTx(SqliteConnection conn, SqliteTransaction? tx, string? code, long subtotal)
+    private static DiscountResult ResolveDiscountTx(SqliteConnection conn, SqliteTransaction? tx, string? code,
+        IReadOnlyList<DiscountLine> lines)
     {
         if (string.IsNullOrWhiteSpace(code)) return new DiscountResult(null, 0, null);
         var json = conn.QueryFirstOrDefault<string>(
             "SELECT DataJson FROM DiscountCodes WHERE Code = @code COLLATE NOCASE LIMIT 1", new { code = code.Trim() }, tx);
         var dc = json is null ? null : Deserialize<DiscountCode>(json);
-        if (dc is null || !dc.IsActive) return new DiscountResult(null, 0, "کد تخفیف نامعتبر است.");
-        if (dc.ExpiresAt is DateTime exp && DateTime.UtcNow > exp) return new DiscountResult(null, 0, "این کد تخفیف منقضی شده است.");
-        if (dc.UsageLimit > 0 && dc.UsedCount >= dc.UsageLimit) return new DiscountResult(null, 0, "ظرفیت این کد تخفیف به پایان رسیده است.");
-        if (subtotal < dc.MinOrder) return new DiscountResult(null, 0, "مبلغ سفارش به حد لازم برای این کد نرسیده است.");
-
-        long amount = dc.Type == DiscountType.Percent ? (long)Math.Round(subtotal * dc.Value / 100.0) : dc.Value;
-        if (dc.Type == DiscountType.Percent && dc.MaxDiscount > 0) amount = Math.Min(amount, dc.MaxDiscount);
-        amount = Math.Clamp(amount, 0, subtotal);
-        return new DiscountResult(dc, amount, null);
+        return DiscountRules.Resolve(dc, lines, DateTime.UtcNow);
     }
 
     // The inverse of ConsumeDiscountTx, for an order that is being cancelled. Named by code because that is
@@ -442,6 +436,7 @@ SELECT last_insert_rowid();",
             existing.UsageLimit = code.UsageLimit;
             existing.IsActive = code.IsActive;
             existing.ExpiresAt = code.ExpiresAt;
+            existing.ProductIds = code.ProductIds ?? new();
             var json = Serialize(existing);
             conn.Execute("UPDATE DiscountCodes SET Code = @Code, DataJson = @d WHERE Id = @id",
                 new { existing.Code, d = json, id = existing.Id }, tx);
@@ -453,11 +448,11 @@ SELECT last_insert_rowid();",
 
     // Validates a code against a subtotal WITHOUT consuming it (consumption happens atomically in PlaceOrder).
     // Reuses the transaction-scoped resolver on a plain read connection.
-    public DiscountResult ResolveDiscount(string? code, long subtotal)
+    public DiscountResult ResolveDiscount(string? code, IReadOnlyList<DiscountLine> lines)
     {
         if (string.IsNullOrWhiteSpace(code)) return new DiscountResult(null, 0, null);
         using var conn = OpenConnection();
-        return ResolveDiscountTx(conn, null, code, subtotal);
+        return ResolveDiscountTx(conn, null, code, lines);
     }
 
     // ── Order status transitions (atomic refunds + referral earnings) ───────────────────────────────────

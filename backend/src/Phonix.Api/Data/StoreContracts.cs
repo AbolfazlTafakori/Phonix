@@ -11,6 +11,8 @@ namespace Phonix.Api.Data;
 public record StaffResult(AppUser? User, string? Error);
 public record AddCardResult(BankCard? Card, string? Error);
 public record DiscountResult(DiscountCode? Code, long Amount, string? Error);
+// One basket line as a discount code sees it: which product, and what the line costs in total.
+public record DiscountLine(int ProductId, long LineTotal);
 public record WithdrawalResult(Transaction? Tx, string? Error);
 public record PlaceOrderResult(Order? Order, string? Error);
 public record OrderActionResult(Order? Order, string? Error);
