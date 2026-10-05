@@ -110,6 +110,9 @@ import type {
   PagedResult,
   V2RayConfig,
   MediaItem,
+  Tutorial,
+  TutorialInput,
+  TutorialVideo,
 } from "./types";
 import { getCsrfToken } from "./token";
 import { shrinkImage } from "./image";
@@ -227,6 +230,35 @@ async function uploadForm<T>(path: string, file: File): Promise<T> {
 
 // A customer's photo for protected storage (card, KYC, receipt, seat info): shrunk in the browser first so it
 // goes up in a few hundred KB instead of several MB — see shrinkImage. Returns the stored id.
+// fetch() can't report upload progress, and a tutorial video is hundreds of megabytes: without a progress bar
+// the panel looks frozen for minutes. Same credentials, CSRF header and error handling as uploadForm.
+function uploadWithProgress<T>(path: string, file: File, onProgress: (fraction: number) => void): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}/api${path}`);
+    xhr.withCredentials = true;
+    const csrf = getCsrfToken();
+    if (csrf) xhr.setRequestHeader("X-CSRF-Token", csrf);
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(e.loaded / e.total); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { resolve(JSON.parse(xhr.responseText) as T); } catch { reject(new Error("پاسخ نامعتبر از سرور")); }
+        return;
+      }
+      if (xhr.status === 401) handleUnauthorized();
+      let msg = `خطای ارتباط با سرور (${xhr.status})`;
+      if (xhr.status === 408) msg = "ارسال فایل به‌دلیل کندی اینترنت نیمه‌کاره ماند. لطفاً دوباره تلاش کنید.";
+      else if (xhr.status === 413) msg = "حجم فایل بیش از حد مجاز است.";
+      else if (xhr.responseText && !xhr.responseText.trimStart().startsWith("<")) msg = xhr.responseText.replace(/^"|"$/g, "");
+      reject(new Error(msg));
+    };
+    xhr.onerror = () => reject(new Error("ارتباط با سرور قطع شد؛ دوباره تلاش کنید."));
+    const fd = new FormData();
+    fd.append("file", file);
+    xhr.send(fd);
+  });
+}
+
 // Banners and article images need more room than a card photo, and may be transparent.
 const SITE_IMAGE = { format: "webp", maxEdge: 2560 } as const;
 
@@ -379,6 +411,16 @@ export const api = {
     // Site imagery and avatars: a large file is scaled down in the browser first (WebP keeps transparency).
     upload: async (file: File) =>
       (await uploadForm<{ url: string }>("/upload", await shrinkImage(file, SITE_IMAGE))).url,
+  },
+  // Product tutorials. The panel manages them; a buyer reads the ones for what they've paid for (`mine`).
+  tutorials: {
+    list: () => request<Tutorial[]>("/tutorials"),
+    create: (body: TutorialInput) => request<Tutorial>("/tutorials", { method: "POST", body: json(body) }),
+    update: (id: number, body: TutorialInput) => request<Tutorial>(`/tutorials/${id}`, { method: "PUT", body: json(body) }),
+    remove: (id: number) => request<void>(`/tutorials/${id}`, { method: "DELETE" }),
+    uploadVideo: (file: File, onProgress: (fraction: number) => void) =>
+      uploadWithProgress<TutorialVideo>("/tutorials/videos", file, onProgress),
+    mine: () => request<Tutorial[]>("/tutorials/mine"),
   },
   // The panel's image library: every site image in one place, uploaded once and linked from anywhere.
   mediaLibrary: {

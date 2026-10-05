@@ -23,6 +23,47 @@ public sealed partial class SqliteDataStore
     private const string PlanTypesKey = "plantypes";
     private const string FavoritesKey = "favorites";
     private const string MediaLibraryKey = "media-library";
+    private const string TutorialsKey = "tutorials";
+
+    public IReadOnlyList<Tutorial> GetTutorials() =>
+        GetSingleton<TutorialLibrary>(TutorialsKey).Items.OrderBy(t => t.SortOrder).ThenBy(t => t.Id).ToList();
+
+    public (Tutorial Saved, List<TutorialVideo> Dropped)? SaveTutorial(Tutorial tutorial) =>
+        WriteTx<(Tutorial, List<TutorialVideo>)?>((conn, tx) =>
+        {
+            var lib = ReadSingleton<TutorialLibrary>(conn, tx, TutorialsKey);
+            var dropped = new List<TutorialVideo>();
+            tutorial.UpdatedAtUtc = DateTime.UtcNow;
+            if (tutorial.Id == 0)
+            {
+                tutorial.Id = Math.Max(lib.NextId, lib.Items.Select(t => t.Id).DefaultIfEmpty(0).Max() + 1);
+                lib.NextId = tutorial.Id + 1;
+                tutorial.CreatedAtUtc = tutorial.UpdatedAtUtc;
+                lib.Items.Add(tutorial);
+            }
+            else
+            {
+                var i = lib.Items.FindIndex(t => t.Id == tutorial.Id);
+                if (i < 0) return null;
+                var keep = tutorial.Videos.Select(v => v.Id).ToHashSet(StringComparer.Ordinal);
+                dropped = lib.Items[i].Videos.Where(v => !keep.Contains(v.Id)).ToList();
+                tutorial.CreatedAtUtc = lib.Items[i].CreatedAtUtc;
+                lib.Items[i] = tutorial;
+            }
+            WriteSingleton(conn, tx, TutorialsKey, lib);
+            return (tutorial, dropped);
+        });
+
+    public Tutorial? DeleteTutorial(int id) =>
+        WriteTx<Tutorial?>((conn, tx) =>
+        {
+            var lib = ReadSingleton<TutorialLibrary>(conn, tx, TutorialsKey);
+            var item = lib.Items.FirstOrDefault(t => t.Id == id);
+            if (item is null) return null;
+            lib.Items.Remove(item);
+            WriteSingleton(conn, tx, TutorialsKey, lib);
+            return item;
+        });
 
     public IReadOnlyList<MediaItem> GetMediaLibrary() => GetSingleton<MediaLibrary>(MediaLibraryKey).Items;
 

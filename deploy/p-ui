@@ -505,6 +505,57 @@ restart_stack() {
     systemctl reload nginx
 }
 
+# Tutorial videos go up in one request of up to 500MB; the site-wide cap is 50MB. A node installed before
+# tutorials existed has no room for that in its nginx site, so the update adds the one location that needs it
+# — once, validated by nginx, and put back exactly as it was if nginx refuses it.
+#
+# The edited file is checked BEFORE nginx sees it: an empty or truncated site file is still valid nginx (it
+# just serves nothing), so `nginx -t` alone would wave through an edit that took the whole site down. The new
+# file must be the old one plus exactly the inserted block, or the original goes straight back.
+ensure_tutorial_upload_limit() {
+    local site="$NGINX_SITE"
+    [[ -f "$site" ]] || return 0
+    grep -q "location = /api/tutorials/videos" "$site" && return 0
+    # The /api/ block is matched by its fields, not a regex, so there is nothing to escape.
+    awk '$1 == "location" && $2 == "/api/" && $3 == "{" { found = 1 } END { exit !found }' "$site" || return 0
+
+    local backup="$site.pre-tutorials"
+    cp -f "$site" "$backup"
+    local before; before=$(wc -l < "$backup")
+    if ! awk -v port="$API_PORT" '
+        !added && $1 == "location" && $2 == "/api/" && $3 == "{" {
+            print "    location = /api/tutorials/videos {"
+            print "        client_max_body_size 520m;"
+            print "        proxy_pass http://127.0.0.1:" port ";"
+            print "        proxy_http_version 1.1;"
+            print "        proxy_set_header Host $host;"
+            print "        proxy_set_header X-Real-IP $remote_addr;"
+            print "        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;"
+            print "        proxy_set_header X-Forwarded-Proto $scheme;"
+            print "        proxy_read_timeout 300s;"
+            print "        proxy_send_timeout 300s;"
+            print "    }"
+            print ""
+            added = 1
+        }
+        { print }' "$backup" > "$site" \
+        || [[ "$(wc -l < "$site")" -ne $((before + 12)) ]] \
+        || ! grep -q "location = /api/tutorials/videos" "$site"; then
+        mv -f "$backup" "$site"
+        warn "Could not add the tutorial video upload limit; kept the working nginx configuration."
+        return 0
+    fi
+
+    if nginx -t >/dev/null 2>&1; then
+        rm -f "$backup"
+        systemctl reload nginx
+        ok "Video uploads for tutorials enabled in nginx."
+    else
+        mv -f "$backup" "$site"
+        warn "Could not raise the upload limit for tutorial videos; kept the working nginx configuration."
+    fi
+}
+
 hot_update() {
     heading "Zero-downtime update"
     local previous; previous="$(readlink -f "$CURRENT_LINK" 2>/dev/null || true)"
@@ -546,6 +597,7 @@ hot_update() {
     # Re-checked here rather than only at install time, so growing (or shrinking) the server is picked up by
     # the next update on its own.
     sync_web_instances
+    ensure_tutorial_upload_limit
     restart_stack
 
     if services_healthy; then

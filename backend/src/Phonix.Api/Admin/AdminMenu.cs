@@ -79,6 +79,7 @@ public static class AdminMenu
             new("stock-pool", "انبار مجازی / استخر اکانت",  "grid",    "/admin/stock"),
             new("seat-info",  "اطلاعات کاربران اکانت‌ها",   "users",   "/admin/seat-info", Badge: AdminBadge.PendingSeatInfo),
             new("categories", "دسته‌بندی‌ها",               "columns", "/admin/categories"),
+            new("tutorials",  "آموزش محصولات",               "news",    "/admin/tutorials"),
             // Owner-only, and only the owner sees it — but it belongs with the catalogue, not system settings.
             new("v2ray-plans", "پلن‌های v2ray",             "box",     "/admin/v2ray/plans",  UserRole.Admin, OwnerOnly: true),
             new("wireguard-plans", "پلن‌های WireGuard",       "box",     "/admin/wireguard/plans", UserRole.Admin, OwnerOnly: true),

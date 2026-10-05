@@ -286,6 +286,12 @@ public interface IDataStore
     IReadOnlyList<MediaItem> GetMediaLibrary();
     void AddMediaItem(MediaItem item);
     MediaItem? RemoveMediaItem(string id);
+
+    // Product tutorials (see Tutorial). Save inserts when Id is 0 and replaces otherwise, handing back the saved
+    // tutorial and the videos the edit dropped, so their files can be deleted; null when the id doesn't exist.
+    IReadOnlyList<Tutorial> GetTutorials();
+    (Tutorial Saved, List<TutorialVideo> Dropped)? SaveTutorial(Tutorial tutorial);
+    Tutorial? DeleteTutorial(int id);
     AdvancedSettings GetAdvancedSettings();
     void UpdateAdvancedSettings(AdvancedSettings s);
 

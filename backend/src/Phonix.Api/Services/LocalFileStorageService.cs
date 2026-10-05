@@ -245,6 +245,92 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         return deleted;
     }
 
+    // ── Tutorial videos ─────────────────────────────────────────────────────────────────────────────────
+    // Not in Categories on purpose: every archive and the cluster sync walk Categories, and they buffer whole
+    // files in memory (see IFileStorageService.SaveVideoAsync).
+    [GeneratedRegex(@"^(?<owner>\d{1,9})__[0-9a-f]{32}\.(?<ext>mp4|webm)$")]
+    private static partial Regex VideoIdPattern();
+
+    public const long MaxVideoBytes = 500L * 1024 * 1024;
+    private const string VideoFolder = "tutorial-videos";
+
+    private static readonly Dictionary<string, string> VideoTypes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        [".mp4"] = "video/mp4",
+        [".webm"] = "video/webm",
+    };
+
+    public async Task<FileSaveResult> SaveVideoAsync(int ownerId, IFormFile? file, CancellationToken ct = default)
+    {
+        if (ownerId <= 0) return new FileSaveResult(null, "کاربر نامعتبر است.");
+        if (file is null || file.Length == 0) return new FileSaveResult(null, "فایلی انتخاب نشده است.");
+        if (file.Length > MaxVideoBytes) return new FileSaveResult(null, "حجم ویدیو نباید بیشتر از ۵۰۰ مگابایت باشد.");
+
+        var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (ext == ".m4v") ext = ".mp4"; // the same container under Apple's name
+        if (!VideoTypes.ContainsKey(ext))
+            return new FileSaveResult(null, "فقط ویدیوی MP4 یا WebM پشتیبانی می‌شود (فایل MOV آیفون را ابتدا به MP4 تبدیل کنید).");
+
+        var dir = Path.Combine(_root, VideoFolder);
+        Directory.CreateDirectory(dir);
+        var id = $"{ownerId}__{Guid.NewGuid():N}{ext}";
+        var path = Path.Combine(dir, id);
+        var partial = path + ".part";
+        try
+        {
+            await using (var src = file.OpenReadStream())
+            await using (var dst = new FileStream(partial, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, useAsync: true))
+                await src.CopyToAsync(dst, ct);
+
+            // The extension is only a name: the bytes have to open like the container they claim to be, so
+            // nothing else gets stored and later served as video.
+            if (!LooksLikeVideo(partial, ext))
+            {
+                File.Delete(partial);
+                return new FileSaveResult(null, "این فایل ویدیوی معتبری نیست.");
+            }
+            File.Move(partial, path);
+            return new FileSaveResult(id, null);
+        }
+        catch
+        {
+            try { File.Delete(partial); } catch { /* best-effort */ }
+            throw;
+        }
+    }
+
+    // MP4: an "ftyp" box at byte 4. WebM: the EBML magic 1A 45 DF A3 at byte 0.
+    private static bool LooksLikeVideo(string path, string ext)
+    {
+        Span<byte> head = stackalloc byte[12];
+        using var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        if (fs.Read(head) < 12) return false;
+        return ext == ".mp4"
+            ? head[4] == (byte)'f' && head[5] == (byte)'t' && head[6] == (byte)'y' && head[7] == (byte)'p'
+            : head[0] == 0x1A && head[1] == 0x45 && head[2] == 0xDF && head[3] == 0xA3;
+    }
+
+    private string? VideoPath(string? id)
+    {
+        if (string.IsNullOrWhiteSpace(id) || !VideoIdPattern().IsMatch(id)) return null;
+        var dir = Path.GetFullPath(Path.Combine(_root, VideoFolder));
+        var path = Path.GetFullPath(Path.Combine(dir, id));
+        return path.StartsWith(dir + Path.DirectorySeparatorChar, StringComparison.Ordinal) ? path : null;
+    }
+
+    public StoredFile? OpenVideo(string id)
+    {
+        if (VideoPath(id) is not { } path || !File.Exists(path)) return null;
+        var type = VideoTypes.TryGetValue(Path.GetExtension(path), out var t) ? t : "application/octet-stream";
+        return new StoredFile(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, useAsync: true), type, id);
+    }
+
+    public void DeleteVideo(string? id)
+    {
+        if (VideoPath(id) is not { } path) return;
+        try { File.Delete(path); } catch { /* best-effort: a file we cannot remove must not fail the request */ }
+    }
+
     public IReadOnlyList<PublicImageInfo> ListPublicImages()
     {
         var list = new List<PublicImageInfo>();

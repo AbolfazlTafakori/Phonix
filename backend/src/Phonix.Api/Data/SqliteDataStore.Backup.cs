@@ -88,6 +88,7 @@ public sealed partial class SqliteDataStore
             V2Ray = GetSingleton<V2RaySettings>(V2RayKey),
             WireGuard = GetSingleton<WireGuardSettings>(WireGuardKey),
             MediaLibrary = GetSingleton<MediaLibrary>(MediaLibraryKey),
+            Tutorials = GetSingleton<TutorialLibrary>(TutorialsKey),
             Seq = new StoreSnapshot.SeqState
             {
                 Category = MaxId(conn, "Categories"),
@@ -200,6 +201,7 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
             if (s.V2Ray is not null) WriteSingleton(conn, tx, V2RayKey, s.V2Ray);
             if (s.WireGuard is not null) WriteSingleton(conn, tx, WireGuardKey, s.WireGuard);
             if (s.MediaLibrary is not null) WriteSingleton(conn, tx, MediaLibraryKey, s.MediaLibrary);
+            if (s.Tutorials is not null) WriteSingleton(conn, tx, TutorialsKey, s.Tutorials);
             WriteSingleton(conn, tx, PlanTypesKey, s.PlanTypes);
             WriteSingleton(conn, tx, FavoritesKey, s.Favorites);
             return null;
@@ -234,6 +236,7 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
                 s.SiteContent = GetSiteContent();
                 s.Settings = GetSettings();
                 s.MediaLibrary = GetSingleton<MediaLibrary>(MediaLibraryKey);
+                s.Tutorials = GetSingleton<TutorialLibrary>(TutorialsKey);
                 break;
             case BackupSection.Users:
                 s.Users = GetUsers().ToList();
@@ -315,6 +318,7 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
                     WriteSingleton(conn, tx, SiteContentKey, s.SiteContent);
                     WriteSingleton(conn, tx, PricingKey, s.Settings);
                     if (s.MediaLibrary is not null) WriteSingleton(conn, tx, MediaLibraryKey, s.MediaLibrary);
+                    if (s.Tutorials is not null) WriteSingleton(conn, tx, TutorialsKey, s.Tutorials);
                     break;
                 case BackupSection.Users:
                     conn.Execute("DELETE FROM Users; DELETE FROM Cards; DELETE FROM Kyc; DELETE FROM ReferralEarnings;", transaction: tx);

@@ -454,6 +454,20 @@ server {
     # information for anyone matching a version against a published advisory.
     server_tokens off;
 
+    # Tutorial videos go up in one request of up to 500MB — ten times the site-wide cap above. Exact match, so
+    # only the upload gets the larger limit; playing a video back is an ordinary /api/ read.
+    location = /api/tutorials/videos {
+        client_max_body_size 520m;
+        proxy_pass http://127.0.0.1:$API_PORT;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_read_timeout 300s;
+        proxy_send_timeout 300s;
+    }
+
     location /api/ {
         proxy_pass http://127.0.0.1:$API_PORT;
         proxy_http_version 1.1;

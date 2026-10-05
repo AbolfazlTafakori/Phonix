@@ -56,6 +56,8 @@ public class StoreSnapshot
     // The panel's image library. Nullable like the two above: a backup taken before the library existed must
     // not empty it on restore.
     public MediaLibrary? MediaLibrary { get; set; }
+    // Product tutorials, nullable for the same reason. Their videos are files and stay out of the snapshot.
+    public TutorialLibrary? Tutorials { get; set; }
 
     public SeqState Seq { get; set; } = new();
 

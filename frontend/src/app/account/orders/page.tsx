@@ -10,8 +10,9 @@ import { PageTitle, Panel } from "@/components/account/Panel";
 import DeliveryContent from "@/components/account/DeliveryContent";
 import SeatDelivery, { parseSeats } from "@/components/account/SeatDelivery";
 import PanelDelivery from "@/components/account/PanelDelivery";
+import ProductTutorials from "@/components/account/ProductTutorials";
 import { StatusBadge } from "@/components/admin/ui";
-import type { Order } from "@/lib/types";
+import type { Order, Tutorial } from "@/lib/types";
 
 const cancellable = (status: Order["status"]) => status === "PendingApproval" || status === "Preparing";
 
@@ -28,6 +29,9 @@ export default function OrdersPage() {
   // productId → «لوگو سرویس» from the catalog; order items only carry the product image, so the square
   // service logo set in the admin panel is resolved live (falls back to the item image when unset).
   const [logoMap, setLogoMap] = useState<Record<number, string>>({});
+  // How-to guides for the products this customer has paid for (the server only returns those).
+  const [tutorials, setTutorials] = useState<Tutorial[]>([]);
+  const tutorialsFor = (productId: number) => tutorials.filter((t) => t.productIds.includes(productId));
 
   useEffect(() => {
     if (!user) return;
@@ -40,6 +44,8 @@ export default function OrdersPage() {
             .list()
             .then((prods) => setLogoMap(Object.fromEntries(prods.filter((p) => p.logo).map((p) => [p.id, p.logo]))))
             .catch(() => {}),
+          // A failure here only hides the guides; the orders themselves still load.
+          api.tutorials.mine().then(setTutorials).catch(() => {}),
         ]);
         setOrders(list);
         setError("");
@@ -179,6 +185,11 @@ export default function OrdersPage() {
                               {delivered > 0 && (
                                 <span className="absolute -left-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-emerald-700 text-[10px] text-white">✓</span>
                               )}
+                              {tutorialsFor(p.productId).length > 0 && (
+                                <span className="absolute -right-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-[#3a64f2] text-[9px] font-black text-white" title="آموزش دارد">
+                                  ؟
+                                </span>
+                              )}
                               {total > 1 && (
                                 <span className="absolute -bottom-1 -left-1 rounded-full bg-[color:var(--ac-menu-hover)] px-1 text-[10px] font-bold" style={{ color: "var(--ac-text)" }}>
                                   {toFa(delivered)}/{toFa(total)}
@@ -200,7 +211,9 @@ export default function OrdersPage() {
                             <svg viewBox="0 0 24 24" aria-hidden="true" className="shrink-0" style={{ width: "1.2em", height: "1.2em" }} fill="none" stroke="currentColor" strokeWidth="2.25" strokeLinecap="round" strokeLinejoin="round">
                               <path d="M5 12h13M12 5l7 7-7 7" />
                             </svg>
-                            برای دیدن اطلاعات سرویس روی لوگو کلیک کنید
+                            {products.some((p) => tutorialsFor(p.productId).length > 0)
+                              ? "برای دیدن اطلاعات سرویس و آموزش استفاده، روی لوگو کلیک کنید"
+                              : "برای دیدن اطلاعات سرویس روی لوگو کلیک کنید"}
                           </span>
                         )}
                       </div>
@@ -321,6 +334,7 @@ export default function OrdersPage() {
                             این سرویس هنوز تحویل نشده است؛ پس از آماده‌سازی، اطلاعات آن همین‌جا نمایش داده می‌شود.
                           </div>
                         )}
+                        <ProductTutorials key={selProduct.productId} tutorials={tutorialsFor(selProduct.productId)} />
                       </div>
                     )}
                   </>

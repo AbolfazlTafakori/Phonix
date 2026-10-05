@@ -56,6 +56,13 @@ public interface IFileStorageService
     // best-effort, never throws.
     IReadOnlyList<PublicImageInfo> ListPublicImages();
 
+    // Tutorial videos (MP4/WebM). Streamed to disk rather than held in memory, checked to really be a video, and
+    // kept in a folder of their own that backups and the cluster's media sync deliberately leave out: both
+    // build their payload in memory, and a few hundred megabytes of video would take the process down.
+    Task<FileSaveResult> SaveVideoAsync(int ownerId, IFormFile? file, CancellationToken ct = default);
+    StoredFile? OpenVideo(string id);
+    void DeleteVideo(string? id);
+
     // Zips the public images (avatars, product/banner/blog images) for a manual media backup.
     byte[] ArchivePublicMedia();
 

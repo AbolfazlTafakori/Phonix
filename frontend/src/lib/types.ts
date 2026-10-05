@@ -807,6 +807,28 @@ export type MediaItem = {
   inUse: boolean;
 };
 
+// A how-to for buyers of one or more products: article-style text with pictures, plus uploaded videos. Shown in
+// the buyer's orders once their payment is confirmed.
+export type TutorialVideo = { id: string; name: string; size: number; url: string };
+export type Tutorial = {
+  id: number;
+  title: string;
+  body: string;
+  productIds: number[];
+  videos: TutorialVideo[];
+  sortOrder: number;
+  isActive: boolean;
+  updatedAtUtc: string;
+};
+export type TutorialInput = {
+  title: string;
+  body: string;
+  productIds: number[];
+  videos: { id: string; name: string }[];
+  sortOrder: number;
+  isActive: boolean;
+};
+
 export type PromoBar = { enabled: boolean; emoji: string; text: string; buttonLabel: string; buttonLink: string };
 
 export type SiteContent = {
