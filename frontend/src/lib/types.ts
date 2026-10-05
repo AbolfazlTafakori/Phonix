@@ -794,6 +794,8 @@ export type FooterColumn = { title: string; links: NavLinkItem[] };
 export type FooterContact = { phone: string; email: string; hours: string; address: string };
 export type TrustSeal = { title: string; subtitle: string; link: string; enabled: boolean };
 
+export type PromoBar = { enabled: boolean; emoji: string; text: string; buttonLabel: string; buttonLink: string };
+
 export type SiteContent = {
   brand: { siteName: string; logoLine1: string; logoLine2: string; logo: string };
   header: {
@@ -804,6 +806,8 @@ export type SiteContent = {
     accountLink: string;
     navLinks: NavLinkItem[];
   };
+  // The promo strip above the header. An empty buttonLabel hides the button; enabled=false hides the strip.
+  promoBar: PromoBar;
   stats: StatItem[];
   sections: { categoriesTitle: string; bestSellersTitle: string; blogTitle: string };
   footer: {

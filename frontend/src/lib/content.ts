@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { api } from "./api";
+import { defaultPromoBar } from "./promoBar";
 import type { HeroSlide, HomeCategory, Showcase, BlogPost, SiteContent, AdvancedSettings, Comment, Category } from "./types";
 import {
   categories as homeCats,
@@ -52,6 +53,8 @@ export const defaultSiteContent: SiteContent = {
     accountLink: "/login",
     navLinks: homeNav.map((l) => ({ label: l.label, href: l.href, hasMenu: l.hasMenu })),
   },
+  // Same defaults as the API's PromoBarContent, so the strip reads the same while the API is unreachable.
+  promoBar: defaultPromoBar,
   stats: [
     { value: null, label: "پرداخت امن", icon: "/figma/icon-secure.webp" },
     { value: null, label: "پشتیبانی آنلاین", icon: "/figma/icon-support.webp" },

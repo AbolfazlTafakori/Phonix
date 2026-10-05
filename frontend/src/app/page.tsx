@@ -38,7 +38,7 @@ export default async function Home() {
   return (
     <div className="home-light min-h-screen pb-[60px] lg:pb-0">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLdScript(faqLd) }} />
-      <TopBar />
+      <TopBar promo={content.promoBar} />
       <HomeHeader brand={content.brand} searchPlaceholder="جستجو در فونیکس" categories={categories} />
       <main>
         <HomeHero />

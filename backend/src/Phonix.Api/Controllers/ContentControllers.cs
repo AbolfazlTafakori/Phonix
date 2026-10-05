@@ -174,8 +174,28 @@ public class SiteContentController : ControllerBase
     [HttpPut]
     public SiteContent Update(SiteContent input)
     {
+        input.PromoBar = NormalizePromoBar(input.PromoBar);
         _store.UpdateSiteContent(input);
         return _store.GetSiteContent();
+    }
+
+    // The strip renders on every page, so it is bounded and its link is kept to a page of this site or a plain
+    // web address — anything else (javascript:, data:, a protocol-relative //host) is dropped, which hides the
+    // button rather than shipping a link nobody can vouch for. A save that omits the strip altogether (an admin
+    // page loaded before it existed) gets the defaults instead of a null the storefront can't render.
+    public static PromoBarContent NormalizePromoBar(PromoBarContent? bar)
+    {
+        bar ??= new PromoBarContent();
+        static string Clamp(string? s, int max) { var t = (s ?? "").Trim(); return t.Length > max ? t[..max] : t; }
+        bar.Emoji = Clamp(bar.Emoji, 8);
+        bar.Text = Clamp(bar.Text, 300);
+        bar.ButtonLabel = Clamp(bar.ButtonLabel, 40);
+        var link = Clamp(bar.ButtonLink, 500);
+        var safe = (link.StartsWith('/') && !link.StartsWith("//"))
+                   || link.StartsWith("https://", StringComparison.OrdinalIgnoreCase)
+                   || link.StartsWith("http://", StringComparison.OrdinalIgnoreCase);
+        bar.ButtonLink = safe ? link : "";
+        return bar;
     }
 }
 

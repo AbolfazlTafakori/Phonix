@@ -4,6 +4,8 @@ import { useSiteContent } from "@/components/admin/useSiteContent";
 import { Card, PageHeader, Spinner, Toggle, Field, inputCls } from "@/components/admin/ui";
 import ImageField from "@/components/admin/ImageField";
 import AdminIcon from "@/components/admin/AdminIcon";
+import { defaultPromoBar } from "@/lib/promoBar";
+import type { PromoBar } from "@/lib/types";
 
 export default function AdminHeaderPage() {
   const { content, setContent, loading, error, saving, saved, save } = useSiteContent();
@@ -18,6 +20,11 @@ export default function AdminHeaderPage() {
     setContent((c) =>
       c ? { ...c, header: { ...c.header, navLinks: c.header.navLinks.map((l, idx) => (idx === i ? { ...l, [key]: value } : l)) } } : c,
     );
+
+  // A content object saved before the strip existed has no promoBar; editing starts from the storefront default.
+  const promo = content?.promoBar ?? defaultPromoBar;
+  const setPromo = <K extends keyof PromoBar>(key: K, value: PromoBar[K]) =>
+    setContent((c) => (c ? { ...c, promoBar: { ...(c.promoBar ?? defaultPromoBar), [key]: value } } : c));
 
   const addNav = () =>
     setContent((c) => (c ? { ...c, header: { ...c.header, navLinks: [...c.header.navLinks, { label: "آیتم جدید", href: "#", hasMenu: false }] } } : c));
@@ -54,6 +61,47 @@ export default function AdminHeaderPage() {
         <Card className="p-8 text-center text-rose-400">{error || "محتوا یافت نشد"}</Card>
       ) : (
         <div className="grid gap-6 lg:grid-cols-3">
+          <Card className="p-6 lg:col-span-3">
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-bold text-white">نوار اطلاع‌رسانی بالای سایت</h3>
+                <p className="mt-1 text-xs text-white/40">نوار رنگی بالای همه صفحات. برای حذف دکمه، متن دکمه را خالی بگذارید.</p>
+              </div>
+              <label className="flex cursor-pointer items-center gap-3 text-sm text-white/80">
+                نمایش
+                <Toggle checked={promo.enabled} onChange={(v) => setPromo("enabled", v)} />
+              </label>
+            </div>
+
+            {/* What visitors will see, before saving. */}
+            <div className={`hl-grad mb-5 flex min-h-[44px] items-center justify-center gap-4 rounded-xl px-4 py-2 text-[13px] font-bold text-white ${promo.enabled && promo.text.trim() ? "" : "opacity-40"}`}>
+              <p className="flex min-w-0 items-center gap-2 text-center">
+                {promo.emoji.trim() && <span aria-hidden>{promo.emoji.trim()}</span>}
+                <span className="truncate">{promo.text.trim() || "متنی وارد نشده است"}</span>
+              </p>
+              {promo.buttonLabel.trim() && promo.buttonLink.trim() && (
+                <span className="shrink-0 rounded-full bg-white/20 px-3 py-0.5 text-[12px]">{promo.buttonLabel.trim()}</span>
+              )}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[100px_1fr]">
+              <Field label="ایموجی">
+                <input value={promo.emoji} onChange={(e) => setPromo("emoji", e.target.value)} maxLength={8} className={`${inputCls} text-center`} />
+              </Field>
+              <Field label="متن نوار">
+                <input value={promo.text} onChange={(e) => setPromo("text", e.target.value)} maxLength={300} className={inputCls} />
+              </Field>
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Field label="متن دکمه">
+                <input value={promo.buttonLabel} onChange={(e) => setPromo("buttonLabel", e.target.value)} maxLength={40} className={inputCls} />
+              </Field>
+              <Field label="لینک دکمه (مثلاً /products یا https://...)">
+                <input value={promo.buttonLink} onChange={(e) => setPromo("buttonLink", e.target.value)} dir="ltr" className={`${inputCls} text-left`} />
+              </Field>
+            </div>
+          </Card>
+
           <Card className="p-6">
             <h3 className="mb-5 text-lg font-bold text-white">برند و لوگو</h3>
             <div className="flex items-center gap-3 rounded-xl bg-white/[0.03] p-4">

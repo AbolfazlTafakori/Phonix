@@ -11,7 +11,7 @@ export default async function SiteHeader() {
     // the page-tall layout column (not this short banner+header group) and actually pins while scrolling.
     // The .home-light custom properties still cascade to the children via inheritance.
     <div className="home-light contents">
-      <TopBar />
+      <TopBar promo={content.promoBar} />
       <HomeHeader brand={content.brand} searchPlaceholder="جستجو در فونیکس" categories={categories} />
     </div>
   );

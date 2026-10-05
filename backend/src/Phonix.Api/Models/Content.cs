@@ -116,6 +116,18 @@ public class HeaderContent
     public List<NavLink> NavLinks { get; set; } = new();
 }
 
+// The thin promo strip above the header on every page. The defaults are the text the strip carried when it
+// was still hard-coded, so a site that has never edited it keeps showing exactly what it showed before.
+// An empty ButtonLabel hides the button; Enabled = false hides the whole strip.
+public class PromoBarContent
+{
+    public bool Enabled { get; set; } = true;
+    public string Emoji { get; set; } = "🎉";
+    public string Text { get; set; } = "جشنواره تابستانی فونیکس وریفای! تخفیف‌های ویژه تا ۳۰ درصد روی آیتم‌های محبوب خدمات";
+    public string ButtonLabel { get; set; } = "مشاهده تخفیف‌ها";
+    public string ButtonLink { get; set; } = "/products";
+}
+
 public class SectionTitles
 {
     public string CategoriesTitle { get; set; } = "";
@@ -164,6 +176,7 @@ public class SiteContent
 {
     public BrandInfo Brand { get; set; } = new();
     public HeaderContent Header { get; set; } = new();
+    public PromoBarContent PromoBar { get; set; } = new();
     public List<StatItem> Stats { get; set; } = new();
     public SectionTitles Sections { get; set; } = new();
     public FooterContent Footer { get; set; } = new();
