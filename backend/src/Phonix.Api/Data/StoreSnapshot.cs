@@ -53,6 +53,9 @@ public class StoreSnapshot
     public V2RaySettings? V2Ray { get; set; }
     // The W-UI (WireGuard) panels and their catalogue, nullable for the same reason as V2Ray above.
     public WireGuardSettings? WireGuard { get; set; }
+    // The panel's image library. Nullable like the two above: a backup taken before the library existed must
+    // not empty it on restore.
+    public MediaLibrary? MediaLibrary { get; set; }
 
     public SeqState Seq { get; set; } = new();
 

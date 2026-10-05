@@ -280,6 +280,12 @@ public interface IDataStore
     // ── Content: site content + advanced settings ───────────────────────────────────────────────────
     SiteContent GetSiteContent();
     void UpdateSiteContent(SiteContent c);
+
+    // The panel's image library (see MediaLibrary). Remove hands back what it took out, or null when the id
+    // wasn't listed.
+    IReadOnlyList<MediaItem> GetMediaLibrary();
+    void AddMediaItem(MediaItem item);
+    MediaItem? RemoveMediaItem(string id);
     AdvancedSettings GetAdvancedSettings();
     void UpdateAdvancedSettings(AdvancedSettings s);
 

@@ -100,6 +100,7 @@ public static class AdminMenu
             new("header",   "هدر و منو",              "layout",  "/admin/header"),
             new("footer",   "فوتر",                   "columns", "/admin/footer"),
             new("blog",     "وبلاگ و مقالات",         "news",    "/admin/blog"),
+            new("media",    "کتابخانه تصاویر",         "image",   "/admin/media"),
             new("pages",    "صفحات ثابت و قوانین",    "columns", "/admin/rules"),
         }),
         // Personal account security — available to EVERY staff member regardless of level or granted sections,

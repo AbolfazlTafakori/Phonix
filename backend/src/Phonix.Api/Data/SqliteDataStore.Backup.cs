@@ -87,6 +87,7 @@ public sealed partial class SqliteDataStore
             MailboxSettings = GetMailboxSettings(),
             V2Ray = GetSingleton<V2RaySettings>(V2RayKey),
             WireGuard = GetSingleton<WireGuardSettings>(WireGuardKey),
+            MediaLibrary = GetSingleton<MediaLibrary>(MediaLibraryKey),
             Seq = new StoreSnapshot.SeqState
             {
                 Category = MaxId(conn, "Categories"),
@@ -198,6 +199,7 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
             if (s.MailboxSettings is not null) WriteSingleton(conn, tx, MailboxKey, s.MailboxSettings);
             if (s.V2Ray is not null) WriteSingleton(conn, tx, V2RayKey, s.V2Ray);
             if (s.WireGuard is not null) WriteSingleton(conn, tx, WireGuardKey, s.WireGuard);
+            if (s.MediaLibrary is not null) WriteSingleton(conn, tx, MediaLibraryKey, s.MediaLibrary);
             WriteSingleton(conn, tx, PlanTypesKey, s.PlanTypes);
             WriteSingleton(conn, tx, FavoritesKey, s.Favorites);
             return null;
@@ -231,6 +233,7 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
                 s.BlogPosts = GetBlogPosts().ToList();
                 s.SiteContent = GetSiteContent();
                 s.Settings = GetSettings();
+                s.MediaLibrary = GetSingleton<MediaLibrary>(MediaLibraryKey);
                 break;
             case BackupSection.Users:
                 s.Users = GetUsers().ToList();
@@ -311,6 +314,7 @@ DELETE FROM Conversations; DELETE FROM SeatSubmissions; DELETE FROM Counters;", 
                     foreach (var b in s.BlogPosts) InsRow(conn, tx, "BlogPosts", b.Id, b);
                     WriteSingleton(conn, tx, SiteContentKey, s.SiteContent);
                     WriteSingleton(conn, tx, PricingKey, s.Settings);
+                    if (s.MediaLibrary is not null) WriteSingleton(conn, tx, MediaLibraryKey, s.MediaLibrary);
                     break;
                 case BackupSection.Users:
                     conn.Execute("DELETE FROM Users; DELETE FROM Cards; DELETE FROM Kyc; DELETE FROM ReferralEarnings;", transaction: tx);

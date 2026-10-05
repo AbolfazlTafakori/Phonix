@@ -794,6 +794,19 @@ export type FooterColumn = { title: string; links: NavLinkItem[] };
 export type FooterContact = { phone: string; email: string; hours: string; address: string };
 export type TrustSeal = { title: string; subtitle: string; link: string; enabled: boolean };
 
+// One picture in the panel's image library. inLibrary: uploaded through the library (has a name); otherwise
+// an image staff uploaded elsewhere (a product photo, a banner). inUse: something on the site shows it.
+export type MediaItem = {
+  id: string;
+  url: string;
+  name: string;
+  size: number;
+  uploadedBy: string;
+  uploadedAtUtc: string;
+  inLibrary: boolean;
+  inUse: boolean;
+};
+
 export type PromoBar = { enabled: boolean; emoji: string; text: string; buttonLabel: string; buttonLink: string };
 
 export type SiteContent = {

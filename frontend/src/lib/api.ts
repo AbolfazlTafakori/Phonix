@@ -109,6 +109,7 @@ import type {
   UsdRateInfo,
   PagedResult,
   V2RayConfig,
+  MediaItem,
 } from "./types";
 import { getCsrfToken } from "./token";
 import { shrinkImage } from "./image";
@@ -226,6 +227,9 @@ async function uploadForm<T>(path: string, file: File): Promise<T> {
 
 // A customer's photo for protected storage (card, KYC, receipt, seat info): shrunk in the browser first so it
 // goes up in a few hundred KB instead of several MB — see shrinkImage. Returns the stored id.
+// Banners and article images need more room than a card photo, and may be transparent.
+const SITE_IMAGE = { format: "webp", maxEdge: 2560 } as const;
+
 async function uploadPhoto(path: string, file: File): Promise<string> {
   const ready = await shrinkImage(file);
   return (await uploadForm<{ id: string }>(path, ready)).id;
@@ -372,7 +376,15 @@ export const api = {
   // Public image upload (avatars, site/admin imagery). Goes through the authenticated, CSRF-protected
   // backend endpoint and returns an absolute URL usable directly as an <img src>.
   media: {
-    upload: (file: File) => uploadForm<{ url: string }>("/upload", file).then((r) => r.url),
+    // Site imagery and avatars: a large file is scaled down in the browser first (WebP keeps transparency).
+    upload: async (file: File) =>
+      (await uploadForm<{ url: string }>("/upload", await shrinkImage(file, SITE_IMAGE))).url,
+  },
+  // The panel's image library: every site image in one place, uploaded once and linked from anywhere.
+  mediaLibrary: {
+    list: () => request<MediaItem[]>("/media"),
+    upload: async (file: File) => uploadForm<MediaItem>("/media", await shrinkImage(file, SITE_IMAGE)),
+    remove: (id: string) => request<void>(`/media/${encodeURIComponent(id)}`, { method: "DELETE" }),
   },
   // Per-seat information a buyer files after delivery (a picture + a note, one per seat of a shared account).
   // Images live in protected storage: they're referenced by opaque id and streamed from an ownership-checked

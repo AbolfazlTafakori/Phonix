@@ -245,6 +245,29 @@ public sealed partial class LocalFileStorageService : IFileStorageService
         return deleted;
     }
 
+    public IReadOnlyList<PublicImageInfo> ListPublicImages()
+    {
+        var list = new List<PublicImageInfo>();
+        try
+        {
+            var dir = Path.Combine(_root, PublicCategory);
+            if (!Directory.Exists(dir)) return list;
+            foreach (var path in Directory.EnumerateFiles(dir))
+            {
+                try
+                {
+                    var name = Path.GetFileName(path);
+                    if (!IdPattern().IsMatch(name)) continue;
+                    var info = new FileInfo(path);
+                    list.Add(new PublicImageInfo(name, info.Length, info.LastWriteTimeUtc));
+                }
+                catch { /* one unreadable file never hides the rest */ }
+            }
+        }
+        catch { /* enumeration failure: show what we have */ }
+        return list;
+    }
+
     // Best-effort removal of an id from the public folder, with the same path-containment guard as Open().
     private void DeleteFromPublicFolder(string id)
     {

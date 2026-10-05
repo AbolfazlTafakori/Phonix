@@ -6,6 +6,7 @@ import type { BlogPost, BlogPostInput } from "@/lib/types";
 import { Card, PageHeader, Spinner, Toggle, Field, inputCls } from "@/components/admin/ui";
 import { useSiteContent } from "@/components/admin/useSiteContent";
 import ImageField from "@/components/admin/ImageField";
+import MarkdownEditor from "@/components/admin/MarkdownEditor";
 import AdminIcon from "@/components/admin/AdminIcon";
 
 // Parse an uploaded article .md file into a BlogPostInput so posts can be bulk-loaded without
@@ -258,9 +259,15 @@ export default function AdminBlogPage() {
                   <Field label="خلاصه (در کارت‌ها نمایش داده می‌شود)">
                     <textarea rows={2} value={d.excerpt} onChange={(e) => setField(p.id, "excerpt", e.target.value)} className={`${inputCls} h-auto py-3`} />
                   </Field>
-                  <Field label="متن کامل مطلب">
-                    <textarea rows={6} value={d.content} onChange={(e) => setField(p.id, "content", e.target.value)} className={`${inputCls} h-auto py-3 leading-7`} />
-                  </Field>
+                  <div>
+                    <span className="mb-1.5 block text-xs font-medium text-white/55">متن کامل مطلب</span>
+                    <MarkdownEditor
+                      value={d.content}
+                      onChange={(v) => setField(p.id, "content", v)}
+                      rows={14}
+                      placeholder="متن مقاله را بنویسید… عکس را می‌توانید مستقیم کپی و اینجا پیست کنید."
+                    />
+                  </div>
 
                   <div className="flex items-center gap-3">
                     <button

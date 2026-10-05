@@ -22,6 +22,31 @@ public sealed partial class SqliteDataStore
     private const string WireGuardKey = "wireguard";
     private const string PlanTypesKey = "plantypes";
     private const string FavoritesKey = "favorites";
+    private const string MediaLibraryKey = "media-library";
+
+    public IReadOnlyList<MediaItem> GetMediaLibrary() => GetSingleton<MediaLibrary>(MediaLibraryKey).Items;
+
+    // Read-modify-write inside one write transaction, so two uploads landing together can't drop each other.
+    public void AddMediaItem(MediaItem item) =>
+        WriteTx((conn, tx) =>
+        {
+            var lib = ReadSingleton<MediaLibrary>(conn, tx, MediaLibraryKey);
+            lib.Items.RemoveAll(i => i.Id == item.Id);
+            lib.Items.Add(item);
+            WriteSingleton(conn, tx, MediaLibraryKey, lib);
+            return true;
+        });
+
+    public MediaItem? RemoveMediaItem(string id) =>
+        WriteTx<MediaItem?>((conn, tx) =>
+        {
+            var lib = ReadSingleton<MediaLibrary>(conn, tx, MediaLibraryKey);
+            var item = lib.Items.FirstOrDefault(i => i.Id == id);
+            if (item is null) return null;
+            lib.Items.Remove(item);
+            WriteSingleton(conn, tx, MediaLibraryKey, lib);
+            return item;
+        });
 
     public SiteContent GetSiteContent() => GetSingleton<SiteContent>(SiteContentKey);
     public void UpdateSiteContent(SiteContent c) { using var conn = OpenConnection(); WriteSingleton(conn, null, SiteContentKey, c); }

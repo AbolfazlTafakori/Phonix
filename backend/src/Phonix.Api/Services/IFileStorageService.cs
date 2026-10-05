@@ -52,6 +52,10 @@ public interface IFileStorageService
     // The owner id encoded in a storage id, or null when the id is malformed.
     int? OwnerOf(string id);
 
+    // Every file in the public-image folder, for the panel's image library. Only id-shaped files are listed;
+    // best-effort, never throws.
+    IReadOnlyList<PublicImageInfo> ListPublicImages();
+
     // Zips the public images (avatars, product/banner/blog images) for a manual media backup.
     byte[] ArchivePublicMedia();
 
@@ -80,6 +84,8 @@ public interface IFileStorageService
     // (media filenames are immutable GUIDs); nothing is ever deleted. Returns true when a new file was written.
     bool WriteRawFromSync(string category, string name, byte[] content, string expectedSha256);
 }
+
+public sealed record PublicImageInfo(string Id, long Size, DateTime LastWriteUtc);
 
 // One uploaded file in the media manifest a Standby pulls from the Primary (see IFileStorageService).
 public sealed record MediaSyncEntry(string Category, string Name, long Size, string Sha256);
