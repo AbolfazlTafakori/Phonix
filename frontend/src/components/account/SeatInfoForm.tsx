@@ -41,10 +41,11 @@ export default function SeatInfoForm({
   const [saved, setSaved] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Filed details are frozen: only staff can unlock them (reopen or reject). `editable` is the server's verdict.
   const locked = submission ? !submission.editable : false;
   const rejected = submission?.status === "Rejected";
-  // Staff looked at it and handed it back: the form opens with what was sent, and saving keeps that on record.
-  const reopened = submission?.status === "Pending" && !!submission.reviewedBy;
+  // Staff handed it back: the form opens with what was sent, and saving keeps that on record.
+  const reopened = submission?.status === "Pending" && submission.editable;
   const history = submission?.history ?? [];
   // A seat with nothing sent yet, or with changes the customer hasn't saved.
   const dirty = !submission || text !== submission.text || pending !== null;
@@ -76,19 +77,8 @@ export default function SeatInfoForm({
     }
   }
 
-  // What the footer tells the customer about changing this later. Before the first approval editing is free;
-  // afterwards it costs one of the allowances the plan granted, and each change re-enters the review queue.
-  const approved = submission?.status === "Reviewed" || (submission?.editsUsed ?? 0) > 0;
-  const statusNote = !submission
-    ? ""
-    : rejected
-      // Re-filing after a rejection is what staff asked for, so it spends none of the plan's allowance.
-      ? "ارسال دوباره‌ی این اطلاعات، از تعداد ویرایش‌های شما کم نمی‌کند."
-      : !approved
-        ? "تا پیش از بررسی، قابل ویرایش است."
-        : submission.editsLeft > 0
-          ? `${submission.editsLeft} بار دیگر می‌توانید این اطلاعات را تغییر دهید؛ هر تغییر دوباره بررسی می‌شود.`
-          : "";
+  // Whatever is sent now is final until staff unlock it again, so the footer says so before every send.
+  const statusNote = "پس از ارسال، امکان ویرایش ندارید؛ اطلاعات را با دقت وارد کنید.";
 
   // What to show in the image slot: a freshly picked file wins, otherwise whatever is already on file.
   const imageSrc = pending?.preview ?? (submission?.imageId ? api.seatInfo.imageSrc(submission.imageId) : null);
@@ -109,12 +99,12 @@ export default function SeatInfoForm({
               style={
                 rejected
                   ? { background: "rgba(225,29,72,0.14)", color: "#be123c" }
-                  : locked
+                  : submission.status === "Reviewed"
                     ? { background: "rgba(16,185,129,0.14)", color: "#059669" }
                     : { background: "rgba(245,158,11,0.14)", color: "#b45309" }
               }
             >
-              {rejected ? "رد شد" : locked ? "بررسی شد" : "در انتظار بررسی"}
+              {rejected ? "رد شد" : submission.status === "Reviewed" ? "بررسی شد" : reopened ? "باز برای ویرایش" : "در انتظار بررسی"}
             </span>
           )}
         </span>
@@ -218,7 +208,7 @@ export default function SeatInfoForm({
 
       {locked ? (
         <p className="text-[11px]" style={{ color: "var(--ac-muted)" }}>
-          این اطلاعات بررسی شده و دیگر قابل ویرایش نیست. برای تغییر با پشتیبانی تماس بگیرید.
+          این اطلاعات ثبت شده و قابل ویرایش نیست. برای تغییر، با پشتیبانی تماس بگیرید تا آن را برای ویرایش باز کند.
         </p>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
@@ -232,7 +222,7 @@ export default function SeatInfoForm({
             className="rounded-lg px-4 py-2 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
             style={{ background: "linear-gradient(to left, #1733d6, #3a64f2)" }}
           >
-            {busy ? "در حال ارسال…" : rejected ? "ارسال دوباره" : submission ? "ذخیره‌ی تغییرات" : "ارسال"}
+            {busy ? "در حال ارسال…" : rejected ? "ارسال دوباره" : submission ? "ثبت تغییرات" : "ارسال"}
           </button>
         </div>
       )}

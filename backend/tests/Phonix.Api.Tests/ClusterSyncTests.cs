@@ -127,8 +127,9 @@ public class ClusterSyncTests
         var peer = FreshStore(clusterEnabled: true);
         foreach (var e in origin.GetOutboxSince(0)) peer.ApplyRemoteOp(e);
 
+        origin.ReopenSeatSubmission(saved.Id, null);
         saved.Text = "edited";
-        origin.SaveSeatSubmission(saved);
+        Assert.NotNull(origin.SaveSeatSubmission(saved));
         foreach (var e in origin.GetOutboxSince(0)) Assert.True(peer.ApplyRemoteOp(e));
 
         var replicated = peer.GetSeatSubmission(saved.Id)!;

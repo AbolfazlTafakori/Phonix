@@ -33,9 +33,9 @@ public static class SeatSubmissionRules
         if (s.History.Count > MaxHistory) s.History.RemoveRange(MaxHistory, s.History.Count - MaxHistory);
     }
 
-    // The one shared rule for applying a customer's edit (mirrored by SqliteDataStore.SeatSubmissions.cs).
-    // Changing an ALREADY-APPROVED seat spends one of its allowances and sends it back to the queue, so staff
-    // re-approve what they're actually working from rather than silently inheriting a change.
+    // The one shared rule for applying a customer's edit. The store only calls it for an Editable seat — reopened
+    // or rejected by staff — and the change always goes back to the queue, so staff re-approve what they're
+    // actually working from rather than silently inheriting a change.
     public static void ApplyEdit(SeatSubmission existing, SeatSubmission input)
     {
         // Snapshot BEFORE the status below is reset, so the version records what staff had made of it. Only
@@ -64,6 +64,8 @@ public static class SeatSubmissionRules
             existing.ReviewedBy = null;
             existing.ReviewNote = null;
         }
+        // A reopen allows one change; this was it. The seat is frozen again until staff reopen it.
+        existing.ReopenedForEdit = false;
         existing.ImageId = input.ImageId ?? existing.ImageId; // keeping the old picture is a valid edit
         existing.Text = input.Text;
         existing.SeatLabel = input.SeatLabel;

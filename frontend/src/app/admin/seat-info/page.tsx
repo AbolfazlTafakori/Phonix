@@ -248,7 +248,7 @@ export default function AdminSeatInfoPage() {
                     </div>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
-                      {s.status === "Pending" ? (
+                      {s.status === "Pending" && (
                         <button
                           onClick={() => open(s, "review")}
                           disabled={busy === s.id}
@@ -256,6 +256,13 @@ export default function AdminSeatInfoPage() {
                         >
                           {busy === s.id ? "..." : "بررسی شد"}
                         </button>
+                      )}
+                      {/* The customer can't change a filed seat on their own, pending or not — a reopen is the
+                          only way in, and one is enough until they've used it. */}
+                      {s.editable ? (
+                        <span className="rounded-lg border border-amber-500/20 px-3 py-1.5 text-xs text-amber-300/80">
+                          باز برای ویرایش — در انتظار کاربر
+                        </span>
                       ) : (
                         <button
                           onClick={() => open(s, "reopen")}

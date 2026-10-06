@@ -147,7 +147,8 @@ public class SeatSubmissionsController : ControllerBase
             // an existing buyer was already promised.
             EditLimit = Math.Max(0, plan.SeatInfoEditLimit),
         });
-        if (saved is null) return BadRequest("این اطلاعات بررسی شده و دیگر قابل ویرایش نیست.");
+        if (saved is null)
+            return BadRequest("این اطلاعات ثبت شده و قابل ویرایش نیست. برای تغییر آن، پشتیبانی باید آن را برای ویرایش باز کند.");
         return Ok(SeatSubmissionDto.From(saved));
     }
 

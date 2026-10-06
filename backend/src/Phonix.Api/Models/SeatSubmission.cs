@@ -2,7 +2,7 @@ namespace Phonix.Api.Models;
 
 public enum SeatSubmissionStatus
 {
-    Pending = 0,   // waiting for staff to look at it; the customer may still change it
+    Pending = 0,   // waiting for staff to look at it; locked for the customer unless staff reopened it
     Reviewed = 1,  // staff acted on it — locked for the customer from here on
     // Staff turned it down. What the customer sent is moved into History and the entry itself is cleared, so
     // the seat is theirs to file afresh rather than edit around the refused details — while staff keep the
@@ -82,13 +82,19 @@ public class SeatSubmission
     // Every action on this seat, oldest first: filed, edited, reviewed, reopened, rejected — who and when.
     public List<SeatSubmissionEvent> Events { get; set; } = new();
 
-    // The customer's to change right up until staff act on it. After approval it's frozen — the admin must
-    // never work from details that shift under them — unless the plan granted post-approval corrections, in
-    // which case each one costs an allowance and returns the seat to the queue for a fresh look. A rejected
-    // seat is always editable and costs nothing: staff asked for it again, so it is not the buyer's allowance
-    // that should pay for it.
-    public bool Editable => Status is SeatSubmissionStatus.Pending or SeatSubmissionStatus.Rejected
-                            || EditsUsed < EditLimit;
+    // Set when staff hand the seat back for a correction (reopen), and cleared by the customer's next save or by
+    // staff approving it as it stands — so one reopen allows exactly one change.
+    public bool ReopenedForEdit { get; set; }
+
+    // Filed details are FROZEN. The customer files once; after that only staff can let them change anything —
+    // by reopening the seat, or by rejecting it (which asks for new details). Details that shift under staff
+    // while they work from them, or after a seat was set up on a device, are exactly what this prevents. The
+    // plan's post-approval allowance (EditLimit) no longer lets a customer edit on their own.
+    public bool Editable => Status == SeatSubmissionStatus.Rejected || ReopenedForEdit || ReopenedBeforeTheFlag;
+
+    // Seats reopened before ReopenedForEdit existed carry no flag; the customer was still told to send new
+    // details. For those, "the last thing that happened was a reopen" is the same fact.
+    private bool ReopenedBeforeTheFlag => Events is { Count: > 0 } e && e[^1].Action == "reopened";
     // Changes still available to the customer once this seat has been approved.
     public int EditsLeft => Math.Max(0, EditLimit - EditsUsed);
 }

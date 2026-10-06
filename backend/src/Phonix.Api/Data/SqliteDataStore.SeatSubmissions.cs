@@ -87,6 +87,8 @@ SELECT last_insert_rowid();",
             s.ReviewedBy = reviewedBy;
             s.ReviewedAtUtc = DateTime.UtcNow;
             s.ReviewNote = note;
+            // Approving takes back an unused reopen: what staff approved is what stays.
+            s.ReopenedForEdit = false;
             SeatSubmissionRules.Log(s, "reviewed", reviewedBy, note);
         });
 
@@ -96,6 +98,8 @@ SELECT last_insert_rowid();",
             s.Status = SeatSubmissionStatus.Pending;
             s.ReviewedAtUtc = null;
             s.ReviewNote = note;
+            // The only way a customer gets to change details they already filed.
+            s.ReopenedForEdit = true;
             SeatSubmissionRules.Log(s, "reopened", reopenedBy, note);
         });
 

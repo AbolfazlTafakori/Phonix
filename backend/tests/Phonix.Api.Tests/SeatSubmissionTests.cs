@@ -46,6 +46,7 @@ public class SeatSubmissionTests
     {
         var store = NewStore();
         var first = store.SaveSeatSubmission(Input(0, "first try", imageId: "img-1"))!;
+        store.ReopenSeatSubmission(first.Id, null);
         var second = store.SaveSeatSubmission(Input(0, "corrected"))!;
 
         Assert.Equal(first.Id, second.Id);
@@ -60,7 +61,7 @@ public class SeatSubmissionTests
     {
         var store = NewStore();
         var saved = store.SaveSeatSubmission(Input(0, "mine"))!;
-        Assert.True(saved.Editable);
+        Assert.False(saved.Editable);
 
         var reviewed = store.ReviewSeatSubmission(saved.Id, "admin", "همه چیز درست است")!;
         Assert.Equal(SeatSubmissionStatus.Reviewed, reviewed.Status);
@@ -78,17 +79,78 @@ public class SeatSubmissionTests
         Assert.Equal("fixed", store.SaveSeatSubmission(Input(0, "fixed"))!.Text);
     }
 
+    // The hole this closes: a customer could change what they filed at any time before staff got to it, so the
+    // device staff set up could differ from the one on record. Filing once is the customer's; every change after
+    // that needs staff.
     [Fact]
-    public void Reviewing_one_seat_leaves_the_others_editable()
+    public void A_filed_seat_cannot_be_changed_before_review_either()
+    {
+        var store = NewStore();
+        var saved = store.SaveSeatSubmission(Input(0, "Samsung A52", imageId: "img-1"))!;
+
+        Assert.Equal(SeatSubmissionStatus.Pending, saved.Status);
+        Assert.Null(store.SaveSeatSubmission(Input(0, "iPhone 13", imageId: "img-2")));
+        var onFile = store.GetSeatSubmission(saved.Id)!;
+        Assert.Equal("Samsung A52", onFile.Text);
+        Assert.Equal("img-1", onFile.ImageId);
+        Assert.Empty(onFile.History);
+    }
+
+    [Fact]
+    public void A_reopen_allows_exactly_one_change()
+    {
+        var store = NewStore();
+        var saved = store.SaveSeatSubmission(Input(0, "old device"))!;
+        store.ReviewSeatSubmission(saved.Id, "admin", null);
+        store.ReopenSeatSubmission(saved.Id, "دستگاه جدید را ثبت کنید", "admin");
+
+        var changed = store.SaveSeatSubmission(Input(0, "new device"))!;
+        Assert.Equal("new device", changed.Text);
+        Assert.False(changed.Editable);
+
+        Assert.Null(store.SaveSeatSubmission(Input(0, "one more")));
+        Assert.Equal("new device", store.GetSeatSubmission(saved.Id)!.Text);
+    }
+
+    // Staff reopen, then decide the details were fine after all: approving locks the seat again, rather than
+    // leaving an unused reopen behind for the customer to spend later.
+    [Fact]
+    public void Approving_a_reopened_seat_takes_the_reopen_back()
+    {
+        var store = NewStore();
+        var saved = store.SaveSeatSubmission(Input(0, "mine"))!;
+        store.ReopenSeatSubmission(saved.Id, null, "admin");
+        store.ReviewSeatSubmission(saved.Id, "admin", null);
+
+        Assert.False(store.GetSeatSubmission(saved.Id)!.Editable);
+        Assert.Null(store.SaveSeatSubmission(Input(0, "late edit")));
+    }
+
+    // Seats reopened before the flag existed: the customer was already asked for new details, so they keep the
+    // right to send them.
+    [Fact]
+    public void A_seat_reopened_before_the_flag_existed_is_still_open()
+    {
+        var legacy = new SeatSubmission { Status = SeatSubmissionStatus.Pending };
+        legacy.Events.Add(new SeatSubmissionEvent { Action = "submitted" });
+        legacy.Events.Add(new SeatSubmissionEvent { Action = "reopened", By = "admin" });
+        Assert.True(legacy.Editable);
+
+        legacy.Events.Add(new SeatSubmissionEvent { Action = "edited" });
+        Assert.False(legacy.Editable);
+    }
+
+    [Fact]
+    public void Reopening_one_seat_leaves_the_others_frozen()
     {
         var store = NewStore();
         var a = store.SaveSeatSubmission(Input(0, "seat a"))!;
         store.SaveSeatSubmission(Input(1, "seat b"));
 
-        store.ReviewSeatSubmission(a.Id, "admin", null);
+        store.ReopenSeatSubmission(a.Id, null);
 
-        Assert.Null(store.SaveSeatSubmission(Input(0, "blocked")));
-        Assert.Equal("seat b edited", store.SaveSeatSubmission(Input(1, "seat b edited"))!.Text);
+        Assert.Equal("seat a edited", store.SaveSeatSubmission(Input(0, "seat a edited"))!.Text);
+        Assert.Null(store.SaveSeatSubmission(Input(1, "seat b edited")));
     }
 
     // The switch lives on the PLAN, so two plans of the SAME product can differ: one asks its buyers for setup
@@ -108,33 +170,22 @@ public class SeatSubmissionTests
         Assert.False(saved.Single(p => p.Type == "اختصاصی").CollectSeatInfo);
     }
 
-    // The plan may grant post-approval corrections. Each one costs an allowance and sends the seat back to the
-    // queue, so staff always re-approve what they're actually working from.
+    // A plan used to be able to grant post-approval corrections the customer made on their own. That is gone:
+    // an old allowance on a seat must not unlock it.
     [Fact]
-    public void A_granted_allowance_lets_the_buyer_correct_an_approved_seat()
+    public void A_plan_allowance_does_not_let_the_buyer_edit_on_their_own()
     {
         var store = NewStore();
         var input = Input(0, "first");
-        input.EditLimit = 1;
+        input.EditLimit = 3;
         var saved = store.SaveSeatSubmission(input)!;
-        store.ReviewSeatSubmission(saved.Id, "admin", null);
+        Assert.False(saved.Editable);
+        Assert.Null(store.SaveSeatSubmission(Input(0, "before review")));
 
-        // One correction is allowed: it lands, spends the allowance, and re-enters the review queue.
-        var corrected = store.SaveSeatSubmission(Input(0, "corrected"))!;
-        Assert.Equal("corrected", corrected.Text);
-        Assert.Equal(SeatSubmissionStatus.Pending, corrected.Status);
-        Assert.Equal(1, corrected.EditsUsed);
-        Assert.Equal(0, corrected.EditsLeft);
-        Assert.Null(corrected.ReviewedAtUtc);
-
-        // Editing again before the re-review is still free — the allowance pays for changing an APPROVED seat.
-        Assert.NotNull(store.SaveSeatSubmission(Input(0, "again")));
-        Assert.Equal(1, store.GetSeatSubmission(saved.Id)!.EditsUsed);
-
-        // Once approved a second time, the spent allowance leaves it frozen for good.
         store.ReviewSeatSubmission(saved.Id, "admin", null);
         Assert.False(store.GetSeatSubmission(saved.Id)!.Editable);
-        Assert.Null(store.SaveSeatSubmission(Input(0, "blocked")));
+        Assert.Null(store.SaveSeatSubmission(Input(0, "after review")));
+        Assert.Equal("first", store.GetSeatSubmission(saved.Id)!.Text);
     }
 
     [Fact]
@@ -209,6 +260,9 @@ public class SeatSubmissionTests
         // Staff asked for the re-send, so it costs the buyer none of the plan's allowance.
         Assert.Equal(0, resent.EditsUsed);
         Assert.Equal(1, resent.EditsLeft);
+        // One re-filing per rejection: the new details are frozen like any other.
+        Assert.False(resent.Editable);
+        Assert.Null(store.SaveSeatSubmission(Input(0, "and again")));
     }
 
     // Rejecting an ALREADY-APPROVED seat has to work too — an approval can turn out to be wrong — and it must
@@ -321,9 +375,11 @@ public class SeatSubmissionHistoryTests
     public void Versions_pile_up_newest_first()
     {
         var store = TestStore.Create();
-        store.SaveSeatSubmission(Input("one"));
+        var id = store.SaveSeatSubmission(Input("one"))!.Id;
+        store.ReopenSeatSubmission(id, null);
         store.SaveSeatSubmission(Input("two"));
-        var id = store.SaveSeatSubmission(Input("three"))!.Id;
+        store.ReopenSeatSubmission(id, null);
+        store.SaveSeatSubmission(Input("three"));
 
         Assert.Equal(new[] { "two", "one" }, store.GetSeatSubmission(id)!.History.Select(v => v.Text));
     }
@@ -332,8 +388,9 @@ public class SeatSubmissionHistoryTests
     public void Saving_the_same_details_again_is_not_a_new_version()
     {
         var store = TestStore.Create();
-        store.SaveSeatSubmission(Input("same", imageId: "img"));
-        var id = store.SaveSeatSubmission(Input("same"))!.Id;
+        var id = store.SaveSeatSubmission(Input("same", imageId: "img"))!.Id;
+        store.ReopenSeatSubmission(id, null);
+        store.SaveSeatSubmission(Input("same"));
 
         Assert.Empty(store.GetSeatSubmission(id)!.History);
     }
@@ -396,7 +453,10 @@ public class SeatSubmissionHistoryTests
         var store = TestStore.Create();
         var id = 0;
         for (var i = 0; i < SeatSubmissionRules.MaxHistory + 5; i++)
+        {
+            if (i > 0) store.ReopenSeatSubmission(id, null);
             id = store.SaveSeatSubmission(Input($"v{i}"))!.Id;
+        }
 
         var history = store.GetSeatSubmission(id)!.History;
         Assert.Equal(SeatSubmissionRules.MaxHistory, history.Count);

@@ -663,22 +663,12 @@ export default function AdminProductsPage() {
                             className={`${inputCls} resize-none`}
                           />
                         </Field>
-                        <Field label="تعداد ویرایش مجاز پس از تأیید">
-                          <input
-                            value={pl.seatInfoEditLimit}
-                            onChange={(e) => setPlan(i, "seatInfoEditLimit", Math.max(0, Number(e.target.value) || 0))}
-                            type="number"
-                            min={0}
-                            max={20}
-                            dir="ltr"
-                            className={inputCls}
-                          />
-                          <p className="mt-1 text-[11px] text-white/45">
-                            ۰ یعنی پس از تأیید ادمین قفل می‌شود. عدد بزرگ‌تر یعنی کاربر همان تعداد بار می‌تواند
-                            اطلاعات را عوض کند؛ هر تغییر دوباره به صف بررسی برمی‌گردد. (پیش از اولین تأیید، ویرایش
-                            همیشه آزاد است و از این سهمیه کم نمی‌شود.)
-                          </p>
-                        </Field>
+                        {/* The old per-plan edit allowance is gone: a customer files once, and only staff can
+                            unlock a seat. Said here so nobody looks for the setting. */}
+                        <p className="text-[11px] leading-5 text-white/45">
+                          اطلاعات پس از ارسال قفل می‌شود و کاربر خودش نمی‌تواند آن را تغییر دهد. برای ویرایش، از بخش
+                          «اطلاعات کاربران اکانت‌ها» آن را «بازگشایی برای ویرایش کاربر» کنید (یک بار ویرایش) یا رد کنید.
+                        </p>
                       </div>
                     )}
                   </div>
