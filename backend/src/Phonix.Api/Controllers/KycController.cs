@@ -18,11 +18,14 @@ public class KycController : ControllerBase
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
     private readonly IUserMailer _mailer;
-    public KycController(IDataStore store, IFileStorageService files, IUserMailer mailer)
+    private readonly ITelegramReceiptService _bot;
+
+    public KycController(IDataStore store, IFileStorageService files, IUserMailer mailer, ITelegramReceiptService bot)
     {
         _store = store;
         _files = files;
         _mailer = mailer;
+        _bot = bot;
     }
 
     // Uploads a KYC image to protected storage (outside the web root) and returns its opaque id; the client
@@ -81,17 +84,25 @@ public class KycController : ControllerBase
         // owner — so accept only ids this user actually uploaded. Otherwise the submission is a way to
         // attach someone else's stored document to your own KYC record (and to have it re-served to you
         // through the download endpoint, which authorizes on the id's owner, not on the record).
-        if (_files.OwnerOf(input.CardImage) != userId || _files.OwnerOf(input.SelfieImage) != userId)
-            return BadRequest("تصاویر بارگذاری‌شده معتبر نیستند. دوباره بارگذاری کنید.");
-        return _store.SubmitKyc(new KycRequest
+        //
+        // The selfie is optional (the form says so), so an empty one is fine — but one that IS sent must be the
+        // user's own like the card image. Requiring it here turned a skipped selfie into "invalid images".
+        if (_files.OwnerOf(input.CardImage ?? "") != userId)
+            return BadRequest("تصویر کارت ملی معتبر نیست. دوباره بارگذاری کنید.");
+        if (!string.IsNullOrWhiteSpace(input.SelfieImage) && _files.OwnerOf(input.SelfieImage) != userId)
+            return BadRequest("عکس سلفی معتبر نیست. دوباره بارگذاری کنید.");
+        var kyc = _store.SubmitKyc(new KycRequest
         {
             UserId = userId,
             FullName = input.FullName,
             NationalId = input.NationalId,
             BirthDate = input.BirthDate,
             CardImage = input.CardImage,
-            SelfieImage = input.SelfieImage,
+            SelfieImage = input.SelfieImage ?? "",
         });
+        // To the receipt bot's chat for a one-tap decision (no-op when the bot isn't set up).
+        if (kyc.Status == KycStatus.Pending) _ = _bot.NotifyKycAsync(kyc);
+        return kyc;
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]

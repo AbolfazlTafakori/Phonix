@@ -22,6 +22,11 @@ public interface ITelegramReceiptService
     // the bot token + numeric chat id are configured.
     Task NotifyDepositAsync(Transaction tx, CancellationToken ct = default);
 
+    // A customer's bank card (level 1) or national-ID documents (level 2), posted to the same chat for a
+    // decision. Same contract: never throws, no-op unless the receipt bot is configured.
+    Task NotifyCardAsync(BankCard card, CancellationToken ct = default);
+    Task NotifyKycAsync(KycRequest kyc, CancellationToken ct = default);
+
     // Long-polls one getUpdates cycle starting at `offset` and applies any admin decisions. Returns the next
     // offset to poll from (the highest handled update_id + 1, or `offset` when nothing advanced).
     Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default);
@@ -32,7 +37,7 @@ public interface ITelegramReceiptService
     Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default);
 }
 
-public sealed class TelegramReceiptService : ITelegramReceiptService
+public sealed partial class TelegramReceiptService : ITelegramReceiptService
 {
     private const string ApprovePrefix = "rcpt:ok:";
     private const string RejectPrefix = "rcpt:no:";
@@ -198,6 +203,9 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
             return;
         }
 
+        // Bank cards and identity documents share this chat and this gate; their buttons carry their own prefixes.
+        if (await TryHandleVerificationCallbackAsync(token, callbackId, data, chatId, messageId, ct)) return;
+
         var (action, txId) = ParseCallback(data);
         if (action is null || txId is null)
         {
@@ -262,8 +270,10 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
     {
         if (!msg.TryGetProperty("reply_to_message", out var replied)) return;
         var promptText = replied.TryGetProperty("text", out var pt) ? pt.GetString() ?? "" : "";
-        if (ParseReasonMarker(promptText) is not { } marker) return; // not a reply to our reason prompt
-        var (txId, receiptMsgId) = marker;
+        // A reply to a card / KYC reason prompt, or to a receipt one; anything else isn't ours.
+        var verification = ParseVerificationMarker(promptText);
+        var receiptMarker = ParseReasonMarker(promptText);
+        if (verification is null && receiptMarker is null) return;
 
         var reason = (msg.TryGetProperty("text", out var mt) ? mt.GetString() ?? "" : "").Trim();
 
@@ -283,6 +293,13 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
             await SendMessageAsync(token, chatId.Value.ToString(), "دلیل رد نمی‌تواند خالی باشد. لطفاً دوباره در «پاسخ» به پیام دلیل را بنویسید.", "", ct);
             return;
         }
+
+        if (verification is { } target)
+        {
+            await RejectVerificationAsync(token, chatId.Value, target, reason, ct);
+            return;
+        }
+        var (txId, receiptMsgId) = receiptMarker!.Value;
 
         var tx = _store.GetTransaction(txId);
         if (tx is null) return;
@@ -480,7 +497,7 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
             _logger.LogWarning("Telegram sendPhoto failed: {Status}", (int)resp.StatusCode);
     }
 
-    private async Task SendMessageAsync(string token, string chatId, string text, string markup, CancellationToken ct)
+    private async Task SendMessageAsync(string token, string chatId, string text, string markup, CancellationToken ct, int? replyTo = null)
     {
         var fields = new Dictionary<string, string>
         {
@@ -489,6 +506,11 @@ public sealed class TelegramReceiptService : ITelegramReceiptService
             ["parse_mode"] = "HTML",
             ["disable_web_page_preview"] = "true",
         };
+        if (replyTo is int r)
+        {
+            fields["reply_to_message_id"] = r.ToString();
+            fields["allow_sending_without_reply"] = "true";
+        }
         if (!string.IsNullOrEmpty(markup)) fields["reply_markup"] = markup; // Telegram rejects an empty reply_markup
         await PostFormAsync(token, "sendMessage", fields, ct);
     }

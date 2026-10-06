@@ -18,11 +18,14 @@ public class CardsController : ControllerBase
     private readonly IDataStore _store;
     private readonly IFileStorageService _files;
     private readonly IUserMailer _mailer;
-    public CardsController(IDataStore store, IFileStorageService files, IUserMailer mailer)
+    private readonly ITelegramReceiptService _bot;
+
+    public CardsController(IDataStore store, IFileStorageService files, IUserMailer mailer, ITelegramReceiptService bot)
     {
         _store = store;
         _files = files;
         _mailer = mailer;
+        _bot = bot;
     }
 
     // Uploads a bank-card photo to protected storage and returns its opaque id; the client submits that id
@@ -74,6 +77,8 @@ public class CardsController : ControllerBase
             return BadRequest("تصویر کارت نامعتبر است. دوباره بارگذاری کنید.");
         var result = _store.AddCard(userId, input.CardNumber ?? "", input.HolderName ?? "", input.CardImage ?? "");
         if (result.Error is not null) return BadRequest(result.Error);
+        // To the receipt bot's chat for a one-tap decision (no-op when the bot isn't set up).
+        if (result.Card!.Status == BankCardStatus.Pending) _ = _bot.NotifyCardAsync(result.Card);
         return result.Card!;
     }
 

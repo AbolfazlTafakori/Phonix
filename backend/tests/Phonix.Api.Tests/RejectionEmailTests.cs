@@ -27,6 +27,8 @@ public class RejectionEmailTests
     private sealed class NoopReceiptBot : ITelegramReceiptService
     {
         public Task NotifyDepositAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyCardAsync(BankCard card, CancellationToken ct = default) => Task.CompletedTask;
+        public Task NotifyKycAsync(KycRequest kyc, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
     }
