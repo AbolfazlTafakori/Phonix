@@ -9,10 +9,12 @@ namespace Phonix.Api.Controllers;
 
 // ── Panel: the customer bot's own settings ─────────────────────────────────────────────────────────────
 
+// ShopUrl: where the shop opens in Telegram — null when the site isn't on https, so there is none to offer.
+// Warning: a saved change Telegram didn't fully take (the menu button), for staff to see.
 public record CustomerBotStatusDto(bool Enabled, bool Public, bool HasToken, string TokenHint, string Username,
-    int LinkedCount, bool Polling);
-// Token: null keeps the saved one; a value replaces it (checked with Telegram first).
-public record CustomerBotInput(bool Enabled, bool Public, string? Token);
+    int LinkedCount, bool Polling, bool Shop = false, string? ShopUrl = null, string? Warning = null);
+// Token: null keeps the saved one; a value replaces it (checked with Telegram first). Shop: null keeps it.
+public record CustomerBotInput(bool Enabled, bool Public, string? Token, bool? Shop = null);
 
 [ApiController]
 [Route("api/admin/customer-bot")]
@@ -45,7 +47,7 @@ public class CustomerBotController : ControllerBase
         var linked = _store.GetUsers().Count(u => u.TelegramChatId is not null);
         var polling = s.CustomerBotEnabled && token.Length > 0 && _cluster?.Role is not (ClusterRole.Standby or ClusterRole.Recovering);
         return new CustomerBotStatusDto(s.CustomerBotEnabled, s.CustomerBotPublic, token.Length > 0, Hint(token),
-            s.CustomerBotUsername ?? "", linked, polling);
+            s.CustomerBotUsername ?? "", linked, polling, s.CustomerBotShop, TelegramCustomerBot.ShopUrl);
     }
 
     [HttpGet]
@@ -65,16 +67,28 @@ public class CustomerBotController : ControllerBase
         }
         var hasToken = token is not null || !string.IsNullOrWhiteSpace(_store.GetTelegramSettings().CustomerBotToken);
         if (input.Enabled && !hasToken) return BadRequest("برای روشن کردن ربات، ابتدا توکن آن را وارد کنید.");
-        _store.SetCustomerBot(input.Enabled, input.Public, token, username);
-        return Status();
+        if (input.Shop == true && TelegramCustomerBot.ShopUrl is null)
+            return BadRequest("فروشگاه داخل تلگرام فقط روی آدرس https کار می‌کند؛ PHONIX_FRONTEND_URL سایت https نیست.");
+        _store.SetCustomerBot(input.Enabled, input.Public, token, username, input.Shop);
+        // The menu button lives on Telegram's side, so it follows the switch here. The settings are saved
+        // either way; a refusal is shown to staff, and «تست اتصال» tries again.
+        var menu = await _bot.SyncMenuButtonAsync(ct);
+        return menu.Ok ? Status() : Status() with { Warning = menu.Error };
     }
 
     // Removes the token: the bot stops, and the «اتصال به تلگرام» button disappears for customers. Links already
     // made stay on the accounts, so putting a token back reconnects everyone without them relinking.
     [HttpDelete("token")]
-    public CustomerBotStatusDto RemoveToken()
+    public async Task<CustomerBotStatusDto> RemoveToken(CancellationToken ct = default)
     {
-        _store.SetCustomerBot(false, false, "", null);
+        // Put the menu button back while the token still works — after this nothing can reach the bot.
+        var s = _store.GetTelegramSettings();
+        if (s.CustomerBotShop)
+        {
+            _store.SetCustomerBot(s.CustomerBotEnabled, s.CustomerBotPublic, null, null, shop: false);
+            await _bot.SyncMenuButtonAsync(ct);
+        }
+        _store.SetCustomerBot(false, false, "", null, shop: false);
         return Status();
     }
 
@@ -88,14 +102,21 @@ public class CustomerBotController : ControllerBase
         if (!check.Ok) return BadRequest(check.Error);
         if (!string.Equals(check.Username, s.CustomerBotUsername, StringComparison.Ordinal))
             _store.SetCustomerBot(s.CustomerBotEnabled, s.CustomerBotPublic, s.CustomerBotToken, check.Username);
+        // Also re-applies the menu button, which is how a failed earlier attempt gets fixed.
+        var menu = await _bot.SyncMenuButtonAsync(ct);
+        if (!menu.Ok) return BadRequest(menu.Error);
         return Ok(new { ok = true, username = check.Username });
     }
 }
 
 // ── Customer: linking their own account ────────────────────────────────────────────────────────────────
 
-public record TelegramLinkStatusDto(bool Available, string? BotUsername, bool Linked, string? TelegramUsername, bool Notify);
+// Shop: the shop inside Telegram is on — inside it, the account page offers to link that same Telegram.
+public record TelegramLinkStatusDto(bool Available, string? BotUsername, bool Linked, string? TelegramUsername, bool Notify,
+    bool Shop = false);
 public record TelegramNotifyInput(bool Notify);
+// The Mini App's launch data (Telegram.WebApp.initData), as Telegram signed it.
+public record TelegramInitDataInput(string InitData);
 
 [ApiController]
 [Route("api/account/telegram")]
@@ -126,7 +147,26 @@ public class AccountTelegramController : ControllerBase
     {
         if (this.CurrentUserId() is not int id || _store.GetUser(id) is not { } user) return Unauthorized();
         var (available, username) = Offer();
-        return new TelegramLinkStatusDto(available, username, user.TelegramChatId is not null, user.TelegramUsername, user.TelegramNotify);
+        return new TelegramLinkStatusDto(available, username, user.TelegramChatId is not null, user.TelegramUsername, user.TelegramNotify,
+            TelegramCustomerBot.ShopToken(_store) is not null);
+    }
+
+    // Linking from INSIDE the shop in Telegram: the signed-in session proves the account, Telegram's signed
+    // launch data proves the Telegram account — both at once, so no t.me round trip is needed. It is a button
+    // the customer presses, never automatic: signing in on someone else's phone must not hand that phone's
+    // Telegram a way back into the account.
+    [HttpPost("webapp")]
+    public async Task<IActionResult> LinkFromShop(TelegramInitDataInput input, CancellationToken ct)
+    {
+        if (this.CurrentUserId() is not int id || _store.GetUser(id) is not { } user) return Unauthorized();
+        if (TelegramCustomerBot.ShopToken(_store) is not { } token) return BadRequest("فروشگاه داخل تلگرام در حال حاضر فعال نیست.");
+        if (TelegramInitData.Validate(input.InitData, token, DateTime.UtcNow) is not { } tg)
+            return BadRequest("اطلاعات تلگرام معتبر نیست یا منقضی شده. فروشگاه را از ربات دوباره باز کنید.");
+        if (!_store.LinkTelegram(id, tg.Id, tg.Username)) return BadRequest("اتصال انجام نشد؛ لطفاً دوباره تلاش کنید.");
+        var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
+        await _bot.SendAsync(tg.Id,
+            $"✅ حساب «{name}» در فونیکس وریفای به این تلگرام وصل شد.\n\nاز این پس فروشگاه داخل تلگرام بدون ورود دوباره باز می‌شود و اطلاعات سفارش‌ها هم اینجا برایتان ارسال می‌شود.\n\nبرای قطع اتصال: /stop", ct);
+        return NoContent();
     }
 
     // A one-time t.me link for this account: opening it sends "/start <token>" to the bot, which links the chat.

@@ -23,6 +23,9 @@ public record ResetPasswordInput(string Token, string NewPassword);
 public record TwoFactorVerifyInput(string Token, string Code);
 // A login either completes (Token + User) or stops at the second factor (RequiresTwoFactor + ChallengeToken).
 public record LoginResultDto(bool RequiresTwoFactor, string? ChallengeToken, string? Token, UserDto? User);
+// Signing in from the shop inside Telegram. Linked=false: genuine Telegram user, but no account is linked to
+// them yet — the shop then signs in the ordinary way and offers to link.
+public record TelegramLoginResultDto(bool Linked, string? Token, UserDto? User);
 
 [ApiController]
 [Route("api/auth")]
@@ -454,6 +457,33 @@ public class AuthController : ControllerBase
 
         var session = IssueSession(user, adminScope: false);
         return new AuthResultDto(session.Token!, user.ToDto());
+    }
+
+    // The shop inside Telegram signs its customer in with the launch data Telegram signed for it. Only an
+    // account the customer linked to that Telegram themselves (from a signed-in session) is entered, and only
+    // ever with a main-site session — the panel still needs its own password + 2FA login.
+    [HttpPost("telegram")]
+    public async Task<ActionResult<TelegramLoginResultDto>> Telegram(TelegramInitDataInput input)
+    {
+        if (TelegramCustomerBot.ShopToken(_store) is not { } botToken)
+            return NotFound("فروشگاه داخل تلگرام فعال نیست.");
+        if (TelegramInitData.Validate(input.InitData, botToken, DateTime.UtcNow) is not { } tg)
+        {
+            NoteAuthFailure("telegram", null);
+            await TarpitAsync();
+            return Unauthorized("اطلاعات تلگرام معتبر نیست یا منقضی شده. فروشگاه را از ربات دوباره باز کنید.");
+        }
+        // In a private chat the chat id IS the user id, so the chat a customer linked is this Telegram user.
+        if (_store.FindUserByTelegramChat(tg.Id) is not { } user)
+            return new TelegramLoginResultDto(false, null, null);
+        if (user.Blocked)
+        {
+            _logger.LogWarning("Blocked account Telegram sign-in attempt: {Username} (#{UserId}) from {ClientIp}",
+                user.Username, user.Id, ClientIp);
+            return StatusCode(403, "حساب شما مسدود شده است.");
+        }
+        var session = IssueSession(user, adminScope: false, persistent: true);
+        return new TelegramLoginResultDto(true, session.Token, session.User);
     }
 
     [HttpPost("2fa/verify")]

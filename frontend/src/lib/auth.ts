@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { api } from "./api";
+import { suppressTelegramAutoSignIn } from "./telegram";
 
 export type CurrentUser = { id: number; name: string; username: string; email: string; phone?: string; avatar?: string };
 
@@ -25,6 +26,8 @@ export function setCurrentUser(user: CurrentUser) {
 
 export function clearCurrentUser() {
   api.auth.logout().catch(() => {});
+  // Inside the shop in Telegram, signing out must not be undone by the automatic Telegram sign-in.
+  suppressTelegramAutoSignIn();
   localStorage.removeItem(KEY);
   window.dispatchEvent(new Event(AUTH_EVENT));
 }

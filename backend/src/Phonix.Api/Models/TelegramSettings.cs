@@ -30,6 +30,9 @@ public class TelegramSettings
     // Whether customers see «اتصال به تلگرام» in their account. Off until staff have checked the bot works —
     // the bot can run and be tested without anyone being offered it yet.
     public bool CustomerBotPublic { get; set; }
+    // The shop inside Telegram (Mini App): the bot's menu button and /start open the site in Telegram, and a
+    // linked customer is signed in there automatically. Its own switch, off until staff have tried it.
+    public bool CustomerBotShop { get; set; }
     public string CustomerBotToken { get; set; } = "";
     // The bot's @username, read from Telegram when the token is saved; it builds the t.me link customers open.
     public string CustomerBotUsername { get; set; } = "";

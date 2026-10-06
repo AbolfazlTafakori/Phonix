@@ -16,8 +16,11 @@ namespace Phonix.Api.Tests;
 // their account mail in Telegram too. Driven against a scripted Telegram.
 public class CustomerBotTests
 {
-    private const string Token = "123456789:AAFakeTokenForTestsOnly_abcdefghijklmnop";
+    private const string Token = TelegramLaunch.Token;
     private const long Chat = 777001;
+
+    // Telegram opens a Mini App only over https, so the shop exists only when the site's address is https.
+    static CustomerBotTests() => Environment.SetEnvironmentVariable("PHONIX_FRONTEND_URL", "https://shop.test");
 
     private sealed class FakeTelegram : HttpMessageHandler
     {
@@ -25,6 +28,8 @@ public class CustomerBotTests
         public Queue<string> Updates { get; } = new();
         // Chats that blocked the bot: sendMessage to them answers 403, like the real API.
         public HashSet<long> Blocked { get; } = new();
+        // People who never pressed Start: the bot may not write first, also a 403.
+        public HashSet<long> NeverStarted { get; } = new();
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct)
         {
@@ -36,6 +41,11 @@ public class CustomerBotTests
                 return new HttpResponseMessage(HttpStatusCode.Forbidden)
                 {
                     Content = new StringContent("{\"ok\":false,\"description\":\"Forbidden: bot was blocked by the user\"}"),
+                };
+            if (method == "sendMessage" && NeverStarted.Any(b => decoded.Contains($"chat_id={b}")))
+                return new HttpResponseMessage(HttpStatusCode.Forbidden)
+                {
+                    Content = new StringContent("{\"ok\":false,\"description\":\"Forbidden: bot can't initiate conversation with a user\"}"),
                 };
             var result = method switch
             {
@@ -244,7 +254,7 @@ public class CustomerBotTests
         Assert.DoesNotContain("AAFakeTokenForTestsOnly", JsonSerializer.Serialize(status));
         Assert.Equal("PhoenixTestBot", status.Username);
 
-        var removed = panel.RemoveToken();
+        var removed = await panel.RemoveToken();
         Assert.False(removed.HasToken);
         Assert.False(removed.Enabled);
         Assert.False(removed.Public);
@@ -277,5 +287,115 @@ public class CustomerBotTests
         Assert.True(saved.Enabled);
         Assert.False(saved.Public); // running, not yet offered to customers
         Assert.Equal("PhoenixTestBot", saved.Username);
+    }
+
+    // ── the shop inside Telegram ──
+
+    [Fact]
+    public async Task Switching_the_shop_on_and_off_moves_the_menu_button()
+    {
+        var (store, telegram, bot) = Setup();
+        var panel = As(new CustomerBotController(store, bot), store.GetUsers().First(u => u.Role == UserRole.Admin));
+
+        var on = Assert.IsType<CustomerBotStatusDto>((await panel.Save(new CustomerBotInput(true, false, null, Shop: true), default)).Value);
+        Assert.True(on.Shop);
+        Assert.Null(on.Warning);
+        var set = Assert.Single(telegram.Calls, c => c.Method == "setChatMenuButton");
+        Assert.Contains("\"type\":\"web_app\"", set.Body);
+        Assert.Contains("https://shop.test/", set.Body);
+
+        var off = Assert.IsType<CustomerBotStatusDto>((await panel.Save(new CustomerBotInput(true, false, null, Shop: false), default)).Value);
+        Assert.False(off.Shop);
+        Assert.Contains("\"type\":\"default\"", telegram.Calls.Last(c => c.Method == "setChatMenuButton").Body);
+    }
+
+    [Fact]
+    public void The_shop_goes_off_with_the_bot()
+    {
+        var (store, _, _) = Setup();
+        store.SetCustomerBot(true, false, null, null, shop: true);
+        Assert.True(store.GetTelegramSettings().CustomerBotShop);
+
+        store.SetCustomerBot(false, false, null, null);
+
+        Assert.False(store.GetTelegramSettings().CustomerBotShop);
+        Assert.Null(TelegramCustomerBot.ShopToken(store));
+    }
+
+    [Fact]
+    public async Task Start_offers_the_shop_button_only_while_the_shop_is_on()
+    {
+        var (store, telegram, bot) = Setup();
+        telegram.Updates.Enqueue(Message("/start"));
+        await bot.ProcessUpdatesAsync(0);
+        Assert.DoesNotContain("web_app", telegram.Calls.Last(c => c.Method == "sendMessage").Body);
+
+        store.SetCustomerBot(true, true, null, null, shop: true);
+        telegram.Updates.Enqueue(Message("/start"));
+        await bot.ProcessUpdatesAsync(0);
+
+        var reply = telegram.Calls.Last(c => c.Method == "sendMessage").Body;
+        Assert.Contains("\"web_app\":{\"url\":\"https://shop.test/\"}", reply);
+    }
+
+    [Fact]
+    public async Task Inside_the_shop_a_signed_in_customer_links_that_telegram()
+    {
+        var (store, telegram, bot) = Setup(isPublic: false);
+        store.SetCustomerBot(true, false, null, null, shop: true);
+        var account = As(new AccountTelegramController(store, bot), store.GetUser(1)!);
+        Assert.True(account.Get().Value!.Shop);
+
+        var result = await account.LinkFromShop(new TelegramInitDataInput(TelegramLaunch.InitData(Chat)), default);
+
+        Assert.IsType<NoContentResult>(result);
+        Assert.Equal(Chat, store.GetUser(1)!.TelegramChatId);
+        Assert.Equal("ali_tg", store.GetUser(1)!.TelegramUsername);
+        Assert.Contains(telegram.Calls, c => c.Method == "sendMessage" && c.Body.Contains($"chat_id={Chat}"));
+    }
+
+    [Fact]
+    public async Task Linking_from_the_shop_needs_genuine_fresh_launch_data_and_the_shop_on()
+    {
+        var (store, _, bot) = Setup();
+        var account = As(new AccountTelegramController(store, bot), store.GetUser(1)!);
+
+        // Shop off: nothing to link from.
+        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramInitDataInput(TelegramLaunch.InitData(Chat)), default));
+
+        store.SetCustomerBot(true, true, null, null, shop: true);
+        var stale = TelegramLaunch.InitData(Chat, signedAt: DateTime.UtcNow.AddHours(-3));
+        var forged = TelegramLaunch.InitData(Chat, token: "987654321:BBOtherBotTokenForTests_abcdefghijklmno");
+        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramInitDataInput(stale), default));
+        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramInitDataInput(forged), default));
+        Assert.Null(store.GetUser(1)!.TelegramChatId);
+    }
+
+    // Someone who linked from the shop without ever pressing Start can't be written to first — that is not a
+    // reason to throw their link (and with it their sign-in) away. Blocking the bot still is.
+    [Fact]
+    public async Task A_customer_who_never_pressed_start_stays_linked()
+    {
+        var (store, telegram, bot) = Setup();
+        store.LinkTelegram(1, Chat, "ali_tg");
+        telegram.NeverStarted.Add(Chat);
+
+        Assert.False(await bot.SendAsync(Chat, "hello"));
+
+        Assert.Equal(Chat, store.GetUser(1)!.TelegramChatId);
+    }
+
+    [Fact]
+    public async Task Removing_the_token_puts_the_menu_button_back_first()
+    {
+        var (store, telegram, bot) = Setup();
+        store.SetCustomerBot(true, true, null, null, shop: true);
+        var panel = As(new CustomerBotController(store, bot), store.GetUsers().First(u => u.Role == UserRole.Admin));
+
+        var removed = await panel.RemoveToken();
+
+        Assert.False(removed.Shop);
+        Assert.False(removed.HasToken);
+        Assert.Contains("\"type\":\"default\"", Assert.Single(telegram.Calls, c => c.Method == "setChatMenuButton").Body);
     }
 }

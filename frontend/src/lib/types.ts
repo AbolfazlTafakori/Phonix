@@ -848,6 +848,11 @@ export type CustomerBotStatus = {
   username: string;
   linkedCount: number;
   polling: boolean;
+  // The shop inside Telegram: on/off, where it opens (null when the site isn't https), and a saved change
+  // Telegram didn't take.
+  shop: boolean;
+  shopUrl: string | null;
+  warning: string | null;
 };
 
 // A customer's own link to the bot. available: staff have switched it on for customers and it is configured.
@@ -857,6 +862,8 @@ export type TelegramLinkStatus = {
   linked: boolean;
   telegramUsername: string | null;
   notify: boolean;
+  // The shop inside Telegram is on: inside it, the card offers to link that same Telegram.
+  shop: boolean;
 };
 
 export type PromoBar = { enabled: boolean; emoji: string; text: string; buttonLabel: string; buttonLink: string };

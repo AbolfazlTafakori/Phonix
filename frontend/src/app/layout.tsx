@@ -4,6 +4,7 @@ import Script from "next/script";
 import { getAdvancedSettings } from "@/lib/content";
 import { SITE_URL, absoluteUrl, jsonLdScript } from "@/lib/seo";
 import LiveChat from "@/components/LiveChat";
+import TelegramMiniApp from "@/components/TelegramMiniApp";
 import {
   Vazirmatn,
   Bigshot_One,
@@ -206,6 +207,7 @@ export default async function RootLayout({
         {children}
 
         <LiveChat />
+        <TelegramMiniApp />
 
         {analyticsId && (
           <>

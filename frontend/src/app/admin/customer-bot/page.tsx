@@ -8,7 +8,8 @@ import { Card, PageHeader, Spinner, Toggle, Field, inputCls } from "@/components
 
 // The customer Telegram bot: customers link their account to it and get their account mail there too.
 // Two switches on purpose — «فعال» runs the bot (so it can be tested), «نمایش به کاربران» is what puts the
-// «اتصال به تلگرام» button in customers' accounts. Until the second is on, customers see nothing.
+// «اتصال به تلگرام» button in customers' accounts. Until the second is on, customers see nothing. A third,
+// «فروشگاه داخل تلگرام», opens the site inside Telegram (Mini App) from the bot's menu button and /start.
 export default function AdminCustomerBotPage() {
   const [status, setStatus] = useState<CustomerBotStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -16,6 +17,7 @@ export default function AdminCustomerBotPage() {
   const [token, setToken] = useState("");
   const [enabled, setEnabled] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
+  const [shop, setShop] = useState(false);
   const [busy, setBusy] = useState<"" | "save" | "test" | "remove">("");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -23,6 +25,7 @@ export default function AdminCustomerBotPage() {
     setStatus(s);
     setEnabled(s.enabled);
     setIsPublic(s.public);
+    setShop(s.shop);
   }
 
   useEffect(() => {
@@ -39,10 +42,11 @@ export default function AdminCustomerBotPage() {
     setBusy("save");
     setNote(null);
     try {
-      const s = await api.customerBot.save({ enabled, public: isPublic, token: token.trim() || null });
+      const s = await api.customerBot.save({ enabled, public: isPublic, token: token.trim() || null, shop });
       apply(s);
       setToken("");
-      setNote({ ok: true, text: "ذخیره شد." });
+      // Saved either way; a warning means Telegram didn't take the menu button.
+      setNote(s.warning ? { ok: false, text: `ذخیره شد، اما: ${s.warning}` } : { ok: true, text: "ذخیره شد." });
     } catch (e) {
       setNote({ ok: false, text: e instanceof Error ? e.message : "ذخیره ناموفق بود." });
     } finally {
@@ -117,7 +121,7 @@ export default function AdminCustomerBotPage() {
                   <span className="block text-sm text-white/85">فعال</span>
                   <span className="block text-[11px] text-white/40">ربات روشن می‌شود و پیام‌ها را دریافت و ارسال می‌کند.</span>
                 </span>
-                <Toggle checked={enabled} onChange={(v) => { setEnabled(v); if (!v) setIsPublic(false); }} />
+                <Toggle checked={enabled} onChange={(v) => { setEnabled(v); if (!v) { setIsPublic(false); setShop(false); } }} />
               </label>
 
               <label className={`flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3 ${enabled ? "cursor-pointer" : "opacity-50"}`}>
@@ -126,6 +130,18 @@ export default function AdminCustomerBotPage() {
                   <span className="block text-[11px] text-white/40">تا روشن نشود، کاربران هیچ دکمه‌ای در حساب خود نمی‌بینند. اول ربات را تست کنید.</span>
                 </span>
                 <Toggle checked={isPublic && enabled} onChange={(v) => enabled && setIsPublic(v)} />
+              </label>
+
+              <label className={`flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3 ${enabled && status.shopUrl ? "cursor-pointer" : "opacity-50"}`}>
+                <span>
+                  <span className="block text-sm text-white/85">فروشگاه داخل تلگرام (Mini App)</span>
+                  <span className="block text-[11px] leading-5 text-white/40">
+                    {status.shopUrl
+                      ? "دکمه‌ی «🛒 فروشگاه» در منوی ربات و پیام /start اضافه می‌شود و خود سایت داخل تلگرام باز می‌شود. کاربری که تلگرامش را به حساب وصل کرده، خودکار وارد می‌شود."
+                      : "آدرس سایت (PHONIX_FRONTEND_URL) https نیست؛ تلگرام فروشگاه را فقط روی https باز می‌کند."}
+                  </span>
+                </span>
+                <Toggle checked={shop && enabled} onChange={(v) => enabled && !!status.shopUrl && setShop(v)} />
               </label>
 
               {note && <p className={`text-sm ${note.ok ? "text-emerald-400" : "text-rose-400"}`}>{note.text}</p>}
@@ -180,6 +196,10 @@ export default function AdminCustomerBotPage() {
                 <dd className={status.public ? "text-emerald-400" : "text-white/45"}>{status.public ? "بله" : "خیر"}</dd>
               </div>
               <div className="flex justify-between gap-3">
+                <dt className="text-white/50">فروشگاه داخل تلگرام</dt>
+                <dd className={status.shop ? "text-emerald-400" : "text-white/45"}>{status.shop ? "روشن" : "خاموش"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
                 <dt className="text-white/50">حساب‌های متصل</dt>
                 <dd className="text-white/85">{formatNumber(status.linkedCount)}</dd>
               </div>
@@ -190,6 +210,11 @@ export default function AdminCustomerBotPage() {
               <p>۲. توکن را اینجا وارد کنید، «فعال» را روشن کنید و ذخیره کنید.</p>
               <p>۳. «تست اتصال» بزنید و ربات را خودتان در تلگرام باز کنید.</p>
               <p>۴. وقتی مطمئن شدید، «نمایش به کاربران» را روشن کنید.</p>
+              <p className="pt-2 font-bold text-white/60">فروشگاه داخل تلگرام</p>
+              <p>۱. «فروشگاه داخل تلگرام» را روشن و ذخیره کنید.</p>
+              <p>۲. ربات را در تلگرام گوشی باز کنید (اگر باز بود، یک بار ببندید) و دکمه‌ی «🛒 فروشگاه» را بزنید.</p>
+              <p>۳. یک بار وارد حساب شوید و در «حساب کاربری» «اتصال همین تلگرام» را بزنید؛ دفعه‌ی بعد خودکار وارد می‌شوید.</p>
+              <p>در تلگرام گوشی و دسکتاپ کار می‌کند؛ نسخه‌ی وب تلگرام (web.telegram.org) پشتیبانی نمی‌شود.</p>
             </div>
           </Card>
         </div>

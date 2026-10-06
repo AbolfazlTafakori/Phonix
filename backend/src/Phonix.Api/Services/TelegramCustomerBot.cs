@@ -26,6 +26,10 @@ public interface ITelegramCustomerBot
 
     // Asks Telegram who a token belongs to (getMe): the bot's @username, or Telegram's own error.
     Task<(bool Ok, string? Username, string? Error)> CheckTokenAsync(string token, CancellationToken ct = default);
+
+    // Points the bot's menu button at the shop while the shop is on, and back to Telegram's default when it is
+    // off. Error is what to tell staff when Telegram refused.
+    Task<(bool Ok, string? Error)> SyncMenuButtonAsync(CancellationToken ct = default);
 }
 
 public sealed class TelegramCustomerBot : ITelegramCustomerBot
@@ -48,6 +52,13 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
 
+    // Where the shop opens inside Telegram: the site itself. Telegram only opens Mini Apps over HTTPS, so on a
+    // plain-http address (a dev machine) there is no shop to offer.
+    public static string? ShopUrl =>
+        Uri.TryCreate(FrontendUrl.TrimEnd('/') + "/", UriKind.Absolute, out var uri) && uri.Scheme == Uri.UriSchemeHttps
+            ? uri.ToString()
+            : null;
+
     private string? ActiveToken()
     {
         var s = _store.GetTelegramSettings();
@@ -56,6 +67,22 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
     }
 
     public bool IsActive => ActiveToken() is not null;
+
+    // The bot token while the shop inside Telegram is on and can actually open — what a Mini App's launch
+    // data is checked against. Null otherwise, which is also "no signing in from Telegram".
+    public static string? ShopToken(IDataStore store)
+    {
+        var s = store.GetTelegramSettings();
+        var token = (s.CustomerBotToken ?? "").Trim();
+        return s.CustomerBotEnabled && s.CustomerBotShop && token.Length > 0 && ShopUrl is not null ? token : null;
+    }
+
+    private bool ShopOn => ShopToken(_store) is not null;
+
+    // An inline button that opens the shop inside Telegram, or nothing while the shop is off.
+    private string? ShopKeyboard(string label) => ShopOn
+        ? JsonSerializer.Serialize(new { inline_keyboard = new[] { new[] { new { text = label, web_app = new { url = ShopUrl } } } } })
+        : null;
 
     public async Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default)
     {
@@ -117,9 +144,22 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
         }
 
         var user = _store.FindUserByTelegramChat(chatId);
-        await ReplyAsync(token, chatId, user is null
-            ? $"سلام! 👋\nاین ربات فونیکس وریفای است.\n\nبرای دریافت اطلاعات سفارش‌ها و پیام‌ها در تلگرام، وارد حساب کاربری سایت شوید و «اتصال به تلگرام» را بزنید:\n{FrontendUrl}/account"
-            : $"حساب «{DisplayName(user)}» به این تلگرام وصل است ✅\nاطلاعات سفارش‌ها و پیام‌های حساب شما اینجا ارسال می‌شود.\n\nبرای قطع اتصال: /stop\nحساب کاربری: {FrontendUrl}/account", ct);
+        var shop = ShopKeyboard("🛒 ورود به فروشگاه");
+        if (head == "/shop" && shop is not null)
+        {
+            await ReplyAsync(token, chatId, "فروشگاه فونیکس وریفای، داخل همین تلگرام:", ct, shop);
+            return;
+        }
+        string reply;
+        if (user is not null)
+            reply = $"حساب «{DisplayName(user)}» به این تلگرام وصل است ✅\nاطلاعات سفارش‌ها و پیام‌های حساب شما اینجا ارسال می‌شود."
+                    + (shop is not null ? "\nبا دکمه‌ی زیر، فروشگاه بدون ورود دوباره باز می‌شود." : "")
+                    + $"\n\nبرای قطع اتصال: /stop\nحساب کاربری: {FrontendUrl}/account";
+        else if (shop is not null)
+            reply = "سلام! 👋\nاین ربات فونیکس وریفای است.\n\nبا دکمه‌ی زیر فروشگاه داخل تلگرام باز می‌شود. یک بار وارد حساب خود شوید و در «حساب کاربری» گزینه‌ی «اتصال همین تلگرام» را بزنید؛ از آن به بعد خودکار وارد می‌شوید و اطلاعات سفارش‌ها هم اینجا برایتان می‌آید.";
+        else
+            reply = $"سلام! 👋\nاین ربات فونیکس وریفای است.\n\nبرای دریافت اطلاعات سفارش‌ها و پیام‌ها در تلگرام، وارد حساب کاربری سایت شوید و «اتصال به تلگرام» را بزنید:\n{FrontendUrl}/account";
+        await ReplyAsync(token, chatId, reply, ct, shop);
     }
 
     private async Task LinkAsync(string token, long chatId, string linkToken, string? username, CancellationToken ct)
@@ -139,7 +179,8 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
         }
         _logger.LogInformation("Customer bot: user {UserId} linked a Telegram chat", userId);
         await ReplyAsync(token, chatId,
-            $"✅ حساب «{DisplayName(user)}» در فونیکس وریفای به این تلگرام وصل شد.\n\nاز این پس اطلاعات سفارش‌ها، تأیید پرداخت‌ها و پیام‌های پشتیبانی اینجا هم برایتان ارسال می‌شود.\n\nبرای قطع اتصال: /stop", ct);
+            $"✅ حساب «{DisplayName(user)}» در فونیکس وریفای به این تلگرام وصل شد.\n\nاز این پس اطلاعات سفارش‌ها، تأیید پرداخت‌ها و پیام‌های پشتیبانی اینجا هم برایتان ارسال می‌شود.\n\nبرای قطع اتصال: /stop",
+            ct, ShopKeyboard("🛒 ورود به فروشگاه"));
     }
 
     private static string DisplayName(AppUser u) => string.IsNullOrWhiteSpace(u.Name) ? u.Username : u.Name;
@@ -150,23 +191,33 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
         return await ReplyAsync(token, chatId, text, ct);
     }
 
-    private async Task<bool> ReplyAsync(string token, long chatId, string text, CancellationToken ct)
+    private async Task<bool> ReplyAsync(string token, long chatId, string text, CancellationToken ct, string? replyMarkup = null)
     {
         if (text.Length > MaxMessage) text = text[..MaxMessage] + "…";
         try
         {
             using var http = _httpFactory.CreateClient();
             http.Timeout = TimeSpan.FromSeconds(20);
-            using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+            var fields = new Dictionary<string, string>
             {
                 ["chat_id"] = chatId.ToString(),
                 ["text"] = text,
                 ["disable_web_page_preview"] = "true",
-            });
+            };
+            if (replyMarkup is not null) fields["reply_markup"] = replyMarkup;
+            using var form = new FormUrlEncodedContent(fields);
             using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/sendMessage", form, ct);
             if (resp.IsSuccessStatusCode) return true;
-            // 403: the customer blocked the bot (or deleted the chat). Stop linking them to a dead end.
-            if ((int)resp.StatusCode == 403) _store.UnlinkTelegramChat(chatId);
+            // 403 when the customer blocked the bot or their account is gone: stop writing into a closed door.
+            // Not for "can't initiate conversation" — someone who linked from inside the shop may simply never
+            // have pressed Start, and their link still signs them in there.
+            if ((int)resp.StatusCode == 403)
+            {
+                var body = await resp.Content.ReadAsStringAsync(ct);
+                if (body.Contains("blocked", StringComparison.OrdinalIgnoreCase)
+                    || body.Contains("deactivated", StringComparison.OrdinalIgnoreCase))
+                    _store.UnlinkTelegramChat(chatId);
+            }
             _logger.LogWarning("Customer bot sendMessage failed: {Status}", (int)resp.StatusCode);
             return false;
         }
@@ -201,6 +252,36 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
         {
             _logger.LogWarning(ex, "Customer bot getMe failed");
             return (false, null, "ارتباط با تلگرام برقرار نشد. کمی بعد دوباره امتحان کنید.");
+        }
+    }
+
+    public async Task<(bool Ok, string? Error)> SyncMenuButtonAsync(CancellationToken ct = default)
+    {
+        var s = _store.GetTelegramSettings();
+        var token = (s.CustomerBotToken ?? "").Trim();
+        if (token.Length == 0) return (true, null);
+        if (s.CustomerBotShop && ShopUrl is null)
+            return (false, "آدرس سایت (PHONIX_FRONTEND_URL) باید https باشد؛ تلگرام فروشگاه را فقط روی https باز می‌کند.");
+
+        // No chat_id: this sets the button every private chat with the bot gets.
+        var button = s.CustomerBotShop
+            ? JsonSerializer.Serialize(new { type = "web_app", text = "🛒 فروشگاه", web_app = new { url = ShopUrl } })
+            : JsonSerializer.Serialize(new { type = "default" });
+        try
+        {
+            using var http = _httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(15);
+            using var form = new FormUrlEncodedContent(new Dictionary<string, string> { ["menu_button"] = button });
+            using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/setChatMenuButton", form, ct);
+            if (resp.IsSuccessStatusCode) return (true, null);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            _logger.LogWarning("Customer bot setChatMenuButton failed: {Status} {Body}", (int)resp.StatusCode, body);
+            return (false, $"تلگرام دکمه‌ی منوی ربات را نپذیرفت ({(int)resp.StatusCode}).");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Customer bot setChatMenuButton call failed");
+            return (false, "ارتباط با تلگرام برای تنظیم دکمه‌ی فروشگاه برقرار نشد. «تست اتصال» را دوباره بزنید.");
         }
     }
 }

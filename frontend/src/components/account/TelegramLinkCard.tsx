@@ -3,13 +3,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import type { TelegramLinkStatus } from "@/lib/types";
+import { useTelegramLaunch } from "@/lib/telegram";
 
 // «اتصال به تلگرام» on the account page. Renders nothing at all unless staff have switched the customer bot on
 // for customers — while it is being set up, nobody sees a button that leads nowhere.
 //
 // Linking: the site mints a one-time t.me link, the customer opens it and presses Start, and the bot ties that
 // chat to this account. The card watches for the link to land so it updates on its own.
+//
+// Inside the shop in Telegram it links THAT Telegram directly (Telegram's signed launch data proves which one),
+// and is shown there whenever the shop is on — that is how the next visit signs in by itself.
 export default function TelegramLinkCard() {
+  const launch = useTelegramLaunch();
   const [status, setStatus] = useState<TelegramLinkStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
@@ -38,7 +43,21 @@ export default function TelegramLinkCard() {
     };
   }, []);
 
+  async function connectHere(initData: string) {
+    setError("");
+    setBusy(true);
+    try {
+      await api.accountTelegram.linkFromShop(initData);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "اتصال ناموفق بود.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function connect() {
+    if (launch) return connectHere(launch);
     setError("");
     setBusy(true);
     // Opened before the request so a popup blocker sees a click, not a script, opening it.
@@ -67,7 +86,8 @@ export default function TelegramLinkCard() {
   }
 
   async function unlink() {
-    if (!confirm("اتصال حساب شما به تلگرام قطع شود؟")) return;
+    // Telegram's webview doesn't reliably show confirm(); unlinking is undone with one tap there anyway.
+    if (!launch && !confirm("اتصال حساب شما به تلگرام قطع شود؟")) return;
     setBusy(true);
     setError("");
     try {
@@ -89,7 +109,7 @@ export default function TelegramLinkCard() {
     }
   }
 
-  if (!status?.available) return null;
+  if (!(launch ? status?.shop : status?.available) || !status) return null;
 
   return (
     <div
@@ -104,14 +124,20 @@ export default function TelegramLinkCard() {
         </span>
         <div>
           <p className="text-[15px] font-bold" style={{ color: "var(--ac-title)" }}>
-            {status.linked ? "حساب شما به تلگرام وصل است ✅" : "اطلاعات سفارش‌ها را در تلگرام بگیرید"}
+            {status.linked
+              ? "حساب شما به تلگرام وصل است ✅"
+              : launch
+                ? "ورود خودکار در تلگرام"
+                : "اطلاعات سفارش‌ها را در تلگرام بگیرید"}
           </p>
           <p className="mt-1 text-[13px] leading-6" style={{ color: "var(--ac-muted)" }}>
             {status.linked
               ? `اطلاعات سفارش‌ها، تأیید پرداخت‌ها و پیام‌های پشتیبانی به تلگرام${status.telegramUsername ? ` (@${status.telegramUsername})` : ""} شما هم ارسال می‌شود.`
-              : waiting
-                ? "در تلگرام روی «Start» بزنید؛ این صفحه بعد از اتصال خودکار به‌روز می‌شود."
-                : "با یک کلیک حسابتان را به ربات تلگرام فونیکس وصل کنید تا پیام‌ها و اطلاعات سفارش‌ها را همان‌جا هم دریافت کنید."}
+              : launch
+                ? "همین تلگرام را به حسابتان وصل کنید تا از این به بعد فروشگاه داخل تلگرام بدون ورود دوباره باز شود و اطلاعات سفارش‌ها هم در تلگرام برایتان بیاید."
+                : waiting
+                  ? "در تلگرام روی «Start» بزنید؛ این صفحه بعد از اتصال خودکار به‌روز می‌شود."
+                  : "با یک کلیک حسابتان را به ربات تلگرام فونیکس وصل کنید تا پیام‌ها و اطلاعات سفارش‌ها را همان‌جا هم دریافت کنید."}
           </p>
           {status.linked && (
             <label className="mt-2 flex cursor-pointer items-center gap-2 text-[13px]" style={{ color: "var(--ac-text)" }}>
@@ -138,7 +164,7 @@ export default function TelegramLinkCard() {
             disabled={busy}
             className="h-10 rounded-xl bg-[#229ED9] px-5 text-[13px] font-bold text-white transition hover:brightness-110 disabled:opacity-60"
           >
-            {busy ? "..." : waiting ? "باز کردن دوباره‌ی تلگرام" : "اتصال به تلگرام"}
+            {busy ? "..." : launch ? "اتصال همین تلگرام" : waiting ? "باز کردن دوباره‌ی تلگرام" : "اتصال به تلگرام"}
           </button>
         )}
       </div>

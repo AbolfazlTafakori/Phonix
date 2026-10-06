@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { setCurrentUser } from "@/lib/auth";
+import { useTelegramLaunch } from "@/lib/telegram";
 import { useCaptcha } from "./Captcha";
 import AuthShell from "./AuthShell";
 
@@ -197,10 +198,15 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
   const busyRef = useRef(false);
   useEffect(() => { busyRef.current = busy; }, [busy]);
 
+  // Inside the shop in Telegram. Google refuses to sign anyone in from an embedded webview, so its button is
+  // left out there, and the customer is told how to skip this page next time.
+  const inTelegram = useTelegramLaunch() !== null;
+  const showGoogle = !!GOOGLE_CLIENT_ID && !inTelegram;
+
   // Google Identity Services — renders the official button when a client id is configured.
   const googleBox = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!GOOGLE_CLIENT_ID || challengeToken) return;
+    if (!showGoogle || challengeToken) return;
     let cancelled = false;
     async function handle(credential: string) {
       if (busyRef.current) return;
@@ -234,7 +240,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
     script.addEventListener("load", render);
     return () => { cancelled = true; script.removeEventListener("load", render); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab, challengeToken]);
+  }, [tab, challengeToken, showGoogle]);
 
   /* ── 2FA step ─────────────────────────────────────────────────────────────── */
   if (challengeToken) {
@@ -332,7 +338,13 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
         </form>
       )}
 
-      {GOOGLE_CLIENT_ID && (
+      {inTelegram && (
+        <p className="mt-5 rounded-xl bg-[var(--chat-surface-2)] px-3 py-2.5 text-center text-[12px] leading-6 text-[var(--chat-ink-2)]">
+          بعد از ورود، در «حساب کاربری» گزینه‌ی «اتصال همین تلگرام» را بزنید تا دفعه‌های بعد خودکار وارد شوید.
+        </p>
+      )}
+
+      {showGoogle && (
         <>
           <div className="my-5 flex items-center gap-3 text-[11px] text-[var(--chat-muted)]">
             <span className="h-px flex-1 bg-[var(--chat-border)]" />با<span className="h-px flex-1 bg-[var(--chat-border)]" />

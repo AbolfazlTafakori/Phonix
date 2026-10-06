@@ -417,7 +417,7 @@ export const api = {
   // The customer bot's panel page: token (sent only when replaced), on/off, shown-to-customers, test, remove.
   customerBot: {
     get: () => request<CustomerBotStatus>("/admin/customer-bot"),
-    save: (body: { enabled: boolean; public: boolean; token?: string | null }) =>
+    save: (body: { enabled: boolean; public: boolean; token?: string | null; shop?: boolean }) =>
       request<CustomerBotStatus>("/admin/customer-bot", { method: "PUT", body: json(body) }),
     removeToken: () => request<CustomerBotStatus>("/admin/customer-bot/token", { method: "DELETE" }),
     test: () => request<{ ok: boolean; username: string }>("/admin/customer-bot/test", { method: "POST" }),
@@ -428,6 +428,8 @@ export const api = {
     link: () => request<{ url: string }>("/account/telegram/link", { method: "POST" }),
     unlink: () => request<void>("/account/telegram", { method: "DELETE" }),
     setNotify: (notify: boolean) => request<void>("/account/telegram/notify", { method: "PUT", body: json({ notify }) }),
+    // Inside the shop in Telegram: links that same Telegram, proven by the launch data Telegram signed.
+    linkFromShop: (initData: string) => request<void>("/account/telegram/webapp", { method: "POST", body: json({ initData }) }),
   },
   // Product tutorials. The panel manages them; a buyer reads the ones for what they've paid for (`mine`).
   tutorials: {
@@ -985,6 +987,9 @@ export const api = {
     // Google Identity Services sign-in: posts the ID token (credential) for server-side verification.
     google: (credential: string) =>
       request<AuthResult>("/auth/google", { method: "POST", body: json({ credential }) }),
+    // The shop inside Telegram: signs in the account linked to that Telegram, if there is one.
+    telegram: (initData: string) =>
+      request<{ linked: boolean; token: string | null; user: User | null }>("/auth/telegram", { method: "POST", body: json({ initData }) }),
     // Confirms the current session is admin-scoped staff (403 otherwise). The admin shell uses this as its gate.
     adminContext: () => request<{ id: number; name: string; username: string; role: UserRole }>("/auth/admin-context"),
     verifyTwoFactor: (token: string, code: string) =>
