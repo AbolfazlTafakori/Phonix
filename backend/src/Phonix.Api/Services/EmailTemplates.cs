@@ -448,6 +448,23 @@ public static class EmailTemplates
     // The details a buyer filed for one seat were turned down. Everything they sent has already been removed,
     // so the mail's job is to say why and to send them back to the form — not to have them wonder where their
     // picture went.
+    // A seat reopened for the customer to update. The admin's message is the point of the mail, so it is shown in
+    // full, in its own box, line breaks kept.
+    public static (string text, string html) SeatInfoReopened(string orderCode, string productName, string seatLabel,
+        string message, string ordersUrl)
+    {
+        var text = $"مشخصات دستگاه خود را به‌روز کنید.\n\nسفارش: {orderCode}\nسرویس: {productName}\nپروفایل: {seatLabel}\n\n"
+                   + $"{message.Trim()}\n\nثبت مشخصات از حساب کاربری:\n{ordersUrl}";
+        var html = Shell("مشخصات دستگاه خود را به‌روز کنید",
+            $"اطلاعات پروفایل {seatLabel} از سفارش {orderCode} برای ویرایش باز شد.",
+            "<p style=\"margin:0;\">اطلاعاتی که برای این پروفایل ثبت کرده بودید برای ویرایش باز شد. لطفاً مشخصات جدید را از حساب کاربری خود ثبت کنید.</p>"
+            + Rows(("سفارش", orderCode), ("سرویس", productName), ("پروفایل", seatLabel))
+            + WarnNote($"<b style=\"color:{Accent};\">پیام پشتیبانی</b><br>{Multiline(message)}")
+            + Button("ثبت مشخصات جدید", ordersUrl)
+            + LinkFallback(ordersUrl));
+        return (text, html);
+    }
+
     public static (string text, string html) SeatInfoRejected(string orderCode, string productName, string seatLabel,
         string? reason, string ordersUrl)
     {

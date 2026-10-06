@@ -403,3 +403,79 @@ public class SeatSubmissionHistoryTests
         Assert.Equal($"v{SeatSubmissionRules.MaxHistory + 3}", history[0].Text);
     }
 }
+
+// Reopening a seat only helps if the customer finds out: the admin's message goes to them in the bell and by
+// email, and an empty message falls back to the standard request for the new device's details.
+public class SeatReopenNotifyTests
+{
+    private sealed class Outbox : Phonix.Api.Services.IEmailSender
+    {
+        public List<(string To, string Subject, string Text, string? Html)> Sent { get; } = new();
+        public Task<bool> SendAsync(string to, string subject, string body, string? htmlBody = null)
+        {
+            Sent.Add((to, subject, body, htmlBody));
+            return Task.FromResult(true);
+        }
+    }
+
+    private static (Phonix.Api.Controllers.SeatSubmissionsController Controller, Outbox Outbox, IDataStore Store, SeatSubmission Seat) Setup()
+    {
+        var store = TestStore.Create();
+        var buyer = store.GetUser(1)!; // ali, has an email on file
+        var seat = store.SaveSeatSubmission(new SeatSubmission
+        {
+            UserId = buyer.Id, OrderId = 1, UnitId = 1, SeatIndex = 0, SeatLabel = "A - 1", ProductId = 1,
+            ProductName = "Netflix", OrderCode = "PX-1", UserName = buyer.Name, Text = "Samsung A52",
+        })!;
+        store.ReviewSeatSubmission(seat.Id, "maryam", null);
+        var admin = store.GetUsers().First(u => u.Role == UserRole.Admin);
+        var outbox = new Outbox();
+        var controller = new Phonix.Api.Controllers.SeatSubmissionsController(store, new Phonix.Api.Services.LocalFileStorageService(),
+            new Phonix.Api.Services.UserMailer(store, outbox, Microsoft.Extensions.Logging.Abstractions.NullLogger<Phonix.Api.Services.UserMailer>.Instance))
+        {
+            ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext
+            {
+                HttpContext = new Microsoft.AspNetCore.Http.DefaultHttpContext
+                {
+                    User = new System.Security.Claims.ClaimsPrincipal(new System.Security.Claims.ClaimsIdentity(new[]
+                    {
+                        new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.NameIdentifier, admin.Id.ToString()),
+                        new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Role, nameof(UserRole.Admin)),
+                        new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name, admin.Username),
+                    }, "test")),
+                },
+            },
+        };
+        return (controller, outbox, store, seat);
+    }
+
+    [Fact]
+    public void The_admins_message_reaches_the_customer_by_email_and_in_the_bell()
+    {
+        var (c, outbox, store, seat) = Setup();
+        const string message = "دستگاه قبلی از اکانت خارج شد.\nلطفاً تا ۲۴ ساعت مشخصات دستگاه جدید را ثبت کنید؛ در غیر این صورت اکانت از گارانتی خارج می‌شود.";
+
+        c.Reopen(seat.Id, new Phonix.Api.Controllers.SeatReviewInput(message));
+
+        var buyer = store.GetUser(1)!;
+        var mail = Assert.Single(outbox.Sent);
+        Assert.Equal(buyer.Email, mail.To);
+        Assert.Contains("PX-1", mail.Subject);
+        Assert.Contains(message, mail.Text);
+        Assert.Contains("<br>لطفاً تا ۲۴ ساعت", mail.Html);
+        var notice = Assert.Single(store.GetUserNotifications(buyer.Id), n => n.Title.Contains("مشخصات دستگاه"));
+        Assert.Contains("از گارانتی خارج می‌شود", notice.Body);
+        Assert.Equal(SeatSubmissionStatus.Pending, store.GetSeatSubmission(seat.Id)!.Status);
+    }
+
+    [Fact]
+    public void An_empty_message_sends_the_standard_warranty_request()
+    {
+        var (c, outbox, store, seat) = Setup();
+
+        c.Reopen(seat.Id, new Phonix.Api.Controllers.SeatReviewInput("  "));
+
+        Assert.Contains(Phonix.Api.Data.OrderNotices.SeatInfoReopenDefault, Assert.Single(outbox.Sent).Text);
+        Assert.Contains(store.GetUserNotifications(1), n => n.Body.Contains("گارانتی"));
+    }
+}

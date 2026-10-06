@@ -25,6 +25,8 @@ public interface IUserMailer
     Task KycDecidedAsync(KycRequest kyc);
     // Only rejection mails: an approved seat needs nothing from the customer, a rejected one needs them back.
     Task SeatInfoRejectedAsync(SeatSubmission submission);
+    // A seat reopened for the customer to file new details; message is what staff wrote (or the default).
+    Task SeatInfoReopenedAsync(SeatSubmission submission, string message);
     // Staff turned an order down (a rejected receipt, a cancellation from the panel). The reason goes out in full.
     Task OrderCancelledAsync(Order order, string reason, bool refunded);
     // One account of an order was rejected and refunded — from the panel or the Telegram order bot.
@@ -205,6 +207,13 @@ public sealed class UserMailer : IUserMailer
         }
         _logger.LogInformation("Broadcast \"{Title}\" emailed to {Sent} of {Total} customers", title, sent, recipients.Count);
         return sent;
+    }
+
+    public Task SeatInfoReopenedAsync(SeatSubmission s, string message)
+    {
+        var seat = string.IsNullOrWhiteSpace(s.SeatLabel) ? $"پروفایل {s.SeatIndex + 1}" : s.SeatLabel;
+        return SendAsync(AddressOf(s.UserId), $"مشخصات دستگاه خود را به‌روز کنید — سفارش {s.OrderCode}",
+            EmailTemplates.SeatInfoReopened(s.OrderCode, s.ProductName, seat, message, Url("/account/orders")));
     }
 
     public Task KycDecidedAsync(KycRequest kyc) => kyc.Status switch

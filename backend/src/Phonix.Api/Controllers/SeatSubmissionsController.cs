@@ -17,14 +17,14 @@ public record SeatUnitInfoDto(bool Enabled, string Hint, IReadOnlyList<SeatSubmi
 
 // A submission as it leaves the API. The image is referenced by id — never a public URL — and is streamed back
 // through the owner-checked download endpoint below.
-public record SeatSubmissionDto(int Id, int OrderId, int UnitId, int SeatIndex, string SeatLabel, int ProductId,
+public record SeatSubmissionDto(int Id, int UserId, int OrderId, int UnitId, int SeatIndex, string SeatLabel, int ProductId,
     string ProductName, string OrderCode, string UserName, string? ImageId, string Text, SeatSubmissionStatus Status,
     bool Editable, DateTime CreatedAtUtc, DateTime UpdatedAtUtc, string? ReviewedBy, DateTime? ReviewedAtUtc,
     string? ReviewNote, int EditLimit, int EditsUsed, int EditsLeft, IReadOnlyList<SeatSubmissionVersion> History,
     IReadOnlyList<SeatSubmissionEvent> Events)
 {
     public static SeatSubmissionDto From(SeatSubmission s) =>
-        new(s.Id, s.OrderId, s.UnitId, s.SeatIndex, s.SeatLabel, s.ProductId, s.ProductName, s.OrderCode, s.UserName,
+        new(s.Id, s.UserId, s.OrderId, s.UnitId, s.SeatIndex, s.SeatLabel, s.ProductId, s.ProductName, s.OrderCode, s.UserName,
             s.ImageId, s.Text, s.Status, s.Editable, s.CreatedAtUtc, s.UpdatedAtUtc, s.ReviewedBy, s.ReviewedAtUtc,
             s.ReviewNote, s.EditLimit, s.EditsUsed, s.EditsLeft, s.History ?? new(), s.Events ?? new());
 }
@@ -194,7 +194,18 @@ public class SeatSubmissionsController : ControllerBase
     [AdminPermission("seat-info")]
     public ActionResult<SeatSubmissionDto> Reopen(int id, SeatReviewInput input)
     {
-        var reopened = _store.ReopenSeatSubmission(id, (input.Note ?? "").Trim() is { Length: > 0 } n ? n : null, User.Identity?.Name);
-        return reopened is null ? NotFound() : Ok(SeatSubmissionDto.From(reopened));
+        var note = (input.Note ?? "").Trim();
+        if (note.Length > MaxTextLength) note = note[..MaxTextLength];
+        var reopened = _store.ReopenSeatSubmission(id, note.Length > 0 ? note : null, User.Identity?.Name);
+        if (reopened is null) return NotFound();
+
+        // Reopening only helps if the customer knows: they hear it in the bell and by email, with the admin's
+        // message in full (or the standard request for their new device's details when it was left empty).
+        var message = note.Length > 0 ? note : OrderNotices.SeatInfoReopenDefault;
+        var seat = string.IsNullOrWhiteSpace(reopened.SeatLabel) ? $"پروفایل {reopened.SeatIndex + 1}" : reopened.SeatLabel;
+        var notice = OrderNotices.SeatInfoReopened(reopened.OrderCode, reopened.ProductName, seat, message);
+        _store.AddNotification(reopened.UserId, notice.Title, notice.Body, notice.Link);
+        _ = _mailer.SeatInfoReopenedAsync(reopened, message);
+        return Ok(SeatSubmissionDto.From(reopened));
     }
 }

@@ -160,6 +160,7 @@ export type StockSlot = {
 // word on whether they may still change it — it closes the moment staff review the seat.
 export type SeatSubmission = {
   id: number;
+  userId: number;
   orderId: number;
   unitId: number;
   seatIndex: number;

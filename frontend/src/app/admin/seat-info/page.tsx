@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
 import type { SeatSubmission, SeatSubmissionEvent } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
-import { Card, PageHeader, Spinner } from "@/components/admin/ui";
+import { Card, PageHeader, Spinner, Modal, Field, inputCls } from "@/components/admin/ui";
 
 // The review queue for per-seat customer submissions: everything buyers filed for individual seats of shared
 // accounts, newest first. One row per seat, so a five-user purchase shows five independent entries.
@@ -36,11 +36,26 @@ const statusStyle: Record<SeatSubmission["status"], string> = {
   Rejected: "bg-rose-500/15 text-rose-300",
 };
 
-const promptFor: Record<Action, string> = {
-  review: "یادداشت برای کاربر (اختیاری):",
-  reopen: "پیام برای کاربر (اختیاری) — مثلاً چه چیزی باید اصلاح شود:",
-  reject: "دلیل رد شدن (اختیاری) — برای کاربر ایمیل و اعلان می‌شود. متن و تصویر ارسالی او در سوابق می‌ماند و باید اطلاعات جدید ارسال کند:",
+// What the dialog asks for, per action. "message" is a free note to the customer about this seat.
+type DialogKind = Action | "message";
+
+const dialogTitle: Record<DialogKind, string> = {
+  review: "بررسی شد",
+  reopen: "بازگشایی برای ویرایش کاربر",
+  reject: "رد اطلاعات",
+  message: "پیام به کاربر",
 };
+
+const dialogHint: Record<DialogKind, string> = {
+  review: "یادداشت برای کاربر (اختیاری) — در فرم او نمایش داده می‌شود.",
+  reopen: "این متن برای کاربر هم اعلان و هم ایمیل می‌شود. می‌توانید آن را تغییر دهید یا متن دیگری بنویسید.",
+  reject: "دلیل رد (اختیاری) — متن کامل برای کاربر ایمیل و اعلان می‌شود. اطلاعات فعلی او در سوابق می‌ماند و باید اطلاعات جدید ارسال کند.",
+  message: "این پیام برای کاربر هم اعلان و هم ایمیل می‌شود.",
+};
+
+// Same wording as the API's OrderNotices.SeatInfoReopenDefault — what goes out if the admin leaves it as is.
+const REOPEN_DEFAULT =
+  "لطفاً مشخصات دستگاه جدید خود را برای این پروفایل ثبت کنید. در صورت ثبت نکردن مشخصات، اکانت شما از گارانتی خارج می‌شود.";
 
 // Date and time — for the history, where two things can happen on the same day.
 const faDateTime = (iso: string) =>
@@ -65,6 +80,12 @@ export default function AdminSeatInfoPage() {
   const [busy, setBusy] = useState<number | null>(null);
   // Which submission's picture is open full-size — the list stays scannable with thumbnails.
   const [zoom, setZoom] = useState<string | null>(null);
+  // The open action dialog, and what is typed into it.
+  const [dialog, setDialog] = useState<{ s: SeatSubmission; kind: DialogKind } | null>(null);
+  const [dialogText, setDialogText] = useState("");
+  const [messageTitle, setMessageTitle] = useState("");
+  const [dialogError, setDialogError] = useState("");
+  const [sent, setSent] = useState<number | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -89,23 +110,42 @@ export default function AdminSeatInfoPage() {
   );
   const shown = filter === "all" ? items : items.filter((s) => s.status === filter);
 
-  async function act(s: SeatSubmission, kind: Action) {
-    const answer = prompt(promptFor[kind]);
-    // Dismissing the prompt has to mean "don't": rejecting deletes the customer's picture and emails them,
-    // which is not something to do because someone pressed Escape on a note box.
-    if (answer === null && kind === "reject") return;
-    const note = answer ?? "";
+  // Every action opens a dialog first; closing it (✕, Escape, «انصراف») does nothing — rejecting and reopening
+  // both email the customer, which shouldn't happen because a note box was dismissed.
+  function open(s: SeatSubmission, kind: DialogKind) {
+    setDialog({ s, kind });
+    setDialogText(kind === "reopen" ? REOPEN_DEFAULT : "");
+    setMessageTitle(kind === "message" ? `درباره‌ی سرویس «${s.productName}» — سفارش ${s.orderCode}` : "");
+    setDialogError("");
+  }
+
+  async function confirm() {
+    if (!dialog) return;
+    const { s, kind } = dialog;
+    const note = dialogText.trim();
+    if (kind === "message" && (!messageTitle.trim() || !note)) {
+      setDialogError("عنوان و متن پیام را وارد کنید.");
+      return;
+    }
     setBusy(s.id);
+    setDialogError("");
     setError("");
     try {
-      const updated = kind === "review"
-        ? await api.seatInfo.review(s.id, note)
-        : kind === "reopen"
-          ? await api.seatInfo.reopen(s.id, note)
-          : await api.seatInfo.reject(s.id, note);
-      setItems((p) => p.map((x) => (x.id === s.id ? updated : x)));
+      if (kind === "message") {
+        await api.notifications.send({ userId: s.userId, title: messageTitle.trim(), body: note, link: "/account/orders", sendEmail: true });
+        setSent(s.id);
+        setTimeout(() => setSent((v) => (v === s.id ? null : v)), 2500);
+      } else {
+        const updated = kind === "review"
+          ? await api.seatInfo.review(s.id, note)
+          : kind === "reopen"
+            ? await api.seatInfo.reopen(s.id, note)
+            : await api.seatInfo.reject(s.id, note);
+        setItems((p) => p.map((x) => (x.id === s.id ? updated : x)));
+      }
+      setDialog(null);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "خطا در انجام عملیات");
+      setDialogError(e instanceof Error ? e.message : "خطا در انجام عملیات");
     } finally {
       setBusy(null);
     }
@@ -191,17 +231,26 @@ export default function AdminSeatInfoPage() {
                       {s.reviewedBy ? ` — ${s.reviewedBy}` : ""}
                     </p>
                   )}
-                  {/* A rejected entry has nothing left to act on — it was emptied and is the customer's to
-                      fill in again — so it offers no buttons, only what it is waiting for. */}
+                  {/* A rejected entry has nothing left to decide — it was emptied and is the customer's to fill in
+                      again — so it only offers a message to them, and says what it is waiting for. */}
                   {s.status === "Rejected" ? (
-                    <p className="text-xs text-white/40">
-                      اطلاعات ارسالی به سوابق منتقل شد و به کاربر اطلاع داده شد؛ در انتظار ارسال دوباره از سوی اوست.
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-white/40">
+                        اطلاعات ارسالی به سوابق منتقل شد و به کاربر اطلاع داده شد؛ در انتظار ارسال دوباره از سوی اوست.
+                      </p>
+                      <button
+                        onClick={() => open(s, "message")}
+                        disabled={busy === s.id}
+                        className="rounded-lg border border-sky-500/30 px-3 py-1.5 text-xs font-bold text-sky-300 transition hover:bg-sky-500/10 disabled:opacity-50"
+                      >
+                        {sent === s.id ? "ارسال شد ✓" : "پیام به کاربر"}
+                      </button>
+                    </div>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
                       {s.status === "Pending" ? (
                         <button
-                          onClick={() => act(s, "review")}
+                          onClick={() => open(s, "review")}
                           disabled={busy === s.id}
                           className="rounded-lg border border-emerald-500/30 px-3 py-1.5 text-xs font-bold text-emerald-400 transition hover:bg-emerald-500/10 disabled:opacity-50"
                         >
@@ -209,7 +258,7 @@ export default function AdminSeatInfoPage() {
                         </button>
                       ) : (
                         <button
-                          onClick={() => act(s, "reopen")}
+                          onClick={() => open(s, "reopen")}
                           disabled={busy === s.id}
                           className="rounded-lg border border-amber-500/30 px-3 py-1.5 text-xs font-bold text-amber-300 transition hover:bg-amber-500/10 disabled:opacity-50"
                         >
@@ -217,11 +266,18 @@ export default function AdminSeatInfoPage() {
                         </button>
                       )}
                       <button
-                        onClick={() => act(s, "reject")}
+                        onClick={() => open(s, "reject")}
                         disabled={busy === s.id}
                         className="rounded-lg border border-rose-500/30 px-3 py-1.5 text-xs font-bold text-rose-300 transition hover:bg-rose-500/10 disabled:opacity-50"
                       >
                         {busy === s.id ? "..." : "رد شد"}
+                      </button>
+                      <button
+                        onClick={() => open(s, "message")}
+                        disabled={busy === s.id}
+                        className="rounded-lg border border-sky-500/30 px-3 py-1.5 text-xs font-bold text-sky-300 transition hover:bg-sky-500/10 disabled:opacity-50"
+                      >
+                        {sent === s.id ? "ارسال شد ✓" : "پیام به کاربر"}
                       </button>
                     </div>
                   )}
@@ -288,6 +344,52 @@ export default function AdminSeatInfoPage() {
           ))}
         </div>
       )}
+
+      <Modal
+        open={dialog !== null}
+        onClose={() => busy === null && setDialog(null)}
+        title={dialog ? `${dialogTitle[dialog.kind]} — ${dialog.s.userName} · ${dialog.s.seatLabel || `#${dialog.s.seatIndex + 1}`}` : ""}
+      >
+        {dialog && (
+          <div className="grid gap-4">
+            <p className="text-xs leading-6 text-white/55">{dialogHint[dialog.kind]}</p>
+            {dialog.kind === "message" && (
+              <Field label="عنوان پیام">
+                <input value={messageTitle} onChange={(e) => setMessageTitle(e.target.value)} maxLength={150} className={inputCls} />
+              </Field>
+            )}
+            <Field label={dialog.kind === "reject" ? "دلیل رد" : dialog.kind === "review" ? "یادداشت" : "متن پیام"}>
+              <textarea
+                value={dialogText}
+                onChange={(e) => setDialogText(e.target.value)}
+                rows={5}
+                maxLength={2000}
+                autoFocus
+                className={`${inputCls} h-auto resize-y py-3 leading-7`}
+              />
+            </Field>
+            {dialogError && <p className="text-sm text-rose-300">{dialogError}</p>}
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => setDialog(null)}
+                disabled={busy !== null}
+                className="rounded-lg border border-white/10 px-4 py-2 text-sm font-bold text-white/70 transition hover:bg-white/5 disabled:opacity-50"
+              >
+                انصراف
+              </button>
+              <button
+                onClick={confirm}
+                disabled={busy !== null}
+                className={`flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-bold transition disabled:opacity-50 ${
+                  dialog.kind === "reject" ? "bg-rose-500/20 text-rose-300 hover:bg-rose-500/30" : "bg-[#3a64f2]/25 text-white hover:bg-[#3a64f2]/40"
+                }`}
+              >
+                {busy !== null ? <Spinner /> : dialog.kind === "message" ? "ارسال اعلان و ایمیل" : dialog.kind === "reopen" ? "بازگشایی و ارسال برای کاربر" : dialog.kind === "reject" ? "رد و اطلاع به کاربر" : "ثبت"}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* full-size picture — click anywhere to dismiss */}
       {zoom && (

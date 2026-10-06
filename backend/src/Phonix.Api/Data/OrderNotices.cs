@@ -65,6 +65,17 @@ public static class OrderNotices
             + SeatInfoRejectionReason(reason),
             OrdersLink);
 
+    // What a reopened seat asks of the customer when staff leave the message empty. The panel pre-fills the
+    // same wording, so the default is what an admin sees and can edit before sending.
+    public const string SeatInfoReopenDefault =
+        "لطفاً مشخصات دستگاه جدید خود را برای این پروفایل ثبت کنید. در صورت ثبت نکردن مشخصات، اکانت شما از گارانتی خارج می‌شود.";
+
+    // Staff reopened a seat for the customer to update — usually a new device. The message is the admin's own.
+    public static Notice SeatInfoReopened(string orderCode, string productName, string seatLabel, string message) =>
+        new("مشخصات دستگاه خود را به‌روز کنید",
+            $"اطلاعات «{productName}» ({seatLabel}) در سفارش {orderCode} برای ویرایش باز شد.\n{message.Trim()}",
+            OrdersLink);
+
     // Shared by the notification and the email so the customer reads the same sentence in both places.
     public static string SeatInfoRejectionReason(string? reason) =>
         string.IsNullOrWhiteSpace(reason)
