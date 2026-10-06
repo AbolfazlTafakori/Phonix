@@ -162,8 +162,9 @@ public class SeatSubmissionTests
         Assert.Equal(1, store.GetAdminBadgeCounts().PendingSeatInfo);
     }
 
-    // Rejecting is destructive on purpose: the buyer is being asked for these details AGAIN, so leaving the
-    // old ones in place is how staff end up working from the picture that was already refused.
+    // Rejecting clears the entry on purpose: the buyer is being asked for these details AGAIN, so leaving the
+    // old ones in place is how staff end up working from the picture that was already refused. What was refused
+    // moves into History instead of disappearing.
     [Fact]
     public void Rejecting_a_seat_wipes_what_the_customer_sent()
     {
@@ -180,6 +181,11 @@ public class SeatSubmissionTests
         Assert.Equal("", after.Text);
         Assert.Equal("تصویر واضح نیست", after.ReviewNote);
         Assert.Equal("admin", after.ReviewedBy);
+        var refused = Assert.Single(after.History);
+        Assert.Equal("blurry", refused.Text);
+        Assert.Equal("img-1", refused.ImageId);
+        Assert.Equal(SeatSubmissionStatus.Rejected, refused.Status);
+        Assert.Equal("تصویر واضح نیست", refused.ReviewNote);
     }
 
     [Fact]
@@ -333,7 +339,7 @@ public class SeatSubmissionHistoryTests
     }
 
     [Fact]
-    public void Re_filing_after_a_rejection_adds_no_empty_version()
+    public void Re_filing_after_a_rejection_keeps_the_refused_version_and_adds_no_empty_one()
     {
         var store = TestStore.Create();
         var first = store.SaveSeatSubmission(Input("blurry", imageId: "img"))!;
@@ -341,7 +347,47 @@ public class SeatSubmissionHistoryTests
 
         var refiled = store.SaveSeatSubmission(Input("clear"))!;
 
-        Assert.Empty(refiled.History);
+        // The refused details, then the new ones as the current entry — nothing blank in between.
+        var refused = Assert.Single(refiled.History);
+        Assert.Equal("blurry", refused.Text);
+        Assert.Equal("clear", refiled.Text);
+    }
+
+    [Fact]
+    public void Every_action_is_logged_with_who_did_it()
+    {
+        var store = TestStore.Create();
+        var first = store.SaveSeatSubmission(Input("Samsung A52"))!;
+        store.ReviewSeatSubmission(first.Id, "maryam", null);
+        store.ReopenSeatSubmission(first.Id, "دستگاه جدید را ثبت کنید", "maryam");
+        store.SaveSeatSubmission(Input("iPhone 13"));
+        store.RejectSeatSubmission(first.Id, "reza", "مدل دستگاه پشتیبانی نمی‌شود");
+        store.SaveSeatSubmission(Input("Pixel 7"));
+
+        var events = store.GetSeatSubmission(first.Id)!.Events;
+        Assert.Equal(new[] { "submitted", "reviewed", "reopened", "edited", "rejected", "submitted" }, events.Select(e => e.Action));
+        Assert.Equal(new string?[] { null, "maryam", "maryam", null, "reza", null }, events.Select(e => e.By));
+        Assert.Equal("دستگاه جدید را ثبت کنید", events[2].Note);
+        Assert.Equal("مدل دستگاه پشتیبانی نمی‌شود", events[4].Note);
+        Assert.True(events.Zip(events.Skip(1)).All(p => p.First.AtUtc <= p.Second.AtUtc));
+    }
+
+    [Fact]
+    public void Previous_and_new_devices_are_both_on_record_after_a_reopen()
+    {
+        var store = TestStore.Create();
+        var first = store.SaveSeatSubmission(Input("Samsung A52", imageId: "img-a"))!;
+        store.ReviewSeatSubmission(first.Id, "maryam", null);
+        store.ReopenSeatSubmission(first.Id, "دستگاه جدید را ثبت کنید", "maryam");
+
+        var now = store.SaveSeatSubmission(Input("iPhone 13", imageId: "img-b"))!;
+
+        Assert.Equal("iPhone 13", now.Text);            // new
+        Assert.Equal("img-b", now.ImageId);
+        var before = Assert.Single(now.History);       // previous
+        Assert.Equal("Samsung A52", before.Text);
+        Assert.Equal("img-a", before.ImageId);
+        Assert.Equal(SeatSubmissionStatus.Pending, now.Status); // back in the staff queue
     }
 
     [Fact]

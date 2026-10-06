@@ -4,16 +4,26 @@ public enum SeatSubmissionStatus
 {
     Pending = 0,   // waiting for staff to look at it; the customer may still change it
     Reviewed = 1,  // staff acted on it — locked for the customer from here on
-    // Staff turned it down. What the customer sent is WIPED (text and picture both) and the seat is theirs
-    // again: the point of a rejection is that the details were unusable, so they file fresh ones rather than
-    // editing around the old ones. It is not in the staff queue — this one is waiting on the customer.
+    // Staff turned it down. What the customer sent is moved into History and the entry itself is cleared, so
+    // the seat is theirs to file afresh rather than edit around the refused details — while staff keep the
+    // record of what was refused. It is not in the staff queue — this one is waiting on the customer.
     Rejected = 2,
 }
 
-// The outcome of turning a seat submission down: the cleared record, plus the storage id of the picture it
-// no longer references. The store detaches the picture but does not erase it — file storage is the caller's
-// concern — so the id travels out to be deleted once the write has actually committed.
+// The outcome of turning a seat submission down: the cleared record, plus the storage id of the picture it no
+// longer shows. The picture itself is kept — the refused version in History still points at it.
 public sealed record SeatRejection(SeatSubmission Submission, string? RemovedImageId);
+
+// One thing that happened to a seat submission, for the history staff read to see what the customer did and
+// what was done in reply. By is the staff member's username; null means the customer.
+public class SeatSubmissionEvent
+{
+    public DateTime AtUtc { get; set; } = DateTime.UtcNow;
+    // submitted | edited | reviewed | reopened | rejected
+    public string Action { get; set; } = "";
+    public string? By { get; set; }
+    public string? Note { get; set; }
+}
 
 // One earlier state of a seat submission, kept when the customer replaces it.
 public class SeatSubmissionVersion
@@ -68,6 +78,9 @@ public class SeatSubmission
     // back with a different device, and staff still need the one they set up last time — so an edit moves the
     // previous details here instead of overwriting them. A rejection is the exception: it wipes on purpose.
     public List<SeatSubmissionVersion> History { get; set; } = new();
+
+    // Every action on this seat, oldest first: filed, edited, reviewed, reopened, rejected — who and when.
+    public List<SeatSubmissionEvent> Events { get; set; } = new();
 
     // The customer's to change right up until staff act on it. After approval it's frozen — the admin must
     // never work from details that shift under them — unless the plan granted post-approval corrections, in

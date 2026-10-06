@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import type { SeatSubmission } from "@/lib/types";
+import type { SeatSubmission, SeatSubmissionEvent } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner } from "@/components/admin/ui";
 
@@ -39,7 +39,19 @@ const statusStyle: Record<SeatSubmission["status"], string> = {
 const promptFor: Record<Action, string> = {
   review: "یادداشت برای کاربر (اختیاری):",
   reopen: "پیام برای کاربر (اختیاری) — مثلاً چه چیزی باید اصلاح شود:",
-  reject: "دلیل رد شدن (اختیاری) — برای کاربر ایمیل و اعلان می‌شود. متن و تصویر ارسالی او پاک می‌شود و باید دوباره ارسال کند:",
+  reject: "دلیل رد شدن (اختیاری) — برای کاربر ایمیل و اعلان می‌شود. متن و تصویر ارسالی او در سوابق می‌ماند و باید اطلاعات جدید ارسال کند:",
+};
+
+// Date and time — for the history, where two things can happen on the same day.
+const faDateTime = (iso: string) =>
+  new Date(iso).toLocaleString("fa-IR", { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+const actionLabel: Record<SeatSubmissionEvent["action"], string> = {
+  submitted: "ثبت اطلاعات",
+  edited: "ویرایش اطلاعات",
+  reviewed: "بررسی شد",
+  reopened: "بازگشایی برای ویرایش",
+  rejected: "رد شد",
 };
 
 const faDate = (iso: string) =>
@@ -140,8 +152,18 @@ export default function AdminSeatInfoPage() {
                 <span className={`rounded-md px-2 py-0.5 font-bold ${statusStyle[s.status]}`}>
                   {statusLabel[s.status]}
                 </span>
+                {s.history?.length > 0 && (
+                  <span className="rounded-md bg-amber-500/15 px-2 py-0.5 font-bold text-amber-300">
+                    {s.status === "Rejected" ? "اطلاعات قبلی در سوابق" : `ویرایش‌شده · ${formatNumber(s.history.length)} نسخه‌ی قبلی`}
+                  </span>
+                )}
                 <span className="mr-auto text-white/35">{faDate(s.updatedAtUtc)}</span>
               </div>
+
+              {/* With earlier versions on record, say plainly which one this is. */}
+              {s.history?.length > 0 && s.status !== "Rejected" && (
+                <p className="mt-3 text-xs font-bold text-emerald-300">اطلاعات جدید (فعلی) · {faDateTime(s.updatedAtUtc)}</p>
+              )}
 
               <div className="mt-3 grid gap-3 sm:grid-cols-[160px_1fr]">
                 {s.imageId ? (
@@ -173,7 +195,7 @@ export default function AdminSeatInfoPage() {
                       fill in again — so it offers no buttons, only what it is waiting for. */}
                   {s.status === "Rejected" ? (
                     <p className="text-xs text-white/40">
-                      اطلاعات ارسالی پاک شد و به کاربر اطلاع داده شد؛ در انتظار ارسال دوباره از سوی اوست.
+                      اطلاعات ارسالی به سوابق منتقل شد و به کاربر اطلاع داده شد؛ در انتظار ارسال دوباره از سوی اوست.
                     </p>
                   ) : (
                     <div className="flex flex-wrap items-center gap-2">
@@ -206,10 +228,11 @@ export default function AdminSeatInfoPage() {
                 </div>
               </div>
 
-              {/* What this seat held before the customer replaced it — the previous device stays on record. */}
+              {/* What this seat held before — the previous device stays on record. Open while the entry waits for
+                  review, which is exactly when staff need to compare it with the new one. */}
               {s.history?.length > 0 && (
-                <details className="mt-3 rounded-lg border border-white/8 bg-white/[0.02] p-3">
-                  <summary className="cursor-pointer text-xs font-bold text-white/60">
+                <details open={s.status === "Pending"} className="mt-3 rounded-lg border border-amber-500/20 bg-amber-500/[0.03] p-3">
+                  <summary className="cursor-pointer text-xs font-bold text-amber-200/80">
                     اطلاعات قبلی ({formatNumber(s.history.length)})
                   </summary>
                   <div className="mt-3 space-y-3">
@@ -232,13 +255,33 @@ export default function AdminSeatInfoPage() {
                         )}
                         <div className="space-y-1">
                           <p className="text-[11px] text-white/35">
-                            ثبت‌شده در {faDate(v.submittedAtUtc)} · {statusLabel[v.status]}
+                            قبلی · ثبت‌شده در {faDateTime(v.submittedAtUtc)} · {statusLabel[v.status]}
                           </p>
                           <p className="whitespace-pre-wrap text-xs text-white/65">{v.text || "—"}</p>
+                          {v.reviewNote && <p className="text-[11px] text-white/45">یادداشت: {v.reviewNote}</p>}
                         </div>
                       </div>
                     ))}
                   </div>
+                </details>
+              )}
+
+              {/* Who did what, when — the customer's filings and edits next to staff's reviews, reopens and rejections. */}
+              {s.events?.length > 0 && (
+                <details className="mt-3 rounded-lg border border-white/8 bg-white/[0.02] p-3">
+                  <summary className="cursor-pointer text-xs font-bold text-white/60">
+                    تاریخچه‌ی اقدامات ({formatNumber(s.events.length)})
+                  </summary>
+                  <ol className="mt-3 space-y-2">
+                    {[...s.events].reverse().map((e, i) => (
+                      <li key={i} className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-r-2 border-white/10 pr-3 text-xs">
+                        <span className="font-bold text-white/80">{actionLabel[e.action] ?? e.action}</span>
+                        <span className={e.by ? "text-sky-300/80" : "text-amber-200/80"}>{e.by ? `توسط ${e.by}` : "توسط کاربر"}</span>
+                        <span className="text-white/35">{faDateTime(e.atUtc)}</span>
+                        {e.note && <span className="w-full whitespace-pre-wrap text-white/55">{e.note}</span>}
+                      </li>
+                    ))}
+                  </ol>
                 </details>
               )}
             </Card>

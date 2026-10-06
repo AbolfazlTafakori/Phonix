@@ -194,7 +194,7 @@ export default function SeatInfoForm({
           they would read that as their upload having been lost. With no reason on file, say what to do. */}
       {rejected ? (
         <p className="rounded-lg px-3 py-2 text-xs leading-5" style={{ background: "rgba(225,29,72,0.10)", border: "1px solid rgba(225,29,72,0.28)", color: "var(--ac-text)" }}>
-          <b>اطلاعات قبلی تأیید نشد و پاک شد.</b>{" "}
+          <b>اطلاعات قبلی تأیید نشد؛ اطلاعات جدید را وارد کنید.</b>{" "}
           {submission?.reviewNote
             ? `دلیل: ${submission.reviewNote}`
             : "دلیلی ثبت نشده است؛ لطفاً اطلاعات را دوباره وارد کنید."}

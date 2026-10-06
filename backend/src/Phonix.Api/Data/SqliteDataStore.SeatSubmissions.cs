@@ -63,6 +63,7 @@ VALUES (@Id, @UserId, @OrderId, @UnitId, @Status, @DataJson)",
             {
                 input.Status = SeatSubmissionStatus.Pending;
                 input.CreatedAtUtc = input.UpdatedAtUtc = DateTime.UtcNow;
+                SeatSubmissionRules.Log(input, "submitted", by: null);
                 var id = (int)conn.ExecuteScalar<long>(@"
 INSERT INTO SeatSubmissions (UserId, OrderId, UnitId, Status, DataJson)
 VALUES (@UserId, @OrderId, @UnitId, @Status, @DataJson);
@@ -86,14 +87,16 @@ SELECT last_insert_rowid();",
             s.ReviewedBy = reviewedBy;
             s.ReviewedAtUtc = DateTime.UtcNow;
             s.ReviewNote = note;
+            SeatSubmissionRules.Log(s, "reviewed", reviewedBy, note);
         });
 
-    public SeatSubmission? ReopenSeatSubmission(int id, string? note) =>
+    public SeatSubmission? ReopenSeatSubmission(int id, string? note, string? reopenedBy = null) =>
         MutateSeatSubmission(id, s =>
         {
             s.Status = SeatSubmissionStatus.Pending;
             s.ReviewedAtUtc = null;
             s.ReviewNote = note;
+            SeatSubmissionRules.Log(s, "reopened", reopenedBy, note);
         });
 
     // Rejecting is not "review with a different flag": the details the customer sent are removed, because the
@@ -109,6 +112,16 @@ SELECT last_insert_rowid();",
             var item = Deserialize<SeatSubmission>(json)!;
 
             var removedImageId = item.ImageId;
+            // What was refused stays on record: staff can still see it, and the customer's next filing sits next
+            // to it as the new version.
+            if (item.Text.Length > 0 || item.ImageId is not null)
+            {
+                var refused = SeatSubmissionRules.Snapshot(item);
+                refused.Status = SeatSubmissionStatus.Rejected;
+                refused.ReviewNote = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
+                SeatSubmissionRules.PushHistory(item, refused);
+            }
+            SeatSubmissionRules.Log(item, "rejected", rejectedBy, reason);
             item.ImageId = null;
             item.Text = "";
             item.Status = SeatSubmissionStatus.Rejected;

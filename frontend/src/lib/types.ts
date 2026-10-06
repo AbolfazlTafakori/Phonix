@@ -185,6 +185,15 @@ export type SeatSubmission = {
   // Earlier details this seat held, newest first — kept when the customer replaces them (e.g. a new device
   // after staff reopen the seat). A rejection wipes instead, so it leaves nothing here.
   history: SeatSubmissionVersion[];
+  // Every action on the seat, oldest first: who did what, when (by = staff username; null = the customer).
+  events: SeatSubmissionEvent[];
+};
+
+export type SeatSubmissionEvent = {
+  atUtc: string;
+  action: "submitted" | "edited" | "reviewed" | "reopened" | "rejected";
+  by: string | null;
+  note: string | null;
 };
 
 export type SeatSubmissionVersion = {

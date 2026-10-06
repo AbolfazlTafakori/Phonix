@@ -20,12 +20,13 @@ public record SeatUnitInfoDto(bool Enabled, string Hint, IReadOnlyList<SeatSubmi
 public record SeatSubmissionDto(int Id, int OrderId, int UnitId, int SeatIndex, string SeatLabel, int ProductId,
     string ProductName, string OrderCode, string UserName, string? ImageId, string Text, SeatSubmissionStatus Status,
     bool Editable, DateTime CreatedAtUtc, DateTime UpdatedAtUtc, string? ReviewedBy, DateTime? ReviewedAtUtc,
-    string? ReviewNote, int EditLimit, int EditsUsed, int EditsLeft, IReadOnlyList<SeatSubmissionVersion> History)
+    string? ReviewNote, int EditLimit, int EditsUsed, int EditsLeft, IReadOnlyList<SeatSubmissionVersion> History,
+    IReadOnlyList<SeatSubmissionEvent> Events)
 {
     public static SeatSubmissionDto From(SeatSubmission s) =>
         new(s.Id, s.OrderId, s.UnitId, s.SeatIndex, s.SeatLabel, s.ProductId, s.ProductName, s.OrderCode, s.UserName,
             s.ImageId, s.Text, s.Status, s.Editable, s.CreatedAtUtc, s.UpdatedAtUtc, s.ReviewedBy, s.ReviewedAtUtc,
-            s.ReviewNote, s.EditLimit, s.EditsUsed, s.EditsLeft, s.History ?? new());
+            s.ReviewNote, s.EditLimit, s.EditsUsed, s.EditsLeft, s.History ?? new(), s.Events ?? new());
 }
 
 // Per-seat information a buyer files after delivery. A purchase covering several seats gets one submission per
@@ -168,9 +169,10 @@ public class SeatSubmissionsController : ControllerBase
     }
 
     // Turns the seat down. Unlike a reopen — which hands the seat back with what the customer sent still on it
-    // — this clears the entry: the picture is deleted from storage, the note is emptied, and the buyer files
-    // fresh details. They are told twice (in-site notification and email) because the form they come back to
-    // is blank, and a blank form with no explanation looks like data loss.
+    // — this clears the entry and the buyer files fresh details. What was refused moves into the seat's History
+    // (picture included), so staff can still compare it with what comes next. The buyer is told twice (in-site
+    // notification and email) because the form they come back to is blank, and a blank form with no
+    // explanation looks like data loss.
     [HttpPost("{id:int}/reject")]
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("seat-info")]
@@ -181,9 +183,7 @@ public class SeatSubmissionsController : ControllerBase
         if (_store.RejectSeatSubmission(id, User.Identity?.Name, reason.Length > 0 ? reason : null) is not { } result)
             return NotFound();
 
-        // Only once the wipe has committed: a file removed ahead of a rolled-back write would leave a record
-        // pointing at nothing.
-        _files.DeleteProtected(FileCategory, result.RemovedImageId);
+        // The picture is NOT deleted: the refused version in History still shows it to staff.
         _ = _mailer.SeatInfoRejectedAsync(result.Submission);
         return Ok(SeatSubmissionDto.From(result.Submission));
     }
@@ -194,7 +194,7 @@ public class SeatSubmissionsController : ControllerBase
     [AdminPermission("seat-info")]
     public ActionResult<SeatSubmissionDto> Reopen(int id, SeatReviewInput input)
     {
-        var reopened = _store.ReopenSeatSubmission(id, (input.Note ?? "").Trim() is { Length: > 0 } n ? n : null);
+        var reopened = _store.ReopenSeatSubmission(id, (input.Note ?? "").Trim() is { Length: > 0 } n ? n : null, User.Identity?.Name);
         return reopened is null ? NotFound() : Ok(SeatSubmissionDto.From(reopened));
     }
 }

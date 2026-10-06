@@ -61,7 +61,7 @@ public interface IDataStore
     // reviewed — from that point it's frozen and only staff can reopen it.
     SeatSubmission? SaveSeatSubmission(SeatSubmission input);
     SeatSubmission? ReviewSeatSubmission(int id, string? reviewedBy, string? note);
-    SeatSubmission? ReopenSeatSubmission(int id, string? note); // hands the seat back for a correction
+    SeatSubmission? ReopenSeatSubmission(int id, string? note, string? reopenedBy = null); // hands the seat back for a correction
     // Turns the seat down: wipes what the customer sent, hands the seat back to them, and notifies them — all
     // in one transaction. The picture is not this layer's to erase, so the id it just detached is returned for
     // the caller to remove from storage.
