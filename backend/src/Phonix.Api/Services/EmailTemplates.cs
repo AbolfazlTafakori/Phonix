@@ -81,6 +81,11 @@ public static class EmailTemplates
         <td dir=""rtl"" align=""right"" style=""background:#fff7f0;border:1px solid #f1d8c5;border-radius:12px;padding:16px 20px;color:{Body};font-size:15px;line-height:2;direction:rtl;text-align:right;"">{html}</td>
         </tr></table>";
 
+    // Text staff typed (a rejection reason, a message) exactly as they wrote it: escaped, with its line breaks
+    // kept — HTML would otherwise run a multi-paragraph reason together into one line.
+    private static string Multiline(string text) =>
+        WebUtility.HtmlEncode(text.Trim()).Replace("\r\n", "\n").Replace("\n", "<br>");
+
     // Like Note, but a red-tinted alert box for security warnings (e.g. an unexpected password change).
     private static string WarnNote(string html) =>
         $@"<table role=""presentation"" dir=""rtl"" width=""100%"" cellpadding=""0"" cellspacing=""0"" style=""margin:24px 0 0;direction:rtl;""><tr>
@@ -323,9 +328,52 @@ public static class EmailTemplates
             $"رسید {Toman(amount)} شما تأیید نشد.",
             $"<p style=\"margin:0;\">متأسفانه رسید {WebUtility.HtmlEncode(kindFa)} شما پس از بررسی <b>تأیید نشد</b> و مبلغ آن به حساب شما اضافه نشد.</p>"
             + Rows(("مبلغ", Toman(amount)))
-            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{WebUtility.HtmlEncode(reasonFa)}")
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{Multiline(reasonFa)}")
             + Note("اگر مبلغ از حساب شما کسر شده، نگران نباشید — وجهی که به مقصد نرسیده باشد نزد بانک شما باقی می‌ماند. در غیر این صورت با ارائه‌ی شماره پیگیری با پشتیبانی تماس بگیرید تا موضوع را بررسی کنیم.")
             + Button("تماس با پشتیبانی", supportUrl));
+        return (text, html);
+    }
+
+    // Staff turned the order down — a receipt that didn't check out, or a cancellation from the panel. The
+    // reason is the whole message: the customer reads it in full, not a summary.
+    public static (string text, string html) OrderCancelled(string orderCode, string reason, bool refunded, string ordersUrl)
+    {
+        var refundLine = refunded ? "مبلغ پرداختی شما (پس از کسر جریمه‌ی لغو، در صورت وجود) به کیف پولتان بازگشت داده شد." : "";
+        var text = $"سفارش {orderCode} شما لغو شد.\n\nدلیل:\n{reason.Trim()}\n\n{refundLine}\n\nمشاهده‌ی سفارش‌ها:\n{ordersUrl}";
+        var html = Shell("سفارش شما لغو شد",
+            $"سفارش {orderCode} لغو شد.",
+            $"<p style=\"margin:0;\">سفارش <b dir=\"ltr\" style=\"unicode-bidi:embed;\">{WebUtility.HtmlEncode(orderCode)}</b> شما لغو شد.</p>"
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل</b><br>{Multiline(reason)}")
+            + (refunded ? Note(WebUtility.HtmlEncode(refundLine)) : "")
+            + Button("مشاهده‌ی سفارش‌ها", ordersUrl)
+            + LinkFallback(ordersUrl));
+        return (text, html);
+    }
+
+    // One account of an order was turned down and refunded; the rest of the order goes on.
+    public static (string text, string html) OrderUnitRejected(string orderCode, string productName, string reason, long refund, string walletUrl)
+    {
+        var refundLine = refund > 0 ? $"مبلغ {Toman(refund)} به کیف پول شما بازگشت داده شد." : "";
+        var text = $"«{productName}» از سفارش {orderCode} رد شد.\n\nدلیل:\n{reason.Trim()}\n\n{refundLine}\n\nکیف پول:\n{walletUrl}";
+        var html = Shell("بخشی از سفارش شما رد شد",
+            $"«{productName}» از سفارش {orderCode} رد شد.",
+            $"<p style=\"margin:0;\">«{WebUtility.HtmlEncode(productName)}» از سفارش <b dir=\"ltr\" style=\"unicode-bidi:embed;\">{WebUtility.HtmlEncode(orderCode)}</b> رد شد. بقیه‌ی سفارش شما طبق روال ادامه پیدا می‌کند.</p>"
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل</b><br>{Multiline(reason)}")
+            + (refund > 0 ? Rows(("مبلغ بازگشتی به کیف پول", Toman(refund))) : "")
+            + Button("مشاهده‌ی کیف پول", walletUrl)
+            + LinkFallback(walletUrl));
+        return (text, html);
+    }
+
+    // A message staff sent from the panel's notifications section — the same words the customer sees in the
+    // site's bell, so they don't have to log in to read it.
+    public static (string text, string html) StaffMessage(string title, string body, string actionUrl)
+    {
+        var text = $"{title.Trim()}\n\n{body.Trim()}\n\n{actionUrl}";
+        var html = Shell(title.Trim(), title.Trim(),
+            (string.IsNullOrWhiteSpace(body) ? "" : $"<p style=\"margin:0;\">{Multiline(body)}</p>")
+            + Button("مشاهده در سایت", actionUrl)
+            + LinkFallback(actionUrl));
         return (text, html);
     }
 
@@ -370,7 +418,7 @@ public static class EmailTemplates
             $"کارت {cardMasked} تأیید نشد.",
             "<p style=\"margin:0;\">کارت بانکی ثبت‌شده‌ی شما پس از بررسی تأیید نشد. پس از رفع مورد زیر می‌توانید دوباره آن را ثبت کنید.</p>"
             + Rows(("شماره کارت", cardMasked))
-            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{WebUtility.HtmlEncode(reasonFa)}")
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{Multiline(reasonFa)}")
             + Button("ثبت دوباره‌ی کارت", cardsUrl));
         return (text, html);
     }
@@ -392,7 +440,7 @@ public static class EmailTemplates
         var html = Shell("احراز هویت شما تأیید نشد",
             "مدارک احراز هویت شما نیاز به اصلاح دارد.",
             "<p style=\"margin:0;\">مدارک احراز هویت شما پس از بررسی تأیید نشد. نگران نباشید — پس از رفع مورد زیر می‌توانید مدارک خود را دوباره ارسال کنید.</p>"
-            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{WebUtility.HtmlEncode(reasonFa)}")
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{Multiline(reasonFa)}")
             + Button("ارسال دوباره‌ی مدارک", kycUrl));
         return (text, html);
     }
@@ -412,7 +460,7 @@ public static class EmailTemplates
             $"اطلاعات پروفایل {seatLabel} از سفارش {orderCode} نیاز به ارسال دوباره دارد.",
             "<p style=\"margin:0;\">اطلاعاتی که برای این پروفایل ثبت کرده بودید پس از بررسی تأیید نشد و حذف شد. لطفاً اطلاعات را دوباره وارد و ارسال کنید.</p>"
             + Rows(("سفارش", orderCode), ("سرویس", productName), ("پروفایل", seatLabel))
-            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{WebUtility.HtmlEncode(reasonFa)}")
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل رد شدن</b><br>{Multiline(reasonFa)}")
             + Button("ارسال دوباره‌ی اطلاعات", ordersUrl));
         return (text, html);
     }

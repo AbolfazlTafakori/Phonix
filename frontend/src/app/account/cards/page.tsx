@@ -177,7 +177,21 @@ export default function CardsPage() {
                 <label className="mb-2 block text-sm font-bold" style={{ color: "var(--ac-text)" }}>نام روی کارت</label>
                 <input value={holder} onChange={(e) => setHolder(e.target.value)} placeholder="نام و نام خانوادگی صاحب کارت" className={`${inputCls} mb-4`} />
 
-                <ImageField label="تصویر کارت بانکی" aspect="wide" value={cardImage} onChange={setCardImage} uploader={api.cards.upload} srcFor={api.cards.imageSrc} />
+                {/* The most common reason a card is turned down is a screenshot of the bank app or a virtual card
+                    instead of a photo of the card itself — so the field says what it wants before they pick a file. */}
+                <div className="mb-3 rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-[13px] leading-6 text-amber-800">
+                  <b>📸 از خودِ کارت بانکی (نسخه‌ی فیزیکی) عکس بگیرید.</b>
+                  <br />
+                  اسکرین‌شات از اپلیکیشن بانک، کارت مجازی یا عکسی که از صفحه‌ی گوشی گرفته شده پذیرفته نمی‌شود.
+                </div>
+                <ImageField
+                  label="عکس نسخه‌ی فیزیکی کارت بانکی (اسکرین‌شات قبول نیست)"
+                  aspect="wide"
+                  value={cardImage}
+                  onChange={setCardImage}
+                  uploader={api.cards.upload}
+                  srcFor={api.cards.imageSrc}
+                />
 
                 {modalErr && <p className="mt-3 text-sm text-rose-600">{modalErr}</p>}
                 <div className="mt-5 flex gap-3">

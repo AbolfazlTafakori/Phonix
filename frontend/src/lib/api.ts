@@ -938,7 +938,8 @@ export const api = {
     mine: () => request<Notification[]>("/notifications"),
     unreadCount: () => request<number>("/notifications/unread-count"),
     markRead: () => request<void>("/notifications/read", { method: "POST" }),
-    send: (body: { userId?: number | null; title: string; body: string; link?: string | null }) =>
+    // sendEmail (default on): also mail it — at once to one customer, paced in the background for a broadcast.
+    send: (body: { userId?: number | null; title: string; body: string; link?: string | null; sendEmail?: boolean }) =>
       request<AdminNotification>("/notifications", { method: "POST", body: json(body) }),
     all: () => request<AdminNotification[]>("/notifications/all"),
     remove: (id: number) => request<void>(`/notifications/${id}`, { method: "DELETE" }),

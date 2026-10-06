@@ -23,9 +23,14 @@ public static class OrderNotices
     public static Notice Cancelled(Order order) =>
         new("سفارش لغو شد", $"همه‌ی اقلام سفارش {order.Code} رد شد و مبلغ آن‌ها بازگشت داده شد.", OrdersLink);
 
-    public static Notice UnitRefunded(Order order, OrderUnit unit, long refund) =>
+    // The reason staff typed, when it is one meant for the buyer. The Telegram button's stock text is a note
+    // for the order history, not an explanation, so it is left out.
+    public const string TelegramRejectReason = "رد سفارش از طریق تلگرام";
+
+    public static Notice UnitRefunded(Order order, OrderUnit unit, long refund, string? reason = null) =>
         new("بازگشت وجه",
-            $"«{unit.Name}» از سفارش {order.Code} رد شد و {refund:N0} تومان به کیف پول شما بازگشت.",
+            $"«{unit.Name}» از سفارش {order.Code} رد شد و {refund:N0} تومان به کیف پول شما بازگشت."
+            + (string.IsNullOrWhiteSpace(reason) || reason == TelegramRejectReason ? "" : $"\nدلیل: {reason.Trim()}"),
             WalletLink);
 
     public static Notice RenewalDue(Order order, string expiresFa) =>

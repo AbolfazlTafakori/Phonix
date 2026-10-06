@@ -25,6 +25,15 @@ public interface IUserMailer
     Task KycDecidedAsync(KycRequest kyc);
     // Only rejection mails: an approved seat needs nothing from the customer, a rejected one needs them back.
     Task SeatInfoRejectedAsync(SeatSubmission submission);
+    // Staff turned an order down (a rejected receipt, a cancellation from the panel). The reason goes out in full.
+    Task OrderCancelledAsync(Order order, string reason, bool refunded);
+    // One account of an order was rejected and refunded — from the panel or the Telegram order bot.
+    Task OrderUnitRejectedAsync(Order order, int unitId, string reason, long refunded);
+    // A message staff sent one customer from the panel's notifications section.
+    Task StaffMessageAsync(int userId, string title, string body, string? link);
+    // The same, to every customer with a verified address. Paced, and meant to be run in the background:
+    // returns once the last one has gone. Returns how many were attempted.
+    Task<int> BroadcastStaffMessageAsync(string title, string body, string? link, CancellationToken ct = default);
 }
 
 public sealed class UserMailer : IUserMailer
@@ -154,6 +163,48 @@ public sealed class UserMailer : IUserMailer
         var seat = string.IsNullOrWhiteSpace(s.SeatLabel) ? $"پروفایل {s.SeatIndex + 1}" : s.SeatLabel;
         return SendAsync(AddressOf(s.UserId), $"اطلاعات ارسالی شما تأیید نشد — سفارش {s.OrderCode}",
             EmailTemplates.SeatInfoRejected(s.OrderCode, s.ProductName, seat, s.ReviewNote, Url("/account/orders")));
+    }
+
+    public Task OrderCancelledAsync(Order order, string reason, bool refunded) =>
+        SendAsync(AddressOf(order.UserId), $"سفارش {order.Code} لغو شد",
+            EmailTemplates.OrderCancelled(order.Code, reason, refunded, Url("/account/orders")));
+
+    public Task OrderUnitRejectedAsync(Order order, int unitId, string reason, long refunded)
+    {
+        var name = order.Units.FirstOrDefault(u => u.Id == unitId)?.Name ?? "بخشی از سفارش";
+        return SendAsync(AddressOf(order.UserId), $"بخشی از سفارش {order.Code} رد شد",
+            EmailTemplates.OrderUnitRejected(order.Code, name, reason, refunded, Url("/account/wallet")));
+    }
+
+    // The notification's own in-site link when it has one, otherwise the customer's notifications list.
+    private static string MessageUrl(string? link) => Url(string.IsNullOrWhiteSpace(link) ? "/account/messages" : link!);
+
+    public Task StaffMessageAsync(int userId, string title, string body, string? link) =>
+        SendAsync(AddressOf(userId), title.Trim(), EmailTemplates.StaffMessage(title, body, MessageUrl(link)));
+
+    // A broadcast can reach the whole customer base. Sending it in one burst is how a shop's mail server ends
+    // up on a blocklist, and it would hold a request open for minutes — so it is paced, and only addresses the
+    // customer proved they own are written to.
+    public static readonly TimeSpan BroadcastPace = TimeSpan.FromMilliseconds(400);
+
+    public async Task<int> BroadcastStaffMessageAsync(string title, string body, string? link, CancellationToken ct = default)
+    {
+        var mail = EmailTemplates.StaffMessage(title, body, MessageUrl(link));
+        var recipients = _store.GetUsers()
+            .Where(u => u.Role == UserRole.Customer && !u.Blocked && u.EmailVerified && u.Email.Length > 0)
+            .Select(u => u.Email)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var sent = 0;
+        foreach (var to in recipients)
+        {
+            if (ct.IsCancellationRequested) break;
+            await SendAsync(to, title.Trim(), mail);
+            sent++;
+            try { await Task.Delay(BroadcastPace, ct); } catch (OperationCanceledException) { break; }
+        }
+        _logger.LogInformation("Broadcast \"{Title}\" emailed to {Sent} of {Total} customers", title, sent, recipients.Count);
+        return sent;
     }
 
     public Task KycDecidedAsync(KycRequest kyc) => kyc.Status switch

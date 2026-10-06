@@ -58,6 +58,10 @@ public class V2RayAutoDeliveryTests
         public Task CardDecidedAsync(BankCard card) => Task.CompletedTask;
         public Task KycDecidedAsync(KycRequest kyc) => Task.CompletedTask;
         public Task SeatInfoRejectedAsync(SeatSubmission submission) => Task.CompletedTask;
+        public Task OrderCancelledAsync(Order order, string reason, bool refunded) => Task.CompletedTask;
+        public Task OrderUnitRejectedAsync(Order order, int unitId, string reason, long refunded) => Task.CompletedTask;
+        public Task StaffMessageAsync(int userId, string title, string body, string? link) => Task.CompletedTask;
+        public Task<int> BroadcastStaffMessageAsync(string title, string body, string? link, CancellationToken ct = default) => Task.FromResult(0);
     }
 
     // Hands the fulfillment service the one bot these tests are watching.

@@ -437,7 +437,7 @@ public sealed class TelegramOrderService : ITelegramOrderService
         {
             // Reject only THIS account. The buyer is refunded what they actually paid for it — its price after
             // its share of the order discount — and the rest of the order carries on independently.
-            var (updated, refunded, error) = _store.RejectUnit(orderId.Value, unit.Id, "رد سفارش از طریق تلگرام", "telegram");
+            var (updated, refunded, error) = _store.RejectUnit(orderId.Value, unit.Id, OrderNotices.TelegramRejectReason, "telegram");
             if (error is not null)
             {
                 await AnswerCallbackAsync(token, callbackId, error, ct);
@@ -445,6 +445,10 @@ public sealed class TelegramOrderService : ITelegramOrderService
             }
             _store.AddNotification(order.UserId, "سفارش شما رد شد",
                 $"«{unit.Name}» از سفارش {order.Code} رد شد. برای پیگیری به بخش تیکت‌ها مراجعه کنید.", "/account/tickets");
+            // The button carries no reason of its own, and "rejected via Telegram" means nothing to a buyer.
+            if (updated is not null)
+                _ = _mailer.OrderUnitRejectedAsync(updated, unit.Id,
+                    "امکان ارائه‌ی این سرویس فراهم نشد. برای پیگیری از بخش تیکت‌ها با پشتیبانی در تماس باشید.", refunded);
             _logger.LogInformation("Telegram order decision: order {Code} unit {UnitId} → Rejected, refunded {Refund}",
                 order.Code, unit.Id, refunded);
             await AnswerCallbackAsync(token, callbackId, $"❌ رد شد — {refunded:N0} تومان بازگشت.", ct);

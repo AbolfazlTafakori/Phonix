@@ -134,6 +134,7 @@ export default function OrderReceiptsPage() {
           placeholder="دلیل رد (اختیاری)…"
           className={`${inputCls} mt-3 resize-none`}
         />
+        <p className="mt-2 text-[11px] text-white/45">این متن به‌طور کامل برای مشتری ایمیل و در اعلان‌های حسابش نمایش داده می‌شود.</p>
         <div className="mt-4 flex justify-end gap-2">
           <button onClick={() => setRejecting(null)} className="rounded-lg border border-white/10 px-4 py-2 text-sm font-bold text-white/70 transition hover:bg-white/5">انصراف</button>
           <button onClick={doReject} disabled={busy === rejecting?.id} className="flex items-center gap-1.5 rounded-lg bg-rose-500/20 px-4 py-2 text-sm font-bold text-rose-300 transition hover:bg-rose-500/30">

@@ -365,7 +365,7 @@ export default function OrderFulfillmentPage() {
         </div>
 
         <div className="mt-4">
-          <Field label="دلیل لغو (برای مشتری و سوابق سفارش ثبت می‌شود)">
+          <Field label="دلیل لغو (متن کامل برای مشتری ایمیل و در اعلان‌هایش نمایش داده می‌شود)">
             <textarea
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}

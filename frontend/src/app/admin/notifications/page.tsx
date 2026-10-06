@@ -24,6 +24,7 @@ export default function AdminNotificationsPage() {
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [link, setLink] = useState("");
+  const [sendEmail, setSendEmail] = useState(true);
   const [sending, setSending] = useState(false);
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [busy, setBusy] = useState<number | null>(null);
@@ -58,12 +59,23 @@ export default function AdminNotificationsPage() {
         title: title.trim(),
         body: body.trim(),
         link: link.trim() || null,
+        sendEmail,
       });
       setTitle("");
       setBody("");
       setLink("");
       await load();
-      setNote({ ok: true, text: target === "all" ? "پیام عمومی برای همه کاربران ارسال شد." : "پیام برای کاربر ارسال شد." });
+      setNote({
+        ok: true,
+        text:
+          target === "all"
+            ? sendEmail
+              ? "پیام عمومی ثبت شد؛ ایمیل آن به‌تدریج برای همه‌ی مشتری‌هایی که ایمیلشان تأیید شده ارسال می‌شود."
+              : "پیام عمومی برای همه کاربران ارسال شد."
+            : sendEmail
+              ? "پیام برای کاربر ارسال و ایمیل شد."
+              : "پیام برای کاربر ارسال شد.",
+      });
     } catch (e) {
       setNote({ ok: false, text: e instanceof Error ? e.message : "ارسال ناموفق بود." });
     } finally {
@@ -116,6 +128,17 @@ export default function AdminNotificationsPage() {
               <Field label="لینک (اختیاری)">
                 <input value={link} onChange={(e) => setLink(e.target.value)} dir="ltr" placeholder="/account/orders" className={`${inputCls} h-11 text-left`} />
               </Field>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl bg-white/[0.03] px-4 py-3">
+                <input type="checkbox" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} className="mt-1 h-4 w-4 accent-[#3a64f2]" />
+                <span className="text-sm text-white/80">
+                  ایمیل هم ارسال شود
+                  <span className="mt-0.5 block text-[11px] leading-5 text-white/40">
+                    {target === "all"
+                      ? "برای همه‌ی مشتری‌هایی که ایمیلشان را تأیید کرده‌اند، با فاصله و در پس‌زمینه ارسال می‌شود."
+                      : "متن کامل پیام به ایمیل همین کاربر هم فرستاده می‌شود."}
+                  </span>
+                </span>
+              </label>
               <button
                 onClick={send}
                 disabled={sending || !title.trim()}

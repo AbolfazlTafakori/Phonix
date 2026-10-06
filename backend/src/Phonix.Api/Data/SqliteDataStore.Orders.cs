@@ -1213,7 +1213,7 @@ LIMIT 1;",
                         Status = TxStatus.Approved, Method = "کیف پول", ApprovedVia = "reject-unit",
                         OrderCode = o.Code, Date = Today(),
                     });
-                    Notify(conn, tx, buyer.Id, OrderNotices.UnitRefunded(o, unit, refund));
+                    Notify(conn, tx, buyer.Id, OrderNotices.UnitRefunded(o, unit, refund, reason));
                 }
             }
 

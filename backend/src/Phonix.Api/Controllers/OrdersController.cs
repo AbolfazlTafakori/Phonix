@@ -525,8 +525,10 @@ public class OrdersController : ControllerBase
     public ActionResult<Order> Reject(int id, [FromBody(EmptyBodyBehavior = EmptyBodyBehavior.Allow)] RejectOrderInput? input)
     {
         var reason = string.IsNullOrWhiteSpace(input?.Reason) ? "رد رسید توسط بخش مالی" : input!.Reason!.Trim();
+        var before = _store.GetOrder(id);
         var result = _store.CancelOrder(id, User.Identity?.Name, reason);
         if (result.Error is not null) return BadRequest(result.Error);
+        TellCustomerCancelled(before, result.Order!, reason);
         return RevealInputs(result.Order!);
     }
 
@@ -634,8 +636,9 @@ public class OrdersController : ControllerBase
         var reason = string.IsNullOrWhiteSpace(input?.Reason)
             ? "عدم امکان ارائه سرویس"
             : input!.Reason!.Trim();
-        var (order, _, error) = _store.RejectUnit(id, unitId, reason, User.Identity?.Name);
+        var (order, refunded, error) = _store.RejectUnit(id, unitId, reason, User.Identity?.Name);
         if (error is not null) return BadRequest(error);
+        _ = _mailer.OrderUnitRejectedAsync(order!, unitId, reason, refunded);
         return RevealInputs(order!);
     }
 
@@ -672,8 +675,22 @@ public class OrdersController : ControllerBase
         var reason = string.IsNullOrWhiteSpace(input?.Reason)
             ? (this.IsStaff() ? "لغو توسط پشتیبانی" : "لغو توسط کاربر")
             : input!.Reason;
+        var before = order;
         var result = _store.CancelOrder(id, User.Identity?.Name, reason);
         if (result.Error is not null) return BadRequest(result.Error);
+        // A customer who cancelled their own order already knows why; staff cancelling it owes them the reason.
+        if (this.IsStaff()) TellCustomerCancelled(before, result.Order!, reason!);
         return result.Order!;
+    }
+
+    // The customer hears why their order was turned down — in the bell and by email, the reason in full. Until
+    // now it only went into the order's internal history, so the buyer saw "cancelled" and nothing else.
+    private void TellCustomerCancelled(Order? before, Order cancelled, string reason)
+    {
+        // Money had been taken if the order was already paid, or part of it came out of the wallet.
+        var refunded = before is not null && (before.Status == OrderStatus.Preparing || before.WalletPaid > 0);
+        _store.AddNotification(cancelled.UserId, "سفارش شما لغو شد",
+            $"سفارش {cancelled.Code} لغو شد.\nدلیل: {reason}", "/account/orders");
+        _ = _mailer.OrderCancelledAsync(cancelled, reason, refunded);
     }
 }

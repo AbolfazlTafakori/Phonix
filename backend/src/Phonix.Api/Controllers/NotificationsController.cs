@@ -7,7 +7,9 @@ using Phonix.Api.Security;
 namespace Phonix.Api.Controllers;
 
 public record NotificationDto(int Id, string Title, string Body, string? Link, bool IsPublic, bool IsRead, string CreatedAtUtc);
-public record SendNotificationInput(int? UserId, string Title, string Body, string? Link);
+// SendEmail: also mail it (default on). A private message goes to that customer at once; a broadcast goes to
+// every customer with a verified address, paced, in the background.
+public record SendNotificationInput(int? UserId, string Title, string Body, string? Link, bool? SendEmail = null);
 
 [ApiController]
 [Route("api/notifications")]
@@ -15,7 +17,13 @@ public record SendNotificationInput(int? UserId, string Title, string Body, stri
 public class NotificationsController : ControllerBase
 {
     private readonly IDataStore _store;
-    public NotificationsController(IDataStore store) => _store = store;
+    private readonly Services.IUserMailer _mailer;
+
+    public NotificationsController(IDataStore store, Services.IUserMailer mailer)
+    {
+        _store = store;
+        _mailer = mailer;
+    }
 
     private static NotificationDto ToDto(Notification n, int viewerId) =>
         new(n.Id, n.Title, n.Body, n.Link, n.UserId is null, n.ReadBy.Contains(viewerId), n.CreatedAtUtc);
@@ -64,7 +72,17 @@ public class NotificationsController : ControllerBase
         // "//evil.example" is protocol-relative: it starts with '/' but leaves the site entirely.
         if (link is not null && link.StartsWith("//", StringComparison.Ordinal))
             return BadRequest("لینک باید یک مسیر داخلی سایت باشد (با / شروع شود).");
-        return _store.AddNotification(input.UserId, title, body, link);
+        var sent = _store.AddNotification(input.UserId, title, body, link);
+        if (input.SendEmail ?? true)
+        {
+            if (input.UserId is int to)
+                _ = _mailer.StaffMessageAsync(to, title, body, link);
+            else
+                // Minutes for a large customer base: it runs on its own, never holding this request open.
+                // The mailer swallows and logs per-recipient failures, so this task can't fault.
+                _ = Task.Run(() => _mailer.BroadcastStaffMessageAsync(title, body, link));
+        }
+        return sent;
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
