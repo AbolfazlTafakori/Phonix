@@ -538,7 +538,26 @@ public sealed partial class SqliteDataStore
         t.BotToken = SensitiveField.Reveal(t.BotToken ?? "");
         t.ReceiptBotToken = SensitiveField.Reveal(t.ReceiptBotToken ?? "");
         t.OrderBotToken = SensitiveField.Reveal(t.OrderBotToken ?? "");
+        t.CustomerBotToken = SensitiveField.Reveal(t.CustomerBotToken ?? "");
         return t;
+    }
+
+    // The customer bot is managed on its own page, so it has its own write: the general Telegram form above never
+    // touches these fields. A null token keeps the stored one; an empty one removes it (and with it the bot).
+    public void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username)
+    {
+        using var conn = OpenConnection();
+        var t = ReadSingletonNoTx<TelegramSettings>(conn, TelegramKey);
+        if (token is not null)
+        {
+            var trimmed = token.Trim();
+            t.CustomerBotToken = trimmed.Length == 0 ? "" : SensitiveField.Protect(trimmed);
+            t.CustomerBotUsername = trimmed.Length == 0 ? "" : (username ?? "").Trim().TrimStart('@');
+        }
+        var hasToken = !string.IsNullOrWhiteSpace(t.CustomerBotToken);
+        t.CustomerBotEnabled = enabled && hasToken;
+        t.CustomerBotPublic = isPublic && t.CustomerBotEnabled;
+        WriteSingleton(conn, null, TelegramKey, t);
     }
 
     public void UpdateTelegramSettings(TelegramSettings settings)

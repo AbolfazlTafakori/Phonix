@@ -26,6 +26,12 @@ public class AppUser
     // Kept in sync so Verified == (VerificationLevel >= 2). Upgrades are permanent.
     public int VerificationLevel { get; set; }
     public bool EmailVerified { get; set; }
+    // The customer bot chat this account is linked to (null = not linked), and whether account mail is also
+    // sent there. One chat links to one account; linking it elsewhere moves it.
+    public long? TelegramChatId { get; set; }
+    public string? TelegramUsername { get; set; }
+    public DateTime? TelegramLinkedAtUtc { get; set; }
+    public bool TelegramNotify { get; set; } = true;
     // When verification emails were last sent to this account, oldest first. Kept ON THE USER rather than in
     // process memory so the allowance survives a restart and is shared by every server in the cluster —
     // an in-memory counter would reset on deploy and be counted separately per node, which is no limit at

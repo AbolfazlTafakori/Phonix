@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth";
 import { useMe } from "@/lib/useMe";
 import { formatToman, formatNumber, toFa } from "@/lib/format";
 import type { Order, Ticket } from "@/lib/types";
+import TelegramLinkCard from "./TelegramLinkCard";
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -503,6 +504,9 @@ export default function AccountDashboard() {
           </div>
         </div>
       </Card>
+
+      {/* ── Telegram (only once staff switch the customer bot on) ── */}
+      <TelegramLinkCard />
 
       {/* ── Stat cards ── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

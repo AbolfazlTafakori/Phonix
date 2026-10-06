@@ -178,6 +178,15 @@ public interface IDataStore
     // ── Telegram backup/alert settings ──────────────────────────────────────────────────────────────
     TelegramSettings GetTelegramSettings();
     void UpdateTelegramSettings(TelegramSettings settings);
+    // The customer bot's own settings (see TelegramSettings.CustomerBot*). token: null = keep, "" = remove.
+    void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username);
+
+    // Linking a customer's account to their chat with the customer bot. A chat belongs to one account: linking it
+    // to a new one releases it from the old. Unlink by chat is for when the customer stops or blocks the bot.
+    AppUser? FindUserByTelegramChat(long chatId);
+    bool LinkTelegram(int userId, long chatId, string? username);
+    bool UnlinkTelegram(int userId);
+    void UnlinkTelegramChat(long chatId);
     void RecordTelegramBackup(bool success, string error);
 
     // ── Discount codes ──────────────────────────────────────────────────────────────────────────────

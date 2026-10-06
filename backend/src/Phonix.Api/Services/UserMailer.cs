@@ -43,12 +43,14 @@ public sealed class UserMailer : IUserMailer
     private readonly IDataStore _store;
     private readonly IEmailSender _email;
     private readonly ILogger<UserMailer> _logger;
+    private readonly ITelegramCustomerBot? _telegram;
 
-    public UserMailer(IDataStore store, IEmailSender email, ILogger<UserMailer> logger)
+    public UserMailer(IDataStore store, IEmailSender email, ILogger<UserMailer> logger, ITelegramCustomerBot? telegram = null)
     {
         _store = store;
         _email = email;
         _logger = logger;
+        _telegram = telegram;
     }
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
@@ -62,6 +64,29 @@ public sealed class UserMailer : IUserMailer
     // path), which is a normal skip, not a failure.
     private string? AddressOf(int userId) =>
         _store.GetUser(userId) is { Email: { Length: > 0 } email } ? email : null;
+
+    // One customer, every channel they have: the email, and — when they linked the customer bot and left its
+    // notifications on — the same words in Telegram. Each channel fails on its own; neither ever throws.
+    private async Task SendToUserAsync(int userId, string subject, (string text, string html) body)
+    {
+        var user = _store.GetUser(userId);
+        if (user is null) return;
+        await SendAsync(user.Email, subject, body);
+        await SendTelegramAsync(user, subject, body.text);
+    }
+
+    private async Task SendTelegramAsync(AppUser user, string subject, string text)
+    {
+        if (_telegram is null || user.TelegramChatId is not long chatId || !user.TelegramNotify) return;
+        try
+        {
+            await _telegram.SendAsync(chatId, $"📩 {subject.Trim()}\n\n{text.Trim()}");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Customer Telegram message failed: {Subject}", subject);
+        }
+    }
 
     private async Task SendAsync(string? to, string subject, (string text, string html) body)
     {
@@ -86,15 +111,15 @@ public sealed class UserMailer : IUserMailer
     }
 
     public Task WelcomeAsync(AppUser user) =>
-        SendAsync(user.Email, $"به فونیکس وریفای خوش آمدید، {user.Name}",
+        SendToUserAsync(user.Id, $"به فونیکس وریفای خوش آمدید، {user.Name}",
             EmailTemplates.Welcome(user.Name, Url("/products")));
 
     public Task LoginNoticeAsync(AppUser user, string ip, string device) =>
-        SendAsync(user.Email, "ورود به حساب فونیکس شما",
+        SendToUserAsync(user.Id, "ورود به حساب فونیکس شما",
             EmailTemplates.LoginNotice(JalaliDate.NowFa(), ip, device, Url("/change-password")));
 
     public Task OrderPlacedAsync(Order order) =>
-        SendAsync(AddressOf(order.UserId), $"سفارش {order.Code} ثبت شد",
+        SendToUserAsync(order.UserId, $"سفارش {order.Code} ثبت شد",
             EmailTemplates.OrderPlaced(order.Code, order.Total, JalaliDate.NowFa(), Url("/account/orders"),
                 awaitingPayment: order.Status == OrderStatus.PendingApproval));
 
@@ -102,7 +127,7 @@ public sealed class UserMailer : IUserMailer
     {
         var unit = order.Units.FirstOrDefault(u => u.Id == unitId);
         if (unit is null) return Task.CompletedTask;
-        return SendAsync(AddressOf(order.UserId), $"{unit.Name} آماده شد — سفارش {order.Code}",
+        return SendToUserAsync(order.UserId, $"{unit.Name} آماده شد — سفارش {order.Code}",
             EmailTemplates.OrderUnitDelivered(order.Code, unit.Name, unit.Plan, unit.UnitIndex, order.Units.Count,
                 unit.DeliveryContent, Url("/account/orders")));
     }
@@ -110,7 +135,7 @@ public sealed class UserMailer : IUserMailer
     public Task OrderCompletedAsync(Order order)
     {
         var lines = order.Items.Select(i => (i.Name, i.Plan, i.Quantity)).ToList();
-        return SendAsync(AddressOf(order.UserId), $"سفارش {order.Code} تکمیل شد",
+        return SendToUserAsync(order.UserId, $"سفارش {order.Code} تکمیل شد",
             EmailTemplates.OrderCompleted(order.Code, order.InvoiceNumber, lines, Url("/account/orders")));
     }
 
@@ -119,7 +144,7 @@ public sealed class UserMailer : IUserMailer
         if (tx.Status == TxStatus.Rejected)
         {
             var kindFa = tx.Type == TxTypes.OrderPayment ? "پرداخت سفارش" : "واریز";
-            return SendAsync(AddressOf(tx.UserId), $"{kindFa} شما تأیید نشد",
+            return SendToUserAsync(tx.UserId, $"{kindFa} شما تأیید نشد",
                 EmailTemplates.PaymentRejected(kindFa, tx.Amount, tx.Note, SupportUrl));
         }
         if (tx.Status != TxStatus.Approved) return Task.CompletedTask;
@@ -129,22 +154,22 @@ public sealed class UserMailer : IUserMailer
             // Read the balance back rather than computing it here, so the mail always states what the store
             // actually holds after the credit.
             var balance = _store.GetUser(tx.UserId)?.Wallet ?? 0;
-            return SendAsync(AddressOf(tx.UserId), "کیف پول شما شارژ شد",
+            return SendToUserAsync(tx.UserId, "کیف پول شما شارژ شد",
                 EmailTemplates.WalletToppedUp(tx.Amount, balance, Url("/account/wallet")));
         }
         if (tx.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(tx.OrderCode))
-            return SendAsync(AddressOf(tx.UserId), $"پرداخت سفارش {tx.OrderCode} تأیید شد",
+            return SendToUserAsync(tx.UserId, $"پرداخت سفارش {tx.OrderCode} تأیید شد",
                 EmailTemplates.OrderPaymentApproved(tx.OrderCode!, tx.Amount, Url("/account/orders")));
 
         return Task.CompletedTask;
     }
 
     public Task TicketRepliedAsync(Ticket ticket) =>
-        SendAsync(AddressOf(ticket.UserId), $"پاسخ پشتیبانی — {ticket.Subject}",
+        SendToUserAsync(ticket.UserId, $"پاسخ پشتیبانی — {ticket.Subject}",
             EmailTemplates.TicketReplied(ticket.Code, ticket.Subject, Url("/account/tickets")));
 
     public Task TicketOpenedByStaffAsync(Ticket ticket) =>
-        SendAsync(AddressOf(ticket.UserId), $"تیکت جدید از پشتیبانی — {ticket.Subject}",
+        SendToUserAsync(ticket.UserId, $"تیکت جدید از پشتیبانی — {ticket.Subject}",
             EmailTemplates.TicketOpenedByStaff(ticket.Code, ticket.Subject, Url("/account/tickets")));
 
     public Task CardDecidedAsync(BankCard card)
@@ -152,9 +177,9 @@ public sealed class UserMailer : IUserMailer
         var masked = MaskCard(card.CardNumber);
         return card.Status switch
         {
-            BankCardStatus.Approved => SendAsync(AddressOf(card.UserId), "کارت بانکی شما تأیید شد",
+            BankCardStatus.Approved => SendToUserAsync(card.UserId, "کارت بانکی شما تأیید شد",
                 EmailTemplates.CardApproved(masked, Url("/account/cards"))),
-            BankCardStatus.Rejected => SendAsync(AddressOf(card.UserId), "کارت بانکی شما تأیید نشد",
+            BankCardStatus.Rejected => SendToUserAsync(card.UserId, "کارت بانکی شما تأیید نشد",
                 EmailTemplates.CardRejected(masked, card.RejectionReason ?? card.Note, Url("/account/cards"))),
             _ => Task.CompletedTask,
         };
@@ -163,18 +188,18 @@ public sealed class UserMailer : IUserMailer
     public Task SeatInfoRejectedAsync(SeatSubmission s)
     {
         var seat = string.IsNullOrWhiteSpace(s.SeatLabel) ? $"پروفایل {s.SeatIndex + 1}" : s.SeatLabel;
-        return SendAsync(AddressOf(s.UserId), $"اطلاعات ارسالی شما تأیید نشد — سفارش {s.OrderCode}",
+        return SendToUserAsync(s.UserId, $"اطلاعات ارسالی شما تأیید نشد — سفارش {s.OrderCode}",
             EmailTemplates.SeatInfoRejected(s.OrderCode, s.ProductName, seat, s.ReviewNote, Url("/account/orders")));
     }
 
     public Task OrderCancelledAsync(Order order, string reason, bool refunded) =>
-        SendAsync(AddressOf(order.UserId), $"سفارش {order.Code} لغو شد",
+        SendToUserAsync(order.UserId, $"سفارش {order.Code} لغو شد",
             EmailTemplates.OrderCancelled(order.Code, reason, refunded, Url("/account/orders")));
 
     public Task OrderUnitRejectedAsync(Order order, int unitId, string reason, long refunded)
     {
         var name = order.Units.FirstOrDefault(u => u.Id == unitId)?.Name ?? "بخشی از سفارش";
-        return SendAsync(AddressOf(order.UserId), $"بخشی از سفارش {order.Code} رد شد",
+        return SendToUserAsync(order.UserId, $"بخشی از سفارش {order.Code} رد شد",
             EmailTemplates.OrderUnitRejected(order.Code, name, reason, refunded, Url("/account/wallet")));
     }
 
@@ -182,7 +207,7 @@ public sealed class UserMailer : IUserMailer
     private static string MessageUrl(string? link) => Url(string.IsNullOrWhiteSpace(link) ? "/account/messages" : link!);
 
     public Task StaffMessageAsync(int userId, string title, string body, string? link) =>
-        SendAsync(AddressOf(userId), title.Trim(), EmailTemplates.StaffMessage(title, body, MessageUrl(link)));
+        SendToUserAsync(userId, title.Trim(), EmailTemplates.StaffMessage(title, body, MessageUrl(link)));
 
     // A broadcast can reach the whole customer base. Sending it in one burst is how a shop's mail server ends
     // up on a blocklist, and it would hold a request open for minutes — so it is paced, and only addresses the
@@ -206,21 +231,35 @@ public sealed class UserMailer : IUserMailer
             try { await Task.Delay(BroadcastPace, ct); } catch (OperationCanceledException) { break; }
         }
         _logger.LogInformation("Broadcast \"{Title}\" emailed to {Sent} of {Total} customers", title, sent, recipients.Count);
+
+        if (_telegram is not null && _telegram.IsActive)
+        {
+            var linked = _store.GetUsers()
+                .Where(u => u.Role == UserRole.Customer && !u.Blocked && u.TelegramChatId is not null && u.TelegramNotify)
+                .ToList();
+            foreach (var u in linked)
+            {
+                if (ct.IsCancellationRequested) break;
+                await SendTelegramAsync(u, title, mail.text);
+                try { await Task.Delay(BroadcastPace, ct); } catch (OperationCanceledException) { break; }
+            }
+            _logger.LogInformation("Broadcast \"{Title}\" sent to {Count} linked Telegram chats", title, linked.Count);
+        }
         return sent;
     }
 
     public Task SeatInfoReopenedAsync(SeatSubmission s, string message)
     {
         var seat = string.IsNullOrWhiteSpace(s.SeatLabel) ? $"پروفایل {s.SeatIndex + 1}" : s.SeatLabel;
-        return SendAsync(AddressOf(s.UserId), $"مشخصات دستگاه خود را به‌روز کنید — سفارش {s.OrderCode}",
+        return SendToUserAsync(s.UserId, $"مشخصات دستگاه خود را به‌روز کنید — سفارش {s.OrderCode}",
             EmailTemplates.SeatInfoReopened(s.OrderCode, s.ProductName, seat, message, Url("/account/orders")));
     }
 
     public Task KycDecidedAsync(KycRequest kyc) => kyc.Status switch
     {
-        KycStatus.Approved => SendAsync(AddressOf(kyc.UserId), "احراز هویت شما تأیید شد",
+        KycStatus.Approved => SendToUserAsync(kyc.UserId, "احراز هویت شما تأیید شد",
             EmailTemplates.KycApproved(Url("/account"))),
-        KycStatus.Rejected => SendAsync(AddressOf(kyc.UserId), "احراز هویت شما تأیید نشد",
+        KycStatus.Rejected => SendToUserAsync(kyc.UserId, "احراز هویت شما تأیید نشد",
             EmailTemplates.KycRejected(kyc.RejectionReason ?? kyc.Note, Url("/account/kyc"))),
         _ => Task.CompletedTask,
     };

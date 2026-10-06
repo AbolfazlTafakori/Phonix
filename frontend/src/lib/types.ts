@@ -839,6 +839,26 @@ export type TutorialInput = {
   isActive: boolean;
 };
 
+// The customer Telegram bot as the panel sees it — the token itself never comes back, only a hint of it.
+export type CustomerBotStatus = {
+  enabled: boolean;
+  public: boolean;
+  hasToken: boolean;
+  tokenHint: string;
+  username: string;
+  linkedCount: number;
+  polling: boolean;
+};
+
+// A customer's own link to the bot. available: staff have switched it on for customers and it is configured.
+export type TelegramLinkStatus = {
+  available: boolean;
+  botUsername: string | null;
+  linked: boolean;
+  telegramUsername: string | null;
+  notify: boolean;
+};
+
 export type PromoBar = { enabled: boolean; emoji: string; text: string; buttonLabel: string; buttonLink: string };
 
 export type SiteContent = {

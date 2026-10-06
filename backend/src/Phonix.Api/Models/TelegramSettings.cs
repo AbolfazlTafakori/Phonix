@@ -23,6 +23,16 @@ public class TelegramSettings
     public string OrderBotToken { get; set; } = "";
     public string OrderChatId { get; set; } = "";
 
+    // A FOURTH bot, this one for customers: they link their account to it and receive their account mail
+    // (deliveries, payment decisions, rejections, staff messages) in Telegram as well. Managed on its own panel
+    // page, not through the form above.
+    public bool CustomerBotEnabled { get; set; }
+    // Whether customers see «اتصال به تلگرام» in their account. Off until staff have checked the bot works —
+    // the bot can run and be tested without anyone being offered it yet.
+    public bool CustomerBotPublic { get; set; }
+    public string CustomerBotToken { get; set; } = "";
+    // The bot's @username, read from Telegram when the token is saved; it builds the t.me link customers open.
+    public string CustomerBotUsername { get; set; } = "";
     public int IntervalHours { get; set; } = 24;
 
     // runtime status, written by the backup worker / test send (not edited directly in the form)

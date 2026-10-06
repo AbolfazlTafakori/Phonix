@@ -109,6 +109,9 @@ try
     // The orders bot is a separate bot in a separate group, so it polls on its own worker.
     builder.Services.AddSingleton<ITelegramOrderService, TelegramOrderService>();
     builder.Services.AddHostedService<TelegramOrderWorker>();
+    // The customer bot: customers link their account and get their account mail in Telegram too.
+    builder.Services.AddSingleton<ITelegramCustomerBot, TelegramCustomerBot>();
+    builder.Services.AddHostedService<TelegramCustomerBotWorker>();
     // Honeypot IP bans live in memory (ephemeral, like sessions) so they never bloat store.json.
     builder.Services.AddMemoryCache();
     builder.Services.AddSingleton<IpBanService>();

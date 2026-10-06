@@ -113,6 +113,8 @@ import type {
   Tutorial,
   TutorialInput,
   TutorialVideo,
+  CustomerBotStatus,
+  TelegramLinkStatus,
 } from "./types";
 import { getCsrfToken } from "./token";
 import { shrinkImage } from "./image";
@@ -411,6 +413,21 @@ export const api = {
     // Site imagery and avatars: a large file is scaled down in the browser first (WebP keeps transparency).
     upload: async (file: File) =>
       (await uploadForm<{ url: string }>("/upload", await shrinkImage(file, SITE_IMAGE))).url,
+  },
+  // The customer bot's panel page: token (sent only when replaced), on/off, shown-to-customers, test, remove.
+  customerBot: {
+    get: () => request<CustomerBotStatus>("/admin/customer-bot"),
+    save: (body: { enabled: boolean; public: boolean; token?: string | null }) =>
+      request<CustomerBotStatus>("/admin/customer-bot", { method: "PUT", body: json(body) }),
+    removeToken: () => request<CustomerBotStatus>("/admin/customer-bot/token", { method: "DELETE" }),
+    test: () => request<{ ok: boolean; username: string }>("/admin/customer-bot/test", { method: "POST" }),
+  },
+  // A customer linking their own account to the bot.
+  accountTelegram: {
+    get: () => request<TelegramLinkStatus>("/account/telegram"),
+    link: () => request<{ url: string }>("/account/telegram/link", { method: "POST" }),
+    unlink: () => request<void>("/account/telegram", { method: "DELETE" }),
+    setNotify: (notify: boolean) => request<void>("/account/telegram/notify", { method: "PUT", body: json({ notify }) }),
   },
   // Product tutorials. The panel manages them; a buyer reads the ones for what they've paid for (`mine`).
   tutorials: {
