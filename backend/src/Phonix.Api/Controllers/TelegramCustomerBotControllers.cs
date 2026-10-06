@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Phonix.Api.Data;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
@@ -11,10 +12,11 @@ namespace Phonix.Api.Controllers;
 
 // ShopUrl: where the shop opens in Telegram — null when the site isn't on https, so there is none to offer.
 // Warning: a saved change Telegram didn't fully take (the menu button), for staff to see.
+// CodeMinutes: how long the code mailed for linking stays valid.
 public record CustomerBotStatusDto(bool Enabled, bool Public, bool HasToken, string TokenHint, string Username,
-    int LinkedCount, bool Polling, bool Shop = false, string? ShopUrl = null, string? Warning = null);
+    int LinkedCount, bool Polling, bool Shop = false, string? ShopUrl = null, string? Warning = null, int CodeMinutes = 15);
 // Token: null keeps the saved one; a value replaces it (checked with Telegram first). Shop: null keeps it.
-public record CustomerBotInput(bool Enabled, bool Public, string? Token, bool? Shop = null);
+public record CustomerBotInput(bool Enabled, bool Public, string? Token, bool? Shop = null, int? CodeMinutes = null);
 
 [ApiController]
 [Route("api/admin/customer-bot")]
@@ -47,7 +49,7 @@ public class CustomerBotController : ControllerBase
         var linked = _store.GetUsers().Count(u => u.TelegramChatId is not null);
         var polling = s.CustomerBotEnabled && token.Length > 0 && _cluster?.Role is not (ClusterRole.Standby or ClusterRole.Recovering);
         return new CustomerBotStatusDto(s.CustomerBotEnabled, s.CustomerBotPublic, token.Length > 0, Hint(token),
-            s.CustomerBotUsername ?? "", linked, polling, s.CustomerBotShop, TelegramCustomerBot.ShopUrl);
+            s.CustomerBotUsername ?? "", linked, polling, s.CustomerBotShop, TelegramCustomerBot.ShopUrl, null, s.CustomerBotCodeMinutes);
     }
 
     [HttpGet]
@@ -69,7 +71,9 @@ public class CustomerBotController : ControllerBase
         if (input.Enabled && !hasToken) return BadRequest("برای روشن کردن ربات، ابتدا توکن آن را وارد کنید.");
         if (input.Shop == true && TelegramCustomerBot.ShopUrl is null)
             return BadRequest("فروشگاه داخل تلگرام فقط روی آدرس https کار می‌کند؛ PHONIX_FRONTEND_URL سایت https نیست.");
-        _store.SetCustomerBot(input.Enabled, input.Public, token, username, input.Shop);
+        if (input.CodeMinutes is < 1 or > 1440)
+            return BadRequest("اعتبار کد اتصال باید بین ۱ تا ۱۴۴۰ دقیقه باشد.");
+        _store.SetCustomerBot(input.Enabled, input.Public, token, username, input.Shop, input.CodeMinutes);
         // The menu button lives on Telegram's side, so it follows the switch here. The settings are saved
         // either way; a refusal is shown to staff, and «تست اتصال» tries again.
         var menu = await _bot.SyncMenuButtonAsync(ct);
@@ -111,12 +115,16 @@ public class CustomerBotController : ControllerBase
 
 // ── Customer: linking their own account ────────────────────────────────────────────────────────────────
 
-// Shop: the shop inside Telegram is on — inside it, the account page offers to link that same Telegram.
+// Available: shown in a normal browser (staff switched it on for customers). Shop: the shop inside Telegram is
+// on — inside it, the same page is shown. Email / EmailVerified: where the code goes, and whether it can.
 public record TelegramLinkStatusDto(bool Available, string? BotUsername, bool Linked, string? TelegramUsername, bool Notify,
-    bool Shop = false);
+    bool Shop = false, string Email = "", bool EmailVerified = false);
 public record TelegramNotifyInput(bool Notify);
 // The Mini App's launch data (Telegram.WebApp.initData), as Telegram signed it.
 public record TelegramInitDataInput(string InitData);
+// Linking from inside the shop: the launch data names the Telegram, the mailed code proves the inbox.
+public record TelegramShopLinkInput(string InitData, string Code);
+public record TelegramCodeSentDto(string BotUrl, string Email, int Minutes);
 
 [ApiController]
 [Route("api/account/telegram")]
@@ -125,11 +133,15 @@ public class AccountTelegramController : ControllerBase
 {
     private readonly IDataStore _store;
     private readonly ITelegramCustomerBot _bot;
+    private readonly IUserMailer _mailer;
+    private readonly IMemoryCache _cache;
 
-    public AccountTelegramController(IDataStore store, ITelegramCustomerBot bot)
+    public AccountTelegramController(IDataStore store, ITelegramCustomerBot bot, IUserMailer mailer, IMemoryCache cache)
     {
         _store = store;
         _bot = bot;
+        _mailer = mailer;
+        _cache = cache;
     }
 
     // Offered only when staff have switched it on for customers AND the bot is configured — until then the
@@ -147,37 +159,67 @@ public class AccountTelegramController : ControllerBase
     {
         if (this.CurrentUserId() is not int id || _store.GetUser(id) is not { } user) return Unauthorized();
         var (available, username) = Offer();
-        return new TelegramLinkStatusDto(available, username, user.TelegramChatId is not null, user.TelegramUsername, user.TelegramNotify,
-            TelegramCustomerBot.ShopToken(_store) is not null);
+        var shop = TelegramCustomerBot.ShopToken(_store) is not null;
+        return new TelegramLinkStatusDto(available, username ?? (shop ? _store.GetTelegramSettings().CustomerBotUsername : null),
+            user.TelegramChatId is not null, user.TelegramUsername, user.TelegramNotify, shop,
+            string.IsNullOrWhiteSpace(user.Email) ? "" : AccountController.MaskEmail(user.Email), user.EmailVerified);
     }
 
-    // Linking from INSIDE the shop in Telegram: the signed-in session proves the account, Telegram's signed
-    // launch data proves the Telegram account — both at once, so no t.me round trip is needed. It is a button
-    // the customer presses, never automatic: signing in on someone else's phone must not hand that phone's
-    // Telegram a way back into the account.
+    // How often a customer may have a code mailed: once a minute, five times an hour. Enough to recover from a
+    // lost email; not enough to turn the button into a way of flooding an inbox.
+    private static readonly TimeSpan CodeCooldown = TimeSpan.FromMinutes(1);
+    private const int CodesPerHour = 5;
+    private sealed record CodeSends(DateTime WindowStart, int Count, DateTime Last);
+
+    // Step one of linking: a one-time code goes to the account's own verified inbox. The customer then sends it
+    // to the bot (or, inside the shop, types it on this page). Asking again replaces the previous code.
+    [HttpPost("code")]
+    public async Task<ActionResult<TelegramCodeSentDto>> SendCode()
+    {
+        if (this.CurrentUserId() is not int id || _store.GetUser(id) is not { } user) return Unauthorized();
+        var settings = _store.GetTelegramSettings();
+        var botUsername = (settings.CustomerBotUsername ?? "").Trim();
+        if (!(Offer().Available || TelegramCustomerBot.ShopToken(_store) is not null) || botUsername.Length == 0)
+            return BadRequest("اتصال به تلگرام در حال حاضر فعال نیست.");
+        // The code proves the inbox, so the inbox must be proven to be the owner's: an unverified address could
+        // be anyone's, and its owner could then attach their own Telegram to this account.
+        if (string.IsNullOrWhiteSpace(user.Email) || !user.EmailVerified)
+            return BadRequest("برای اتصال به تلگرام، ابتدا ایمیل حساب خود را تأیید کنید.");
+
+        var key = $"tg-code-sends:{id}";
+        var now = DateTime.UtcNow;
+        var sends = _cache.Get<CodeSends>(key);
+        if (sends is not null && now - sends.WindowStart >= TimeSpan.FromHours(1)) sends = null;
+        if (sends is not null && now - sends.Last < CodeCooldown)
+            return StatusCode(429, "کد همین الان ارسال شد. یک دقیقه صبر کنید و ایمیل خود (و پوشه‌ی اسپم) را بررسی کنید.");
+        if (sends is not null && sends.Count >= CodesPerHour)
+            return StatusCode(429, JalaliDate.ToPersianDigits($"در هر ساعت حداکثر {CodesPerHour} بار می‌توانید کد بگیرید. کمی بعد دوباره تلاش کنید."));
+        _cache.Set(key, new CodeSends(sends?.WindowStart ?? now, (sends?.Count ?? 0) + 1, now), TimeSpan.FromHours(1));
+
+        var minutes = Math.Clamp(settings.CustomerBotCodeMinutes, 1, 1440);
+        var code = _store.CreateTelegramLinkCode(id, TimeSpan.FromMinutes(minutes));
+        if (!await _mailer.TelegramLinkCodeAsync(user, code, minutes, botUsername))
+            return StatusCode(502, "ارسال ایمیل انجام نشد. چند دقیقه‌ی دیگر دوباره تلاش کنید.");
+        return new TelegramCodeSentDto($"https://t.me/{botUsername}?start=connect", AccountController.MaskEmail(user.Email), minutes);
+    }
+
+    // Linking from INSIDE the shop in Telegram: Telegram's signed launch data names the Telegram account, and the
+    // code from this account's inbox proves the rest — the same proof the bot asks for, typed here instead.
     [HttpPost("webapp")]
-    public async Task<IActionResult> LinkFromShop(TelegramInitDataInput input, CancellationToken ct)
+    public async Task<IActionResult> LinkFromShop(TelegramShopLinkInput input, CancellationToken ct)
     {
         if (this.CurrentUserId() is not int id || _store.GetUser(id) is not { } user) return Unauthorized();
         if (TelegramCustomerBot.ShopToken(_store) is not { } token) return BadRequest("فروشگاه داخل تلگرام در حال حاضر فعال نیست.");
         if (TelegramInitData.Validate(input.InitData, token, DateTime.UtcNow) is not { } tg)
             return BadRequest("اطلاعات تلگرام معتبر نیست یا منقضی شده. فروشگاه را از ربات دوباره باز کنید.");
+        // The code has to be THIS account's: a code mailed to someone else links nothing here (and is spent).
+        if (TelegramCustomerBot.NormalizeCode(input.Code) is not { } code || _store.ConsumeToken(code, TelegramCustomerBot.CodePurpose) != id)
+            return BadRequest("این کد درست نیست یا منقضی شده است. کد تازه بگیرید.");
         if (!_store.LinkTelegram(id, tg.Id, tg.Username)) return BadRequest("اتصال انجام نشد؛ لطفاً دوباره تلاش کنید.");
         var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
         await _bot.SendAsync(tg.Id,
-            $"✅ حساب «{name}» در فونیکس وریفای به این تلگرام وصل شد.\n\nاز این پس فروشگاه داخل تلگرام بدون ورود دوباره باز می‌شود و اطلاعات سفارش‌ها هم اینجا برایتان ارسال می‌شود.\n\nبرای قطع اتصال: /stop", ct);
+            $"✅ حساب «{name}» ({user.Username}) در فونیکس وریفای به این تلگرام وصل شد.\n\nاز این پس فروشگاه داخل تلگرام بدون ورود دوباره باز می‌شود و اطلاعات سفارش‌ها هم اینجا برایتان ارسال می‌شود.\n\nاگر این حساب شما نیست: /stop", ct);
         return NoContent();
-    }
-
-    // A one-time t.me link for this account: opening it sends "/start <token>" to the bot, which links the chat.
-    [HttpPost("link")]
-    public IActionResult Link()
-    {
-        if (this.CurrentUserId() is not int id) return Unauthorized();
-        var (available, username) = Offer();
-        if (!available) return BadRequest("اتصال به تلگرام در حال حاضر فعال نیست.");
-        var token = _store.CreateToken(id, TelegramCustomerBot.LinkPurpose, TelegramCustomerBot.LinkLifetime);
-        return Ok(new { url = $"https://t.me/{username}?start={token}" });
     }
 
     [HttpDelete]

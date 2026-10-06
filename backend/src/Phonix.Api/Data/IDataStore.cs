@@ -179,8 +179,8 @@ public interface IDataStore
     TelegramSettings GetTelegramSettings();
     void UpdateTelegramSettings(TelegramSettings settings);
     // The customer bot's own settings (see TelegramSettings.CustomerBot*). token: null = keep, "" = remove.
-    // shop: null = keep. Public and shop both switch off with the bot.
-    void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username, bool? shop = null);
+    // shop / codeMinutes: null = keep. Public and shop both switch off with the bot.
+    void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username, bool? shop = null, int? codeMinutes = null);
 
     // Linking a customer's account to their chat with the customer bot. A chat belongs to one account: linking it
     // to a new one releases it from the old. Unlink by chat is for when the customer stops or blocks the bot.
@@ -188,6 +188,9 @@ public interface IDataStore
     bool LinkTelegram(int userId, long chatId, string? username);
     bool UnlinkTelegram(int userId);
     void UnlinkTelegramChat(long chatId);
+    // The one-time code mailed to a customer for linking: 24 digits, single use, and only the newest one per
+    // account works. Redeemed with ConsumeToken(code, TelegramCustomerBot.CodePurpose).
+    string CreateTelegramLinkCode(int userId, TimeSpan lifetime);
     void RecordTelegramBackup(bool success, string error);
 
     // ── Discount codes ──────────────────────────────────────────────────────────────────────────────

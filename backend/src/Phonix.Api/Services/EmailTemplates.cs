@@ -222,6 +222,24 @@ public static class EmailTemplates
 
     // Sent on every successful sign-in. Same shape as PasswordChanged: the owner ignores it, a victim gets an
     // early signal plus a one-tap path to lock the attacker out.
+    // The one-time code that links a Telegram chat to the account. Grouped in fours so it can be read and
+    // copied; the bot takes it with or without the spaces. The warning matters as much as the code: whoever
+    // has it can attach their own Telegram to this account.
+    public static (string text, string html) TelegramLinkCode(string code, int minutes, string botHandle, string botUrl)
+    {
+        var grouped = string.Join(" ", Enumerable.Range(0, (code.Length + 3) / 4).Select(i => code.Substring(i * 4, Math.Min(4, code.Length - i * 4))));
+        var minutesFa = JalaliDate.ToPersianDigits(minutes.ToString());
+        var text = $"کد اتصال حساب {Brand} به تلگرام:\n\n{grouped}\n\nاین کد را در ربات تلگرام @{botHandle} بفرستید:\n{botUrl}\n\nکد فقط یک بار و تا {minutesFa} دقیقه معتبر است.\n\nاین کد را به هیچ‌کس ندهید؛ هر کس آن را داشته باشد می‌تواند تلگرام خودش را به حساب شما وصل کند. اگر شما درخواست نداده‌اید، این ایمیل را نادیده بگیرید.";
+        var html = Shell("کد اتصال به تلگرام",
+            "کد یک‌بارمصرف اتصال حساب شما به تلگرام",
+            "<p style=\"margin:0;\">برای وصل کردن حساب <b>فونیکس وریفای</b> به تلگرام، این کد را در ربات تلگرام ما بفرستید.</p>"
+            + $@"<p dir=""ltr"" style=""margin:26px 0 0;text-align:center;direction:ltr;""><span style=""display:inline-block;background:{Footer};border:1px dashed {AccentDark};border-radius:14px;padding:16px 20px;font-family:Consolas,'Courier New',monospace;font-size:22px;font-weight:700;letter-spacing:2px;line-height:1.7;color:{Ink};"">{WebUtility.HtmlEncode(grouped)}</span></p>"
+            + Rows(("ربات", "@" + botHandle), ("اعتبار", $"{minutesFa} دقیقه، فقط یک بار"))
+            + Button("باز کردن ربات", botUrl)
+            + WarnNote($"<b style=\"color:{Accent};\">این کد را به هیچ‌کس ندهید.</b><br>هر کس این کد را داشته باشد می‌تواند تلگرام خودش را به حساب شما وصل کند. پشتیبانی هیچ‌وقت این کد را از شما نمی‌خواهد. اگر شما درخواست نداده‌اید، این ایمیل را نادیده بگیرید."));
+        return (text, html);
+    }
+
     public static (string text, string html) LoginNotice(string whenFa, string ip, string device, string passwordUrl)
     {
         var text = $"ورود به حساب {Brand} شما\n\nزمان: {whenFa}\nنشانی IP: {ip}\nدستگاه: {device}\n\nاگر این ورود کار خودتان بوده، نیازی به هیچ اقدامی نیست.\n\nاگر شما نبوده‌اید، همین حالا گذرواژه‌ی خود را تغییر دهید:\n{passwordUrl}";

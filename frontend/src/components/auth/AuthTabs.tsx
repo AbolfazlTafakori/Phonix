@@ -199,7 +199,7 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
   useEffect(() => { busyRef.current = busy; }, [busy]);
 
   // Inside the shop in Telegram. Google refuses to sign anyone in from an embedded webview, so its button is
-  // left out there, and the customer is told how to skip this page next time.
+  // left out there.
   const inTelegram = useTelegramLaunch() !== null;
   const showGoogle = !!GOOGLE_CLIENT_ID && !inTelegram;
 
@@ -336,12 +336,6 @@ export default function AuthTabs({ initial }: { initial: Tab }) {
             {busy ? "در حال ثبت..." : "ایجاد حساب کاربری"}
           </button>
         </form>
-      )}
-
-      {inTelegram && (
-        <p className="mt-5 rounded-xl bg-[var(--chat-surface-2)] px-3 py-2.5 text-center text-[12px] leading-6 text-[var(--chat-ink-2)]">
-          بعد از ورود، در «حساب کاربری» گزینه‌ی «اتصال همین تلگرام» را بزنید تا دفعه‌های بعد خودکار وارد شوید.
-        </p>
       )}
 
       {showGoogle && (

@@ -853,6 +853,8 @@ export type CustomerBotStatus = {
   shop: boolean;
   shopUrl: string | null;
   warning: string | null;
+  // How long the code mailed for linking stays valid, in minutes.
+  codeMinutes: number;
 };
 
 // A customer's own link to the bot. available: staff have switched it on for customers and it is configured.
@@ -862,8 +864,11 @@ export type TelegramLinkStatus = {
   linked: boolean;
   telegramUsername: string | null;
   notify: boolean;
-  // The shop inside Telegram is on: inside it, the card offers to link that same Telegram.
+  // The shop inside Telegram is on: inside it, the page offers to link that same Telegram.
   shop: boolean;
+  // Where the link code is mailed (masked), and whether it can be: only a verified address gets one.
+  email: string;
+  emailVerified: boolean;
 };
 
 export type PromoBar = { enabled: boolean; emoji: string; text: string; buttonLabel: string; buttonLink: string };

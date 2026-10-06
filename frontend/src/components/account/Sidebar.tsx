@@ -9,6 +9,7 @@ import { useMe } from "@/lib/useMe";
 import { api } from "@/lib/api";
 import { formatNumber } from "@/lib/format";
 import MenuIcon from "./MenuIcon";
+import { useTelegramLaunch } from "@/lib/telegram";
 
 // The badge states the level the account actually holds. "در حال بررسی" belongs only to a level-2 request
 // that is still Pending — a level-1 account with no pending request is approved at its level, and saying it
@@ -43,6 +44,10 @@ export default function Sidebar() {
   // Whether a level-2 request of this user is still awaiting a decision; only that makes the badge say
   // "در حال بررسی". A failed lookup leaves it false, so the badge falls back to the plain level.
   const [kycPending, setKycPending] = useState(false);
+  // «اتصال به تلگرام» appears only while staff offer it: switched on for customers, or — inside the shop in
+  // Telegram — while the shop is on. Until the answer arrives it stays hidden rather than flashing in.
+  const launch = useTelegramLaunch();
+  const [telegramOffered, setTelegramOffered] = useState(false);
 
   useEffect(() => {
     if (!user) { setKycPending(false); return; }
@@ -75,6 +80,18 @@ export default function Sidebar() {
       setUploadingAvatar(false);
     }
   }
+
+  useEffect(() => {
+    if (!user) return;
+    let alive = true;
+    api.accountTelegram
+      .get()
+      .then((s) => { if (alive) setTelegramOffered(launch ? s.shop : s.available); })
+      .catch(() => { /* not offered: the item stays hidden */ });
+    return () => { alive = false; };
+  }, [user, launch]);
+
+  const menu = accountMenu.filter((item) => !item.telegram || telegramOffered);
 
   const name = me?.name || user?.name || "کاربر";
   const username = me?.username || user?.username || "";
@@ -154,7 +171,7 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex flex-col gap-0.5">
-          {accountMenu.map((item) => {
+          {menu.map((item) => {
             const active = pathname === item.href;
             return active ? (
               <Link

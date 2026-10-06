@@ -2,6 +2,8 @@ export type MenuItem = {
   label: string;
   href: string;
   icon: string;
+  // Shown only while staff offer it (the customer Telegram bot) — see Sidebar.
+  telegram?: boolean;
 };
 
 export const accountMenu: MenuItem[] = [
@@ -12,6 +14,7 @@ export const accountMenu: MenuItem[] = [
   { label: "محصولات موردعلاقه", href: "/account/favorites", icon: "heart" },
   { label: "دیدگاه‌ها و پرسش‌ها", href: "/account/comments", icon: "comment" },
   { label: "پیام‌ها", href: "/account/messages", icon: "bell" },
+  { label: "اتصال به تلگرام", href: "/account/telegram", icon: "telegram", telegram: true },
   { label: "گزارش درآمد معرف", href: "/account/referral", icon: "chart" },
   { label: "دعوت دوستان", href: "/account/invite", icon: "gift" },
   { label: "تیکت پشتیبانی", href: "/account/tickets", icon: "ticket" },

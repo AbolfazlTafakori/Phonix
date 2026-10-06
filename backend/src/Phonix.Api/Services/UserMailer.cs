@@ -36,6 +36,9 @@ public interface IUserMailer
     // The same, to every customer with a verified address. Paced, and meant to be run in the background:
     // returns once the last one has gone. Returns how many were attempted.
     Task<int> BroadcastStaffMessageAsync(string title, string body, string? link, CancellationToken ct = default);
+    // The one-time code for linking Telegram. Email only — never to a chat — and the caller is told whether it
+    // went, because without it the customer has nothing to send the bot.
+    Task<bool> TelegramLinkCodeAsync(AppUser user, string code, int minutes, string botUsername);
 }
 
 public sealed class UserMailer : IUserMailer
@@ -108,6 +111,21 @@ public sealed class UserMailer : IUserMailer
         var digits = new string((card ?? "").Where(char.IsAsciiDigit).ToArray());
         if (digits.Length < 16) return string.IsNullOrWhiteSpace(card) ? "-" : card!;
         return $"{digits[..4]} {digits[4..6]}** **** {digits[^4..]}";
+    }
+
+    public async Task<bool> TelegramLinkCodeAsync(AppUser user, string code, int minutes, string botUsername)
+    {
+        if (string.IsNullOrWhiteSpace(user.Email)) return false;
+        var (text, html) = EmailTemplates.TelegramLinkCode(code, minutes, botUsername, $"https://t.me/{botUsername}?start=connect");
+        try
+        {
+            return await _email.SendAsync(user.Email, "کد اتصال حساب فونیکس به تلگرام", text, html);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram link code email failed for user {UserId}", user.Id);
+            return false;
+        }
     }
 
     public Task WelcomeAsync(AppUser user) =>

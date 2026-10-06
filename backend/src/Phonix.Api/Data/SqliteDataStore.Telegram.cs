@@ -20,6 +20,29 @@ public sealed partial class SqliteDataStore
         return UsersWithTelegramChat(conn, null, chatId).FirstOrDefault();
     }
 
+    // Lives in the Tokens table beside the other one-time tokens, so it is consumed (deleted on first read)
+    // exactly like them. Asking again replaces the code the account already had: an older email stops working.
+    public string CreateTelegramLinkCode(int userId, TimeSpan lifetime)
+    {
+        var purpose = Services.TelegramCustomerBot.CodePurpose;
+        var expiresAt = DateTime.UtcNow.Add(lifetime).ToString("o");
+        return WriteTx((conn, tx) =>
+        {
+            conn.Execute("DELETE FROM Tokens WHERE ExpiresAt <= @now OR (UserId = @userId AND Purpose = @purpose)",
+                new { now = NowIso(), userId, purpose }, tx);
+            while (true)
+            {
+                var code = string.Create(Services.TelegramCustomerBot.CodeLength, 0,
+                    (span, _) => { for (var i = 0; i < span.Length; i++) span[i] = (char)('0' + System.Security.Cryptography.RandomNumberGenerator.GetInt32(10)); });
+                // 10^24 possible codes: a clash is practically impossible, but the key is unique, so make sure.
+                if (conn.ExecuteScalar<long>("SELECT COUNT(*) FROM Tokens WHERE Token = @code", new { code }, tx) > 0) continue;
+                conn.Execute("INSERT INTO Tokens (Token, UserId, Purpose, ExpiresAt, Data) VALUES (@code, @userId, @purpose, @expiresAt, NULL)",
+                    new { code, userId, purpose, expiresAt }, tx);
+                return code;
+            }
+        });
+    }
+
     public bool LinkTelegram(int userId, long chatId, string? username) =>
         WriteTx((conn, tx) =>
         {

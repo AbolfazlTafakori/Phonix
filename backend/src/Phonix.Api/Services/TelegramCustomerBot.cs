@@ -4,13 +4,13 @@ using Phonix.Api.Models;
 
 namespace Phonix.Api.Services;
 
-// The customer-facing Telegram bot. A customer links their site account from their account page: the site
-// hands them a one-time t.me link (?start=<token>), and opening it makes Telegram send "/start <token>" to
-// the bot, which ties that chat to the account. From then on the account's mail (deliveries, payment
-// decisions, rejections, staff messages) is also sent to the chat — see UserMailer.
+// The customer-facing Telegram bot. A customer links their site account from «اتصال به تلگرام» in their account
+// menu: the site mails a one-time 24-digit code to the account's verified address and opens the bot, and the
+// customer sends that code to the bot, which ties the chat to the account. From then on the account's mail
+// (deliveries, payment decisions, rejections, staff messages) is also sent to the chat — see UserMailer.
 //
-// The token is the whole proof: it was minted for the signed-in account, lives 15 minutes and works once,
-// so a chat can only ever be linked by someone who was logged into that account a moment ago.
+// The code is the whole proof: only the signed-in owner can have one mailed, it reaches only the account's own
+// inbox, it lives as long as staff set and it works once.
 public interface ITelegramCustomerBot
 {
     // Configured and switched on — sending is possible. (Showing the link to customers is a separate switch.)
@@ -34,8 +34,8 @@ public interface ITelegramCustomerBot
 
 public sealed class TelegramCustomerBot : ITelegramCustomerBot
 {
-    public const string LinkPurpose = "tg-link";
-    public static readonly TimeSpan LinkLifetime = TimeSpan.FromMinutes(15);
+    public const string CodePurpose = "tg-code";
+    public const int CodeLength = 24;
     // Telegram's own ceiling for a message.
     private const int MaxMessage = 4000;
 
@@ -128,9 +128,9 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
         var command = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var head = command.Length > 0 ? command[0].Split('@')[0].ToLowerInvariant() : "";
 
-        if (head == "/start" && command.Length > 1)
+        if (NormalizeCode(text) is { } code)
         {
-            await LinkAsync(token, chatId, command[1].Trim(), username, ct);
+            await LinkAsync(token, chatId, code, username, ct);
             return;
         }
         if (head is "/stop" or "/unlink")
@@ -150,26 +150,49 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
             await ReplyAsync(token, chatId, "فروشگاه فونیکس وریفای، داخل همین تلگرام:", ct, shop);
             return;
         }
+        // Digits that aren't a whole code: most likely a code cut short while copying.
+        if (LooksLikeAPartialCode(text))
+        {
+            await ReplyAsync(token, chatId, $"کد اتصال باید {CodeLengthFa} رقم باشد. کد را کامل از ایمیل کپی کنید و دوباره بفرستید.", ct);
+            return;
+        }
+        // Arriving from «اتصال به تلگرام» on the site: the code is already on its way, so just ask for it.
+        if (head == "/start" && command.Length > 1 && command[1].Trim() == "connect")
+        {
+            await ReplyAsync(token, chatId,
+                $"🔐 کد {CodeLengthFa} رقمی‌ای را که به ایمیل حسابتان ارسال شد، همین‌جا بفرستید.\n\nاگر ایمیل را نمی‌بینید، پوشه‌ی اسپم را هم نگاه کنید."
+                + (user is not null ? $"\n\n(این تلگرام الان به حساب «{DisplayName(user)}» وصل است؛ با کد تازه به حساب جدید منتقل می‌شود.)" : ""), ct);
+            return;
+        }
         string reply;
         if (user is not null)
             reply = $"حساب «{DisplayName(user)}» به این تلگرام وصل است ✅\nاطلاعات سفارش‌ها و پیام‌های حساب شما اینجا ارسال می‌شود."
                     + (shop is not null ? "\nبا دکمه‌ی زیر، فروشگاه بدون ورود دوباره باز می‌شود." : "")
                     + $"\n\nبرای قطع اتصال: /stop\nحساب کاربری: {FrontendUrl}/account";
-        else if (shop is not null)
-            reply = "سلام! 👋\nاین ربات فونیکس وریفای است.\n\nبا دکمه‌ی زیر فروشگاه داخل تلگرام باز می‌شود. یک بار وارد حساب خود شوید و در «حساب کاربری» گزینه‌ی «اتصال همین تلگرام» را بزنید؛ از آن به بعد خودکار وارد می‌شوید و اطلاعات سفارش‌ها هم اینجا برایتان می‌آید.";
         else
-            reply = $"سلام! 👋\nاین ربات فونیکس وریفای است.\n\nبرای دریافت اطلاعات سفارش‌ها و پیام‌ها در تلگرام، وارد حساب کاربری سایت شوید و «اتصال به تلگرام» را بزنید:\n{FrontendUrl}/account";
+            reply = "سلام! 👋\nاین ربات فونیکس وریفای است.\n\n"
+                    + "برای وصل کردن حسابتان:\n"
+                    + "۱. در سایت، از منوی حساب کاربری «اتصال به تلگرام» را بزنید.\n"
+                    + $"۲. یک کد {CodeLengthFa} رقمی به ایمیل حسابتان ارسال می‌شود.\n"
+                    + "۳. همان کد را همین‌جا بفرستید.\n\n"
+                    + $"{FrontendUrl}/account/telegram";
         await ReplyAsync(token, chatId, reply, ct, shop);
     }
 
-    private async Task LinkAsync(string token, long chatId, string linkToken, string? username, CancellationToken ct)
+    private async Task LinkAsync(string token, long chatId, string code, string? username, CancellationToken ct)
     {
-        // The start payload is the one-time token itself. Anything else — an old link, a guessed value — is
-        // simply not a token and links nothing.
-        if (_store.ConsumeToken(linkToken, LinkPurpose) is not int userId || _store.GetUser(userId) is not { } user)
+        if (LockedOut(chatId))
         {
+            await ReplyAsync(token, chatId, "تعداد کدهای نادرست زیاد بود. چند دقیقه‌ی دیگر دوباره امتحان کنید.", ct);
+            return;
+        }
+        // The code is the whole proof: it was mailed to the account's own verified address at the signed-in
+        // owner's request, lives as long as staff set, and works once.
+        if (_store.ConsumeToken(code, CodePurpose) is not int userId || _store.GetUser(userId) is not { } user)
+        {
+            NoteFailure(chatId);
             await ReplyAsync(token, chatId,
-                $"این لینک اتصال نامعتبر است یا منقضی شده.\nاز حساب کاربری سایت دوباره «اتصال به تلگرام» را بزنید:\n{FrontendUrl}/account", ct);
+                "این کد درست نیست یا منقضی شده است.\nاز منوی حساب کاربری سایت، «اتصال به تلگرام» را دوباره بزنید تا کد تازه‌ای به ایمیلتان ارسال شود.", ct);
             return;
         }
         if (!_store.LinkTelegram(userId, chatId, username))
@@ -177,11 +200,51 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
             await ReplyAsync(token, chatId, "اتصال انجام نشد؛ لطفاً دوباره تلاش کنید.", ct);
             return;
         }
+        Failures.TryRemove(chatId, out _);
         _logger.LogInformation("Customer bot: user {UserId} linked a Telegram chat", userId);
         await ReplyAsync(token, chatId,
-            $"✅ حساب «{DisplayName(user)}» در فونیکس وریفای به این تلگرام وصل شد.\n\nاز این پس اطلاعات سفارش‌ها، تأیید پرداخت‌ها و پیام‌های پشتیبانی اینجا هم برایتان ارسال می‌شود.\n\nبرای قطع اتصال: /stop",
+            $"✅ حساب «{DisplayName(user)}» ({user.Username}) در فونیکس وریفای به این تلگرام وصل شد.\n\nاز این پس اطلاعات سفارش‌ها، تأیید پرداخت‌ها و پیام‌های پشتیبانی اینجا هم برایتان ارسال می‌شود.\n\nاگر این حساب شما نیست: /stop",
             ct, ShopKeyboard("🛒 ورود به فروشگاه"));
     }
+
+    // ── the link code ──
+
+    private static string CodeLengthFa => JalaliDate.ToPersianDigits(CodeLength.ToString());
+
+    // A code arrives copied from an email or typed on a Persian keyboard: grouped with spaces or dashes, maybe
+    // in Persian or Arabic digits. All of that is the same code. Anything else is not a code.
+    public static string? NormalizeCode(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text) || text.Length > 80) return null;
+        var digits = new System.Text.StringBuilder(CodeLength);
+        foreach (var c in text)
+        {
+            if (c is >= '0' and <= '9') digits.Append(c);
+            else if (c is >= '\u06F0' and <= '\u06F9') digits.Append((char)('0' + (c - '\u06F0')));
+            else if (c is >= '\u0660' and <= '\u0669') digits.Append((char)('0' + (c - '\u0660')));
+            else if (!IsSeparator(c)) return null;
+        }
+        return digits.Length == CodeLength ? digits.ToString() : null;
+    }
+
+    private static bool IsSeparator(char c) =>
+        char.IsWhiteSpace(c) || c is '-' or '_' or '.' or '\u200C' or '\u200E' or '\u200F';
+
+    private static bool LooksLikeAPartialCode(string text) =>
+        text.Count(char.IsDigit) >= 8 && text.All(c => char.IsDigit(c) || IsSeparator(c));
+
+    // Wrong codes per chat. With 10^24 possible codes guessing is hopeless anyway; this only stops one chat
+    // from turning the bot into a code-checking loop.
+    private const int MaxFailures = 5;
+    private static readonly TimeSpan FailureWindow = TimeSpan.FromMinutes(15);
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<long, (int Count, DateTime Since)> Failures = new();
+
+    private static bool LockedOut(long chatId) =>
+        Failures.TryGetValue(chatId, out var f) && f.Count >= MaxFailures && DateTime.UtcNow - f.Since < FailureWindow;
+
+    private static void NoteFailure(long chatId) =>
+        Failures.AddOrUpdate(chatId, _ => (1, DateTime.UtcNow),
+            (_, f) => DateTime.UtcNow - f.Since >= FailureWindow ? (1, DateTime.UtcNow) : (f.Count + 1, f.Since));
 
     private static string DisplayName(AppUser u) => string.IsNullOrWhiteSpace(u.Name) ? u.Username : u.Name;
 

@@ -18,6 +18,7 @@ export default function AdminCustomerBotPage() {
   const [enabled, setEnabled] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
   const [shop, setShop] = useState(false);
+  const [codeMinutes, setCodeMinutes] = useState("15");
   const [busy, setBusy] = useState<"" | "save" | "test" | "remove">("");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -26,6 +27,7 @@ export default function AdminCustomerBotPage() {
     setEnabled(s.enabled);
     setIsPublic(s.public);
     setShop(s.shop);
+    setCodeMinutes(String(s.codeMinutes));
   }
 
   useEffect(() => {
@@ -38,11 +40,14 @@ export default function AdminCustomerBotPage() {
     return () => { cancelled = true; };
   }, []);
 
+  const minutes = Number(codeMinutes);
+  const minutesValid = Number.isInteger(minutes) && minutes >= 1 && minutes <= 1440;
+
   async function save() {
     setBusy("save");
     setNote(null);
     try {
-      const s = await api.customerBot.save({ enabled, public: isPublic, token: token.trim() || null, shop });
+      const s = await api.customerBot.save({ enabled, public: isPublic, token: token.trim() || null, shop, codeMinutes: minutes });
       apply(s);
       setToken("");
       // Saved either way; a warning means Telegram didn't take the menu button.
@@ -144,12 +149,28 @@ export default function AdminCustomerBotPage() {
                 <Toggle checked={shop && enabled} onChange={(v) => enabled && !!status.shopUrl && setShop(v)} />
               </label>
 
+              <Field label="اعتبار کد اتصال (دقیقه)">
+                <input
+                  type="number"
+                  min={1}
+                  max={1440}
+                  value={codeMinutes}
+                  onChange={(e) => setCodeMinutes(e.target.value)}
+                  dir="ltr"
+                  className={`${inputCls} text-left`}
+                />
+              </Field>
+              <p className="-mt-3 text-[11px] leading-5 text-white/40">
+                کاربر برای وصل شدن، یک کد ۲۴ رقمی یک‌بارمصرف به ایمیل تأییدشده‌اش می‌گیرد و آن را در ربات می‌فرستد. کد پس از این مدت (۱ تا ۱۴۴۰ دقیقه) باطل می‌شود.
+                {!minutesValid && <span className="block text-rose-400">عددی بین ۱ تا ۱۴۴۰ وارد کنید.</span>}
+              </p>
+
               {note && <p className={`text-sm ${note.ok ? "text-emerald-400" : "text-rose-400"}`}>{note.text}</p>}
 
               <div className="flex flex-wrap gap-3">
                 <button
                   onClick={save}
-                  disabled={busy !== "" || (enabled && !willHaveToken)}
+                  disabled={busy !== "" || (enabled && !willHaveToken) || !minutesValid}
                   className="flex h-11 items-center gap-2 rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-6 text-sm font-bold text-white transition hover:brightness-110 disabled:opacity-50"
                 >
                   {busy === "save" ? <Spinner /> : "ذخیره"}
@@ -213,7 +234,7 @@ export default function AdminCustomerBotPage() {
               <p className="pt-2 font-bold text-white/60">فروشگاه داخل تلگرام</p>
               <p>۱. «فروشگاه داخل تلگرام» را روشن و ذخیره کنید.</p>
               <p>۲. ربات را در تلگرام گوشی باز کنید (اگر باز بود، یک بار ببندید) و دکمه‌ی «🛒 فروشگاه» را بزنید.</p>
-              <p>۳. یک بار وارد حساب شوید و در «حساب کاربری» «اتصال همین تلگرام» را بزنید؛ دفعه‌ی بعد خودکار وارد می‌شوید.</p>
+              <p>۳. یک بار وارد حساب شوید، از منوی حساب کاربری «اتصال به تلگرام» را بزنید و کدی را که به ایمیلتان می‌آید همان‌جا وارد کنید؛ دفعه‌ی بعد خودکار وارد می‌شوید.</p>
               <p>در تلگرام گوشی و دسکتاپ کار می‌کند؛ نسخه‌ی وب تلگرام (web.telegram.org) پشتیبانی نمی‌شود.</p>
             </div>
           </Card>

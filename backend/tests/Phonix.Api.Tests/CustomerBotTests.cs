@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging.Abstractions;
 using Phonix.Api.Controllers;
 using Phonix.Api.Data;
@@ -65,8 +66,18 @@ public class CustomerBotTests
     private sealed class Outbox : IEmailSender
     {
         public List<string> To { get; } = new();
-        public Task<bool> SendAsync(string to, string subject, string body, string? htmlBody = null) { To.Add(to); return Task.FromResult(true); }
+        public List<string> Bodies { get; } = new();
+        public Task<bool> SendAsync(string to, string subject, string body, string? htmlBody = null)
+        {
+            To.Add(to);
+            Bodies.Add(body);
+            return Task.FromResult(true);
+        }
     }
+
+    // The code as the customer finds it in the email: six groups of four digits.
+    private static string MailedCode(Outbox outbox) =>
+        System.Text.RegularExpressions.Regex.Match(outbox.Bodies.Last(), @"\d{4}( \d{4}){5}").Value;
 
     private static (IDataStore Store, FakeTelegram Telegram, TelegramCustomerBot Bot) Setup(bool enabled = true, bool isPublic = true)
     {
@@ -83,14 +94,16 @@ public class CustomerBotTests
             message = new { message_id = 5, text, from = new { id = chatId, username = "ali_tg" }, chat = new { id = chatId, type = chatType } },
         });
 
-    private static string LinkToken(IDataStore store, int userId) =>
-        store.CreateToken(userId, TelegramCustomerBot.LinkPurpose, TelegramCustomerBot.LinkLifetime);
+    private static string Code(IDataStore store, int userId) =>
+        store.CreateTelegramLinkCode(userId, TimeSpan.FromMinutes(15));
 
     [Fact]
-    public async Task Opening_the_link_ties_the_chat_to_the_account()
+    public async Task Sending_the_emailed_code_ties_the_chat_to_the_account()
     {
         var (store, telegram, bot) = Setup();
-        telegram.Updates.Enqueue(Message($"/start {LinkToken(store, 1)}"));
+        var code = Code(store, 1);
+        Assert.Matches(@"^\d{24}$", code);
+        telegram.Updates.Enqueue(Message(code));
 
         await bot.ProcessUpdatesAsync(0);
 
@@ -100,38 +113,102 @@ public class CustomerBotTests
         Assert.Contains(telegram.Calls, c => c.Method == "sendMessage" && c.Body.Contains("وصل شد"));
     }
 
+    // Copied from the email it is grouped; typed on a Persian keyboard it is in Persian digits. Same code.
     [Fact]
-    public async Task A_link_works_once()
+    public async Task The_code_is_accepted_grouped_and_in_persian_digits()
     {
         var (store, telegram, bot) = Setup();
-        var token = LinkToken(store, 1);
-        telegram.Updates.Enqueue(Message($"/start {token}"));
-        await bot.ProcessUpdatesAsync(0);
-        store.UnlinkTelegram(1);
+        var code = Code(store, 1);
+        var persian = string.Concat(code.Select(c => (char)('\u06F0' + (c - '0'))));
+        var grouped = string.Join(" - ", Enumerable.Range(0, 6).Select(i => persian.Substring(i * 4, 4)));
+        telegram.Updates.Enqueue(Message(grouped));
 
-        telegram.Updates.Enqueue(Message($"/start {token}", chatId: 888));
         await bot.ProcessUpdatesAsync(0);
 
-        Assert.Null(store.GetUser(1)!.TelegramChatId);
-        Assert.Contains(telegram.Calls, c => c.Body.Contains("نامعتبر"));
+        Assert.Equal(Chat, store.GetUser(1)!.TelegramChatId);
     }
 
     [Fact]
-    public async Task A_guessed_or_made_up_start_value_links_nothing()
+    public async Task A_code_works_once_and_only_the_newest_one_works()
     {
         var (store, telegram, bot) = Setup();
-        telegram.Updates.Enqueue(Message("/start " + new string('A', 64)));
+        var older = Code(store, 1);
+        var newer = Code(store, 1);
+
+        telegram.Updates.Enqueue(Message(older, chatId: 701));
+        await bot.ProcessUpdatesAsync(0);
+        Assert.Null(store.GetUser(1)!.TelegramChatId);
+
+        telegram.Updates.Enqueue(Message(newer, chatId: 702));
+        await bot.ProcessUpdatesAsync(0);
+        Assert.Equal(702, store.GetUser(1)!.TelegramChatId);
+
+        // Already spent: a second chat can't use it to take the account over.
+        telegram.Updates.Enqueue(Message(newer, chatId: 703));
+        await bot.ProcessUpdatesAsync(0);
+        Assert.Equal(702, store.GetUser(1)!.TelegramChatId);
+    }
+
+    [Fact]
+    public async Task An_expired_code_links_nothing()
+    {
+        var (store, telegram, bot) = Setup();
+        var code = store.CreateTelegramLinkCode(1, TimeSpan.FromSeconds(-1));
+        telegram.Updates.Enqueue(Message(code, chatId: 704));
 
         await bot.ProcessUpdatesAsync(0);
 
-        Assert.DoesNotContain(store.GetUsers(), u => u.TelegramChatId is not null);
+        Assert.Null(store.GetUser(1)!.TelegramChatId);
+        Assert.Contains(telegram.Calls, c => c.Body.Contains("منقضی"));
+    }
+
+    [Fact]
+    public async Task Too_many_wrong_codes_lock_the_chat_for_a_while()
+    {
+        var (store, telegram, bot) = Setup();
+        const long chat = 705;
+        for (var i = 0; i < 5; i++)
+        {
+            telegram.Updates.Enqueue(Message(new string((char)('1' + i), 24), chatId: chat));
+            await bot.ProcessUpdatesAsync(0);
+        }
+        // Even the right code is turned away until the window passes.
+        telegram.Updates.Enqueue(Message(Code(store, 1), chatId: chat));
+        await bot.ProcessUpdatesAsync(0);
+
+        Assert.Null(store.GetUser(1)!.TelegramChatId);
+        Assert.Contains("زیاد بود", telegram.Calls.Last(c => c.Method == "sendMessage").Body);
+    }
+
+    [Fact]
+    public async Task Arriving_from_the_site_the_bot_asks_for_the_code()
+    {
+        var (_, telegram, bot) = Setup();
+        telegram.Updates.Enqueue(Message("/start connect", chatId: 706));
+
+        await bot.ProcessUpdatesAsync(0);
+
+        var reply = telegram.Calls.Last(c => c.Method == "sendMessage").Body;
+        Assert.Contains("ایمیل", reply);
+        Assert.Contains("۲۴", reply);
+    }
+
+    [Fact]
+    public async Task A_code_cut_short_gets_a_hint_not_a_failure()
+    {
+        var (_, telegram, bot) = Setup();
+        telegram.Updates.Enqueue(Message("1234 5678 9012", chatId: 707));
+
+        await bot.ProcessUpdatesAsync(0);
+
+        Assert.Contains("کامل", telegram.Calls.Last(c => c.Method == "sendMessage").Body);
     }
 
     [Fact]
     public async Task Group_chats_are_ignored()
     {
         var (store, telegram, bot) = Setup();
-        telegram.Updates.Enqueue(Message($"/start {LinkToken(store, 1)}", chatId: -100123, chatType: "group"));
+        telegram.Updates.Enqueue(Message(Code(store, 1), chatId: -100123, chatType: "group"));
 
         await bot.ProcessUpdatesAsync(0);
 
@@ -228,19 +305,81 @@ public class CustomerBotTests
         return controller;
     }
 
+    private static AccountTelegramController Account(IDataStore store, TelegramCustomerBot bot, Outbox outbox, int userId = 1) =>
+        As(new AccountTelegramController(store, bot, new UserMailer(store, outbox, NullLogger<UserMailer>.Instance, bot),
+            new MemoryCache(new MemoryCacheOptions())), store.GetUser(userId)!);
+
     [Fact]
-    public void Customers_are_offered_nothing_until_staff_switch_it_on()
+    public async Task Customers_are_offered_nothing_until_staff_switch_it_on()
     {
         var (store, _, bot) = Setup(enabled: true, isPublic: false);
-        var account = As(new AccountTelegramController(store, bot), store.GetUser(1)!);
+        var outbox = new Outbox();
+        var account = Account(store, bot, outbox);
 
         Assert.False(account.Get().Value!.Available);
-        Assert.IsType<BadRequestObjectResult>(account.Link());
+        Assert.IsType<BadRequestObjectResult>((await account.SendCode()).Result);
+        Assert.Empty(outbox.To);
 
         store.SetCustomerBot(true, true, null, null);
         Assert.True(account.Get().Value!.Available);
-        var url = Assert.IsType<OkObjectResult>(account.Link()).Value!.ToString()!;
-        Assert.Contains("https://t.me/PhoenixTestBot?start=", url);
+        var sent = (await account.SendCode()).Value!;
+        Assert.Equal("https://t.me/PhoenixTestBot?start=connect", sent.BotUrl);
+        Assert.Equal(15, sent.Minutes);
+    }
+
+    // The whole flow: the code goes to the account's own inbox, and sending it to the bot links the chat.
+    [Fact]
+    public async Task The_code_goes_to_the_accounts_email_and_links_from_the_bot()
+    {
+        var (store, telegram, bot) = Setup();
+        store.SetCustomerBot(true, true, null, null, codeMinutes: 30);
+        var outbox = new Outbox();
+
+        var sent = (await Account(store, bot, outbox).SendCode()).Value!;
+
+        Assert.Equal(store.GetUser(1)!.Email, Assert.Single(outbox.To));
+        Assert.Equal(30, sent.Minutes);
+        Assert.DoesNotContain(telegram.Calls, c => c.Method == "sendMessage");   // email only, never a chat
+        telegram.Updates.Enqueue(Message(MailedCode(outbox), chatId: 801));
+        await bot.ProcessUpdatesAsync(0);
+        Assert.Equal(801, store.GetUser(1)!.TelegramChatId);
+    }
+
+    // The code proves the inbox, so the inbox has to be proven the owner's first.
+    [Fact]
+    public async Task No_code_goes_to_an_unverified_address()
+    {
+        var (store, _, bot) = Setup();
+        store.UpdateUser(1, u => u.EmailVerified = false);
+        var outbox = new Outbox();
+
+        Assert.IsType<BadRequestObjectResult>((await Account(store, bot, outbox).SendCode()).Result);
+        Assert.Empty(outbox.To);
+    }
+
+    [Fact]
+    public async Task Codes_cannot_be_requested_back_to_back()
+    {
+        var (store, _, bot) = Setup();
+        var outbox = new Outbox();
+        var account = Account(store, bot, outbox);
+
+        Assert.NotNull((await account.SendCode()).Value);
+        var again = Assert.IsType<ObjectResult>((await account.SendCode()).Result);
+
+        Assert.Equal(429, again.StatusCode);
+        Assert.Single(outbox.To);
+    }
+
+    [Fact]
+    public void The_panel_sets_how_long_a_code_lives_within_bounds()
+    {
+        var (store, _, _) = Setup();
+        store.SetCustomerBot(true, true, null, null, codeMinutes: 5);
+        Assert.Equal(5, store.GetTelegramSettings().CustomerBotCodeMinutes);
+
+        store.SetCustomerBot(true, true, null, null, codeMinutes: 99_999);
+        Assert.Equal(1440, store.GetTelegramSettings().CustomerBotCodeMinutes);
     }
 
     [Fact]
@@ -339,14 +478,16 @@ public class CustomerBotTests
     }
 
     [Fact]
-    public async Task Inside_the_shop_a_signed_in_customer_links_that_telegram()
+    public async Task Inside_the_shop_a_signed_in_customer_links_that_telegram_with_the_mailed_code()
     {
         var (store, telegram, bot) = Setup(isPublic: false);
         store.SetCustomerBot(true, false, null, null, shop: true);
-        var account = As(new AccountTelegramController(store, bot), store.GetUser(1)!);
+        var outbox = new Outbox();
+        var account = Account(store, bot, outbox);
         Assert.True(account.Get().Value!.Shop);
+        await account.SendCode();
 
-        var result = await account.LinkFromShop(new TelegramInitDataInput(TelegramLaunch.InitData(Chat)), default);
+        var result = await account.LinkFromShop(new TelegramShopLinkInput(TelegramLaunch.InitData(Chat), MailedCode(outbox)), default);
 
         Assert.IsType<NoContentResult>(result);
         Assert.Equal(Chat, store.GetUser(1)!.TelegramChatId);
@@ -355,19 +496,24 @@ public class CustomerBotTests
     }
 
     [Fact]
-    public async Task Linking_from_the_shop_needs_genuine_fresh_launch_data_and_the_shop_on()
+    public async Task Linking_from_the_shop_needs_genuine_launch_data_and_this_accounts_code()
     {
         var (store, _, bot) = Setup();
-        var account = As(new AccountTelegramController(store, bot), store.GetUser(1)!);
+        var account = Account(store, bot, new Outbox());
+        var genuine = TelegramLaunch.InitData(Chat);
 
         // Shop off: nothing to link from.
-        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramInitDataInput(TelegramLaunch.InitData(Chat)), default));
+        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramShopLinkInput(genuine, Code(store, 1)), default));
 
         store.SetCustomerBot(true, true, null, null, shop: true);
         var stale = TelegramLaunch.InitData(Chat, signedAt: DateTime.UtcNow.AddHours(-3));
         var forged = TelegramLaunch.InitData(Chat, token: "987654321:BBOtherBotTokenForTests_abcdefghijklmno");
-        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramInitDataInput(stale), default));
-        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramInitDataInput(forged), default));
+        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramShopLinkInput(stale, Code(store, 1)), default));
+        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramShopLinkInput(forged, Code(store, 1)), default));
+        // Genuine launch data, but no code — or a code mailed to someone else.
+        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramShopLinkInput(genuine, ""), default));
+        var someoneElse = store.GetUsers().First(u => u.Id != 1 && u.Role == UserRole.Customer).Id;
+        Assert.IsType<BadRequestObjectResult>(await account.LinkFromShop(new TelegramShopLinkInput(genuine, Code(store, someoneElse)), default));
         Assert.Null(store.GetUser(1)!.TelegramChatId);
     }
 

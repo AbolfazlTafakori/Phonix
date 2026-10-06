@@ -417,7 +417,7 @@ export const api = {
   // The customer bot's panel page: token (sent only when replaced), on/off, shown-to-customers, test, remove.
   customerBot: {
     get: () => request<CustomerBotStatus>("/admin/customer-bot"),
-    save: (body: { enabled: boolean; public: boolean; token?: string | null; shop?: boolean }) =>
+    save: (body: { enabled: boolean; public: boolean; token?: string | null; shop?: boolean; codeMinutes?: number }) =>
       request<CustomerBotStatus>("/admin/customer-bot", { method: "PUT", body: json(body) }),
     removeToken: () => request<CustomerBotStatus>("/admin/customer-bot/token", { method: "DELETE" }),
     test: () => request<{ ok: boolean; username: string }>("/admin/customer-bot/test", { method: "POST" }),
@@ -425,11 +425,15 @@ export const api = {
   // A customer linking their own account to the bot.
   accountTelegram: {
     get: () => request<TelegramLinkStatus>("/account/telegram"),
-    link: () => request<{ url: string }>("/account/telegram/link", { method: "POST" }),
+    // Mails a one-time code to the account's verified address; the customer sends it to the bot.
+    sendCode: () =>
+      request<{ botUrl: string; email: string; minutes: number }>("/account/telegram/code", { method: "POST" }),
     unlink: () => request<void>("/account/telegram", { method: "DELETE" }),
     setNotify: (notify: boolean) => request<void>("/account/telegram/notify", { method: "PUT", body: json({ notify }) }),
-    // Inside the shop in Telegram: links that same Telegram, proven by the launch data Telegram signed.
-    linkFromShop: (initData: string) => request<void>("/account/telegram/webapp", { method: "POST", body: json({ initData }) }),
+    // Inside the shop in Telegram: links that same Telegram (named by the launch data Telegram signed) with the
+    // code from the email, typed on the page instead of sent to the bot.
+    linkFromShop: (initData: string, code: string) =>
+      request<void>("/account/telegram/webapp", { method: "POST", body: json({ initData, code }) }),
   },
   // Product tutorials. The panel manages them; a buyer reads the ones for what they've paid for (`mine`).
   tutorials: {
