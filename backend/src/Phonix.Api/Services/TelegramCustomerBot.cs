@@ -242,9 +242,15 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
     private static bool LockedOut(long chatId) =>
         Failures.TryGetValue(chatId, out var f) && f.Count >= MaxFailures && DateTime.UtcNow - f.Since < FailureWindow;
 
-    private static void NoteFailure(long chatId) =>
+    private static void NoteFailure(long chatId)
+    {
         Failures.AddOrUpdate(chatId, _ => (1, DateTime.UtcNow),
             (_, f) => DateTime.UtcNow - f.Since >= FailureWindow ? (1, DateTime.UtcNow) : (f.Count + 1, f.Since));
+        // Every chat that ever sent a wrong code would otherwise stay here for the life of the process.
+        if (Failures.Count > 1000)
+            foreach (var (chat, f) in Failures)
+                if (DateTime.UtcNow - f.Since >= FailureWindow) Failures.TryRemove(chat, out _);
+    }
 
     private static string DisplayName(AppUser u) => string.IsNullOrWhiteSpace(u.Name) ? u.Username : u.Name;
 

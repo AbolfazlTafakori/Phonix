@@ -97,7 +97,7 @@ public class KycController : ControllerBase
             FullName = input.FullName,
             NationalId = input.NationalId,
             BirthDate = input.BirthDate,
-            CardImage = input.CardImage,
+            CardImage = input.CardImage!,   // checked above: it is this user's own upload
             SelfieImage = input.SelfieImage ?? "",
         });
         // To the receipt bot's chat for a one-tap decision (no-op when the bot isn't set up).

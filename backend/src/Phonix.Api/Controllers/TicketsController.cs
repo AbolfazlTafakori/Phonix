@@ -26,6 +26,15 @@ public class TicketsController : ControllerBase
         _support = support;
     }
 
+    // An attachment is always a picture uploaded to this site (/api/upload/<id>). It is shown to staff as a link
+    // and forwarded to the support group, so anything else — someone else's site, a script URL — is dropped
+    // rather than stored as an «attachment» staff would trust and open.
+    private static string SafeAttachment(string? value)
+    {
+        var v = (value ?? "").Trim();
+        return System.Text.RegularExpressions.Regex.IsMatch(v, @"^/api/upload/\d{1,9}__[0-9a-f]{32}\.(?:jpg|jpeg|png|webp)$") ? v : "";
+    }
+
     [Authorize(Roles = AuthExtensions.StaffRoles)]
     [AdminPermission("tickets")]
     [HttpGet]
@@ -57,7 +66,7 @@ public class TicketsController : ControllerBase
             return BadRequest("موضوع و متن پیام الزامی است.");
         var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
         var ticket = _store.CreateTicket(user.Id, name, input.Subject, input.Department, input.Body,
-            input.Priority ?? TicketPriority.Medium, input.Attachment ?? "");
+            input.Priority ?? TicketPriority.Medium, SafeAttachment(input.Attachment));
         // Into the support group, where staff can answer it by replying.
         if (_support is not null) _ = _support.NotifyTicketOpenedAsync(ticket);
         return ticket;
@@ -76,7 +85,7 @@ public class TicketsController : ControllerBase
             return BadRequest("موضوع و متن پیام الزامی است.");
         var name = string.IsNullOrWhiteSpace(target.Name) ? target.Username : target.Name;
         var ticket = _store.CreateTicketForUser(target.Id, name, input.Subject, input.Department, input.Body,
-            "پشتیبانی فونیکس", input.Priority ?? TicketPriority.Medium, input.Attachment ?? "");
+            "پشتیبانی فونیکس", input.Priority ?? TicketPriority.Medium, SafeAttachment(input.Attachment));
         // The in-app notification only lands if they come back to the site; support opened this thread, so
         // reach them where they are.
         _ = _mailer.TicketOpenedByStaffAsync(ticket);
@@ -95,7 +104,7 @@ public class TicketsController : ControllerBase
         // only staff may post a reply as support; a customer can never impersonate it.
         var isAdmin = input.IsAdmin && this.IsStaff();
         var author = isAdmin ? "پشتیبانی فونیکس" : ticket.UserName;
-        var t = _store.ReplyTicket(id, author, input.Body, isAdmin, input.Attachment);
+        var t = _store.ReplyTicket(id, author, input.Body, isAdmin, SafeAttachment(input.Attachment));
         if (t is null) return NotFound();
         // Only a support reply is worth an email — the customer's own reply doesn't need mailing back to them.
         if (isAdmin) _ = _mailer.TicketRepliedAsync(t);

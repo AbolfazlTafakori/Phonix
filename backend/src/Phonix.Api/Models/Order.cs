@@ -201,6 +201,10 @@ public class Order
     public long Subtotal { get; set; }
     public string? DiscountCode { get; set; }
     public long DiscountAmount { get; set; }
+    // The products the discount was taken from, when the code was limited to some (empty: the whole basket).
+    // Recorded at checkout, so a refund later takes the discount back only from the accounts it actually
+    // lowered — and editing the code afterwards changes nothing for an order already placed.
+    public List<int> DiscountProductIds { get; set; } = new();
     public long WalletPaid { get; set; }
     public long VatAmount { get; set; }
     public long FeeAmount { get; set; }

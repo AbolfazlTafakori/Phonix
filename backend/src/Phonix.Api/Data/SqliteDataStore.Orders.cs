@@ -276,6 +276,7 @@ public sealed partial class SqliteDataStore
             {
                 UserId = buyer.Id, UserName = name, PaymentMethod = paymentMethod, Items = lines, Units = units,
                 Subtotal = subtotal, DiscountCode = discount.Code?.Code, DiscountAmount = discount.Amount,
+                DiscountProductIds = discount.Code?.ProductIds is { Count: > 0 } only ? only.ToList() : new(),
                 WalletPaid = walletUsed, VatAmount = vat, FeeAmount = fee, Total = goodsTotal + vat + fee,
                 ReceiptUrl = remainder > 0 && !string.IsNullOrWhiteSpace(payment?.ReceiptUrl) ? payment.ReceiptUrl.Trim() : null,
                 Date = Today(),

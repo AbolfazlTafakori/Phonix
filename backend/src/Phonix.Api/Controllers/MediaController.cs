@@ -61,7 +61,7 @@ public partial class MediaController : ControllerBase
                 if (item is null && uploader is null) return null; // a customer's avatar, not site imagery
                 var uses = refs.GetValueOrDefault(f.Id) - (item is null ? 0 : 1);
                 return new MediaItemDto(
-                    f.Id, Url(f.Id), item?.Name ?? "", item?.Size ?? f.Size,
+                    f.Id, PublicUrl(f.Id), item?.Name ?? "", item?.Size ?? f.Size,
                     item?.UploadedBy ?? uploader?.Username ?? "", item?.UploadedAtUtc ?? f.LastWriteUtc,
                     item is not null, uses > 0);
             })
@@ -91,7 +91,7 @@ public partial class MediaController : ControllerBase
             UploadedBy = User.Identity?.Name ?? "", UploadedAtUtc = DateTime.UtcNow,
         };
         _store.AddMediaItem(item);
-        return Ok(new MediaItemDto(item.Id, Url(item.Id), item.Name, item.Size, item.UploadedBy, item.UploadedAtUtc, true, false));
+        return Ok(new MediaItemDto(item.Id, PublicUrl(item.Id), item.Name, item.Size, item.UploadedBy, item.UploadedAtUtc, true, false));
     }
 
     // Deletes the file — unless something on the site still shows it. A picture in use (an article, a product,
@@ -115,5 +115,5 @@ public partial class MediaController : ControllerBase
         return NoContent();
     }
 
-    private static string Url(string id) => $"/api/upload/{id}";
+    private static string PublicUrl(string id) => $"/api/upload/{id}";
 }

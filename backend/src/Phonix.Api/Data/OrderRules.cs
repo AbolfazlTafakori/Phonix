@@ -28,12 +28,23 @@ public static class OrderRules
         var price = (long)Math.Round((double)chargedForProduct / unitsOfLine, MidpointRounding.AwayFromZero);
         if (order.Subtotal <= 0) return price;
 
-        long Share(long total) => total <= 0
+        long Share(long total, long of) => total <= 0 || of <= 0
             ? 0
-            : (long)Math.Round(total * (double)price / order.Subtotal, MidpointRounding.AwayFromZero);
+            : (long)Math.Round(total * (double)price / of, MidpointRounding.AwayFromZero);
 
-        var net = Math.Max(0, price - Share(order.DiscountAmount));
-        return net + Share(order.VatAmount) + Share(order.FeeAmount);
+        // A code limited to some products lowered only those lines: its discount comes back out of them alone,
+        // and an account it never touched is refunded its full price.
+        var limited = order.DiscountProductIds is { Count: > 0 };
+        var discountShare = !limited
+            ? Share(order.DiscountAmount, order.Subtotal)
+            : order.DiscountProductIds.Contains(unit.ProductId)
+                ? Share(order.DiscountAmount, order.Items.Where(i => order.DiscountProductIds.Contains(i.ProductId)).Sum(i => i.UnitPrice * (long)i.Quantity))
+                : 0;
+        var net = Math.Max(0, price - discountShare);
+        // VAT was charged on the discounted total; it comes back in proportion to what is actually refunded.
+        var goods = order.Subtotal - order.DiscountAmount;
+        var vatShare = goods > 0 ? (long)Math.Round(order.VatAmount * (double)net / goods, MidpointRounding.AwayFromZero) : 0;
+        return net + vatShare + Share(order.FeeAmount, order.Subtotal);
     }
 
     // What is still owed back to stock for a line: the portion of its quantity that is still genuinely
