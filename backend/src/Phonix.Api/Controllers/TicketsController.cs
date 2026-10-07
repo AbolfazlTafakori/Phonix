@@ -18,10 +18,12 @@ public class TicketsController : ControllerBase
 {
     private readonly IDataStore _store;
     private readonly IUserMailer _mailer;
-    public TicketsController(IDataStore store, IUserMailer mailer)
+    private readonly ITelegramSupportBot? _support;
+    public TicketsController(IDataStore store, IUserMailer mailer, ITelegramSupportBot? support = null)
     {
         _store = store;
         _mailer = mailer;
+        _support = support;
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]
@@ -54,8 +56,11 @@ public class TicketsController : ControllerBase
         if (string.IsNullOrWhiteSpace(input.Subject) || string.IsNullOrWhiteSpace(input.Body))
             return BadRequest("موضوع و متن پیام الزامی است.");
         var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
-        return _store.CreateTicket(user.Id, name, input.Subject, input.Department, input.Body,
+        var ticket = _store.CreateTicket(user.Id, name, input.Subject, input.Department, input.Body,
             input.Priority ?? TicketPriority.Medium, input.Attachment ?? "");
+        // Into the support group, where staff can answer it by replying.
+        if (_support is not null) _ = _support.NotifyTicketOpenedAsync(ticket);
+        return ticket;
     }
 
     // Staff opens a ticket ON BEHALF OF a user: the thread appears in that user's account, already answered
@@ -75,6 +80,7 @@ public class TicketsController : ControllerBase
         // The in-app notification only lands if they come back to the site; support opened this thread, so
         // reach them where they are.
         _ = _mailer.TicketOpenedByStaffAsync(ticket);
+        if (_support is not null) _ = _support.NotifyTicketOpenedAsync(ticket);
         return ticket;
     }
 
@@ -93,6 +99,9 @@ public class TicketsController : ControllerBase
         if (t is null) return NotFound();
         // Only a support reply is worth an email — the customer's own reply doesn't need mailing back to them.
         if (isAdmin) _ = _mailer.TicketRepliedAsync(t);
+        // The support group sees the customer's reply (to answer it) or the panel's answer (so it's handled).
+        if (_support is not null && t.Messages.LastOrDefault() is { } posted)
+            _ = _support.NotifyTicketMessageAsync(t, posted, isAdmin ? User.Identity?.Name : null);
         return t;
     }
 

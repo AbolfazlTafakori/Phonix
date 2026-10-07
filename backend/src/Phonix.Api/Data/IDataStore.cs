@@ -182,6 +182,8 @@ public interface IDataStore
     TelegramSettings GetTelegramSettings();
     void UpdateTelegramSettings(TelegramSettings settings);
     // The customer bot's own settings (see TelegramSettings.CustomerBot*). token: null = keep, "" = remove.
+    // The support bot's own settings (see TelegramSettings.SupportBot*). token: null = keep, "" = remove.
+    void SetSupportBot(bool enabled, string? token, string? username, string chatId);
     // shop / codeMinutes: null = keep. Public and shop both switch off with the bot.
     void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username, bool? shop = null, int? codeMinutes = null);
 
@@ -418,6 +420,9 @@ public interface IDataStore
     IReadOnlyList<Ticket> GetTickets(TicketStatus? status = null);
     IReadOnlyList<Ticket> GetUserTickets(int userId);
     Ticket? GetTicket(int id);
+    // The support group's message for a ticket / live-chat thread (see ITelegramSupportBot).
+    void SetTicketTelegramMessage(int id, long chatId, int messageId);
+    void SetConversationTelegramMessage(int id, long chatId, int messageId);
     Ticket CreateTicket(int userId, string userName, string subject, string department, string body,
         TicketPriority priority = TicketPriority.Medium, string attachment = "");
     Ticket CreateTicketForUser(int userId, string userName, string subject, string department, string body,

@@ -112,6 +112,9 @@ try
     // The customer bot: customers link their account and get their account mail in Telegram too.
     builder.Services.AddSingleton<ITelegramCustomerBot, TelegramCustomerBot>();
     builder.Services.AddHostedService<TelegramCustomerBotWorker>();
+    // The support bot: tickets and live chat are posted to a staff group and answered there by reply.
+    builder.Services.AddSingleton<ITelegramSupportBot, TelegramSupportBot>();
+    builder.Services.AddHostedService<TelegramSupportBotWorker>();
     // Honeypot IP bans live in memory (ephemeral, like sessions) so they never bloat store.json.
     builder.Services.AddMemoryCache();
     builder.Services.AddSingleton<IpBanService>();

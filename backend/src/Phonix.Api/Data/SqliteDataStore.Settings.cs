@@ -539,6 +539,7 @@ public sealed partial class SqliteDataStore
         t.ReceiptBotToken = SensitiveField.Reveal(t.ReceiptBotToken ?? "");
         t.OrderBotToken = SensitiveField.Reveal(t.OrderBotToken ?? "");
         t.CustomerBotToken = SensitiveField.Reveal(t.CustomerBotToken ?? "");
+        t.SupportBotToken = SensitiveField.Reveal(t.SupportBotToken ?? "");
         return t;
     }
 
@@ -560,6 +561,22 @@ public sealed partial class SqliteDataStore
         t.CustomerBotPublic = isPublic && t.CustomerBotEnabled;
         t.CustomerBotShop = (shop ?? t.CustomerBotShop) && t.CustomerBotEnabled;
         if (codeMinutes is int minutes) t.CustomerBotCodeMinutes = Math.Clamp(minutes, 1, 1440);
+        WriteSingleton(conn, null, TelegramKey, t);
+    }
+
+    // The support bot is managed on its own page too. A null token keeps the stored one; an empty one removes it.
+    public void SetSupportBot(bool enabled, string? token, string? username, string chatId)
+    {
+        using var conn = OpenConnection();
+        var t = ReadSingletonNoTx<TelegramSettings>(conn, TelegramKey);
+        if (token is not null)
+        {
+            var trimmed = token.Trim();
+            t.SupportBotToken = trimmed.Length == 0 ? "" : SensitiveField.Protect(trimmed);
+            t.SupportBotUsername = trimmed.Length == 0 ? "" : (username ?? "").Trim().TrimStart('@');
+        }
+        t.SupportChatId = (chatId ?? "").Trim();
+        t.SupportBotEnabled = enabled && !string.IsNullOrWhiteSpace(t.SupportBotToken);
         WriteSingleton(conn, null, TelegramKey, t);
     }
 

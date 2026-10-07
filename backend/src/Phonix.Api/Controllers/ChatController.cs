@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Phonix.Api.Data;
 using Phonix.Api.Models;
 using Phonix.Api.Security;
+using Phonix.Api.Services;
 
 namespace Phonix.Api.Controllers;
 
@@ -37,7 +38,12 @@ public class ChatController : ControllerBase
     private const int MaxBody = 2000;
 
     private readonly IDataStore _store;
-    public ChatController(IDataStore store) => _store = store;
+    private readonly ITelegramSupportBot? _support;
+    public ChatController(IDataStore store, ITelegramSupportBot? support = null)
+    {
+        _store = store;
+        _support = support;
+    }
 
     // ── Customer side: a single live thread with support ──────────────────────────────────────────────
 
@@ -65,7 +71,11 @@ public class ChatController : ControllerBase
         var body = Clean(input.Body);
         if (body.Length == 0) return BadRequest("متن پیام خالی است.");
         var name = string.IsNullOrWhiteSpace(user.Name) ? user.Username : user.Name;
-        return ChatThreadDto.From(_store.SendUserMessage(id, name, body));
+        var conversation = _store.SendUserMessage(id, name, body);
+        // Into the support group, where staff can answer it by replying.
+        if (_support is not null && conversation.Messages.LastOrDefault() is { } sent)
+            _ = _support.NotifyChatMessageAsync(conversation, sent);
+        return ChatThreadDto.From(conversation);
     }
 
     [HttpPost("me/read")]
@@ -111,7 +121,11 @@ public class ChatController : ControllerBase
     {
         var body = Clean(input.Body);
         if (body.Length == 0) return BadRequest("متن پیام خالی است.");
-        return _store.AddAdminMessage(id, "پشتیبانی فونیکس", body) is { } c ? c : NotFound();
+        if (_store.AddAdminMessage(id, "پشتیبانی فونیکس", body) is not { } c) return NotFound();
+        // The support group sees it was answered on the site.
+        if (_support is not null && c.Messages.LastOrDefault() is { } sent)
+            _ = _support.NotifyChatMessageAsync(c, sent, User.Identity?.Name);
+        return c;
     }
 
     [Authorize(Roles = AuthExtensions.StaffRoles)]

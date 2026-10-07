@@ -115,6 +115,7 @@ import type {
   TutorialVideo,
   CustomerBotStatus,
   TelegramLinkStatus,
+  SupportBotStatus,
 } from "./types";
 import { getCsrfToken } from "./token";
 import { shrinkImage } from "./image";
@@ -421,6 +422,14 @@ export const api = {
       request<CustomerBotStatus>("/admin/customer-bot", { method: "PUT", body: json(body) }),
     removeToken: () => request<CustomerBotStatus>("/admin/customer-bot/token", { method: "DELETE" }),
     test: () => request<{ ok: boolean; username: string }>("/admin/customer-bot/test", { method: "POST" }),
+  },
+  // The support bot: tickets and live chat answered from a staff Telegram group.
+  supportBot: {
+    get: () => request<SupportBotStatus>("/admin/support-bot"),
+    save: (body: { enabled: boolean; token?: string | null; chatId: string }) =>
+      request<SupportBotStatus>("/admin/support-bot", { method: "PUT", body: json(body) }),
+    removeToken: () => request<SupportBotStatus>("/admin/support-bot/token", { method: "DELETE" }),
+    test: () => request<{ ok: boolean }>("/admin/support-bot/test", { method: "POST" }),
   },
   // A customer linking their own account to the bot.
   accountTelegram: {

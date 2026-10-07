@@ -68,6 +68,22 @@ public sealed partial class SqliteDataStore
         return t;
     }
 
+    public void SetTicketTelegramMessage(int id, long chatId, int messageId)
+    {
+        if (OneJson<Ticket>("Tickets", id) is not { } t) return;
+        t.TelegramChatId = chatId;
+        t.TelegramMessageId = messageId;
+        UpdateJson("Tickets", id, t);
+    }
+
+    public void SetConversationTelegramMessage(int id, long chatId, int messageId)
+    {
+        if (OneJson<ChatConversation>("Conversations", id) is not { } c) return;
+        c.TelegramChatId = chatId;
+        c.TelegramMessageId = messageId;
+        UpdateJson("Conversations", id, c);
+    }
+
     public bool SetTicketStatus(int id, TicketStatus status)
     {
         var t = OneJson<Ticket>("Tickets", id);

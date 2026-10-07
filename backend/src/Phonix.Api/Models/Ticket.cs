@@ -45,4 +45,7 @@ public class Ticket
     // Set when the sweep closed the ticket, so the panel can tell an automatic close from one support made.
     // Cleared if the customer replies and reopens it.
     public DateTime? AutoClosedAtUtc { get; set; }
+    // The support group's message for this thread, so later messages on it are posted as replies to it.
+    public long? TelegramChatId { get; set; }
+    public int? TelegramMessageId { get; set; }
 }

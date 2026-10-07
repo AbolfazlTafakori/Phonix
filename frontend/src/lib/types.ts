@@ -857,6 +857,16 @@ export type CustomerBotStatus = {
   codeMinutes: number;
 };
 
+// The support bot's settings as the panel sees them (the token itself never comes back).
+export type SupportBotStatus = {
+  enabled: boolean;
+  hasToken: boolean;
+  tokenHint: string;
+  username: string;
+  chatId: string;
+  polling: boolean;
+};
+
 // A customer's own link to the bot. available: staff have switched it on for customers and it is configured.
 export type TelegramLinkStatus = {
   available: boolean;

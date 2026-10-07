@@ -121,6 +121,7 @@ public static class AdminMenu
             new("receipt-bot", "تأیید رسید خودکار و ربات تلگرام", "wallet", "/admin/receipt-bot", UserRole.Admin),
             new("order-bot",   "ارسال سفارشات و ربات تلگرام",     "cart",   "/admin/order-bot",   UserRole.Admin),
             new("customer-bot", "ربات تلگرام مشتریان",            "chat",   "/admin/customer-bot", UserRole.Admin),
+            new("support-bot",  "ربات تلگرام پشتیبانی",           "chat",   "/admin/support-bot",  UserRole.Admin),
             new("email",    "تنظیمات ایمیل و پیامک",       "bell",     "/admin/settings/email", UserRole.Admin),
             new("settings", "تنظیمات عمومی و پیشرفته",     "settings", "/admin/settings",       UserRole.Admin),
             new("v2ray",    "تنظیمات پنل v2ray",           "cpu",      "/admin/v2ray",          UserRole.Admin, OwnerOnly: true),

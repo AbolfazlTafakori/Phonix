@@ -38,6 +38,13 @@ public class TelegramSettings
     public string CustomerBotToken { get; set; } = "";
     // The bot's @username, read from Telegram when the token is saved; it builds the t.me link customers open.
     public string CustomerBotUsername { get; set; } = "";
+
+    // A FIFTH bot, for support: tickets and live chat are posted to a staff group, and staff answer them there by
+    // replying. Managed on its own panel page.
+    public bool SupportBotEnabled { get; set; }
+    public string SupportBotToken { get; set; } = "";
+    public string SupportBotUsername { get; set; } = "";
+    public string SupportChatId { get; set; } = "";
     public int IntervalHours { get; set; } = 24;
 
     // runtime status, written by the backup worker / test send (not edited directly in the form)
