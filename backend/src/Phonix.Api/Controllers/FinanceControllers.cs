@@ -253,28 +253,29 @@ public class TransactionsController : ControllerBase
     [HttpPost("{id:int}/reject")]
     public ActionResult<Transaction> Reject(int id, TxActionInput? input) => Decide(id, TxStatus.Rejected, input?.Note);
 
-    // Applies a staff decision and tells the customer. The mail only goes out on a real Pending → decided
-    // transition, so re-approving an already-approved transaction (a double-click, a retried request) can't
-    // send a second "your wallet was topped up".
+    // Applies a staff decision and tells the customer. Only a Pending transaction can be decided, here or in the
+    // receipt bot — whichever comes first — and the store checks that in the same write. Anything already decided
+    // (a double-click, or a decision made in Telegram) is refused with where it was made, and nothing runs twice.
     private ActionResult<Transaction> Decide(int id, TxStatus status, string? note)
     {
-        var wasPending = _store.GetTransaction(id)?.Status == TxStatus.Pending;
-        if (!_store.SetTransactionStatus(id, status, "site", note)) return NotFound();
-        var updated = _store.GetTransaction(id)!;
-        if (wasPending) _ = _mailer.TransactionDecidedAsync(updated);
+        var decision = _store.DecideTransaction(id, status, DecisionVia.Site, note, User.Identity?.Name);
+        if (decision.Item is not { } updated) return NotFound();
+        if (!decision.Applied)
+            return Conflict(DecisionVia.AlreadyDecided("تراکنش", DecisionVia.Outcome(updated.Status),
+                DecisionVia.Describe(updated.ApprovedVia, updated.DecidedBy)));
+        _ = _mailer.TransactionDecidedAsync(updated);
         // Approving an order's payment advances that order to «آماده‌سازی»: pool-enabled products deliver
         // themselves right here, V2Ray services go and build themselves on the panel, and only what neither
         // could serve goes to the orders group for a person. The claim inside the announce keeps a
         // re-approval from posting them twice.
-        if (wasPending)
-        {
-            _stock.AutoDeliverForTransaction(updated);
-            // Not awaited: it talks to the panel over the network, and an approval that has already taken the
-            // customer's money must not fail because that server is slow. It never throws.
-            _ = _v2ray.ProvisionForTransactionAsync(updated);
-            if (_wireguard is not null) _ = _wireguard.ProvisionForTransactionAsync(updated);
-            _ = _orderBot.AnnounceApprovedOrderAsync(updated);
-        }
+        _stock.AutoDeliverForTransaction(updated);
+        // Not awaited: it talks to the panel over the network, and an approval that has already taken the
+        // customer's money must not fail because that server is slow. It never throws.
+        _ = _v2ray.ProvisionForTransactionAsync(updated);
+        if (_wireguard is not null) _ = _wireguard.ProvisionForTransactionAsync(updated);
+        _ = _orderBot.AnnounceApprovedOrderAsync(updated);
+        // The receipt in the Telegram group now reads «از طریق سایت», with its buttons gone.
+        _ = _receiptBot.ShowTransactionDecisionAsync(updated);
         return updated;
     }
 }

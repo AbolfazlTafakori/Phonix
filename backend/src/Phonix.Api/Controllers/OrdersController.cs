@@ -502,8 +502,11 @@ public class OrdersController : ControllerBase
     [HttpPost("{id:int}/approve")]
     public ActionResult<Order> Approve(int id)
     {
-        if (_store.SetOrderStatus(id, OrderStatus.Preparing, User.Identity?.Name, "تأیید رسید") is not { } o)
-            return NotFound();
+        if (_store.GetOrder(id) is null) return NotFound();
+        // Only while the order still waits for its payment decision — one made in the receipt bot stands.
+        var approval = _store.ApproveOrderPayment(id, User.Identity?.Name);
+        if (approval.Order is not { } o) return Conflict(approval.Error);
+        if (approval.SettledPayment is { } payment) _ = _receiptBot.ShowTransactionDecisionAsync(payment);
         // Pool first, announce second: an account the pool just delivered must never reach the group with
         // approve/reject buttons on it.
         _stock.AutoDeliverOrder(o);
@@ -526,8 +529,12 @@ public class OrdersController : ControllerBase
     {
         var reason = string.IsNullOrWhiteSpace(input?.Reason) ? "رد رسید توسط بخش مالی" : input!.Reason!.Trim();
         var before = _store.GetOrder(id);
-        var result = _store.CancelOrder(id, User.Identity?.Name, reason);
-        if (result.Error is not null) return BadRequest(result.Error);
+        if (before is null) return NotFound();
+        // Rejecting a receipt is only for one still waiting: a payment already approved (here or in the receipt
+        // bot) is not undone from this page. No cancellation penalty — this is our decision, not the customer's.
+        var result = _store.CancelOrder(id, User.Identity?.Name, reason, applyPenalty: false, onlyIfAwaitingPayment: true);
+        if (result.Error is not null) return Conflict(result.Error);
+        if (result.SettledPayment is { } payment) _ = _receiptBot.ShowTransactionDecisionAsync(payment);
         TellCustomerCancelled(before, result.Order!, reason);
         return RevealInputs(result.Order!);
     }
@@ -556,8 +563,13 @@ public class OrdersController : ControllerBase
     [HttpPost("{id:int}/units/{unitId:int}/deliver")]
     public async Task<ActionResult<Order>> DeliverUnit(int id, int unitId, DeliverUnitInput input)
     {
+        // Rejected — here or in the orders group — means refunded; it is never delivered as well. (Re-sending an
+        // already delivered account stays allowed: that is how a wrong delivery gets corrected.)
+        if (_store.GetOrder(id)?.Units.FirstOrDefault(u => u.Id == unitId) is { Rejected: true } rejected)
+            return Conflict(DecisionVia.AlreadyDecided("اکانت", "رد", DecisionVia.DescribeUnit(rejected.HandledBy)));
         var (order, justCompleted) = _store.DeliverUnit(id, unitId, (input.Content ?? "").Trim(), User.Identity?.Name);
         if (order is null) return NotFound();
+        _ = _orderBot.ShowUnitDecisionAsync(order, unitId);
         // if this unit's content was pulled from the stock pool, the reserved item/slots are now spent.
         _store.MarkStockItemDelivered(id, unitId);
         _store.MarkStockSlotsDelivered(id, unitId);
@@ -637,8 +649,9 @@ public class OrdersController : ControllerBase
             ? "عدم امکان ارائه سرویس"
             : input!.Reason!.Trim();
         var (order, refunded, error) = _store.RejectUnit(id, unitId, reason, User.Identity?.Name);
-        if (error is not null) return BadRequest(error);
+        if (error is not null) return Conflict(error);
         _ = _mailer.OrderUnitRejectedAsync(order!, unitId, reason, refunded);
+        _ = _orderBot.ShowUnitDecisionAsync(order!, unitId);
         return RevealInputs(order!);
     }
 
@@ -676,8 +689,14 @@ public class OrdersController : ControllerBase
             ? (this.IsStaff() ? "لغو توسط پشتیبانی" : "لغو توسط کاربر")
             : input!.Reason;
         var before = order;
-        var result = _store.CancelOrder(id, User.Identity?.Name, reason);
+        // A customer may only cancel while the payment is still undecided — checked again inside the write, so a
+        // receipt approved in Telegram a moment ago can't be cancelled out from under the delivery. Staff
+        // cancelling is our decision: no penalty for the customer.
+        var staff = this.IsStaff();
+        var result = _store.CancelOrder(id, User.Identity?.Name, reason, applyPenalty: !staff, onlyIfAwaitingPayment: !staff);
         if (result.Error is not null) return BadRequest(result.Error);
+        // Its receipt, if it was still waiting in the receipts group, now shows the cancellation there.
+        if (result.SettledPayment is { } payment) _ = _receiptBot.ShowTransactionDecisionAsync(payment);
         // A customer who cancelled their own order already knows why; staff cancelling it owes them the reason.
         if (this.IsStaff()) TellCustomerCancelled(before, result.Order!, reason!);
         return result.Order!;

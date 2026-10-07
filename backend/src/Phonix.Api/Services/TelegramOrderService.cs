@@ -47,6 +47,10 @@ public interface ITelegramOrderService
     // Sends a test message with the saved settings and returns Telegram's own error on failure — the real
     // sends are fire-and-forget and only log, so this is the one place a misconfiguration is visible.
     Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default);
+
+    // An account delivered or rejected on the site: rewrites its orders-group message (when it has one) to the
+    // outcome — «از طریق سایت», buttons gone — so nobody in the group acts on it again. Never throws.
+    Task ShowUnitDecisionAsync(Order order, int unitId, CancellationToken ct = default);
 }
 
 public sealed class TelegramOrderService : ITelegramOrderService
@@ -139,7 +143,7 @@ public sealed class TelegramOrderService : ITelegramOrderService
                         } },
                     });
                 }
-                await SendMessageAsync(token, chatId, caption, markup, ct);
+                RememberMessage(order.Id, unit.Id, chatId, await SendMessageAsync(token, chatId, caption, markup, ct));
             }
         }
         catch (Exception ex)
@@ -190,7 +194,7 @@ public sealed class TelegramOrderService : ITelegramOrderService
                     new { text = button, callback_data = $"{DecidedPrefix}{order.Id}:{unit.Id}" },
                 } },
             });
-            await SendMessageAsync(token, chatId, $"{BuildUnitCaption(order, unit)}\n\n{status}", markup, ct);
+            RememberMessage(order.Id, unit.Id, chatId, await SendMessageAsync(token, chatId, $"{BuildUnitCaption(order, unit)}\n\n{status}", markup, ct));
         }
         catch (Exception ex)
         {
@@ -382,6 +386,32 @@ public sealed class TelegramOrderService : ITelegramOrderService
 
     // ── Decisions ─────────────────────────────────────────────────────────────────────────────────────────
 
+    private void RememberMessage(int orderId, int unitId, string chatId, int? messageId)
+    {
+        if (messageId is int sent && long.TryParse(chatId, out var chat))
+            _store.SetUnitTelegramMessage(orderId, unitId, chat, sent);
+    }
+
+    public async Task ShowUnitDecisionAsync(Order order, int unitId, CancellationToken ct = default)
+    {
+        try
+        {
+            if (order.Units.FirstOrDefault(u => u.Id == unitId) is not { } unit) return;
+            if (unit.TelegramChatId is not long chat || unit.TelegramMessageId is not int message) return;
+            if (ActiveConfig() is not { } cfg) return;
+            if (!unit.Delivered && !unit.Rejected) return;
+            await EditDecidedAsync(cfg.token, chat, message, order, unit, unit.Delivered ? "✅ تحویل شد" : "❌ رد شد", ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram order message update failed for order {Code} unit {Unit}", order.Code, unitId);
+        }
+    }
+
+    // «این اکانت قبلاً از طریق سایت (reza) تحویل شده است.»
+    private static string AlreadyDecided(OrderUnit unit) =>
+        DecisionVia.AlreadyDecided("اکانت", unit.Delivered ? "تحویل" : "رد", DecisionVia.DescribeUnit(unit.HandledBy));
+
     private async Task HandleCallbackAsync(string token, JsonElement cq, CancellationToken ct)
     {
         var callbackId = cq.TryGetProperty("id", out var cid) ? cid.GetString() ?? "" : "";
@@ -425,11 +455,12 @@ public sealed class TelegramOrderService : ITelegramOrderService
             await AnswerCallbackAsync(token, callbackId, "این سفارش قبلاً لغو شده است.", ct);
             return;
         }
-        if (unit.Delivered)
+        // Settled already — here, on the site, or automatically. That stands; say where it happened.
+        if (unit.Delivered || unit.Rejected)
         {
-            await AnswerCallbackAsync(token, callbackId, "این اکانت قبلاً تحویل شده است.", ct);
+            await AnswerCallbackAsync(token, callbackId, AlreadyDecided(unit), ct);
             if (chatId is not null && messageId is not null)
-                await EditDecidedAsync(token, chatId.Value, messageId.Value, order, unit, "✅ تحویل شد", ct);
+                await EditDecidedAsync(token, chatId.Value, messageId.Value, order, unit, unit.Delivered ? "✅ تحویل شد" : "❌ رد شد", ct);
             return;
         }
 
@@ -542,9 +573,9 @@ public sealed class TelegramOrderService : ITelegramOrderService
         var order = _store.GetOrder(orderId);
         var unit = order?.Units.FirstOrDefault(u => u.Id == unitId);
         if (order is null || unit is null) return;
-        if (unit.Delivered)
+        if (unit.Delivered || unit.Rejected)
         {
-            await SendMessageAsync(token, chatId.Value.ToString(), "این اکانت قبلاً تحویل شده است.", "", ct);
+            await SendMessageAsync(token, chatId.Value.ToString(), AlreadyDecided(unit), "", ct);
             return;
         }
 
@@ -610,7 +641,8 @@ public sealed class TelegramOrderService : ITelegramOrderService
 
     // ── Low-level Telegram calls ──────────────────────────────────────────────────────────────────────────
 
-    private async Task SendMessageAsync(string token, string chatId, string text, string markup, CancellationToken ct)
+    // Returns the sent message's id, so a message that asks for a decision can be rewritten once it is decided.
+    private async Task<int?> SendMessageAsync(string token, string chatId, string text, string markup, CancellationToken ct)
     {
         var fields = new Dictionary<string, string>
         {
@@ -620,7 +652,27 @@ public sealed class TelegramOrderService : ITelegramOrderService
             ["disable_web_page_preview"] = "true",
         };
         if (!string.IsNullOrEmpty(markup)) fields["reply_markup"] = markup; // Telegram rejects an empty reply_markup
-        await PostFormAsync(token, "sendMessage", fields, ct);
+        try
+        {
+            using var http = _httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(20);
+            using var form = new FormUrlEncodedContent(fields);
+            using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/sendMessage", form, ct);
+            var body = await resp.Content.ReadAsStringAsync(ct);
+            if (!resp.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Telegram sendMessage failed: {Status}", (int)resp.StatusCode);
+                return null;
+            }
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("result", out var r) && r.TryGetProperty("message_id", out var m)
+                   && m.TryGetInt32(out var id) ? id : null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram sendMessage call failed");
+            return null;
+        }
     }
 
     private async Task AnswerCallbackAsync(string token, string callbackId, string text, CancellationToken ct)
@@ -635,7 +687,8 @@ public sealed class TelegramOrderService : ITelegramOrderService
     private async Task EditDecidedAsync(string token, long chatId, int messageId, Order order, OrderUnit unit,
         string outcome, CancellationToken ct)
     {
-        var text = $"{BuildUnitCaption(order, unit)}\n\n<b>وضعیت: {outcome} (از طریق تلگرام)</b>";
+        var via = DecisionVia.DescribeUnit(unit.HandledBy);
+        var text = $"{BuildUnitCaption(order, unit)}\n\n<b>وضعیت: {outcome}{(via.Length > 0 ? " — " + Esc(via) : "")}</b>";
         if (unit.Delivered && !string.IsNullOrWhiteSpace(unit.DeliveryContent))
             text += $"\n<b>📦 تحویل‌شده:</b> {Esc(unit.DeliveryContent)}";
         var markup = JsonSerializer.Serialize(new

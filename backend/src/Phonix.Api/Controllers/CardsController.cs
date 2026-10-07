@@ -103,13 +103,17 @@ public class CardsController : ControllerBase
     [HttpPost("{id:int}/reject")]
     public ActionResult<BankCard> Reject(int id, CardActionInput? input) => Decide(id, BankCardStatus.Rejected, input?.Note);
 
-    // Applies the decision and tells the owner. Only a real Pending → decided transition mails, so re-running
-    // a decision on an already-decided card stays silent.
+    // Applies the decision and tells the owner. Only a Pending card can be decided, here or in the receipt bot —
+    // whichever comes first; one already decided is refused with where it was decided.
     private ActionResult<BankCard> Decide(int id, BankCardStatus status, string? note)
     {
-        var wasPending = _store.GetCard(id)?.Status == BankCardStatus.Pending;
-        if (_store.SetCardStatus(id, status, note) is not { } card) return NotFound();
-        if (wasPending) _ = _mailer.CardDecidedAsync(card);
+        var decision = _store.DecideCard(id, status, note, DecisionVia.Site, User.Identity?.Name);
+        if (decision.Item is not { } card) return NotFound();
+        if (!decision.Applied)
+            return Conflict(DecisionVia.AlreadyDecided("کارت بانکی", DecisionVia.Outcome(card.Status),
+                DecisionVia.Describe(card.DecidedVia, card.DecidedBy)));
+        _ = _mailer.CardDecidedAsync(card);
+        _ = _bot.ShowCardDecisionAsync(card);
         return card;
     }
 }

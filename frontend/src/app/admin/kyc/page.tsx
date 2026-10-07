@@ -42,11 +42,23 @@ export default function AdminKycPage() {
   );
   const shown = filter === "all" ? items : items.filter((k) => k.status === filter);
 
+  const [actionError, setActionError] = useState("");
+
+  // Refused decisions are shown, and the list reloaded, so a request decided in the Telegram bot meanwhile
+  // reads as decided here too.
+  async function refused(e: unknown) {
+    setActionError(e instanceof Error ? e.message : "اعمال تغییر ناموفق بود.");
+    setItems(await api.kyc.list().catch(() => items));
+  }
+
   async function approve(k: KycRequest) {
     setBusy(k.id);
+    setActionError("");
     try {
       const updated = await api.kyc.approve(k.id);
       setItems((p) => p.map((x) => (x.id === k.id ? updated : x)));
+    } catch (e) {
+      await refused(e);
     } finally {
       setBusy(null);
     }
@@ -54,9 +66,12 @@ export default function AdminKycPage() {
   async function reject(k: KycRequest) {
     const note = prompt("دلیل رد (اختیاری):") ?? "";
     setBusy(k.id);
+    setActionError("");
     try {
       const updated = await api.kyc.reject(k.id, note);
       setItems((p) => p.map((x) => (x.id === k.id ? updated : x)));
+    } catch (e) {
+      await refused(e);
     } finally {
       setBusy(null);
     }
@@ -72,6 +87,9 @@ export default function AdminKycPage() {
   return (
     <div>
       <PageHeader title="احراز هویت" desc="بررسی و تأیید مدارک هویتی کاربران" />
+      {/* A decision the server refused — usually because it was already made in the Telegram bot (or by another
+          admin); the message says where, and the list has been reloaded to show it. */}
+      {actionError && <Card className="mb-4 p-4 text-center text-sm text-amber-300">{actionError}</Card>}
 
       <div className="mb-5 flex flex-wrap gap-2">
         {filters.map((f) => (

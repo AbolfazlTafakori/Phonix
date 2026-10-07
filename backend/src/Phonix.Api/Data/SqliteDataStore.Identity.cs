@@ -59,24 +59,45 @@ public sealed partial class SqliteDataStore
             var cj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Cards WHERE Id=@id", new { id }, tx);
             if (cj is null) return null;
             var card = Deserialize<BankCard>(cj)!;
-            card.Status = status; card.Note = note;
-            card.RejectionReason = status == BankCardStatus.Rejected ? note : null;
-            if (status == BankCardStatus.Approved)
-            {
-                var owner = LoadUser(conn, tx, card.UserId);
-                if (owner is not null && owner.VerificationLevel < 1)
-                {
-                    owner.VerificationLevel = 1;
-                    UpsertUser(conn, tx, owner);
-                    AddNotificationTx(conn, tx, owner.Id, "احراز هویت سطح ۱ تأیید شد",
-                        "تبریک! احراز هویت سطح یک شما با موفقیت انجام شد و کارت بانکی شما تأیید گردید. اکنون می‌توانید خرید کنید.", "/account/kyc");
-                }
-            }
-            var json = Serialize(card);
-            conn.Execute("UPDATE Cards SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)card.Status, d = json, id }, tx);
-            AppendOutbox(conn, tx, "Cards", id, SyncOp.Upsert, json);
+            ApplyCardStatus(conn, tx, card, status, note);
             return card;
         });
+
+    // A staff decision (panel or receipt bot): only a Pending card, checked in the same write — see DecideTransaction.
+    public Decision<BankCard> DecideCard(int id, BankCardStatus status, string? note, string via, string? by) =>
+        WriteTx((conn, tx) =>
+        {
+            var cj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Cards WHERE Id=@id", new { id }, tx);
+            if (cj is null) return new Decision<BankCard>(null, false);
+            var card = Deserialize<BankCard>(cj)!;
+            if (card.Status != BankCardStatus.Pending) return new Decision<BankCard>(card, false);
+            card.DecidedVia = via;
+            card.DecidedBy = string.IsNullOrWhiteSpace(by) ? null : by.Trim();
+            card.DecidedAtUtc = DateTime.UtcNow;
+            ApplyCardStatus(conn, tx, card, status, note);
+            return new Decision<BankCard>(card, true);
+        });
+
+    private void ApplyCardStatus(SqliteConnection conn, SqliteTransaction tx, BankCard card, BankCardStatus status, string? note)
+    {
+        var id = card.Id;
+        card.Status = status; card.Note = note;
+        card.RejectionReason = status == BankCardStatus.Rejected ? note : null;
+        if (status == BankCardStatus.Approved)
+        {
+            var owner = LoadUser(conn, tx, card.UserId);
+            if (owner is not null && owner.VerificationLevel < 1)
+            {
+                owner.VerificationLevel = 1;
+                UpsertUser(conn, tx, owner);
+                AddNotificationTx(conn, tx, owner.Id, "احراز هویت سطح ۱ تأیید شد",
+                    "تبریک! احراز هویت سطح یک شما با موفقیت انجام شد و کارت بانکی شما تأیید گردید. اکنون می‌توانید خرید کنید.", "/account/kyc");
+            }
+        }
+        var json = Serialize(card);
+        conn.Execute("UPDATE Cards SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)card.Status, d = json, id }, tx);
+        AppendOutbox(conn, tx, "Cards", id, SyncOp.Upsert, json);
+    }
 
     public bool DeleteCard(int id) => DeleteRow("Cards", id);
 
@@ -140,16 +161,37 @@ public sealed partial class SqliteDataStore
             var kj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Kyc WHERE Id=@id", new { id }, tx);
             if (kj is null) return null;
             var req = Deserialize<KycRequest>(kj)!;
-            req.Status = status; req.Note = note;
-            req.RejectionReason = status == KycStatus.Rejected ? note : null;
-            if (status == KycStatus.Approved)
-            {
-                var user = LoadUser(conn, tx, req.UserId);
-                if (user is not null) { user.VerificationLevel = 2; user.Verified = true; UpsertUser(conn, tx, user); }
-            }
-            var json = Serialize(req);
-            conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = json, id }, tx);
-            AppendOutbox(conn, tx, "Kyc", id, SyncOp.Upsert, json);
+            ApplyKycStatus(conn, tx, req, status, note);
             return req;
         });
+
+    // A staff decision (panel or receipt bot): only a Pending request, checked in the same write — see DecideTransaction.
+    public Decision<KycRequest> DecideKyc(int id, KycStatus status, string? note, string via, string? by) =>
+        WriteTx((conn, tx) =>
+        {
+            var kj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Kyc WHERE Id=@id", new { id }, tx);
+            if (kj is null) return new Decision<KycRequest>(null, false);
+            var req = Deserialize<KycRequest>(kj)!;
+            if (req.Status != KycStatus.Pending) return new Decision<KycRequest>(req, false);
+            req.DecidedVia = via;
+            req.DecidedBy = string.IsNullOrWhiteSpace(by) ? null : by.Trim();
+            req.DecidedAtUtc = DateTime.UtcNow;
+            ApplyKycStatus(conn, tx, req, status, note);
+            return new Decision<KycRequest>(req, true);
+        });
+
+    private void ApplyKycStatus(SqliteConnection conn, SqliteTransaction tx, KycRequest req, KycStatus status, string? note)
+    {
+        var id = req.Id;
+        req.Status = status; req.Note = note;
+        req.RejectionReason = status == KycStatus.Rejected ? note : null;
+        if (status == KycStatus.Approved)
+        {
+            var user = LoadUser(conn, tx, req.UserId);
+            if (user is not null) { user.VerificationLevel = 2; user.Verified = true; UpsertUser(conn, tx, user); }
+        }
+        var json = Serialize(req);
+        conn.Execute("UPDATE Kyc SET DataJson=@d WHERE Id=@id", new { d = json, id }, tx);
+        AppendOutbox(conn, tx, "Kyc", id, SyncOp.Upsert, json);
+    }
 }

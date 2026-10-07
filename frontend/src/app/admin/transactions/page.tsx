@@ -23,6 +23,7 @@ export default function AdminTransactionsPage() {
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [busy, setBusy] = useState<number | null>(null);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -50,9 +51,13 @@ export default function AdminTransactionsPage() {
 
   async function act(t: Transaction, kind: "approve" | "reject") {
     setBusy(t.id);
+    setActionError("");
     try {
       const updated = kind === "approve" ? await api.transactions.approve(t.id) : await api.transactions.reject(t.id);
       setItems((p) => p.map((x) => (x.id === t.id ? updated : x)));
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : "اعمال تغییر ناموفق بود.");
+      setItems(await api.transactions.list().catch(() => items));
     } finally {
       setBusy(null);
     }
@@ -133,6 +138,9 @@ export default function AdminTransactionsPage() {
   return (
     <div>
       <PageHeader title="تراکنش‌ها" desc="تأیید یا رد تراکنش‌ها — به‌صورت دستی از سایت یا تلگرام" />
+      {/* A decision the server refused — usually because it was already made in the Telegram bot (or by another
+          admin); the message says where, and the list has been reloaded to show it. */}
+      {actionError && <Card className="mb-4 p-4 text-center text-sm text-amber-300">{actionError}</Card>}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Card className="p-5">

@@ -35,15 +35,18 @@ public sealed partial class TelegramReceiptService
             var (token, chatId) = cfg;
             var markup = DecisionMarkup(CardApprovePrefix, CardRejectPrefix, card.Id);
             var photo = OpenProtected("cards", card.CardImage);
+            int? messageId;
             if (photo is not null)
             {
                 await using (photo.Content)
-                    await SendPhotoAsync(token, chatId, photo, BuildCardCaption(card), markup, ct);
+                    messageId = await SendPhotoAsync(token, chatId, photo, BuildCardCaption(card), markup, ct);
             }
             else
             {
-                await SendMessageAsync(token, chatId, BuildCardCaption(card), markup, ct);
+                messageId = await SendMessageAsync(token, chatId, BuildCardCaption(card), markup, ct);
             }
+            if (messageId is int sent && long.TryParse(chatId, out var chat))
+                _store.SetCardTelegramMessage(card.Id, chat, sent);
         }
         catch (Exception ex)
         {
@@ -71,7 +74,9 @@ public sealed partial class TelegramReceiptService
             {
                 foreach (var p in photos) await p.File.Content.DisposeAsync();
             }
-            await SendMessageAsync(token, chatId, BuildKycCaption(kyc), DecisionMarkup(KycApprovePrefix, KycRejectPrefix, kyc.Id), ct, albumId);
+            var messageId = await SendMessageAsync(token, chatId, BuildKycCaption(kyc), DecisionMarkup(KycApprovePrefix, KycRejectPrefix, kyc.Id), ct, albumId);
+            if (messageId is int sent && long.TryParse(chatId, out var chat))
+                _store.SetKycTelegramMessage(kyc.Id, chat, sent);
         }
         catch (Exception ex)
         {
@@ -97,10 +102,54 @@ public sealed partial class TelegramReceiptService
 
     private KycRequest? FindKyc(int id) => _store.GetAllKyc().FirstOrDefault(k => k.Id == id);
 
+    private static string AlreadyDecided(BankCard card) =>
+        DecisionVia.AlreadyDecided("کارت بانکی", DecisionVia.Outcome(card.Status), DecisionVia.Describe(card.DecidedVia, card.DecidedBy));
+
+    private static string AlreadyDecided(KycRequest kyc) =>
+        DecisionVia.AlreadyDecided("درخواست احراز هویت", DecisionVia.Outcome(kyc.Status), DecisionVia.Describe(kyc.DecidedVia, kyc.DecidedBy));
+
+    // Why this request can't be decided here any more, or null while it is still waiting for a decision.
+    private string? AlreadyDecidedOrMissing(VerificationKind kind, int id)
+    {
+        if (kind == VerificationKind.Card)
+            return _store.GetCard(id) is not { } card ? "این درخواست یافت نشد."
+                : card.Status == BankCardStatus.Pending ? null : AlreadyDecided(card);
+        return FindKyc(id) is not { } kyc ? "این درخواست یافت نشد."
+            : kyc.Status == KycStatus.Pending ? null : AlreadyDecided(kyc);
+    }
+
+    public async Task ShowCardDecisionAsync(BankCard card, CancellationToken ct = default)
+    {
+        try
+        {
+            if (card.TelegramChatId is not long chat || card.TelegramMessageId is not int message) return;
+            if (ActiveConfig() is not { } cfg) return;
+            await EditVerificationDecidedAsync(cfg.token, chat, message, VerificationKind.Card, card.Id, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram card message update failed for card #{CardId}", card.Id);
+        }
+    }
+
+    public async Task ShowKycDecisionAsync(KycRequest kyc, CancellationToken ct = default)
+    {
+        try
+        {
+            if (kyc.TelegramChatId is not long chat || kyc.TelegramMessageId is not int message) return;
+            if (ActiveConfig() is not { } cfg) return;
+            await EditVerificationDecidedAsync(cfg.token, chat, message, VerificationKind.Kyc, kyc.Id, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram KYC message update failed for request #{KycId}", kyc.Id);
+        }
+    }
+
     // Handles a tap on a card or KYC message. Returns false when the callback isn't one of ours, so the receipt
     // handling can take it. Called only after the chat has been authorized.
     private async Task<bool> TryHandleVerificationCallbackAsync(string token, string callbackId, string data,
-        long? chatId, int? messageId, CancellationToken ct)
+        long? chatId, int? messageId, string? by, CancellationToken ct)
     {
         if (data.StartsWith(VerificationDonePrefix, StringComparison.Ordinal))
         {
@@ -110,27 +159,10 @@ public sealed partial class TelegramReceiptService
         if (ParseVerificationCallback(data) is not { } parsed) return false;
         var (kind, approve, id) = parsed;
 
-        bool exists, pending;
-        if (kind == VerificationKind.Card)
+        // Decided already — here or on the site. That decision stands; say where it was made.
+        if (AlreadyDecidedOrMissing(kind, id) is { } done)
         {
-            var card = _store.GetCard(id);
-            exists = card is not null;
-            pending = card?.Status == BankCardStatus.Pending;
-        }
-        else
-        {
-            var kyc = FindKyc(id);
-            exists = kyc is not null;
-            pending = kyc?.Status == KycStatus.Pending;
-        }
-        if (!exists)
-        {
-            await AnswerCallbackAsync(token, callbackId, "این درخواست یافت نشد.", ct);
-            return true;
-        }
-        if (!pending)
-        {
-            await AnswerCallbackAsync(token, callbackId, "این درخواست قبلاً بررسی شده است.", ct);
+            await AnswerCallbackAsync(token, callbackId, done, ct);
             if (chatId is not null && messageId is not null)
                 await EditVerificationDecidedAsync(token, chatId.Value, messageId.Value, kind, id, ct);
             return true;
@@ -144,9 +176,11 @@ public sealed partial class TelegramReceiptService
             return true;
         }
 
-        if (!Decide(kind, id, approve: true, reason: null))
+        if (Decide(kind, id, approve: true, reason: null, by) is { } refused)
         {
-            await AnswerCallbackAsync(token, callbackId, "اعمال تغییر ناموفق بود.", ct);
+            await AnswerCallbackAsync(token, callbackId, refused, ct);
+            if (chatId is not null && messageId is not null)
+                await EditVerificationDecidedAsync(token, chatId.Value, messageId.Value, kind, id, ct);
             return true;
         }
         _logger.LogInformation("Telegram verification decision: {Kind} #{Id} → Approved", kind, id);
@@ -156,20 +190,23 @@ public sealed partial class TelegramReceiptService
         return true;
     }
 
-    // The same transition and email the panel's Decide performs.
-    private bool Decide(VerificationKind kind, int id, bool approve, string? reason)
+    // The same transition and email the panel's Decide performs, through the store's Pending-only decision.
+    // Null when it was applied; otherwise why not (gone, or decided a moment ago — possibly on the site).
+    private string? Decide(VerificationKind kind, int id, bool approve, string? reason, string? by)
     {
         if (kind == VerificationKind.Card)
         {
-            var card = _store.SetCardStatus(id, approve ? BankCardStatus.Approved : BankCardStatus.Rejected, reason);
-            if (card is null) return false;
-            _ = _mailer.CardDecidedAsync(card);
-            return true;
+            var card = _store.DecideCard(id, approve ? BankCardStatus.Approved : BankCardStatus.Rejected, reason, DecisionVia.Telegram, by);
+            if (card.Item is null) return "این درخواست یافت نشد.";
+            if (!card.Applied) return AlreadyDecided(card.Item);
+            _ = _mailer.CardDecidedAsync(card.Item);
+            return null;
         }
-        var kyc = _store.SetKycStatus(id, approve ? KycStatus.Approved : KycStatus.Rejected, reason);
-        if (kyc is null) return false;
-        _ = _mailer.KycDecidedAsync(kyc);
-        return true;
+        var kyc = _store.DecideKyc(id, approve ? KycStatus.Approved : KycStatus.Rejected, reason, DecisionVia.Telegram, by);
+        if (kyc.Item is null) return "این درخواست یافت نشد.";
+        if (!kyc.Applied) return AlreadyDecided(kyc.Item);
+        _ = _mailer.KycDecidedAsync(kyc.Item);
+        return null;
     }
 
     // «#CARD-REJ:<id>:<messageId>» / «#KYC-REJ:<id>:<messageId>» in the reason prompt ties the admin's reply back
@@ -201,20 +238,13 @@ public sealed partial class TelegramReceiptService
 
     // The admin's typed reason, already authorized and non-empty (see HandleReasonReplyAsync).
     private async Task RejectVerificationAsync(string token, long chatId, (VerificationKind Kind, int Id, int MessageId) target,
-        string reason, CancellationToken ct)
+        string reason, string? by, CancellationToken ct)
     {
         var (kind, id, messageId) = target;
-        var pending = kind == VerificationKind.Card
-            ? _store.GetCard(id)?.Status == BankCardStatus.Pending
-            : FindKyc(id)?.Status == KycStatus.Pending;
-        if (!pending)
+        if (Decide(kind, id, approve: false, reason, by) is { } refused)
         {
-            await SendMessageAsync(token, chatId.ToString(), "این درخواست قبلاً بررسی شده است.", "", ct);
-            return;
-        }
-        if (!Decide(kind, id, approve: false, reason))
-        {
-            await SendMessageAsync(token, chatId.ToString(), "اعمال رد ناموفق بود.", "", ct);
+            await SendMessageAsync(token, chatId.ToString(), refused, "", ct);
+            if (messageId > 0) await EditVerificationDecidedAsync(token, chatId, messageId, kind, id, ct);
             return;
         }
         _logger.LogInformation("Telegram verification decision: {Kind} #{Id} → Rejected", kind, id);
@@ -227,20 +257,22 @@ public sealed partial class TelegramReceiptService
     // card whose picture couldn't be read, went out as text — so the caption edit falls back to a text edit.
     private async Task EditVerificationDecidedAsync(string token, long chatId, int messageId, VerificationKind kind, int id, CancellationToken ct)
     {
-        string body; bool approved; string? reason;
+        string body; bool approved; string? reason; string via;
         if (kind == VerificationKind.Card)
         {
             if (_store.GetCard(id) is not { } card) return;
             body = BuildCardCaption(card); approved = card.Status == BankCardStatus.Approved; reason = card.RejectionReason;
+            via = DecisionVia.Describe(card.DecidedVia, card.DecidedBy);
         }
         else
         {
             if (FindKyc(id) is not { } kyc) return;
             body = BuildKycCaption(kyc); approved = kyc.Status == KycStatus.Approved; reason = kyc.RejectionReason;
+            via = DecisionVia.Describe(kyc.DecidedVia, kyc.DecidedBy);
         }
         var outcome = approved ? "✅ تأیید شد" : "❌ رد شد";
         var reasonLine = !approved && !string.IsNullOrWhiteSpace(reason) ? $"\n<b>📝 دلیل رد:</b> {Esc(reason!)}" : "";
-        var text = $"{body}\n\n<b>وضعیت: {outcome} (از طریق تلگرام)</b>{reasonLine}";
+        var text = $"{body}\n\n<b>وضعیت: {outcome}{(via.Length > 0 ? " — " + Esc(via) : "")}</b>{reasonLine}";
         var markup = JsonSerializer.Serialize(new
         {
             inline_keyboard = new[] { new object[] { new { text = outcome, callback_data = VerificationDonePrefix + id } } },

@@ -86,6 +86,9 @@ public class OrderUnit
     // self-provisioning account is announced when its service actually exists, which is after the rest of the
     // order was announced, so each account needs its own claim to be posted exactly once.
     public DateTime? BotNotifiedAtUtc { get; set; }
+    // The orders-group message for this account, so a delivery or rejection made on the site can rewrite it.
+    public long? TelegramChatId { get; set; }
+    public int? TelegramMessageId { get; set; }
 
     // ── V2Ray provisioning ──────────────────────────────────────────────────────────────────────────────
     // Set when this unit was served by creating an account on a V2Ray panel instead of pulling one from the

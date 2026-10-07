@@ -45,7 +45,9 @@ export default function OrderReceiptsPage() {
       drop(o.id);
     } catch (e) {
       // Swallowing this left the row in place with no explanation, which read as "the button does nothing".
+      // Usually it was decided in the receipt bot meanwhile — the message says so, and the row leaves the queue.
       setActionError(`تأیید سفارش ${o.code} ناموفق بود: ${e instanceof Error ? e.message : "خطای نامشخص"}`);
+      drop(o.id);
     } finally {
       setBusy(null);
     }
@@ -54,11 +56,16 @@ export default function OrderReceiptsPage() {
   async function doReject() {
     if (!rejecting) return;
     setBusy(rejecting.id);
+    setActionError("");
     try {
       await api.orders.reject(rejecting.id, reason.trim() || undefined);
       drop(rejecting.id);
       setRejecting(null);
       setReason("");
+    } catch (e) {
+      setActionError(`رد رسید سفارش ${rejecting.code} ناموفق بود: ${e instanceof Error ? e.message : "خطای نامشخص"}`);
+      drop(rejecting.id);
+      setRejecting(null);
     } finally {
       setBusy(null);
     }

@@ -25,5 +25,14 @@ public class BankCard
     // Explicit reason shown to the user when their card is rejected. Set on reject, cleared on approve.
     // Mirrors Note for backward compatibility.
     public string? RejectionReason { get; set; }
+    // "site" or "telegram" — where staff decided it.
+    public string? DecidedVia { get; set; }
+    // Who decided it (a staff username, or the Telegram name of whoever tapped) and when. With the channel this is
+    // what the other side shows once it is decided: a panel and a bot must never both act on one request.
+    public string? DecidedBy { get; set; }
+    public DateTime? DecidedAtUtc { get; set; }
+    // The bot message that put this up for review, so a decision made on the site can rewrite it at once.
+    public long? TelegramChatId { get; set; }
+    public int? TelegramMessageId { get; set; }
     public string Date { get; set; } = "";
 }

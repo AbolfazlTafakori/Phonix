@@ -1,3 +1,6 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Phonix.Api.Controllers;
 using Phonix.Api.Models;
@@ -21,15 +24,33 @@ public class TransactionEmailTests
         }
     }
 
+    // A staff decision records who made it, so the controller runs as a signed-in staff member.
+    private static TransactionsController AsStaff(TransactionsController controller)
+    {
+        controller.ControllerContext = new ControllerContext
+        {
+            HttpContext = new DefaultHttpContext
+            {
+                User = new ClaimsPrincipal(new ClaimsIdentity(new[]
+                {
+                    new Claim(ClaimTypes.NameIdentifier, "2"),
+                    new Claim(ClaimTypes.Role, "Admin"),
+                    new Claim(ClaimTypes.Name, "reza"),
+                }, "test")),
+            },
+        };
+        return controller;
+    }
+
     [Fact]
     public async Task Rejecting_a_deposit_emails_the_owner_the_reason_once()
     {
         var store = TestStore.Create();
         var sender = new CapturingSender();
         var mailer = new UserMailer(store, sender, NullLogger<UserMailer>.Instance);
-        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(),
+        var controller = AsStaff(new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(),
             new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance),
-            new V2RayFulfillmentService(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance), mailer);
+            new V2RayFulfillmentService(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance), mailer));
 
         var tx = store.AddTransaction(new Transaction
         {
@@ -44,9 +65,10 @@ public class TransactionEmailTests
         Assert.Contains("تأیید نشد", mail.subject);
         Assert.Contains("شماره پیگیری با رسید مطابقت ندارد.", mail.body);
 
-        // a repeated reject on an already-decided transaction must not mail again
-        controller.Reject(tx.Id, new TxActionInput("دوباره"));
+        // a repeated reject on an already-decided transaction is refused, and must not mail again
+        var again = controller.Reject(tx.Id, new TxActionInput("دوباره"));
         await Task.Delay(200);
+        Assert.IsType<ConflictObjectResult>(again.Result);
         Assert.Single(sender.Sent);
     }
 
@@ -56,9 +78,9 @@ public class TransactionEmailTests
         var store = TestStore.Create();
         var sender = new CapturingSender();
         var mailer = new UserMailer(store, sender, NullLogger<UserMailer>.Instance);
-        var controller = new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(),
+        var controller = AsStaff(new TransactionsController(store, null!, new NoopReceiptBot(), new NoopOrderBot(),
             new StockFulfillmentService(store, NullLogger<StockFulfillmentService>.Instance),
-            new V2RayFulfillmentService(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance), mailer);
+            new V2RayFulfillmentService(store, null!, null!, NullLogger<V2RayFulfillmentService>.Instance), mailer));
 
         var tx = store.AddTransaction(new Transaction
         {
@@ -113,6 +135,9 @@ public class TransactionEmailTests
         public Task NotifyCardAsync(BankCard card, CancellationToken ct = default) => Task.CompletedTask;
         public Task NotifyKycAsync(KycRequest kyc, CancellationToken ct = default) => Task.CompletedTask;
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
+        public Task ShowTransactionDecisionAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ShowCardDecisionAsync(BankCard card, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ShowKycDecisionAsync(KycRequest kyc, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
     }
 
@@ -122,6 +147,7 @@ public class TransactionEmailTests
         public Task NotifyUnitAsync(Order order, OrderUnit unit, CancellationToken ct = default) => Task.CompletedTask;
         public Task AnnounceApprovedOrderAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
+        public Task ShowUnitDecisionAsync(Order order, int unitId, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
     }
 }

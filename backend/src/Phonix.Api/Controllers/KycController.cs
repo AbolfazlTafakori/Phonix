@@ -115,13 +115,17 @@ public class KycController : ControllerBase
     [HttpPost("{id:int}/reject")]
     public ActionResult<KycRequest> Reject(int id, KycActionInput? input) => Decide(id, KycStatus.Rejected, input?.Note);
 
-    // Applies the decision and tells the owner. Only a real Pending → decided transition mails, so a repeated
-    // decision on an already-decided request stays silent.
+    // Applies the decision and tells the owner. Only a Pending request can be decided, here or in the receipt bot —
+    // whichever comes first; one already decided is refused with where it was decided.
     private ActionResult<KycRequest> Decide(int id, KycStatus status, string? note)
     {
-        var wasPending = _store.GetAllKyc(KycStatus.Pending).Any(k => k.Id == id);
-        if (_store.SetKycStatus(id, status, note) is not { } kyc) return NotFound();
-        if (wasPending) _ = _mailer.KycDecidedAsync(kyc);
+        var decision = _store.DecideKyc(id, status, note, DecisionVia.Site, User.Identity?.Name);
+        if (decision.Item is not { } kyc) return NotFound();
+        if (!decision.Applied)
+            return Conflict(DecisionVia.AlreadyDecided("درخواست احراز هویت", DecisionVia.Outcome(kyc.Status),
+                DecisionVia.Describe(kyc.DecidedVia, kyc.DecidedBy)));
+        _ = _mailer.KycDecidedAsync(kyc);
+        _ = _bot.ShowKycDecisionAsync(kyc);
         return kyc;
     }
 }

@@ -38,6 +38,7 @@ public class ReceiptSendTests
         public Task NotifyUnitAsync(Order order, OrderUnit unit, CancellationToken ct = default) => Task.CompletedTask;
         public Task AnnounceApprovedOrderAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
+        public Task ShowUnitDecisionAsync(Order order, int unitId, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
     }
 

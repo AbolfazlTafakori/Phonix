@@ -31,6 +31,9 @@ public class RejectionEmailTests
         public Task NotifyKycAsync(KycRequest kyc, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
+        public Task ShowTransactionDecisionAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ShowCardDecisionAsync(BankCard card, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ShowKycDecisionAsync(KycRequest kyc, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class NoopOrderBot : ITelegramOrderService
@@ -40,6 +43,7 @@ public class RejectionEmailTests
         public Task NotifyUnitAsync(Order order, OrderUnit unit, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
+        public Task ShowUnitDecisionAsync(Order order, int unitId, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private const string Reason = "رسید ارسالی ناخواناست و شماره پیگیری با واریزی ما مطابقت ندارد.\nلطفاً رسید واضح‌تری بفرستید یا با پشتیبانی تماس بگیرید.";

@@ -123,77 +123,99 @@ SELECT last_insert_rowid();",
         {
             var ej = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Transactions WHERE Id=@id", new { id }, tx);
             if (ej is null) return false;
-            var e = Deserialize<Transaction>(ej)!;
-            var becomingApproved = e.Status != TxStatus.Approved && status == TxStatus.Approved;
-            var becomingRejected = e.Status != TxStatus.Rejected && status == TxStatus.Rejected;
-
-            if (e.Type == TxTypes.WalletTopUp && e.Amount > 0 && e.UserId > 0)
-            {
-                var wasApproved = e.Status == TxStatus.Approved;
-                var willBeApproved = status == TxStatus.Approved;
-                if (wasApproved != willBeApproved)
-                {
-                    var owner = LoadUser(conn, tx, e.UserId);
-                    if (owner is not null) { owner.Wallet = Math.Max(0, owner.Wallet + (willBeApproved ? e.Amount : -e.Amount)); UpsertUser(conn, tx, owner); }
-                }
-            }
-
-            if (e.Type == TxTypes.Withdraw && e.Amount < 0 && e.UserId > 0)
-            {
-                var wasRefunded = e.Status == TxStatus.Rejected;
-                var willBeRefunded = status == TxStatus.Rejected;
-                if (wasRefunded != willBeRefunded)
-                {
-                    var owner = LoadUser(conn, tx, e.UserId);
-                    if (owner is not null) { owner.Wallet = Math.Max(0, owner.Wallet + (willBeRefunded ? -e.Amount : e.Amount)); UpsertUser(conn, tx, owner); }
-                }
-            }
-
-            if (e.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(e.OrderCode) && e.Status != TxStatus.Approved && status == TxStatus.Approved)
-            {
-                var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Code=@code", new { code = e.OrderCode }, tx);
-                if (oj is not null)
-                {
-                    var ord = Deserialize<Order>(oj)!;
-                    if (ord.Status == OrderStatus.PendingApproval)
-                    {
-                        ord.Status = OrderStatus.Preparing;
-                        AppendOrderHistory(ord, OrderStatus.PendingApproval, OrderStatus.Preparing, "سیستم (تأیید پرداخت)", "تأیید پرداخت سفارش");
-                        UpsertOrder(conn, tx, ord);
-                        RefreshUserStats(conn, tx, ord.UserId);
-                    }
-                }
-            }
-
-            // A rejected order payment cancels the still-pending order, so the site status mirrors the receipt
-            // decision. Routed through the same cancel logic the panel uses, which restores the stock and
-            // refunds ONLY what was actually collected — for a pending order that is the wallet portion. The
-            // rejected receipt's money never arrived, so it is never credited. No penalty: the customer didn't
-            // cancel, we rejected.
-            if (e.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(e.OrderCode) && e.Status != TxStatus.Rejected && status == TxStatus.Rejected)
-            {
-                var orderId = conn.QueryFirstOrDefault<int?>("SELECT Id FROM Orders WHERE Code=@code", new { code = e.OrderCode }, tx);
-                if (orderId is int oid)
-                    CancelOrderInTx(conn, tx, oid, "سیستم (رد پرداخت)",
-                        note is { Length: > 0 } ? note : "رد پرداخت سفارش", applyPenalty: false);
-            }
-
-            e.Status = status; e.ApprovedVia = via; if (note is not null) e.Note = note;
-            var json = Serialize(e);
-            conn.Execute("UPDATE Transactions SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)e.Status, d = json, id }, tx);
-            AppendOutbox(conn, tx, "Transactions", id, SyncOp.Upsert, json);
-
-            if (becomingApproved && e.UserId > 0)
-            {
-                if (e.Type == TxTypes.WalletTopUp)
-                    AddNotificationTx(conn, tx, e.UserId, "شارژ کیف پول", $"کیف پول شما به مبلغ {e.Amount:N0} تومان شارژ شد.", "/account/wallet");
-                else if (e.Type == TxTypes.OrderPayment)
-                    AddNotificationTx(conn, tx, e.UserId, "پرداخت تأیید شد", "پرداخت سفارش شما تأیید و سفارش در حال آماده‌سازی است.", "/account/orders");
-            }
-
-            if (becomingRejected && e.UserId > 0 && e.Type == TxTypes.OrderPayment)
-                AddNotificationTx(conn, tx, e.UserId, "پرداخت رد شد",
-                    note is { Length: > 0 } ? $"پرداخت سفارش شما رد شد: {note}" : "پرداخت سفارش شما رد شد.", "/account/orders");
+            ApplyTransactionStatus(conn, tx, Deserialize<Transaction>(ej)!, status, via, note);
             return true;
         });
+
+    // A staff decision (panel or receipt bot). Only a Pending transaction can be decided, and the check happens in
+    // the same write as the decision — so when the panel and the bot act at the same moment, exactly one wins and
+    // the other is told it was already done.
+    public Decision<Transaction> DecideTransaction(int id, TxStatus status, string via, string? note, string? by) =>
+        WriteTx((conn, tx) =>
+        {
+            var ej = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Transactions WHERE Id=@id", new { id }, tx);
+            if (ej is null) return new Decision<Transaction>(null, false);
+            var e = Deserialize<Transaction>(ej)!;
+            if (e.Status != TxStatus.Pending) return new Decision<Transaction>(e, false);
+            e.DecidedBy = string.IsNullOrWhiteSpace(by) ? null : by.Trim();
+            e.DecidedAtUtc = DateTime.UtcNow;
+            ApplyTransactionStatus(conn, tx, e, status, via, note);
+            return new Decision<Transaction>(e, true);
+        });
+
+    // Every effect of a transaction changing status: wallet credit/refund, the order it pays for, notifications.
+    private void ApplyTransactionStatus(SqliteConnection conn, SqliteTransaction tx, Transaction e, TxStatus status, string via, string? note)
+    {
+        var id = e.Id;
+        var becomingApproved = e.Status != TxStatus.Approved && status == TxStatus.Approved;
+        var becomingRejected = e.Status != TxStatus.Rejected && status == TxStatus.Rejected;
+
+        if (e.Type == TxTypes.WalletTopUp && e.Amount > 0 && e.UserId > 0)
+        {
+            var wasApproved = e.Status == TxStatus.Approved;
+            var willBeApproved = status == TxStatus.Approved;
+            if (wasApproved != willBeApproved)
+            {
+                var owner = LoadUser(conn, tx, e.UserId);
+                if (owner is not null) { owner.Wallet = Math.Max(0, owner.Wallet + (willBeApproved ? e.Amount : -e.Amount)); UpsertUser(conn, tx, owner); }
+            }
+        }
+
+        if (e.Type == TxTypes.Withdraw && e.Amount < 0 && e.UserId > 0)
+        {
+            var wasRefunded = e.Status == TxStatus.Rejected;
+            var willBeRefunded = status == TxStatus.Rejected;
+            if (wasRefunded != willBeRefunded)
+            {
+                var owner = LoadUser(conn, tx, e.UserId);
+                if (owner is not null) { owner.Wallet = Math.Max(0, owner.Wallet + (willBeRefunded ? -e.Amount : e.Amount)); UpsertUser(conn, tx, owner); }
+            }
+        }
+
+        if (e.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(e.OrderCode) && e.Status != TxStatus.Approved && status == TxStatus.Approved)
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Code=@code", new { code = e.OrderCode }, tx);
+            if (oj is not null)
+            {
+                var ord = Deserialize<Order>(oj)!;
+                if (ord.Status == OrderStatus.PendingApproval)
+                {
+                    ord.Status = OrderStatus.Preparing;
+                    AppendOrderHistory(ord, OrderStatus.PendingApproval, OrderStatus.Preparing, "سیستم (تأیید پرداخت)", "تأیید پرداخت سفارش");
+                    UpsertOrder(conn, tx, ord);
+                    RefreshUserStats(conn, tx, ord.UserId);
+                }
+            }
+        }
+
+        // A rejected order payment cancels the still-pending order, so the site status mirrors the receipt
+        // decision. Routed through the same cancel logic the panel uses, which restores the stock and
+        // refunds ONLY what was actually collected — for a pending order that is the wallet portion. The
+        // rejected receipt's money never arrived, so it is never credited. No penalty: the customer didn't
+        // cancel, we rejected.
+        if (e.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(e.OrderCode) && e.Status != TxStatus.Rejected && status == TxStatus.Rejected)
+        {
+            var orderId = conn.QueryFirstOrDefault<int?>("SELECT Id FROM Orders WHERE Code=@code", new { code = e.OrderCode }, tx);
+            if (orderId is int oid)
+                CancelOrderInTx(conn, tx, oid, "سیستم (رد پرداخت)",
+                    note is { Length: > 0 } ? note : "رد پرداخت سفارش", applyPenalty: false, settlePayment: false);
+        }
+
+        e.Status = status; e.ApprovedVia = via; if (note is not null) e.Note = note;
+        var json = Serialize(e);
+        conn.Execute("UPDATE Transactions SET Status=@s, DataJson=@d WHERE Id=@id", new { s = (int)e.Status, d = json, id }, tx);
+        AppendOutbox(conn, tx, "Transactions", id, SyncOp.Upsert, json);
+
+        if (becomingApproved && e.UserId > 0)
+        {
+            if (e.Type == TxTypes.WalletTopUp)
+                AddNotificationTx(conn, tx, e.UserId, "شارژ کیف پول", $"کیف پول شما به مبلغ {e.Amount:N0} تومان شارژ شد.", "/account/wallet");
+            else if (e.Type == TxTypes.OrderPayment)
+                AddNotificationTx(conn, tx, e.UserId, "پرداخت تأیید شد", "پرداخت سفارش شما تأیید و سفارش در حال آماده‌سازی است.", "/account/orders");
+        }
+
+        if (becomingRejected && e.UserId > 0 && e.Type == TxTypes.OrderPayment)
+            AddNotificationTx(conn, tx, e.UserId, "پرداخت رد شد",
+                note is { Length: > 0 } ? $"پرداخت سفارش شما رد شد: {note}" : "پرداخت سفارش شما رد شد.", "/account/orders");
+    }
 }

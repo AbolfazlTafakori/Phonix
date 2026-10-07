@@ -35,6 +35,12 @@ public interface ITelegramReceiptService
     // send is fire-and-forget and only logs, so without this a misconfiguration is invisible: the bot just
     // silently never posts. This is the one place that reports why.
     Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default);
+
+    // A decision taken on the site: rewrites the bot message that put the item up for review (when there was one)
+    // to its outcome — «از طریق سایت», buttons gone — so nobody in the group acts on it again. Never throws.
+    Task ShowTransactionDecisionAsync(Transaction tx, CancellationToken ct = default);
+    Task ShowCardDecisionAsync(BankCard card, CancellationToken ct = default);
+    Task ShowKycDecisionAsync(KycRequest kyc, CancellationToken ct = default);
 }
 
 public sealed partial class TelegramReceiptService : ITelegramReceiptService
@@ -103,15 +109,18 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
 
             // Prefer sending the receipt image itself; fall back to a text message when there is no receipt.
             var receipt = OpenReceipt(tx.ReceiptUrl);
+            int? messageId;
             if (receipt is not null)
             {
                 await using (receipt.Content)
-                    await SendPhotoAsync(token, chatId, receipt, caption, markup, ct);
+                    messageId = await SendPhotoAsync(token, chatId, receipt, caption, markup, ct);
             }
             else
             {
-                await SendMessageAsync(token, chatId, caption, markup, ct);
+                messageId = await SendMessageAsync(token, chatId, caption, markup, ct);
             }
+            if (messageId is int sent && long.TryParse(chatId, out var chat))
+                _store.SetTransactionTelegramMessage(tx.Id, chat, sent);
         }
         catch (Exception ex)
         {
@@ -119,6 +128,24 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
             _logger.LogWarning(ex, "Telegram receipt notification failed for tx #{TxId}", tx.Id);
         }
     }
+
+    public async Task ShowTransactionDecisionAsync(Transaction tx, CancellationToken ct = default)
+    {
+        try
+        {
+            if (tx.TelegramChatId is not long chat || tx.TelegramMessageId is not int message) return;
+            if (ActiveConfig() is not { } cfg) return;
+            await EditDecidedAsync(cfg.token, chat, message, tx, ct);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram receipt message update failed for tx #{TxId}", tx.Id);
+        }
+    }
+
+    // «این تراکنش قبلاً از طریق سایت (reza) تأیید شده است.»
+    private static string AlreadyDecided(Transaction tx) =>
+        DecisionVia.AlreadyDecided("تراکنش", DecisionVia.Outcome(tx.Status), DecisionVia.Describe(tx.ApprovedVia, tx.DecidedBy));
 
     public async Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default)
     {
@@ -182,6 +209,7 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
         var data = cq.TryGetProperty("data", out var d) ? d.GetString() ?? "" : "";
         var fromId = cq.TryGetProperty("from", out var from) && from.TryGetProperty("id", out var fid)
             ? fid.GetRawText() : "";
+        var by = DecisionVia.TelegramName(from);
         long? chatId = null;
         int? messageId = null;
         if (cq.TryGetProperty("message", out var msg))
@@ -204,7 +232,7 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
         }
 
         // Bank cards and identity documents share this chat and this gate; their buttons carry their own prefixes.
-        if (await TryHandleVerificationCallbackAsync(token, callbackId, data, chatId, messageId, ct)) return;
+        if (await TryHandleVerificationCallbackAsync(token, callbackId, data, chatId, messageId, by, ct)) return;
 
         var (action, txId) = ParseCallback(data);
         if (action is null || txId is null)
@@ -219,9 +247,10 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
             await AnswerCallbackAsync(token, callbackId, "تراکنش یافت نشد.", ct);
             return;
         }
+        // Decided already — here or on the site. That decision stands; say where it was made.
         if (tx.Status != TxStatus.Pending)
         {
-            await AnswerCallbackAsync(token, callbackId, $"این تراکنش قبلاً {StatusFa(tx.Status)} شده است.", ct);
+            await AnswerCallbackAsync(token, callbackId, AlreadyDecided(tx), ct);
             if (chatId is not null && messageId is not null)
                 await EditDecidedAsync(token, chatId.Value, messageId.Value, tx, ct);
             return;
@@ -239,17 +268,25 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
         }
 
         // Approve is one tap. No note: the decision channel is recorded in ApprovedVia, and Note is reserved
-        // for the rejection reason, so an internal marker must never land in it.
-        var ok = _store.SetTransactionStatus(txId.Value, TxStatus.Approved, "telegram", null);
-        if (!ok)
+        // for the rejection reason, so an internal marker must never land in it. The store re-checks Pending in
+        // the same write, so a decision the panel made a moment ago still wins.
+        var decision = _store.DecideTransaction(txId.Value, TxStatus.Approved, DecisionVia.Telegram, null, by);
+        if (decision.Item is null)
         {
             await AnswerCallbackAsync(token, callbackId, "اعمال تغییر ناموفق بود.", ct);
+            return;
+        }
+        if (!decision.Applied)
+        {
+            await AnswerCallbackAsync(token, callbackId, AlreadyDecided(decision.Item), ct);
+            if (chatId is not null && messageId is not null)
+                await EditDecidedAsync(token, chatId.Value, messageId.Value, decision.Item, ct);
             return;
         }
 
         _logger.LogInformation("Telegram receipt decision: tx #{TxId} → Approved by chat {Chat}", txId.Value, configuredChat);
 
-        var updated = _store.GetTransaction(txId.Value) ?? tx;
+        var updated = decision.Item;
         // Same customer email an in-panel decision sends (the Pending guard above keeps it to one).
         _ = _mailer.TransactionDecidedAsync(updated);
         // Approving here also advanced the order into fulfillment: the pool delivers what it can right away,
@@ -279,6 +316,7 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
 
         // Same authorization gate as the buttons: only the configured receipt chat may decide.
         var fromId = msg.TryGetProperty("from", out var from) && from.TryGetProperty("id", out var fid) ? fid.GetRawText() : "";
+        var by = DecisionVia.TelegramName(from);
         long? chatId = msg.TryGetProperty("chat", out var chat) && chat.TryGetProperty("id", out var chId) && chId.TryGetInt64(out var c) ? c : null;
         var configuredChat = (_store.GetTelegramSettings().ReceiptChatId ?? "").Trim();
         if (fromId != configuredChat && (chatId?.ToString() ?? "") != configuredChat)
@@ -296,28 +334,28 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
 
         if (verification is { } target)
         {
-            await RejectVerificationAsync(token, chatId.Value, target, reason, ct);
+            await RejectVerificationAsync(token, chatId.Value, target, reason, by, ct);
             return;
         }
         var (txId, receiptMsgId) = receiptMarker!.Value;
 
-        var tx = _store.GetTransaction(txId);
-        if (tx is null) return;
-        if (tx.Status != TxStatus.Pending)
-        {
-            await SendMessageAsync(token, chatId.Value.ToString(), $"این تراکنش قبلاً {StatusFa(tx.Status)} شده است.", "", ct);
-            return;
-        }
-
-        if (!_store.SetTransactionStatus(txId, TxStatus.Rejected, "telegram", reason))
+        var decision = _store.DecideTransaction(txId, TxStatus.Rejected, DecisionVia.Telegram, reason, by);
+        if (decision.Item is null)
         {
             await SendMessageAsync(token, chatId.Value.ToString(), "اعمال رد ناموفق بود.", "", ct);
+            return;
+        }
+        if (!decision.Applied)
+        {
+            // Decided while the reason was being typed (on the site, or by someone else here).
+            await SendMessageAsync(token, chatId.Value.ToString(), AlreadyDecided(decision.Item), "", ct);
+            if (receiptMsgId > 0) await EditDecidedAsync(token, chatId.Value, receiptMsgId, decision.Item, ct);
             return;
         }
 
         _logger.LogInformation("Telegram receipt rejection: tx #{TxId} → Rejected by chat {Chat}", txId, configuredChat);
 
-        var updated = _store.GetTransaction(txId) ?? tx;
+        var updated = decision.Item;
         _ = _mailer.TransactionDecidedAsync(updated); // rejection email carries tx.Note (the reason)
         // Rewrite the original receipt to the resolved state (the reason is shown there and in this reply thread).
         if (receiptMsgId > 0)
@@ -475,7 +513,19 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
 
     // ── Low-level Telegram calls ──────────────────────────────────────────────────────────────────────────
 
-    private async Task SendPhotoAsync(string token, string chatId, StoredFile receipt, string caption, string markup, CancellationToken ct)
+    // The id Telegram gave a sent message, from its reply.
+    private static int? MessageIdOf(string body)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(body);
+            return doc.RootElement.TryGetProperty("result", out var r) && r.TryGetProperty("message_id", out var m)
+                   && m.TryGetInt32(out var id) ? id : null;
+        }
+        catch (JsonException) { return null; }
+    }
+
+    private async Task<int?> SendPhotoAsync(string token, string chatId, StoredFile receipt, string caption, string markup, CancellationToken ct)
     {
         using var ms = new MemoryStream();
         await receipt.Content.CopyToAsync(ms, ct);
@@ -493,11 +543,12 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
         using var http = _httpFactory.CreateClient();
         http.Timeout = TimeSpan.FromSeconds(30);
         using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/sendPhoto", form, ct);
-        if (!resp.IsSuccessStatusCode)
-            _logger.LogWarning("Telegram sendPhoto failed: {Status}", (int)resp.StatusCode);
+        if (resp.IsSuccessStatusCode) return MessageIdOf(await resp.Content.ReadAsStringAsync(ct));
+        _logger.LogWarning("Telegram sendPhoto failed: {Status}", (int)resp.StatusCode);
+        return null;
     }
 
-    private async Task SendMessageAsync(string token, string chatId, string text, string markup, CancellationToken ct, int? replyTo = null)
+    private async Task<int?> SendMessageAsync(string token, string chatId, string text, string markup, CancellationToken ct, int? replyTo = null)
     {
         var fields = new Dictionary<string, string>
         {
@@ -512,7 +563,20 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
             fields["allow_sending_without_reply"] = "true";
         }
         if (!string.IsNullOrEmpty(markup)) fields["reply_markup"] = markup; // Telegram rejects an empty reply_markup
-        await PostFormAsync(token, "sendMessage", fields, ct);
+        try
+        {
+            using var http = _httpFactory.CreateClient();
+            http.Timeout = TimeSpan.FromSeconds(20);
+            using var form = new FormUrlEncodedContent(fields);
+            using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/sendMessage", form, ct);
+            if (resp.IsSuccessStatusCode) return MessageIdOf(await resp.Content.ReadAsStringAsync(ct));
+            _logger.LogWarning("Telegram sendMessage failed: {Status}", (int)resp.StatusCode);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Telegram sendMessage call failed");
+        }
+        return null;
     }
 
     private async Task AnswerCallbackAsync(string token, string callbackId, string text, CancellationToken ct)
@@ -523,30 +587,32 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
         await PostFormAsync(token, "answerCallbackQuery", fields, ct);
     }
 
-    // Rewrites the reviewed message to show the outcome and collapses the two review buttons into a single
-    // static status button (e.g. «✅ تأیید شد»), so it reads as done and can't be re-decided.
+    // Rewrites the reviewed message to show the outcome — and where it was decided — and collapses the two review
+    // buttons into a single static status button (e.g. «✅ تأیید شد»), so it reads as done and can't be re-decided.
     private async Task EditDecidedAsync(string token, long chatId, int messageId, Transaction tx, CancellationToken ct)
     {
         var outcome = tx.Status == TxStatus.Approved ? "✅ تأیید شد" : "❌ رد شد";
         // A rejection shows its reason (tx.Note) right in the receipt so the channel keeps a record of why.
         var reasonLine = tx.Status == TxStatus.Rejected && !string.IsNullOrWhiteSpace(tx.Note)
             ? $"\n<b>📝 دلیل رد:</b> {Esc(tx.Note!)}" : "";
-        var caption = $"{BuildCaption(tx)}\n\n<b>وضعیت: {outcome} (از طریق تلگرام)</b>{reasonLine}";
+        var via = DecisionVia.Describe(tx.ApprovedVia, tx.DecidedBy);
+        var caption = $"{BuildCaption(tx)}\n\n<b>وضعیت: {outcome}{(via.Length > 0 ? " — " + Esc(via) : "")}</b>{reasonLine}";
         // A one-tap "no-op" callback: DecidedPrefix isn't an approve/reject prefix, so HandleCallbackAsync's
         // ParseCallback returns null and the tap is silently acknowledged — the decision can't be replayed.
         var markup = JsonSerializer.Serialize(new
         {
             inline_keyboard = new[] { new object[] { new { text = outcome, callback_data = DecidedPrefix + tx.Id } } },
         });
-        // The message carries a photo, so the caption is what we edit; the single button replaces the two.
-        await PostFormAsync(token, "editMessageCaption", new Dictionary<string, string>
+        // A receipt usually went out as a photo (its caption is edited); one without a picture went out as text.
+        var fields = new Dictionary<string, string>
         {
             ["chat_id"] = chatId.ToString(),
             ["message_id"] = messageId.ToString(),
-            ["caption"] = caption,
             ["parse_mode"] = "HTML",
             ["reply_markup"] = markup,
-        }, ct);
+        };
+        if (await PostFormOkAsync(token, "editMessageCaption", new Dictionary<string, string>(fields) { ["caption"] = caption }, ct)) return;
+        await PostFormAsync(token, "editMessageText", new Dictionary<string, string>(fields) { ["text"] = caption, ["disable_web_page_preview"] = "true" }, ct);
     }
 
     // Like PostFormAsync but hands back Telegram's own description ("chat not found", "bot was blocked",
@@ -597,13 +663,6 @@ public sealed partial class TelegramReceiptService : ITelegramReceiptService
             _logger.LogWarning(ex, "Telegram {Method} call failed", method);
         }
     }
-
-    private static string StatusFa(TxStatus s) => s switch
-    {
-        TxStatus.Approved => "تأیید",
-        TxStatus.Rejected => "رد",
-        _ => "بررسی",
-    };
 
     // digits only, optionally a single leading '-' (group/channel ids are negative).
     private static bool IsNumericChatId(string id) =>

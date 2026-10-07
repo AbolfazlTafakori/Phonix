@@ -15,7 +15,9 @@ public record DiscountResult(DiscountCode? Code, long Amount, string? Error);
 public record DiscountLine(int ProductId, long LineTotal);
 public record WithdrawalResult(Transaction? Tx, string? Error);
 public record PlaceOrderResult(Order? Order, string? Error);
-public record OrderActionResult(Order? Order, string? Error);
+// SettledPayment: the order's still-pending receipt, when this action settled it too (approved with the order,
+// or closed with a cancellation) — so the caller can update the receipt's message in the Telegram group.
+public record OrderActionResult(Order? Order, string? Error, Transaction? SettledPayment = null);
 
 // What the customer supplied for ONE account of an order line at checkout, and for the line as a whole.
 public record OrderUnitInfo(List<OrderInputValue> Inputs, string? Note);
@@ -23,6 +25,11 @@ public record OrderUnitInfo(List<OrderInputValue> Inputs, string? Note);
 // buying a new one. It is validated before it gets here (see OrdersController.ResolveRenewal), so the store
 // only has to carry it onto the unit fulfilment will read it from.
 public record OrderLineInfo(IReadOnlyList<OrderUnitInfo>? Units, string? RenewToken = null);
+
+// A staff decision on something that waits for one (a receipt, a bank card, identity documents). Item is null
+// when it doesn't exist; Applied is false when it was already decided — by the panel or a bot — and Item then
+// shows that earlier decision, which stands.
+public sealed record Decision<T>(T? Item, bool Applied) where T : class;
 
 // The out-of-band part of a partly-paid order: the card the buyer sent money to and the proof they attached.
 public record RemainderPayment(int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);

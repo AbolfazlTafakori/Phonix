@@ -52,6 +52,9 @@ public class OrderPlacementAnnounceTests
         public Task NotifyKycAsync(KycRequest kyc, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
+        public Task ShowTransactionDecisionAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ShowCardDecisionAsync(BankCard card, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ShowKycDecisionAsync(KycRequest kyc, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class NoopMailer : IUserMailer

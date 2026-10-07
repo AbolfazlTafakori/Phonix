@@ -590,38 +590,83 @@ ON CONFLICT(Id) DO UPDATE SET
             var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id = @id", new { id }, tx);
             if (oj is null) return null;
             var o = Deserialize<Order>(oj)!;
-            var settings = ReadSingleton<PricingSettings>(conn, tx, PricingKey);
+            SetOrderStatusInTx(conn, tx, o, status, changedBy, reason);
+            return o;
+        });
 
-            var from = o.Status;
-            var wasCompleted = o.Status == OrderStatus.Completed;
-            o.Status = status;
-            if (status == OrderStatus.Completed) { o.DeliveredAtUtc ??= DateTime.UtcNow; EnsureInvoiceNumber(conn, tx, o); }
+    public OrderActionResult ApproveOrderPayment(int id, string? approvedBy) =>
+        WriteTx((conn, tx) =>
+        {
+            var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id = @id", new { id }, tx);
+            if (oj is null) return new OrderActionResult(null, "سفارش یافت نشد.");
+            var o = Deserialize<Order>(oj)!;
+            // Checked in the same write as the approval: a receipt rejected in Telegram a moment ago cancelled
+            // this order, and approving it now would bring it back with no payment behind it.
+            if (o.Status != OrderStatus.PendingApproval) return new OrderActionResult(null, PaymentAlreadySettled(conn, tx, o));
+            var payment = SetOrderStatusInTx(conn, tx, o, OrderStatus.Preparing, approvedBy, "تأیید رسید");
+            return new OrderActionResult(o, null, payment);
+        });
 
-            // approving the order verifies its linked card-to-card payment too.
-            if (status == OrderStatus.Preparing)
-            {
-                var tj = conn.QueryFirstOrDefault<string>(@"
+    // Why an order can no longer have its payment decided — preferring to say where its receipt was decided.
+    private string PaymentAlreadySettled(SqliteConnection conn, SqliteTransaction tx, Order o)
+    {
+        var payment = conn.Query<string>(@"
+SELECT DataJson FROM Transactions
+WHERE json_extract(DataJson,'$.OrderCode') = @code AND json_extract(DataJson,'$.Type') = @type
+ORDER BY Id DESC LIMIT 1;", new { code = o.Code, type = TxTypes.OrderPayment }, tx)
+            .Select(j => Deserialize<Transaction>(j)!).FirstOrDefault();
+        if (payment is { Status: not TxStatus.Pending })
+            return Services.DecisionVia.AlreadyDecided("رسید این سفارش", Services.DecisionVia.Outcome(payment.Status),
+                Services.DecisionVia.Describe(payment.ApprovedVia, payment.DecidedBy));
+        return o.Status == OrderStatus.Cancelled
+            ? "این سفارش قبلاً لغو شده است."
+            : "پرداخت این سفارش قبلاً تأیید شده و دیگر در انتظار بررسی نیست.";
+    }
+
+    // The status change itself. Moving to «آماده‌سازی» approves the order's pending receipt with it; that receipt
+    // is returned so the caller can update its Telegram message.
+    private Transaction? SetOrderStatusInTx(SqliteConnection conn, SqliteTransaction tx, Order o, OrderStatus status,
+        string? changedBy, string? reason)
+    {
+        Transaction? approvedPayment = null;
+        var settings = ReadSingleton<PricingSettings>(conn, tx, PricingKey);
+
+        var from = o.Status;
+        var wasCompleted = o.Status == OrderStatus.Completed;
+        o.Status = status;
+        if (status == OrderStatus.Completed) { o.DeliveredAtUtc ??= DateTime.UtcNow; EnsureInvoiceNumber(conn, tx, o); }
+
+        // approving the order verifies its linked card-to-card payment too.
+        if (status == OrderStatus.Preparing)
+        {
+            var tj = conn.QueryFirstOrDefault<string>(@"
 SELECT DataJson FROM Transactions
 WHERE Status = @pending
   AND json_extract(DataJson,'$.OrderCode') = @code
   AND json_extract(DataJson,'$.Type')      = @type
 LIMIT 1;",
-                    new { pending = (int)TxStatus.Pending, code = o.Code, type = TxTypes.OrderPayment }, tx);
-                if (tj is not null)
-                {
-                    var t = Deserialize<Transaction>(tj)!;
-                    t.Status = TxStatus.Approved;
-                    conn.Execute("UPDATE Transactions SET Status = @s, DataJson = @d WHERE Id = @Id",
-                        new { s = (int)t.Status, d = Serialize(t), t.Id }, tx);
-                }
+                new { pending = (int)TxStatus.Pending, code = o.Code, type = TxTypes.OrderPayment }, tx);
+            if (tj is not null)
+            {
+                var t = Deserialize<Transaction>(tj)!;
+                t.Status = TxStatus.Approved;
+                t.ApprovedVia = Services.DecisionVia.Site;
+                t.DecidedBy = changedBy;
+                t.DecidedAtUtc = DateTime.UtcNow;
+                var tjson = Serialize(t);
+                conn.Execute("UPDATE Transactions SET Status = @s, DataJson = @d WHERE Id = @Id",
+                    new { s = (int)t.Status, d = tjson, t.Id }, tx);
+                AppendOutbox(conn, tx, "Transactions", t.Id, SyncOp.Upsert, tjson);
+                approvedPayment = t;
             }
+        }
 
-            if (status == OrderStatus.Completed && !wasCompleted) CreditReferralTx(conn, tx, o, settings);
-            if (from != status) AppendOrderHistory(o, from, status, changedBy, reason);
-            UpsertOrder(conn, tx, o);
-            RefreshUserStats(conn, tx, o.UserId);
-            return o;
-        });
+        if (status == OrderStatus.Completed && !wasCompleted) CreditReferralTx(conn, tx, o, settings);
+        if (from != status) AppendOrderHistory(o, from, status, changedBy, reason);
+        UpsertOrder(conn, tx, o);
+        RefreshUserStats(conn, tx, o.UserId);
+        return approvedPayment;
+    }
 
     // Records the in-site delivery content for an order and marks it completed (credits referral, stamps the
     // delivery time, notifies the customer) — all atomic.
@@ -652,18 +697,23 @@ LIMIT 1;",
     // — the stock restore + refund + transaction all commit together (or roll back together).
     // applyPenalty: false for a cancellation the customer didn't choose (staff rejecting a receipt/order) —
     // penalising them for our own decision would be wrong.
-    public OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true) =>
-        WriteTx<OrderActionResult>((conn, tx) => CancelOrderInTx(conn, tx, id, changedBy, reason, applyPenalty));
+    public OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true,
+        bool onlyIfAwaitingPayment = false) =>
+        WriteTx<OrderActionResult>((conn, tx) => CancelOrderInTx(conn, tx, id, changedBy, reason, applyPenalty, onlyIfAwaitingPayment));
 
     // The cancel body, callable from inside an existing write transaction. SetTransactionStatus rejects a
     // receipt while already holding one, and nesting WriteTx would deadlock — so both share this.
+    // settlePayment: close the order's still-pending receipt along with it. False only when the receipt's own
+    // rejection is what is cancelling the order (ApplyTransactionStatus), which settles that receipt itself.
     private OrderActionResult CancelOrderInTx(SqliteConnection conn, SqliteTransaction tx, int id,
-        string? changedBy, string? reason, bool applyPenalty)
+        string? changedBy, string? reason, bool applyPenalty, bool onlyIfAwaitingPayment = false, bool settlePayment = true)
         {
             var oj = conn.QueryFirstOrDefault<string>("SELECT DataJson FROM Orders WHERE Id = @id", new { id }, tx);
             if (oj is null) return new OrderActionResult(null, "سفارش یافت نشد.");
             var o = Deserialize<Order>(oj)!;
             if (o.Status == OrderStatus.Cancelled) return new OrderActionResult(null, "این سفارش قبلاً لغو شده است.");
+            if (onlyIfAwaitingPayment && o.Status != OrderStatus.PendingApproval)
+                return new OrderActionResult(null, PaymentAlreadySettled(conn, tx, o));
             if (o.Status == OrderStatus.Completed) return new OrderActionResult(null, "سفارش تکمیل‌شده قابل لغو نیست.");
             // Delivered accounts can't be taken back, so an order whose every unit is already delivered has
             // nothing left to cancel.
@@ -732,12 +782,39 @@ LIMIT 1;",
             // would otherwise get their money back and lose the code with it.
             ReleaseDiscountTx(conn, tx, o.DiscountCode);
 
+            // The receipt that was paying for it is no longer waiting on anyone: close it, so it can't be approved
+            // later in the receipts group for an order that no longer exists.
+            var settledPayment = settlePayment ? ClosePendingPayment(conn, tx, o, changedBy, reason) : null;
+
             o.Status = OrderStatus.Cancelled;
             AppendOrderHistory(o, from, OrderStatus.Cancelled, changedBy, reason ?? "لغو سفارش");
             UpsertOrder(conn, tx, o);
             RefreshUserStats(conn, tx, o.UserId);
-            return new OrderActionResult(o, null);
+            return new OrderActionResult(o, null, settledPayment);
         }
+
+    // Marks a cancelled order's pending receipt rejected, with the cancellation as its reason. No customer
+    // notification of its own: the cancellation already says it all.
+    private Transaction? ClosePendingPayment(SqliteConnection conn, SqliteTransaction tx, Order o, string? changedBy, string? reason)
+    {
+        var tj = conn.QueryFirstOrDefault<string>(@"
+SELECT DataJson FROM Transactions
+WHERE Status = @pending
+  AND json_extract(DataJson,'$.OrderCode') = @code
+  AND json_extract(DataJson,'$.Type')      = @type
+LIMIT 1;", new { pending = (int)TxStatus.Pending, code = o.Code, type = TxTypes.OrderPayment }, tx);
+        if (tj is null) return null;
+        var t = Deserialize<Transaction>(tj)!;
+        t.Status = TxStatus.Rejected;
+        t.ApprovedVia = Services.DecisionVia.Site;
+        t.DecidedBy = changedBy;
+        t.DecidedAtUtc = DateTime.UtcNow;
+        t.Note = string.IsNullOrWhiteSpace(reason) ? "سفارش لغو شد" : $"سفارش لغو شد: {reason}";
+        var json = Serialize(t);
+        conn.Execute("UPDATE Transactions SET Status = @s, DataJson = @d WHERE Id = @Id", new { s = (int)t.Status, d = json, t.Id }, tx);
+        AppendOutbox(conn, tx, "Transactions", t.Id, SyncOp.Upsert, json);
+        return t;
+    }
 
 
     // ── Orders: remaining ───────────────────────────────────────────────────────────────────────────────
@@ -1037,6 +1114,9 @@ LIMIT 1;",
             // the order to Completed, quietly resurrecting a cancelled sale. Re-delivery of an already
             // COMPLETED order stays allowed: that is the panel's "ویرایش / ارسال مجدد".
             if (o.Status == OrderStatus.Cancelled) return (null, false);
+            // Same for one account: rejected means refunded, and a refunded account is never handed over too —
+            // whether the delivery comes from the panel, a bot, or the automatic deliverers.
+            if (unit.Rejected) return (null, false);
 
             unit.DeliveryContent = content; unit.HandledBy = changedBy;
             if (!unit.Delivered) { unit.Delivered = true; unit.DeliveredAt = Today(); unit.DeliveredAtUtc = DateTime.UtcNow; }
@@ -1161,8 +1241,10 @@ LIMIT 1;",
             // second time and restock again. Reachable in practice: the Telegram reject button stays tappable
             // on an old message long after the order was cancelled from the panel.
             if (o.Status == OrderStatus.Cancelled) return (null, 0, "این سفارش قبلاً لغو و تسویه شده است.");
-            if (unit.Delivered) return (null, 0, "این اکانت قبلاً تحویل شده است.");
-            if (unit.Rejected) return (null, 0, "این اکانت قبلاً رد شده است.");
+            if (unit.Delivered)
+                return (null, 0, Services.DecisionVia.AlreadyDecided("اکانت", "تحویل", Services.DecisionVia.DescribeUnit(unit.HandledBy)));
+            if (unit.Rejected)
+                return (null, 0, Services.DecisionVia.AlreadyDecided("اکانت", "رد", Services.DecisionVia.DescribeUnit(unit.HandledBy)));
 
             var refund = UnitRefundAmount(o, unit);
             unit.Rejected = true;

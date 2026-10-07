@@ -76,6 +76,7 @@ public class VerificationBotTests
         public Task NotifyUnitAsync(Order order, OrderUnit unit, CancellationToken ct = default) => Task.CompletedTask;
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
+        public Task ShowUnitDecisionAsync(Order order, int unitId, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed record Rig(IDataStore Store, LocalFileStorageService Files, FakeTelegram Telegram, Outbox Outbox, TelegramReceiptService Bot);
@@ -310,6 +311,92 @@ public class VerificationBotTests
 
         Assert.Equal(TxStatus.Rejected, r.Store.GetTransaction(tx.Id)!.Status);
     }
+
+    // ── one decision, whichever side makes it ──
+
+    private Transaction PostedTopUp(Rig r)
+    {
+        var tx = r.Store.AddTransaction(new Transaction
+        {
+            UserId = Customer(r.Store).Id, UserName = "ali", Type = TxTypes.WalletTopUp, Amount = 70_000, Status = TxStatus.Pending, Method = "کارت",
+        });
+        r.Bot.NotifyDepositAsync(tx).GetAwaiter().GetResult();
+        return r.Store.GetTransaction(tx.Id)!;
+    }
+
+    [Fact]
+    public async Task A_receipt_decided_on_the_site_is_rewritten_in_telegram_and_a_tap_changes_nothing()
+    {
+        var r = Setup();
+        var tx = PostedTopUp(r);
+        Assert.Equal(500, tx.TelegramMessageId);   // the bot remembers which message showed it
+        var walletBefore = Customer(r.Store).Wallet;
+
+        // Rejected in the panel: the group message is rewritten at once, buttons gone.
+        var decided = r.Store.DecideTransaction(tx.Id, TxStatus.Rejected, DecisionVia.Site, "رسید جعلی است", "reza");
+        await r.Bot.ShowTransactionDecisionAsync(decided.Item!);
+        var edit = r.Telegram.Calls.Last(c => c.Method == "editMessageText");
+        Assert.Contains("message_id=500", edit.Body);
+        Assert.Contains("از طریق سایت (reza)", edit.Body);
+        Assert.DoesNotContain("rcpt:ok:", edit.Body);
+
+        // An approve tap that was already on its way is told where it was decided, and does nothing.
+        r.Telegram.Updates.Enqueue(Tap($"rcpt:ok:{tx.Id}"));
+        await r.Bot.ProcessUpdatesAsync(0);
+
+        var answer = r.Telegram.Calls.Last(c => c.Method == "answerCallbackQuery");
+        Assert.Contains("قبلاً از طریق سایت (reza) رد شده", answer.Body);
+        Assert.Equal(TxStatus.Rejected, r.Store.GetTransaction(tx.Id)!.Status);
+        Assert.Equal(walletBefore, Customer(r.Store).Wallet);
+    }
+
+    [Fact]
+    public async Task A_receipt_approved_in_telegram_is_refused_by_the_panel()
+    {
+        var r = Setup();
+        var tx = PostedTopUp(r);
+
+        r.Telegram.Updates.Enqueue(Tap($"rcpt:ok:{tx.Id}"));
+        await r.Bot.ProcessUpdatesAsync(0);
+
+        var late = r.Store.DecideTransaction(tx.Id, TxStatus.Rejected, DecisionVia.Site, "x", "reza");
+        Assert.False(late.Applied);
+        Assert.Equal(DecisionVia.Telegram, late.Item!.ApprovedVia);
+        // The rewritten group message names the channel it was decided in.
+        Assert.Contains(r.Telegram.Calls, c => c.Method == "editMessageText" && c.Body.Contains("از طریق تلگرام"));
+    }
+
+    [Fact]
+    public async Task A_reason_typed_after_the_site_decided_is_not_applied()
+    {
+        var r = Setup();
+        var tx = PostedTopUp(r);
+        r.Store.DecideTransaction(tx.Id, TxStatus.Approved, DecisionVia.Site, null, "reza");
+
+        r.Telegram.Updates.Enqueue(Reply($"#REJ:{tx.Id}:500", "رسید جعلی است"));
+        await r.Bot.ProcessUpdatesAsync(0);
+
+        Assert.Equal(TxStatus.Approved, r.Store.GetTransaction(tx.Id)!.Status);
+        Assert.Contains(r.Telegram.Calls, c => c.Method == "sendMessage" && c.Body.Contains("قبلاً از طریق سایت (reza) تأیید شده"));
+    }
+
+    [Fact]
+    public async Task A_card_decided_on_the_site_is_rewritten_in_telegram_and_a_tap_changes_nothing()
+    {
+        var r = Setup();
+        var card = await FileCard(r);
+        Assert.Equal(500, r.Store.GetCard(card.Id)!.TelegramMessageId);
+
+        var decided = r.Store.DecideCard(card.Id, BankCardStatus.Rejected, "تصویر ناخواناست", DecisionVia.Site, "reza");
+        await r.Bot.ShowCardDecisionAsync(decided.Item!);
+        Assert.Contains(r.Telegram.Calls, c => c.Method == "editMessageCaption" && c.Body.Contains("از طریق سایت (reza)"));
+
+        r.Telegram.Updates.Enqueue(Tap($"card:ok:{card.Id}"));
+        await r.Bot.ProcessUpdatesAsync(0);
+
+        Assert.Contains("قبلاً از طریق سایت (reza) رد شده", r.Telegram.Calls.Last(c => c.Method == "answerCallbackQuery").Body);
+        Assert.Equal(BankCardStatus.Rejected, r.Store.GetCard(card.Id)!.Status);
+    }
 }
 
 // Submitting level-2 documents: the selfie is optional (the form says so), and a submission reaches the bot.
@@ -323,6 +410,9 @@ public class KycSubmitTests
         public Task NotifyKycAsync(KycRequest kyc, CancellationToken ct = default) { Kyc.Add(kyc); return Task.CompletedTask; }
         public Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default) => Task.FromResult(offset);
         public Task<(bool ok, string? error)> SendTestAsync(CancellationToken ct = default) => Task.FromResult((true, (string?)null));
+        public Task ShowTransactionDecisionAsync(Transaction tx, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ShowCardDecisionAsync(BankCard card, CancellationToken ct = default) => Task.CompletedTask;
+        public Task ShowKycDecisionAsync(KycRequest kyc, CancellationToken ct = default) => Task.CompletedTask;
     }
 
     private sealed class NoopEmail : IEmailSender

@@ -163,6 +163,9 @@ public interface IDataStore
     BankCard? GetCard(int id);
     AddCardResult AddCard(int userId, string cardNumber, string holderName, string cardImage);
     BankCard? SetCardStatus(int id, BankCardStatus status, string? note);
+    // A staff decision (panel or bot): applied only while the card is still Pending — see Decision.
+    Decision<BankCard> DecideCard(int id, BankCardStatus status, string? note, string via, string? by);
+    void SetCardTelegramMessage(int id, long chatId, int messageId);
     bool DeleteCard(int id);
 
     // ── Product comments ────────────────────────────────────────────────────────────────────────────
@@ -325,6 +328,9 @@ public interface IDataStore
     IReadOnlyList<Transaction> GetUserTransactions(int userId);
     Transaction AddTransaction(Transaction t);
     bool SetTransactionStatus(int id, TxStatus status, string via, string? note);
+    // A staff decision (panel or bot): applied only while the transaction is still Pending — see Decision.
+    Decision<Transaction> DecideTransaction(int id, TxStatus status, string via, string? note, string? by);
+    void SetTransactionTelegramMessage(int id, long chatId, int messageId);
     WithdrawalResult RequestWithdrawal(int userId, long amount, string destination);
 
     // ── Notifications ───────────────────────────────────────────────────────────────────────────────
@@ -350,6 +356,9 @@ public interface IDataStore
     KycRequest? GetKycForUser(int userId);
     KycRequest SubmitKyc(KycRequest input);
     KycRequest? SetKycStatus(int id, KycStatus status, string? note);
+    // A staff decision (panel or bot): applied only while the request is still Pending — see Decision.
+    Decision<KycRequest> DecideKyc(int id, KycStatus status, string? note, string via, string? by);
+    void SetKycTelegramMessage(int id, long chatId, int messageId);
 
     // ── Orders + fulfilment + referrals ─────────────────────────────────────────────────────────────
     IReadOnlyList<Order> GetOrders(OrderStatus? status = null);
@@ -368,6 +377,8 @@ public interface IDataStore
     Order? DeliverOrder(int id, string content, string? changedBy = null);
     Order? SaveUnitDraft(int orderId, int unitId, string content, string? changedBy = null);
     (Order? order, bool justCompleted) DeliverUnit(int orderId, int unitId, string content, string? changedBy = null);
+    // The orders-group message that showed this account, so a decision made on the site can rewrite it.
+    void SetUnitTelegramMessage(int orderId, int unitId, long chatId, int messageId);
     bool SetUnitV2Ray(int orderId, int unitId, V2RayAccount account);
     bool SetUnitWireGuard(int orderId, int unitId, WireGuardAccount account);
     (Order order, OrderUnit unit)? FindUnitByWireGuardToken(string token);
@@ -382,7 +393,13 @@ public interface IDataStore
     IReadOnlyList<Order> GetOrdersWaitingForInventory();
     IReadOnlyList<Order> GetOrdersAwaitingV2Ray();
     // applyPenalty: false for a cancellation the customer didn't choose (staff rejecting a receipt/order).
-    OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true);
+    // onlyIfAwaitingPayment: refuse unless the order is still waiting for its payment decision — the receipts
+    // page and a customer's own cancel, which must never undo a payment already approved (here or in Telegram).
+    OrderActionResult CancelOrder(int id, string? changedBy = null, string? reason = null, bool applyPenalty = true,
+        bool onlyIfAwaitingPayment = false);
+    // The orders page's «تأیید رسید»: only for an order still waiting for its payment decision; approves its
+    // pending receipt with it.
+    OrderActionResult ApproveOrderPayment(int id, string? approvedBy);
     // Rejects ONE account of an order: refunds its price after discount, returns its stock, and settles the
     // order once no account is left pending. Returns the refunded amount.
     (Order? order, long refunded, string? error) RejectUnit(int orderId, int unitId, string? reason, string? changedBy = null);

@@ -48,12 +48,19 @@ export default function AdminCardsPage() {
   const filtered = useMemo(() => (filter === "all" ? items : items.filter((c) => c.status === filter)), [items, filter]);
   const { page, setPage, totalPages, slice, total, pageSize } = usePaged(filtered, 12);
 
+  const [actionError, setActionError] = useState("");
+
   async function act(c: BankCard, kind: "approve" | "reject") {
     if (kind === "reject" && !confirm(`کارت «${formatCard(c.cardNumber)}» رد شود؟`)) return;
     setBusy(c.id);
+    setActionError("");
     try {
       const updated = kind === "approve" ? await api.cards.approve(c.id) : await api.cards.reject(c.id);
       setItems((p) => p.map((x) => (x.id === c.id ? updated : x)));
+    } catch (e) {
+      // Usually decided in the receipt bot meanwhile: say where, and show the card as it now stands.
+      setActionError(e instanceof Error ? e.message : "اعمال تغییر ناموفق بود.");
+      setItems(await api.cards.list().catch(() => items));
     } finally {
       setBusy(null);
     }
@@ -151,6 +158,9 @@ export default function AdminCardsPage() {
   return (
     <div>
       <PageHeader title="کارت‌های بانکی" desc="تأیید یا رد کارت‌های بانکی ثبت‌شده توسط کاربران" />
+      {/* A decision the server refused — usually because it was already made in the Telegram bot (or by another
+          admin); the message says where, and the list has been reloaded to show it. */}
+      {actionError && <Card className="mb-4 p-4 text-center text-sm text-amber-300">{actionError}</Card>}
 
       <div className="mb-6 grid gap-4 sm:grid-cols-3">
         <Card className="p-5">
