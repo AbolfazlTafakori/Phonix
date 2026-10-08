@@ -35,6 +35,9 @@ public class TelegramSettings
     public bool CustomerBotShop { get; set; }
     // Buying inside the bot itself: the products marked for it can be bought there by anyone. Off by default.
     public bool CustomerBotSales { get; set; }
+    // Running the shop from the bot: staff who linked their own account see «مدیریت فروشگاه» in its menu,
+    // limited to the panel sections each of them holds. Off until an Admin turns it on.
+    public bool CustomerBotAdmin { get; set; }
     // How long the one-time code mailed for linking stays valid, in minutes (set in the panel).
     public int CustomerBotCodeMinutes { get; set; } = 15;
     public string CustomerBotToken { get; set; } = "";

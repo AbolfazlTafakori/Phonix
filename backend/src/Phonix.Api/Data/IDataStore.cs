@@ -185,9 +185,9 @@ public interface IDataStore
     // The customer bot's own settings (see TelegramSettings.CustomerBot*). token: null = keep, "" = remove.
     // The support bot's own settings (see TelegramSettings.SupportBot*). token: null = keep, "" = remove.
     void SetSupportBot(bool enabled, string? token, string? username, string chatId);
-    // shop / codeMinutes: null = keep. Public and shop both switch off with the bot.
+    // shop / codeMinutes / sales / admin: null = keep. Everything but the token switches off with the bot.
     void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username, bool? shop = null, int? codeMinutes = null,
-        bool? sales = null);
+        bool? sales = null, bool? admin = null);
 
     // Linking a customer's account to their chat with the customer bot. A chat belongs to one account: linking it
     // to a new one releases it from the old. Unlink by chat is for when the customer stops or blocks the bot.

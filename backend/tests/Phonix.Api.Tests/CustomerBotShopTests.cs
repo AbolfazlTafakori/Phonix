@@ -14,14 +14,14 @@ namespace Phonix.Api.Tests;
 // continues in the site's own checkout. Driven against a scripted Telegram.
 public class CustomerBotShopTests
 {
-    private const string Token = TelegramLaunch.Token;
-    private const long Chat = 912345;
-    private const int Spotify = 2;   // seed: category 2, no plans, in stock, level 1
-    private const int Netflix = 1;   // seed: category 1, plans, level 1 — not opened
+    internal const string Token = TelegramLaunch.Token;
+    internal const long Chat = 912345;
+    internal const int Spotify = 2;   // seed: category 2, no plans, in stock, level 1
+    internal const int Netflix = 1;   // seed: category 1, plans, level 1 — not opened
 
     static CustomerBotShopTests() => Environment.SetEnvironmentVariable("PHONIX_FRONTEND_URL", "https://shop.test");
 
-    private sealed class FakeTelegram : HttpMessageHandler
+    internal sealed class FakeTelegram : HttpMessageHandler
     {
         public List<(string Method, string Body)> Calls { get; } = new();
         public Queue<string> Updates { get; } = new();
@@ -58,14 +58,20 @@ public class CustomerBotShopTests
         public HttpClient CreateClient(string name) => new(h, disposeHandler: false);
     }
 
-    private sealed class NoMail : IEmailSender
+    internal sealed class NoMail : IEmailSender
     {
         public Task<bool> SendAsync(string to, string subject, string body, string? htmlBody = null) => Task.FromResult(true);
     }
 
-    private sealed record Rig(IDataStore Store, FakeTelegram Telegram, TelegramCustomerBot Bot);
+    internal sealed record Rig(IDataStore Store, FakeTelegram Telegram, TelegramCustomerBot Bot);
 
-    private static Rig Setup(bool sales = true)
+    // What the bot finds through the container in the app (the audit trail, the catalogue cache).
+    internal sealed class Services(params object[] items) : IServiceProvider
+    {
+        public object? GetService(Type type) => items.FirstOrDefault(type.IsInstanceOfType);
+    }
+
+    internal static Rig Setup(bool sales = true, IServiceProvider? services = null)
     {
         var store = TestStore.Create();
         store.SetCustomerBot(true, false, Token, "PhoenixTestBot", sales: sales);
@@ -76,17 +82,17 @@ public class CustomerBotShopTests
         Directory.CreateDirectory(root);
         Environment.SetEnvironmentVariable("PHONIX_UPLOADS_DIR", root);
         var telegram = new FakeTelegram();
-        var bot = new TelegramCustomerBot(store, new Factory(telegram), NullLogger<TelegramCustomerBot>.Instance, new LocalFileStorageService());
+        var bot = new TelegramCustomerBot(store, new Factory(telegram), NullLogger<TelegramCustomerBot>.Instance, new LocalFileStorageService(), services);
         return new Rig(store, telegram, bot);
     }
 
-    private static string Text(string text, long chatId = Chat) => JsonSerializer.Serialize(new
+    internal static string Text(string text, long chatId = Chat) => JsonSerializer.Serialize(new
     {
         update_id = Random.Shared.Next(1, 1_000_000),
         message = new { message_id = 5, text, from = new { id = chatId, first_name = "Sara", username = "sara_tg" }, chat = new { id = chatId, type = "private" } },
     });
 
-    private static string ReceiptPhoto(string caption = "پیگیری ۱۲۳۴۵۶", long chatId = Chat) => JsonSerializer.Serialize(new
+    internal static string ReceiptPhoto(string caption = "پیگیری ۱۲۳۴۵۶", long chatId = Chat) => JsonSerializer.Serialize(new
     {
         update_id = Random.Shared.Next(1, 1_000_000),
         message = new
@@ -96,13 +102,13 @@ public class CustomerBotShopTests
         },
     });
 
-    private static string Tap(string data, long chatId = Chat) => JsonSerializer.Serialize(new
+    internal static string Tap(string data, long chatId = Chat) => JsonSerializer.Serialize(new
     {
         update_id = Random.Shared.Next(1, 1_000_000),
         callback_query = new { id = "cb", data, from = new { id = chatId }, message = new { message_id = 7, chat = new { id = chatId, type = "private" } } },
     });
 
-    private static async Task Run(Rig r, params string[] updates)
+    internal static async Task Run(Rig r, params string[] updates)
     {
         foreach (var u in updates)
         {
@@ -111,7 +117,9 @@ public class CustomerBotShopTests
         }
     }
 
-    private static string LastReply(Rig r) => r.Telegram.Calls.Last(c => c.Method is "sendMessage" or "sendPhoto").Body;
+    // The screen the customer is looking at now: a new message, or the one a button edited in place.
+    internal static string LastReply(Rig r) =>
+        r.Telegram.Calls.Last(c => c.Method is "sendMessage" or "sendPhoto" or "editMessageText" or "editMessageMedia").Body;
 
     [Fact]
     public async Task Anyone_can_buy_an_opened_product_without_a_site_account()

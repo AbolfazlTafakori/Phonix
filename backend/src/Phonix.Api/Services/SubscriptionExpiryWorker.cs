@@ -12,6 +12,7 @@ public class SubscriptionExpiryWorker : BackgroundService
     private readonly IDataStore _store;
     private readonly IEmailSender _email;
     private readonly ILogger<SubscriptionExpiryWorker> _logger;
+    private readonly ITelegramCustomerBot? _telegram;
 
     // Hourly is within the "every 1 to 12 hours" requirement and fine-grained enough for an hours-based
     // threshold. The reminder window is `<= threshold` (not an exact match), so an order can't slip through
@@ -20,11 +21,13 @@ public class SubscriptionExpiryWorker : BackgroundService
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
 
-    public SubscriptionExpiryWorker(IDataStore store, IEmailSender email, ILogger<SubscriptionExpiryWorker> logger)
+    public SubscriptionExpiryWorker(IDataStore store, IEmailSender email, ILogger<SubscriptionExpiryWorker> logger,
+        ITelegramCustomerBot? telegram = null)
     {
         _store = store;
         _email = email;
         _logger = logger;
+        _telegram = telegram;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -66,6 +69,12 @@ public class SubscriptionExpiryWorker : BackgroundService
         foreach (var r in due)
         {
             if (ct.IsCancellationRequested) break;
+            // In Telegram too, with a button that buys the same product again — for someone who bought in the
+            // bot, who has no email, this is the only reminder there is.
+            if (_store.GetUserOrders(r.UserId).FirstOrDefault(o => o.Code == r.OrderCode) is { } order)
+                await TelegramCustomerBot.NotifyFromWorkerAsync(_store, _telegram, _logger, r.UserId, order.Id,
+                    $"⏳ اشتراک شما رو به پایان است — سفارش {r.OrderCode}\n\nاعتبار این اشتراک تا {r.ExpiresFa} است. برای ادامه، آن را تمدید کنید.",
+                    renewProductId: order.Items.FirstOrDefault()?.ProductId);
             if (string.IsNullOrWhiteSpace(r.Email)) continue; // bell notification already delivered
             var (text, html) = EmailTemplates.SubscriptionReminder(r.OrderCode, r.ExpiresFa, renewUrl);
             try

@@ -30,6 +30,13 @@ public interface ITelegramCustomerBot
     // Points the bot's menu button at the shop while the shop is on, and back to Telegram's default when it is
     // off. Error is what to tell staff when Telegram refused.
     Task<(bool Ok, string? Error)> SyncMenuButtonAsync(CancellationToken ct = default);
+
+    // A notice about one of a customer's orders — a delivery, a decision, a service running out — to their chat
+    // (linked, or the one they bought with in the bot), with the buttons to act on it: the order itself, and a
+    // renewal when that is what it is about (a page of the site, or buying the product again here). False when
+    // it was not sent: no chat, notices turned off, or Telegram refused.
+    Task<bool> NotifyOrderAsync(AppUser user, string text, int orderId, string? renewSitePath = null, int? renewProductId = null,
+        CancellationToken ct = default);
 }
 
 public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
@@ -151,7 +158,7 @@ public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
                 : "اتصال حساب شما به این تلگرام قطع شد. هر زمان خواستید می‌توانید از حساب کاربری سایت دوباره وصل کنید.", ct);
             return;
         }
-        // The menu, a receipt photo for a purchase in progress, a message for support.
+        // The menu, a receipt photo for a purchase in progress, something the bot asked to be typed.
         if (await TryHandleShopMessageAsync(token, chatId, msg, text, from, ct)) return;
 
         var user = _store.FindUserByTelegramChat(chatId);
@@ -159,6 +166,11 @@ public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
         if (head == "/shop" && shop is not null)
         {
             await ReplyAsync(token, chatId, "فروشگاه فونیکس وریفای، داخل همین تلگرام:", ct, shop);
+            return;
+        }
+        if (head == "/orders")
+        {
+            await ShowOrdersAsync(token, new Screen(chatId), 1, ct);
             return;
         }
         // Digits that aren't a whole code: most likely a code cut short while copying.
@@ -175,20 +187,12 @@ public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
                 + (user is not null ? $"\n\n(این تلگرام الان به حساب «{DisplayName(user)}» وصل است؛ با کد تازه به حساب جدید منتقل می‌شود.)" : ""), ct);
             return;
         }
-        string reply;
-        if (user is not null)
-            reply = $"حساب «{DisplayName(user)}» به این تلگرام وصل است ✅\nاطلاعات سفارش‌ها و پیام‌های حساب شما اینجا ارسال می‌شود."
-                    + (shop is not null ? $"\nبا دکمه‌ی «{MenuSiteShop}»، فروشگاه بدون ورود دوباره باز می‌شود." : "")
-                    + $"\n\nبرای قطع اتصال: /stop\nحساب کاربری: {FrontendUrl}/account";
-        else
-            reply = "سلام! 👋\nاین ربات فونیکس وریفای است."
-                    + $"\n\nبا «{MenuBuy}» همه‌ی محصولات و قیمت‌ها را ببینید" + (SalesOn ? "؛ محصولات 🔓 را همین‌جا و بدون ثبت‌نام می‌خرید." : ".")
-                    + "\n\nبرای وصل کردن حساب سایت:\n"
-                    + "۱. در سایت، از منوی حساب کاربری «اتصال به تلگرام» را بزنید.\n"
-                    + $"۲. یک کد {CodeLengthFa} رقمی به ایمیل حسابتان ارسال می‌شود.\n"
-                    + "۳. همان کد را همین‌جا بفرستید.\n\n"
-                    + $"{FrontendUrl}/account/telegram";
-        await ReplyAsync(token, chatId, reply, ct, Menu(chatId));
+        // /start, or anything the bot wasn't waiting for: the main menu. /start also lays the keyboard under the
+        // message box — a message carries either that keyboard or the menu's buttons, never both.
+        if (head == "/start")
+            await ReplyAsync(token, chatId, $"✨ ربات فونیکس وریفای آماده است. منوی اصلی همیشه با دکمه‌ی «{MenuHome}» پایین صفحه باز می‌شود.",
+                ct, HomeKeyboard());
+        await ShowHomeAsync(token, new Screen(chatId), FirstName(from), ct);
     }
 
     private async Task LinkAsync(string token, long chatId, string code, string? username, CancellationToken ct)
@@ -214,9 +218,12 @@ public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
         }
         Failures.TryRemove(chatId, out _);
         _logger.LogInformation("Customer bot: user {UserId} linked a Telegram chat", userId);
+        var next = new List<object[]>();
+        if (ShopOn) next.Add(new object[] { new { text = "🛒 ورود به فروشگاه", web_app = new { url = ShopUrl } } });
+        next.Add(HomeRow());
         await ReplyAsync(token, chatId,
             $"✅ حساب «{DisplayName(user)}» ({user.Username}) در فونیکس وریفای به این تلگرام وصل شد.\n\nاز این پس اطلاعات سفارش‌ها، تأیید پرداخت‌ها و پیام‌های پشتیبانی اینجا هم برایتان ارسال می‌شود.\n\nاگر این حساب شما نیست: /stop",
-            ct, ShopKeyboard("🛒 ورود به فروشگاه"));
+            ct, Inline(next));
     }
 
     // ── the link code ──
@@ -272,8 +279,14 @@ public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
         return await ReplyAsync(token, chatId, text, ct);
     }
 
-    private async Task<bool> ReplyAsync(string token, long chatId, string text, CancellationToken ct, string? replyMarkup = null)
+    private async Task<bool> ReplyAsync(string token, long chatId, string text, CancellationToken ct, string? replyMarkup = null, bool html = false)
     {
+        // Cut short, a formatted message could end inside a tag, which Telegram refuses whole: it goes plain.
+        if (text.Length > MaxMessage && html)
+        {
+            text = PlainOf(text);
+            html = false;
+        }
         if (text.Length > MaxMessage) text = text[..MaxMessage] + "…";
         try
         {
@@ -286,6 +299,7 @@ public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
                 ["disable_web_page_preview"] = "true",
             };
             if (replyMarkup is not null) fields["reply_markup"] = replyMarkup;
+            if (html) fields["parse_mode"] = "HTML";
             using var form = new FormUrlEncodedContent(fields);
             using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/sendMessage", form, ct);
             if (resp.IsSuccessStatusCode) return true;

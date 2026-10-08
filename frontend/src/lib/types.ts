@@ -863,6 +863,9 @@ export type CustomerBotStatus = {
   sales: boolean;
   salesCard: string | null;
   salesProducts: number;
+  // Running the shop from the bot: on/off, and how many staff accounts have linked their Telegram to use it.
+  admin: boolean;
+  staffLinked: number;
 };
 
 // The support bot's settings as the panel sees them (the token itself never comes back).

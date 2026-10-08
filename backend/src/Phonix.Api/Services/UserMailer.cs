@@ -73,21 +73,24 @@ public sealed class UserMailer : IUserMailer
 
     // One customer, every channel they have: the email, and — when they linked the customer bot and left its
     // notifications on — the same words in Telegram. Each channel fails on its own; neither ever throws.
-    private async Task SendToUserAsync(int userId, string subject, (string text, string html) body)
+    // orderId: what the notice is about, so the Telegram copy carries a button that opens that order in the bot.
+    private async Task SendToUserAsync(int userId, string subject, (string text, string html) body, int? orderId = null)
     {
         var user = _store.GetUser(userId);
         if (user is null) return;
         await SendAsync(user.Email, subject, body);
-        await SendTelegramAsync(user, subject, body.text);
+        await SendTelegramAsync(user, subject, body.text, orderId);
     }
 
-    private async Task SendTelegramAsync(AppUser user, string subject, string text)
+    private async Task SendTelegramAsync(AppUser user, string subject, string text, int? orderId = null)
     {
         // A linked site account, or the Telegram-only account a customer bought with inside the bot.
         if (_telegram is null || (user.TelegramChatId ?? user.TelegramGuestChatId) is not long chatId || !user.TelegramNotify) return;
         try
         {
-            await _telegram.SendAsync(chatId, $"📩 {subject.Trim()}\n\n{text.Trim()}");
+            var message = $"📩 {subject.Trim()}\n\n{text.Trim()}";
+            if (orderId is int id) await _telegram.NotifyOrderAsync(user, message, id);
+            else await _telegram.SendAsync(chatId, message);
         }
         catch (Exception ex)
         {
@@ -149,7 +152,7 @@ public sealed class UserMailer : IUserMailer
     public Task OrderPlacedAsync(Order order) =>
         SendToUserAsync(order.UserId, $"سفارش {order.Code} ثبت شد",
             EmailTemplates.OrderPlaced(order.Code, order.Total, JalaliDate.NowFa(), Url("/account/orders"),
-                awaitingPayment: order.Status == OrderStatus.PendingApproval));
+                awaitingPayment: order.Status == OrderStatus.PendingApproval), order.Id);
 
     public Task OrderUnitDeliveredAsync(Order order, int unitId)
     {
@@ -157,14 +160,14 @@ public sealed class UserMailer : IUserMailer
         if (unit is null) return Task.CompletedTask;
         return SendToUserAsync(order.UserId, $"{unit.Name} آماده شد — سفارش {order.Code}",
             EmailTemplates.OrderUnitDelivered(order.Code, unit.Name, unit.Plan, unit.UnitIndex, order.Units.Count,
-                unit.DeliveryContent, Url("/account/orders")));
+                unit.DeliveryContent, Url("/account/orders")), order.Id);
     }
 
     public Task OrderCompletedAsync(Order order)
     {
         var lines = order.Items.Select(i => (i.Name, i.Plan, i.Quantity)).ToList();
         return SendToUserAsync(order.UserId, $"سفارش {order.Code} تکمیل شد",
-            EmailTemplates.OrderCompleted(order.Code, order.InvoiceNumber, lines, Url("/account/orders")));
+            EmailTemplates.OrderCompleted(order.Code, order.InvoiceNumber, lines, Url("/account/orders")), order.Id);
     }
 
     public Task TransactionDecidedAsync(Transaction tx)
@@ -173,7 +176,7 @@ public sealed class UserMailer : IUserMailer
         {
             var kindFa = tx.Type == TxTypes.OrderPayment ? "پرداخت سفارش" : "واریز";
             return SendToUserAsync(tx.UserId, $"{kindFa} شما تأیید نشد",
-                EmailTemplates.PaymentRejected(kindFa, tx.Amount, tx.Note, SupportUrl));
+                EmailTemplates.PaymentRejected(kindFa, tx.Amount, tx.Note, SupportUrl), OrderIdOf(tx));
         }
         if (tx.Status != TxStatus.Approved) return Task.CompletedTask;
 
@@ -187,7 +190,7 @@ public sealed class UserMailer : IUserMailer
         }
         if (tx.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(tx.OrderCode))
             return SendToUserAsync(tx.UserId, $"پرداخت سفارش {tx.OrderCode} تأیید شد",
-                EmailTemplates.OrderPaymentApproved(tx.OrderCode!, tx.Amount, Url("/account/orders")));
+                EmailTemplates.OrderPaymentApproved(tx.OrderCode!, tx.Amount, Url("/account/orders")), OrderIdOf(tx));
 
         return Task.CompletedTask;
     }
@@ -222,14 +225,20 @@ public sealed class UserMailer : IUserMailer
 
     public Task OrderCancelledAsync(Order order, string reason, bool refunded) =>
         SendToUserAsync(order.UserId, $"سفارش {order.Code} لغو شد",
-            EmailTemplates.OrderCancelled(order.Code, reason, refunded, Url("/account/orders")));
+            EmailTemplates.OrderCancelled(order.Code, reason, refunded, Url("/account/orders")), order.Id);
 
     public Task OrderUnitRejectedAsync(Order order, int unitId, string reason, long refunded)
     {
         var name = order.Units.FirstOrDefault(u => u.Id == unitId)?.Name ?? "بخشی از سفارش";
         return SendToUserAsync(order.UserId, $"بخشی از سفارش {order.Code} رد شد",
-            EmailTemplates.OrderUnitRejected(order.Code, name, reason, refunded, Url("/account/wallet")));
+            EmailTemplates.OrderUnitRejected(order.Code, name, reason, refunded, Url("/account/wallet")), order.Id);
     }
+
+    // The order a payment was for, when it was for one.
+    private int? OrderIdOf(Transaction tx) =>
+        tx.Type == TxTypes.OrderPayment && !string.IsNullOrWhiteSpace(tx.OrderCode)
+            ? _store.GetUserOrders(tx.UserId).FirstOrDefault(o => o.Code == tx.OrderCode)?.Id
+            : null;
 
     // The notification's own in-site link when it has one, otherwise the customer's notifications list.
     private static string MessageUrl(string? link) => Url(string.IsNullOrWhiteSpace(link) ? "/account/messages" : link!);

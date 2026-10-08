@@ -418,7 +418,7 @@ export const api = {
   // The customer bot's panel page: token (sent only when replaced), on/off, shown-to-customers, test, remove.
   customerBot: {
     get: () => request<CustomerBotStatus>("/admin/customer-bot"),
-    save: (body: { enabled: boolean; public: boolean; token?: string | null; shop?: boolean; codeMinutes?: number; sales?: boolean }) =>
+    save: (body: { enabled: boolean; public: boolean; token?: string | null; shop?: boolean; codeMinutes?: number; sales?: boolean; admin?: boolean }) =>
       request<CustomerBotStatus>("/admin/customer-bot", { method: "PUT", body: json(body) }),
     removeToken: () => request<CustomerBotStatus>("/admin/customer-bot/token", { method: "DELETE" }),
     test: () => request<{ ok: boolean; username: string }>("/admin/customer-bot/test", { method: "POST" }),

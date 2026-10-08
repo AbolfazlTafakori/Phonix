@@ -90,6 +90,7 @@ public class WireGuardMonitorWorker : BackgroundService
         var store = scope.ServiceProvider.GetRequiredService<IDataStore>();
         var connector = scope.ServiceProvider.GetRequiredService<IWireGuardPanelConnector>();
         var email = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+        var telegram = scope.ServiceProvider.GetService<ITelegramCustomerBot>();
 
         // The thresholds are shared with V2Ray: one "warn me N hours before / delete N hours after" setting
         // for every panel-provisioned service the shop sells.
@@ -120,13 +121,13 @@ public class WireGuardMonitorWorker : BackgroundService
             foreach (var service in group)
             {
                 if (ct.IsCancellationRequested) return;
-                await ReviewAsync(store, connector, email, alerts, panel, creds, snapshot, service, now, ct);
+                await ReviewAsync(store, connector, email, telegram, alerts, panel, creds, snapshot, service, now, ct);
             }
         }
     }
 
     private async Task ReviewAsync(
-        IDataStore store, IWireGuardPanelConnector connector, IEmailSender email,
+        IDataStore store, IWireGuardPanelConnector connector, IEmailSender email, ITelegramCustomerBot? telegram,
         V2RayAlertSettings alerts, WireGuardPanel panel, WireGuardCredentials creds,
         WireGuardPanelSnapshot snapshot, WireGuardServiceRef service, DateTime now, CancellationToken ct)
     {
@@ -155,6 +156,9 @@ public class WireGuardMonitorWorker : BackgroundService
             _logger.LogInformation("Removed the expired WireGuard customer {Id} from panel {Panel} for order {Code}.",
                 service.ClientId, panel.Id, service.OrderCode);
 
+            if (target is not null)
+                await TelegramCustomerBot.NotifyFromWorkerAsync(store, telegram, _logger, target.UserId, service.OrderId,
+                    TelegramCustomerBot.RemovedNotice(target.OrderCode));
             if (target is { Email.Length: > 0 })
             {
                 var (text, html) = EmailTemplates.V2RayRemoved(target.OrderCode, FrontendUrl);
@@ -174,6 +178,10 @@ public class WireGuardMonitorWorker : BackgroundService
 
         _logger.LogInformation("Warned {Email} about WireGuard service {Service} (time: {Time}, volume: {Volume}).",
             claimed.Email, service.ClientId, verdict.WarnExpiry, verdict.WarnVolume);
+
+        await TelegramCustomerBot.NotifyFromWorkerAsync(store, telegram, _logger, claimed.UserId, service.OrderId,
+            TelegramCustomerBot.RunningOutNotice(claimed.OrderCode, verdict.WarnExpiry ? expiresFa : null, verdict.WarnVolume ? remainingFa : null),
+            renewSitePath: $"/wg/{claimed.Token}");
 
         if (string.IsNullOrWhiteSpace(claimed.Email)) return;
         var (body, markup) = EmailTemplates.V2RayRunningOut(

@@ -19,6 +19,7 @@ export default function AdminCustomerBotPage() {
   const [isPublic, setIsPublic] = useState(false);
   const [shop, setShop] = useState(false);
   const [sales, setSales] = useState(false);
+  const [admin, setAdmin] = useState(false);
   const [codeMinutes, setCodeMinutes] = useState("15");
   const [busy, setBusy] = useState<"" | "save" | "test" | "remove">("");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -29,6 +30,7 @@ export default function AdminCustomerBotPage() {
     setIsPublic(s.public);
     setShop(s.shop);
     setSales(s.sales);
+    setAdmin(s.admin);
     setCodeMinutes(String(s.codeMinutes));
   }
 
@@ -49,7 +51,7 @@ export default function AdminCustomerBotPage() {
     setBusy("save");
     setNote(null);
     try {
-      const s = await api.customerBot.save({ enabled, public: isPublic, token: token.trim() || null, shop, codeMinutes: minutes, sales });
+      const s = await api.customerBot.save({ enabled, public: isPublic, token: token.trim() || null, shop, codeMinutes: minutes, sales, admin });
       apply(s);
       setToken("");
       // Saved either way; a warning means Telegram didn't take the menu button.
@@ -128,7 +130,7 @@ export default function AdminCustomerBotPage() {
                   <span className="block text-sm text-white/85">فعال</span>
                   <span className="block text-[11px] text-white/40">ربات روشن می‌شود و پیام‌ها را دریافت و ارسال می‌کند.</span>
                 </span>
-                <Toggle checked={enabled} onChange={(v) => { setEnabled(v); if (!v) { setIsPublic(false); setShop(false); setSales(false); } }} />
+                <Toggle checked={enabled} onChange={(v) => { setEnabled(v); if (!v) { setIsPublic(false); setShop(false); setSales(false); setAdmin(false); } }} />
               </label>
 
               <label className={`flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3 ${enabled ? "cursor-pointer" : "opacity-50"}`}>
@@ -161,6 +163,19 @@ export default function AdminCustomerBotPage() {
                   </span>
                 </span>
                 <Toggle checked={sales && enabled} onChange={(v) => enabled && setSales(v)} />
+              </label>
+
+              <label className={`flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3 ${enabled ? "cursor-pointer" : "opacity-50"}`}>
+                <span>
+                  <span className="block text-sm text-white/85">مدیریت فروشگاه از داخل ربات</span>
+                  <span className="block text-[11px] leading-5 text-white/40">
+                    کارکنانی که حساب خودشان را به ربات وصل کرده‌اند، در منوی ربات «⚙️ مدیریت فروشگاه» را می‌بینند: آمار، کارهای منتظر،
+                    جستجوی سفارش و کاربر، فعال/غیرفعال کردن محصول و کد تخفیف، پیام همگانی. هر نفر فقط بخش‌هایی را دارد که در پنل به او داده
+                    شده، و هر تغییر به نامش در لاگ ممیزی ثبت می‌شود.
+                    {` ${formatNumber(status.staffLinked)} حساب کارمند وصل است.`}
+                  </span>
+                </span>
+                <Toggle checked={admin && enabled} onChange={(v) => enabled && setAdmin(v)} />
               </label>
 
               <Field label="اعتبار کد اتصال (دقیقه)">
@@ -241,6 +256,10 @@ export default function AdminCustomerBotPage() {
                 <dd className={status.shop ? "text-emerald-400" : "text-white/45"}>{status.shop ? "روشن" : "خاموش"}</dd>
               </div>
               <div className="flex justify-between gap-3">
+                <dt className="text-white/50">مدیریت از داخل ربات</dt>
+                <dd className={status.admin ? "text-emerald-400" : "text-white/45"}>{status.admin ? "روشن" : "خاموش"}</dd>
+              </div>
+              <div className="flex justify-between gap-3">
                 <dt className="text-white/50">حساب‌های متصل</dt>
                 <dd className="text-white/85">{formatNumber(status.linkedCount)}</dd>
               </div>
@@ -257,11 +276,15 @@ export default function AdminCustomerBotPage() {
               <p>۳. یک بار وارد حساب شوید، از منوی حساب کاربری «اتصال به تلگرام» را بزنید و کدی را که به ایمیلتان می‌آید همان‌جا وارد کنید؛ دفعه‌ی بعد خودکار وارد می‌شوید.</p>
               <p>در تلگرام گوشی و دسکتاپ کار می‌کند؛ نسخه‌ی وب تلگرام (web.telegram.org) پشتیبانی نمی‌شود.</p>
               <p className="pt-2 font-bold text-white/60">محصولات و خرید در ربات</p>
-              <p>هر کسی در ربات «🛍 محصولات» را بزند، همه‌ی محصولات را با دسته‌بندی، پلن و قیمت می‌بیند. خرید هر محصول مثل سایت است: بدون حساب سایت، مرحله‌ی پرداخت باز نمی‌شود و ربات می‌گوید ثبت‌نام، احراز هویت و اتصال حساب را انجام دهد؛ کاربر وصل‌شده پرداخت را در فروشگاه سایت (داخل تلگرام) ادامه می‌دهد.</p>
+              <p>هر کسی در ربات «🛍 خرید محصول» را بزند، در سه مرحله (دسته‌بندی، محصول، پلن) همه‌ی محصولات را با قیمت می‌بیند. خرید هر محصول مثل سایت است: بدون حساب سایت، مرحله‌ی پرداخت باز نمی‌شود و ربات می‌گوید ثبت‌نام، احراز هویت و اتصال حساب را انجام دهد؛ کاربر وصل‌شده پرداخت را در فروشگاه سایت (داخل تلگرام) ادامه می‌دهد.</p>
               <p>۱. برای محصولات کم‌اهمیت، در صفحه‌ی محصول «خرید در ربات تلگرام بدون ثبت‌نام» را روشن کنید (در ربات با 🔓 مشخص می‌شوند).</p>
               <p>۲. اینجا «خرید بدون ثبت‌نام در ربات» را روشن و ذخیره کنید.</p>
               <p>۳. آن محصولات همان‌جا با کارت‌به‌کارت و عکس رسید خریده می‌شوند؛ رسید مثل همیشه در ربات رسید بررسی می‌شود و اکانت در خود ربات تحویل می‌شود.</p>
               <p>برای امنیت: هر نفر هم‌زمان فقط یک خرید بررسی‌نشده و روزانه حداکثر ۵ خرید دارد، و قیمت تا ۳۰ دقیقه ثابت می‌ماند.</p>
+              <p className="pt-2 font-bold text-white/60">مدیریت از داخل ربات</p>
+              <p>۱. «مدیریت فروشگاه از داخل ربات» را روشن و ذخیره کنید.</p>
+              <p>۲. هر کارمند از منوی حساب کاربری سایت «اتصال به تلگرام» را بزند و کد ایمیل‌شده را در ربات بفرستد.</p>
+              <p>۳. در منوی ربات «⚙️ مدیریت فروشگاه» ظاهر می‌شود؛ تنظیمات خود ربات فقط برای مدیر کل است.</p>
             </div>
           </Card>
         </div>

@@ -73,6 +73,7 @@ public class V2RayMonitorWorker : BackgroundService
         var store = scope.ServiceProvider.GetRequiredService<IDataStore>();
         var connector = scope.ServiceProvider.GetRequiredService<IV2RayPanelConnector>();
         var email = scope.ServiceProvider.GetRequiredService<IEmailSender>();
+        var telegram = scope.ServiceProvider.GetService<ITelegramCustomerBot>();
 
         // Re-read every pass, so changing a threshold in the admin panel takes effect on the next cycle
         // without a restart.
@@ -105,13 +106,13 @@ public class V2RayMonitorWorker : BackgroundService
             foreach (var service in group)
             {
                 if (ct.IsCancellationRequested) return;
-                await ReviewAsync(store, connector, email, alerts, panel, creds, snapshot, service, now, ct);
+                await ReviewAsync(store, connector, email, telegram, alerts, panel, creds, snapshot, service, now, ct);
             }
         }
     }
 
     private async Task ReviewAsync(
-        IDataStore store, IV2RayPanelConnector connector, IEmailSender email,
+        IDataStore store, IV2RayPanelConnector connector, IEmailSender email, ITelegramCustomerBot? telegram,
         V2RayAlertSettings alerts, V2RayPanel panel, V2RayCredentials creds,
         V2RayPanelSnapshot snapshot, V2RayServiceRef service, DateTime now, CancellationToken ct)
     {
@@ -145,6 +146,9 @@ public class V2RayMonitorWorker : BackgroundService
             _logger.LogInformation("Removed the expired V2Ray account {Email} from panel {Panel} for order {Code}.",
                 service.Email, panel.Id, service.OrderCode);
 
+            if (target is not null)
+                await TelegramCustomerBot.NotifyFromWorkerAsync(store, telegram, _logger, target.UserId, service.OrderId,
+                    TelegramCustomerBot.RemovedNotice(target.OrderCode));
             if (target is { Email.Length: > 0 })
             {
                 var (text, html) = EmailTemplates.V2RayRemoved(target.OrderCode, FrontendUrl);
@@ -165,6 +169,10 @@ public class V2RayMonitorWorker : BackgroundService
 
         _logger.LogInformation("Warned {Email} about V2Ray service {Service} (time: {Time}, volume: {Volume}).",
             claimed.Email, service.Email, verdict.WarnExpiry, verdict.WarnVolume);
+
+        await TelegramCustomerBot.NotifyFromWorkerAsync(store, telegram, _logger, claimed.UserId, service.OrderId,
+            TelegramCustomerBot.RunningOutNotice(claimed.OrderCode, verdict.WarnExpiry ? expiresFa : null, verdict.WarnVolume ? remainingFa : null),
+            renewSitePath: $"/config/{claimed.Token}");
 
         if (string.IsNullOrWhiteSpace(claimed.Email)) return;   // the in-app notice already went out
         var (body, markup) = EmailTemplates.V2RayRunningOut(
