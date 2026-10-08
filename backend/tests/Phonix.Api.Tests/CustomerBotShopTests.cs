@@ -9,13 +9,15 @@ using Xunit;
 
 namespace Phonix.Api.Tests;
 
-// Buying inside the customer bot: the products staff opened for it are bought there by anyone, without a site
-// account; everything else needs a registered, linked account. Driven against a scripted Telegram.
+// The catalogue inside the customer bot: every product can be browsed by anyone; the products staff opened for it
+// are bought there without a site account; everything else needs a registered, verified, linked account and then
+// continues in the site's own checkout. Driven against a scripted Telegram.
 public class CustomerBotShopTests
 {
     private const string Token = TelegramLaunch.Token;
     private const long Chat = 912345;
-    private const int Spotify = 2;   // seed: no plans, in stock, level 1
+    private const int Spotify = 2;   // seed: category 2, no plans, in stock, level 1
+    private const int Netflix = 1;   // seed: category 1, plans, level 1 — not opened
 
     static CustomerBotShopTests() => Environment.SetEnvironmentVariable("PHONIX_FRONTEND_URL", "https://shop.test");
 
@@ -109,15 +111,19 @@ public class CustomerBotShopTests
         }
     }
 
-    private static string LastReply(Rig r) => r.Telegram.Calls.Last(c => c.Method == "sendMessage").Body;
+    private static string LastReply(Rig r) => r.Telegram.Calls.Last(c => c.Method is "sendMessage" or "sendPhoto").Body;
 
     [Fact]
     public async Task Anyone_can_buy_an_opened_product_without_a_site_account()
     {
         var r = Setup();
 
-        await Run(r, Text("🛍 خرید"));
+        await Run(r, Text("🛍 محصولات"));
+        Assert.Contains("shop:c:2", LastReply(r));
+        await Run(r, Tap("shop:c:2"));
         Assert.Contains($"shop:p:{Spotify}", LastReply(r));
+        await Run(r, Tap($"shop:p:{Spotify}"));
+        Assert.Contains($"shop:b:{Spotify}:0", LastReply(r));
 
         await Run(r, Tap($"shop:b:{Spotify}:0"));
         var instructions = LastReply(r);
@@ -140,29 +146,79 @@ public class CustomerBotShopTests
         Assert.Contains(order.Code, LastReply(r));
     }
 
+    // Looking needs no account: every product is there, opened for the bot or not.
+    [Fact]
+    public async Task Every_product_can_be_browsed_by_anyone()
+    {
+        var r = Setup();
+
+        await Run(r, Tap("shop:c:1"));
+        Assert.Contains($"shop:p:{Netflix}", LastReply(r));
+
+        await Run(r, Tap($"shop:p:{Netflix}"));
+        var page = LastReply(r);
+        var plan = r.Store.GetProduct(Netflix)!.Plans.First(p => p.IsActive);
+        Assert.Contains($"shop:b:{Netflix}:{plan.Id}", page);
+        Assert.Contains("حساب سایت", page);   // says up front what it takes to buy
+    }
+
     // Opening a product is a staff decision: anything else is never sold here, whatever the buttons say.
     [Fact]
     public async Task A_product_not_opened_for_the_bot_is_never_sold_there()
     {
         var r = Setup();
-        var planId = r.Store.GetProduct(1)!.Plans.First(p => p.IsActive).Id;
+        var planId = r.Store.GetProduct(Netflix)!.Plans.First(p => p.IsActive).Id;
 
-        await Run(r, Tap($"shop:b:1:{planId}"), ReceiptPhoto());
+        await Run(r, Tap($"shop:b:{Netflix}:{planId}"), ReceiptPhoto());
 
         Assert.Null(r.Store.FindTelegramGuest(Chat));
-        Assert.Contains(r.Telegram.Calls, c => c.Method == "sendMessage" && c.Body.Contains("قابل خرید نیست"));
+        Assert.DoesNotContain(r.Telegram.Calls, c => c.Body.Contains("عکس رسید"));
     }
 
+    // Without an account the payment step doesn't open: the customer is told to register, verify and link.
     [Fact]
-    public async Task Everything_else_needs_a_registered_linked_account()
+    public async Task Without_an_account_the_payment_step_says_what_to_do()
     {
         var r = Setup();
+        var planId = r.Store.GetProduct(Netflix)!.Plans.First(p => p.IsActive).Id;
 
-        await Run(r, Tap("shop:more"));
+        await Run(r, Tap($"shop:b:{Netflix}:{planId}"));
 
         var reply = LastReply(r);
         Assert.Contains("ثبت‌نام", reply);
+        Assert.Contains("اتصال به تلگرام", reply);
         Assert.Contains("https://shop.test/signup", reply);
+    }
+
+    [Fact]
+    public async Task A_linked_customer_whose_level_is_too_low_is_told_which_step_is_missing()
+    {
+        var r = Setup();
+        var negar = r.Store.GetUserByUsername("negar")!;   // seed: identity level 0
+        r.Store.LinkTelegram(negar.Id, Chat, "negar_tg");
+        var planId = r.Store.GetProduct(Netflix)!.Plans.First(p => p.IsActive).Id;
+
+        await Run(r, Tap($"shop:b:{Netflix}:{planId}"));
+
+        var reply = LastReply(r);
+        Assert.Contains("کافی نیست", reply);
+        Assert.Contains("/account/cards", reply);
+    }
+
+    // A linked customer who qualifies continues in the site's own checkout, opened inside Telegram.
+    [Fact]
+    public async Task A_qualified_linked_customer_continues_in_the_sites_checkout()
+    {
+        var r = Setup();
+        r.Store.LinkTelegram(1, Chat, "ali_tg");   // ali: identity level 2
+        r.Store.SetCustomerBot(true, false, null, null, shop: true, sales: true);
+        var planId = r.Store.GetProduct(Netflix)!.Plans.First(p => p.IsActive).Id;
+
+        await Run(r, Tap($"shop:b:{Netflix}:{planId}"));
+
+        var reply = LastReply(r);
+        Assert.Contains("\"web_app\":{\"url\":\"https://shop.test/products/1\"}", reply);
+        Assert.Null(r.Store.FindTelegramGuest(Chat));
     }
 
     [Fact]

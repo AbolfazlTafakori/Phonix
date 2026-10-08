@@ -6,10 +6,13 @@ using Phonix.Api.Models;
 
 namespace Phonix.Api.Services;
 
-// Buying inside the customer bot. Anyone who starts the bot gets a menu; the products staff opened for it
-// (Product.TelegramGuestSale) can be bought right here, by card-to-card with a receipt photo — no site account
-// needed. Everything else is bought on the site: a linked customer opens it inside Telegram already signed in,
-// anyone else is told to register and link first.
+// The catalogue inside the customer bot. Anyone who starts the bot can browse every product by category, with
+// its plans and prices — looking needs no account, exactly as on the site. Buying follows the site's rules, with
+// one exception staff choose per product (Product.TelegramGuestSale): those can be bought right here by anyone,
+// card-to-card with a receipt photo, no site account and no identity steps. For everything else the payment step
+// asks for a site account: someone without one is told to register, verify and link; a linked customer whose
+// level is too low is told which step is missing; a linked customer who qualifies continues in the site's own
+// checkout, opened inside Telegram already signed in.
 //
 // A purchase here is an ordinary order: the same PlaceOrder, the same receipt review in the receipt bot, the
 // same automatic delivery — the bought account arrives in this chat, as everything for this account does.
@@ -19,7 +22,7 @@ namespace Phonix.Api.Services;
 // price held for 30 minutes so what was paid is what is charged, and only plans that ask the buyer for nothing.
 public sealed partial class TelegramCustomerBot
 {
-    private const string MenuBuy = "🛍 خرید";
+    private const string MenuBuy = "🛍 محصولات";
     private const string MenuOrders = "📦 سفارش‌های من";
     private const string MenuSupport = "💬 پشتیبانی";
     private const string MenuAccount = "🔗 حساب سایت";
@@ -52,8 +55,6 @@ public sealed partial class TelegramCustomerBot
         p.IsActive && p.TelegramGuestSale && p.RequiredLevel <= 1
         && (p.IsPanelProvisioned || p.Stock > 0)
         && (!p.Plans.Any(x => x.IsActive) || GuestPlans(p).Count > 0);
-
-    private IReadOnlyList<Product> GuestProducts() => _store.GetProducts().Where(GuestSellable).ToList();
 
     private PaymentMethod? PaymentCard() =>
         _store.GetPaymentMethods().Where(m => m.IsActive && m.Type == PaymentType.Card && !string.IsNullOrWhiteSpace(m.Value))
@@ -114,7 +115,7 @@ public sealed partial class TelegramCustomerBot
     {
         var rows = new List<object[]>
         {
-            SalesOn ? new object[] { new { text = MenuBuy }, new { text = MenuOrders } } : new object[] { new { text = MenuOrders } },
+            new object[] { new { text = MenuBuy }, new { text = MenuOrders } },
             new object[] { new { text = MenuSupport }, new { text = MenuAccount } },
         };
         if (ShopOn) rows.Add(new object[] { new { text = MenuSiteShop, web_app = new { url = ShopUrl } } });
@@ -193,17 +194,31 @@ public sealed partial class TelegramCustomerBot
 
     private async Task ShowCatalogAsync(string token, long chatId, CancellationToken ct)
     {
-        if (!SalesOn)
+        var withProducts = _store.GetProducts().Where(p => p.IsActive).Select(p => p.CategoryId).ToHashSet();
+        var categories = _store.GetCategories().Where(c => c.IsActive && withProducts.Contains(c.Id)).OrderBy(c => c.SortOrder).ToList();
+        if (categories.Count == 0)
         {
-            await ReplyAsync(token, chatId, "خرید داخل ربات فعلاً فعال نیست.", ct, Menu(chatId));
+            await ReplyAsync(token, chatId, "فعلاً محصولی برای نمایش وجود ندارد.", ct, Menu(chatId));
             return;
         }
-        var products = GuestProducts();
-        var rows = products.Select(p => new object[] { new { text = p.Name, callback_data = $"shop:p:{p.Id}" } }).ToList();
-        rows.Add(new object[] { new { text = "🔐 سایر محصولات (با حساب سایت)", callback_data = "shop:more" } });
-        await ReplyAsync(token, chatId, products.Count == 0
-            ? "فعلاً محصولی برای خرید مستقیم در ربات وجود ندارد."
-            : "🛍 این محصولات را می‌توانید همین‌جا و بدون ثبت‌نام بخرید:", ct, Inline(rows));
+        var rows = categories.Select(c => new object[] { new { text = c.Name, callback_data = $"shop:c:{c.Id}" } });
+        await ReplyAsync(token, chatId, "🛍 دسته‌بندی محصولات:" + (SalesOn ? "\n\nمحصولاتی که با 🔓 مشخص شده‌اند، همین‌جا و بدون ثبت‌نام خریده می‌شوند." : ""),
+            ct, Inline(rows));
+    }
+
+    private async Task ShowCategoryAsync(string token, long chatId, int categoryId, CancellationToken ct)
+    {
+        var category = _store.GetCategory(categoryId);
+        var products = _store.GetProducts(categoryId).Where(p => p.IsActive).ToList();
+        if (category is null || !category.IsActive || products.Count == 0)
+        {
+            await ShowCatalogAsync(token, chatId, ct);
+            return;
+        }
+        var rows = products
+            .Select(p => new object[] { new { text = (SalesOn && GuestSellable(p) ? "🔓 " : "") + p.Name, callback_data = $"shop:p:{p.Id}" } })
+            .Append(new object[] { new { text = "⬅️ دسته‌بندی‌ها", callback_data = "shop:cats" } });
+        await ReplyAsync(token, chatId, $"🛍 {category.Name}:", ct, Inline(rows));
     }
 
     private async Task ShowAccountAsync(string token, long chatId, CancellationToken ct)
@@ -336,8 +351,11 @@ public sealed partial class TelegramCustomerBot
                 Sessions.TryRemove(chatId, out _);
                 await ReplyAsync(token, chatId, "لغو شد.", ct, Menu(chatId));
                 break;
-            case ["shop", "more"]:
-                await ShowOtherProductsAsync(token, chatId, ct);
+            case ["shop", "cats"]:
+                await ShowCatalogAsync(token, chatId, ct);
+                break;
+            case ["shop", "c", var c] when int.TryParse(c, out var categoryId):
+                await ShowCategoryAsync(token, chatId, categoryId, ct);
                 break;
             case ["shop", "p", var p] when int.TryParse(p, out var productId):
                 await ShowProductAsync(token, chatId, productId, ct);
@@ -351,50 +369,149 @@ public sealed partial class TelegramCustomerBot
         }
     }
 
-    private async Task ShowOtherProductsAsync(string token, long chatId, CancellationToken ct)
+    private static string PlanLabel(ProductPlan plan) => $"{plan.Type} · {plan.Months} ماهه";
+
+    private static bool InStock(Product p) => p.IsPanelProvisioned || p.Stock > 0;
+
+    // Everything about a product is shown to anyone; what it takes to buy it is said up front.
+    private async Task ShowProductAsync(string token, long chatId, int productId, CancellationToken ct)
     {
-        if (_store.FindUserByTelegramChat(chatId) is not null)
+        if (_store.GetProduct(productId) is not { IsActive: true } product)
         {
-            var markup = ShopOn
-                ? Inline(new[] { new object[] { new { text = MenuSiteShop, web_app = new { url = ShopUrl } } } })
-                : Inline(new[] { new object[] { new { text = "🌐 خرید از سایت", url = FrontendUrl.TrimEnd('/') + "/products" } } });
-            await ReplyAsync(token, chatId, "بقیه‌ی محصولات را از فروشگاه سایت بخرید" + (ShopOn ? "؛ همین‌جا داخل تلگرام باز می‌شود و حسابتان خودکار وارد است." : "."), ct, markup);
+            await ReplyAsync(token, chatId, "این محصول در دسترس نیست.", ct, Menu(chatId));
+            return;
+        }
+        var plans = product.Plans.Where(x => x.IsActive).ToList();
+        var guest = SalesOn && GuestSellable(product);
+        var lines = new List<string> { $"🛍 {product.Name}" };
+        if (Summary(product.Description) is { Length: > 0 } about) lines.Add("\n" + about);
+        if (!string.IsNullOrWhiteSpace(product.Warning)) lines.Add($"\n⚠️ {product.Warning.Trim()}");
+        lines.Add("");
+        if (!InStock(product)) lines.Add("❌ ناموجود");
+        else if (guest)
+            lines.Add(GuestPlans(product).Count < plans.Count
+                ? "🔓 گزینه‌هایی که با 🔓 مشخص شده‌اند، همین‌جا و بدون ثبت‌نام خریده می‌شوند؛ بقیه با حساب سایت."
+                : "🔓 همین‌جا و بدون ثبت‌نام قابل خرید است.");
+        else
+            lines.Add(product.RequiredLevel > 1 ? "🔐 خرید با حساب سایت و احراز هویت سطح ۲" : "🔐 خرید با حساب سایت");
+
+        var guestPlans = GuestPlans(product).Select(p => p.Id).ToHashSet();
+        var rows = new List<object[]>();
+        if (InStock(product))
+        {
+            if (plans.Count == 0)
+                rows.Add(new object[] { new { text = $"{(guest ? "🔓 " : "")}خرید — {Money(product.FinalPrice)} تومان", callback_data = $"shop:b:{product.Id}:0" } });
+            else
+                rows.AddRange(plans.Select(pl => new object[]
+                {
+                    new { text = $"{(guest && guestPlans.Contains(pl.Id) ? "🔓 " : "")}{PlanLabel(pl)} — {Money(pl.FinalPrice)} تومان", callback_data = $"shop:b:{product.Id}:{pl.Id}" },
+                }));
+        }
+        rows.Add(new object[] { new { text = "⬅️ بازگشت", callback_data = $"shop:c:{product.CategoryId}" } });
+        await SendProductAsync(token, chatId, product, string.Join("\n", lines), Inline(rows), ct);
+    }
+
+    // The product's picture with the text under it when Telegram can fetch the picture; the text alone otherwise.
+    private async Task SendProductAsync(string token, long chatId, Product product, string text, string markup, CancellationToken ct)
+    {
+        var image = string.IsNullOrWhiteSpace(product.ListImage) ? product.Image : product.ListImage;
+        if (ShopUrl is { } site && !string.IsNullOrWhiteSpace(image) && text.Length <= 1000)
+        {
+            var url = image.StartsWith('/') ? site.TrimEnd('/') + image : image;
+            if (url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    using var http = _httpFactory.CreateClient();
+                    http.Timeout = TimeSpan.FromSeconds(20);
+                    using var form = new FormUrlEncodedContent(new Dictionary<string, string>
+                    {
+                        ["chat_id"] = chatId.ToString(), ["photo"] = url, ["caption"] = text, ["reply_markup"] = markup,
+                    });
+                    using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/sendPhoto", form, ct);
+                    if (resp.IsSuccessStatusCode) return;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Customer bot: product picture failed, sending text");
+                }
+            }
+        }
+        await ReplyAsync(token, chatId, text, ct, markup);
+    }
+
+    // A short plain-text look at a product description written in the site's Markdown.
+    private static string Summary(string? markdown)
+    {
+        if (string.IsNullOrWhiteSpace(markdown)) return "";
+        var text = System.Text.RegularExpressions.Regex.Replace(markdown, @"!\[[^\]]*\]\([^)]*\)", "");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\[([^\]]+)\]\([^)]*\)", "$1");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\{#[a-z0-9-]+\}", "");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"^\s*(#{1,6}|\|.*\||-{3,})\s*", "", System.Text.RegularExpressions.RegexOptions.Multiline);
+        text = text.Replace("**", "").Replace("*", "");
+        text = System.Text.RegularExpressions.Regex.Replace(text, @"\n{3,}", "\n\n").Trim();
+        return text.Length > 450 ? text[..450].TrimEnd() + "…" : text;
+    }
+
+    // A product only a site account can buy: say exactly what is missing — or, when nothing is, continue in the
+    // site's checkout inside Telegram, where every rule of the site applies as it is.
+    private async Task AccountRequiredAsync(string token, long chatId, Product product, CancellationToken ct)
+    {
+        var site = FrontendUrl.TrimEnd('/');
+        object Open(string text, string path) => ShopOn
+            ? new { text, web_app = new { url = ShopUrl!.TrimEnd('/') + path } }
+            : new { text, url = site + path };
+
+        if (_store.FindUserByTelegramChat(chatId) is not { } user)
+        {
+            await ReplyAsync(token, chatId,
+                $"🔐 خرید «{product.Name}» فقط با حساب سایت ممکن است.\n\n"
+                + "۱. در سایت ثبت‌نام کنید.\n"
+                + (product.RequiredLevel > 1
+                    ? "۲. در حساب کاربری، احراز هویت سطح ۲ (کارت ملی) را انجام دهید.\n"
+                    : "۲. در حساب کاربری، کارت بانکی‌تان را ثبت کنید تا تأیید شود.\n")
+                + $"۳. از منوی حساب کاربری «اتصال به تلگرام» را بزنید و کد {CodeLengthFa} رقمی‌ای را که به ایمیلتان می‌آید همین‌جا بفرستید.\n\n"
+                + "بعد از اتصال، خرید را از همین ربات ادامه دهید.", ct, RegisterKeyboard());
+            return;
+        }
+        if (user.VerificationLevel < product.RequiredLevel)
+        {
+            var (what, path) = product.RequiredLevel > 1 && user.VerificationLevel >= 1
+                ? ("احراز هویت سطح ۲ (کارت ملی)", "/account/kyc")
+                : ("ثبت و تأیید کارت بانکی (سطح ۱)", "/account/cards");
+            await ReplyAsync(token, chatId,
+                $"سطح احراز هویت حساب شما برای «{product.Name}» کافی نیست. ابتدا در سایت {what} را انجام دهید.",
+                ct, Inline(new[] { new object[] { Open("🪪 احراز هویت", path) } }));
             return;
         }
         await ReplyAsync(token, chatId,
-            "برای خرید این محصولات، اول در سایت ثبت‌نام کنید و حسابتان را به همین ربات وصل کنید:\n\n"
-            + "۱. در سایت ثبت‌نام کنید.\n"
-            + "۲. از منوی حساب کاربری «اتصال به تلگرام» را بزنید.\n"
-            + $"۳. کد {CodeLengthFa} رقمی‌ای را که به ایمیلتان می‌آید همین‌جا بفرستید.", ct, RegisterKeyboard());
-    }
-
-    private async Task ShowProductAsync(string token, long chatId, int productId, CancellationToken ct)
-    {
-        if (!SalesOn || _store.GetProduct(productId) is not { } product || !GuestSellable(product))
-        {
-            await ReplyAsync(token, chatId, "این محصول در ربات قابل خرید نیست.", ct, Menu(chatId));
-            return;
-        }
-        var plans = GuestPlans(product);
-        var rows = plans.Count == 0
-            ? new List<object[]> { new object[] { new { text = $"خرید — {Money(product.FinalPrice)} تومان", callback_data = $"shop:b:{product.Id}:0" } } }
-            : plans.Select(pl => new object[] { new { text = $"{pl.Type} · {pl.Months} ماهه — {Money(pl.FinalPrice)} تومان", callback_data = $"shop:b:{product.Id}:{pl.Id}" } }).ToList();
-        var warning = string.IsNullOrWhiteSpace(product.Warning) ? "" : $"\n\n⚠️ {product.Warning.Trim()}";
-        await ReplyAsync(token, chatId, $"🛍 {product.Name}\n\nیکی از گزینه‌ها را انتخاب کنید:{warning}", ct, Inline(rows));
+            $"پرداخت «{product.Name}» در فروشگاه سایت انجام می‌شود" + (ShopOn ? "؛ همین‌جا داخل تلگرام باز می‌شود و حسابتان وارد است." : "."),
+            ct, Inline(new[] { new object[] { Open("💳 ادامه‌ی خرید", $"/products/{product.Id}") } }));
     }
 
     private async Task StartPurchaseAsync(string token, long chatId, int productId, int? planId, CancellationToken ct)
     {
-        if (!SalesOn || _store.GetProduct(productId) is not { } product || !GuestSellable(product))
+        if (_store.GetProduct(productId) is not { IsActive: true } product)
         {
-            await ReplyAsync(token, chatId, "این محصول در ربات قابل خرید نیست.", ct, Menu(chatId));
+            await ReplyAsync(token, chatId, "این محصول در دسترس نیست.", ct, Menu(chatId));
             return;
         }
-        var plans = GuestPlans(product);
-        var plan = planId is int id ? plans.FirstOrDefault(p => p.Id == id) : null;
-        if ((planId is not null && plan is null) || (planId is null && plans.Count > 0))
+        var plan = planId is int id ? product.Plans.FirstOrDefault(p => p.Id == id && p.IsActive) : null;
+        if ((planId is not null && plan is null) || (planId is null && product.Plans.Any(p => p.IsActive)))
         {
             await ReplyAsync(token, chatId, "این گزینه دیگر در دسترس نیست. دوباره از فهرست انتخاب کنید.", ct, Menu(chatId));
+            return;
+        }
+        if (!InStock(product))
+        {
+            await ReplyAsync(token, chatId, "این محصول فعلاً ناموجود است.", ct, Menu(chatId));
+            return;
+        }
+        // Bought here without an account only when staff opened it and this option asks the buyer for nothing.
+        var guest = SalesOn && GuestSellable(product) && (plan is null || GuestPlans(product).Any(p => p.Id == plan.Id));
+        if (!guest)
+        {
+            await AccountRequiredAsync(token, chatId, product, ct);
             return;
         }
         if (PurchaseBlocked(Buyers(chatId)) is { } blocked)
@@ -412,7 +529,7 @@ public sealed partial class TelegramCustomerBot
         var (vat, fee, total) = Quote(price, card);
         Sessions[chatId] = new Session("receipt", product.Id, plan?.Id, price, total, card.Id, DateTime.UtcNow + PriceHold);
 
-        var title = plan is null ? product.Name : $"{product.Name} — {plan.Type} · {plan.Months} ماهه";
+        var title = plan is null ? product.Name : $"{product.Name} — {PlanLabel(plan)}";
         var amounts = vat > 0 || fee > 0
             ? $"قیمت: {Money(price)} تومان" + (vat > 0 ? $"\nمالیات: {Money(vat)} تومان" : "") + (fee > 0 ? $"\nکارمزد: {Money(fee)} تومان" : "") + "\n"
             : "";
