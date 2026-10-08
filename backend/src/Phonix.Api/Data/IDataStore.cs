@@ -149,7 +149,8 @@ public interface IDataStore
     void CloseUserConversation(int userId);
     ChatConversation? GetConversation(int id);
     IReadOnlyList<ChatConversation> GetConversations();
-    ChatConversation SendUserMessage(int userId, string userName, string body);
+    // viaTelegram: written from the customer bot — answers then go back to the customer's Telegram too.
+    ChatConversation SendUserMessage(int userId, string userName, string body, bool viaTelegram = false);
     ChatConversation? AddAdminMessage(int conversationId, string authorName, string body);
     void MarkConversationRead(int conversationId, bool byAdmin);
     bool CloseConversation(int id);
@@ -185,11 +186,15 @@ public interface IDataStore
     // The support bot's own settings (see TelegramSettings.SupportBot*). token: null = keep, "" = remove.
     void SetSupportBot(bool enabled, string? token, string? username, string chatId);
     // shop / codeMinutes: null = keep. Public and shop both switch off with the bot.
-    void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username, bool? shop = null, int? codeMinutes = null);
+    void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username, bool? shop = null, int? codeMinutes = null,
+        bool? sales = null);
 
     // Linking a customer's account to their chat with the customer bot. A chat belongs to one account: linking it
     // to a new one releases it from the old. Unlink by chat is for when the customer stops or blocks the bot.
     AppUser? FindUserByTelegramChat(long chatId);
+    // The Telegram-only account a chat buys with when it has no linked site account (see AppUser.TelegramGuestChatId).
+    AppUser? FindTelegramGuest(long chatId);
+    AppUser EnsureTelegramGuest(long chatId, string name);
     bool LinkTelegram(int userId, long chatId, string? username);
     bool UnlinkTelegram(int userId);
     void UnlinkTelegramChat(long chatId);
@@ -374,7 +379,7 @@ public interface IDataStore
     PlaceOrderResult PlaceOrder(AppUser user, IEnumerable<(int productId, int quantity, int? planId)> items,
         string paymentMethod, bool fromWallet, string? discountCode = null, int? paymentMethodId = null,
         RemainderPayment? payment = null, bool customerCheckout = false, IReadOnlyList<OrderLineInfo>? lineInfo = null,
-        IReadOnlyDictionary<(int productId, int? planId), long>? lockedPrices = null);
+        IReadOnlyDictionary<(int productId, int? planId), long>? lockedPrices = null, BotCheckout? bot = null);
     Order? SetOrderStatus(int id, OrderStatus status, string? changedBy = null, string? reason = null);
     Order? DeliverOrder(int id, string content, string? changedBy = null);
     Order? SaveUnitDraft(int orderId, int unitId, string content, string? changedBy = null);

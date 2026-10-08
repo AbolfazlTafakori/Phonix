@@ -64,6 +64,7 @@ public class V2RayAutoDeliveryTests
         public Task StaffMessageAsync(int userId, string title, string body, string? link) => Task.CompletedTask;
         public Task<int> BroadcastStaffMessageAsync(string title, string body, string? link, CancellationToken ct = default) => Task.FromResult(0);
         public Task<bool> TelegramLinkCodeAsync(AppUser user, string code, int minutes, string botUsername) => Task.FromResult(true);
+        public Task SupportReplyAsync(int userId, string body) => Task.CompletedTask;
     }
 
     // Hands the fulfillment service the one bot these tests are watching.

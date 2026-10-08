@@ -25,6 +25,7 @@ const emptyForm = (categoryId: number): ProductInput => ({
   description: "",
   warning: "",
   requiredLevel: 1,
+  telegramGuestSale: false,
   v2RayCategoryId: 0,
   wireGuardCategoryId: 0,
   deliveryTemplate: "",
@@ -159,6 +160,7 @@ export default function AdminProductsPage() {
       description: p.description,
       warning: p.warning,
       requiredLevel: p.requiredLevel,
+      telegramGuestSale: p.telegramGuestSale ?? false,
       deliveryTemplate: p.deliveryTemplate,
       priceUsd: p.priceUsd ?? 0,
       features: p.features.map((f) => ({ ...f })),
@@ -403,6 +405,23 @@ export default function AdminProductsPage() {
             </select>
             <p className="mt-1.5 text-xs text-white/45">برای خرید این محصول، کاربر باید حداقل این سطح احراز هویت را داشته باشد. (به کاربر نمایش داده نمی‌شود)</p>
           </Field>
+
+          {/* Bought in the customer bot by anyone, without a site account. A level-2 product never: it is only
+              ever sold to someone who registered and was verified. */}
+          <label className={`flex items-center justify-between gap-4 rounded-xl bg-white/[0.03] px-4 py-3 ${form.requiredLevel > 1 ? "opacity-50" : "cursor-pointer"}`}>
+            <span>
+              <span className="block text-sm text-white/85">خرید در ربات تلگرام بدون ثبت‌نام</span>
+              <span className="block text-[11px] leading-5 text-white/40">
+                {form.requiredLevel > 1
+                  ? "محصولی که احراز هویت سطح ۲ می‌خواهد فقط با حساب سایت خریده می‌شود."
+                  : "هر کسی ربات مشتریان را استارت کند، این محصول را همان‌جا و بدون ثبت‌نام می‌خرد (کارت‌به‌کارت با عکس رسید؛ تأیید رسید مثل همیشه). فقط پلن‌هایی که از مشتری اطلاعات یا مشخصات دستگاه نمی‌خواهند در ربات نشان داده می‌شوند."}
+              </span>
+            </span>
+            <Toggle
+              checked={form.telegramGuestSale && form.requiredLevel <= 1}
+              onChange={(v) => { if (form.requiredLevel <= 1) set("telegramGuestSale", v); }}
+            />
+          </label>
 
           {v2rayCats.length > 0 && (
             <Field label="اتصال به پلن‌های V2Ray (اختیاری)">

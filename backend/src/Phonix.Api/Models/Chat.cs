@@ -29,6 +29,8 @@ public class ChatConversation
     public int UserReadUpTo { get; set; }
     public int AdminReadUpTo { get; set; }
     public List<ChatMessage> Messages { get; set; } = new();
+    // The customer's latest message came from the customer Telegram bot, so answers are sent back there too.
+    public bool ViaTelegram { get; set; }
     // The support group's message for this thread, so later messages on it are posted as replies to it.
     public long? TelegramChatId { get; set; }
     public int? TelegramMessageId { get; set; }

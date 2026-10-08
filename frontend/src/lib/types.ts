@@ -100,6 +100,8 @@ export type Product = {
   description: string;
   warning: string;
   requiredLevel: number;
+  // Sold in the customer Telegram bot without a site account.
+  telegramGuestSale?: boolean;
   deliveryTemplate: string;
   priceUsd: number;
   features: ProductFeature[];
@@ -285,6 +287,7 @@ export type ProductInput = {
   description: string;
   warning: string;
   requiredLevel: number;
+  telegramGuestSale: boolean;
   deliveryTemplate: string;
   priceUsd: number;
   features: ProductFeature[];
@@ -855,6 +858,11 @@ export type CustomerBotStatus = {
   warning: string | null;
   // How long the code mailed for linking stays valid, in minutes.
   codeMinutes: number;
+  // Buying inside the bot: on/off, the card buyers are asked to pay to (null: none active), and how many
+  // products can be picked there right now.
+  sales: boolean;
+  salesCard: string | null;
+  salesProducts: number;
 };
 
 // The support bot's settings as the panel sees them (the token itself never comes back).

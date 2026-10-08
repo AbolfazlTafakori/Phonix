@@ -31,6 +31,10 @@ public record OrderLineInfo(IReadOnlyList<OrderUnitInfo>? Units, string? RenewTo
 // shows that earlier decision, which stands.
 public sealed record Decision<T>(T? Item, bool Applied) where T : class;
 
+// A purchase made inside the customer Telegram bot: the receipt photo it sent (a protected receipts id), the
+// tracking number it may have written under it, and how the payer shows on the receipt for staff.
+public record BotCheckout(string ReceiptId, string? TrackingNumber, string PayerName);
+
 // The out-of-band part of a partly-paid order: the card the buyer sent money to and the proof they attached.
 public record RemainderPayment(int? CardId, string? ReceiptUrl, string? TrackingNumber, string? PaymentDate, string? Description);
 

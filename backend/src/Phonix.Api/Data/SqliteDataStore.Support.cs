@@ -154,7 +154,7 @@ public sealed partial class SqliteDataStore
         if (fromAdmin) conv.AdminReadUpTo = msg.Id; else conv.UserReadUpTo = msg.Id;
     }
 
-    public ChatConversation SendUserMessage(int userId, string userName, string body) =>
+    public ChatConversation SendUserMessage(int userId, string userName, string body, bool viaTelegram = false) =>
         WriteTx((conn, tx) =>
         {
             var rows = conn.Query("SELECT Id, DataJson FROM Conversations", transaction: tx).ToList();
@@ -172,6 +172,8 @@ public sealed partial class SqliteDataStore
                 conv.Id = (int)rowId;
             }
             AppendChatMessage(conn, tx, conv, fromAdmin: false, userName, body);
+            // Where the customer is reading now: their latest message decides.
+            conv.ViaTelegram = viaTelegram;
             var json = Serialize(conv);
             conn.Execute("UPDATE Conversations SET DataJson=@d WHERE Id=@id", new { d = json, id = rowId }, tx);
             AppendOutbox(conn, tx, "Conversations", rowId, SyncOp.Upsert, json);

@@ -32,7 +32,7 @@ public interface ITelegramCustomerBot
     Task<(bool Ok, string? Error)> SyncMenuButtonAsync(CancellationToken ct = default);
 }
 
-public sealed class TelegramCustomerBot : ITelegramCustomerBot
+public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
 {
     public const string CodePurpose = "tg-code";
     public const int CodeLength = 24;
@@ -42,12 +42,19 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
     private readonly IDataStore _store;
     private readonly IHttpClientFactory _httpFactory;
     private readonly ILogger<TelegramCustomerBot> _logger;
+    private readonly IFileStorageService? _files;
+    // The receipt bot, the support bot and the mailer all reach back to this bot (the mailer sends through it), so
+    // they are looked up when needed rather than injected — injecting them would make a construction cycle.
+    private readonly IServiceProvider? _services;
 
-    public TelegramCustomerBot(IDataStore store, IHttpClientFactory httpFactory, ILogger<TelegramCustomerBot> logger)
+    public TelegramCustomerBot(IDataStore store, IHttpClientFactory httpFactory, ILogger<TelegramCustomerBot> logger,
+        IFileStorageService? files = null, IServiceProvider? services = null)
     {
         _store = store;
         _httpFactory = httpFactory;
         _logger = logger;
+        _files = files;
+        _services = services;
     }
 
     private static string FrontendUrl => Environment.GetEnvironmentVariable("PHONIX_FRONTEND_URL") ?? "http://localhost:3000";
@@ -88,7 +95,7 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
     {
         if (ActiveToken() is not { } token) return offset;
 
-        var url = $"https://api.telegram.org/bot{token}/getUpdates?offset={offset}&timeout=25&allowed_updates=%5B%22message%22%5D";
+        var url = $"https://api.telegram.org/bot{token}/getUpdates?offset={offset}&timeout=25&allowed_updates=%5B%22message%22%2C%22callback_query%22%5D";
         using var http = _httpFactory.CreateClient();
         http.Timeout = TimeSpan.FromSeconds(35);
         using var resp = await http.GetAsync(url, ct);
@@ -107,11 +114,12 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
         {
             if (update.TryGetProperty("update_id", out var uid) && uid.TryGetInt64(out var id) && id >= next)
                 next = id + 1;
-            if (update.TryGetProperty("message", out var msg))
+            try
             {
-                try { await HandleMessageAsync(token, msg, ct); }
-                catch (Exception ex) { _logger.LogWarning(ex, "Customer bot message handling failed"); }
+                if (update.TryGetProperty("callback_query", out var cq)) await HandleShopCallbackAsync(token, cq, ct);
+                else if (update.TryGetProperty("message", out var msg)) await HandleMessageAsync(token, msg, ct);
             }
+            catch (Exception ex) { _logger.LogWarning(ex, "Customer bot update handling failed"); }
         }
         return next;
     }
@@ -124,7 +132,8 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
         if (!chat.TryGetProperty("type", out var type) || type.GetString() != "private") return;
 
         var text = (msg.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "").Trim();
-        var username = msg.TryGetProperty("from", out var from) && from.TryGetProperty("username", out var un) ? un.GetString() : null;
+        msg.TryGetProperty("from", out var from);
+        var username = from.ValueKind == JsonValueKind.Object && from.TryGetProperty("username", out var un) ? un.GetString() : null;
         var command = text.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         var head = command.Length > 0 ? command[0].Split('@')[0].ToLowerInvariant() : "";
 
@@ -142,6 +151,8 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
                 : "اتصال حساب شما به این تلگرام قطع شد. هر زمان خواستید می‌توانید از حساب کاربری سایت دوباره وصل کنید.", ct);
             return;
         }
+        // The menu, a receipt photo for a purchase in progress, a message for support.
+        if (await TryHandleShopMessageAsync(token, chatId, msg, text, from, ct)) return;
 
         var user = _store.FindUserByTelegramChat(chatId);
         var shop = ShopKeyboard("🛒 ورود به فروشگاه");
@@ -167,16 +178,17 @@ public sealed class TelegramCustomerBot : ITelegramCustomerBot
         string reply;
         if (user is not null)
             reply = $"حساب «{DisplayName(user)}» به این تلگرام وصل است ✅\nاطلاعات سفارش‌ها و پیام‌های حساب شما اینجا ارسال می‌شود."
-                    + (shop is not null ? "\nبا دکمه‌ی زیر، فروشگاه بدون ورود دوباره باز می‌شود." : "")
+                    + (shop is not null ? $"\nبا دکمه‌ی «{MenuSiteShop}»، فروشگاه بدون ورود دوباره باز می‌شود." : "")
                     + $"\n\nبرای قطع اتصال: /stop\nحساب کاربری: {FrontendUrl}/account";
         else
-            reply = "سلام! 👋\nاین ربات فونیکس وریفای است.\n\n"
-                    + "برای وصل کردن حسابتان:\n"
+            reply = "سلام! 👋\nاین ربات فونیکس وریفای است."
+                    + (SalesOn ? $"\n\nبا «{MenuBuy}» محصولاتی را که در ربات فروخته می‌شوند، همین‌جا و بدون ثبت‌نام بخرید." : "")
+                    + "\n\nبرای وصل کردن حساب سایت:\n"
                     + "۱. در سایت، از منوی حساب کاربری «اتصال به تلگرام» را بزنید.\n"
                     + $"۲. یک کد {CodeLengthFa} رقمی به ایمیل حسابتان ارسال می‌شود.\n"
                     + "۳. همان کد را همین‌جا بفرستید.\n\n"
                     + $"{FrontendUrl}/account/telegram";
-        await ReplyAsync(token, chatId, reply, ct, shop);
+        await ReplyAsync(token, chatId, reply, ct, Menu(chatId));
     }
 
     private async Task LinkAsync(string token, long chatId, string code, string? username, CancellationToken ct)

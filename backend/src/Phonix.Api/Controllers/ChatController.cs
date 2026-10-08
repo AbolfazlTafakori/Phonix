@@ -39,10 +39,12 @@ public class ChatController : ControllerBase
 
     private readonly IDataStore _store;
     private readonly ITelegramSupportBot? _support;
-    public ChatController(IDataStore store, ITelegramSupportBot? support = null)
+    private readonly IUserMailer? _mailer;
+    public ChatController(IDataStore store, ITelegramSupportBot? support = null, IUserMailer? mailer = null)
     {
         _store = store;
         _support = support;
+        _mailer = mailer;
     }
 
     // ── Customer side: a single live thread with support ──────────────────────────────────────────────
@@ -122,6 +124,8 @@ public class ChatController : ControllerBase
         var body = Clean(input.Body);
         if (body.Length == 0) return BadRequest("متن پیام خالی است.");
         if (_store.AddAdminMessage(id, "پشتیبانی فونیکس", body) is not { } c) return NotFound();
+        // A customer who wrote from the Telegram bot reads the answer there.
+        if (_mailer is not null && c.ViaTelegram) _ = _mailer.SupportReplyAsync(c.UserId, body);
         // The support group sees it was answered on the site.
         if (_support is not null && c.Messages.LastOrDefault() is { } sent)
             _ = _support.NotifyChatMessageAsync(c, sent, User.Identity?.Name);

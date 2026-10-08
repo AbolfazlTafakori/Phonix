@@ -29,6 +29,9 @@ public class AppUser
     // The customer bot chat this account is linked to (null = not linked), and whether account mail is also
     // sent there. One chat links to one account; linking it elsewhere moves it.
     public long? TelegramChatId { get; set; }
+    // Set only on an account the customer bot made for someone buying in Telegram without a site account. It is
+    // where that account's messages go; it never signs anyone in (unlike TelegramChatId, a linked site account).
+    public long? TelegramGuestChatId { get; set; }
     public string? TelegramUsername { get; set; }
     public DateTime? TelegramLinkedAtUtc { get; set; }
     public bool TelegramNotify { get; set; } = true;

@@ -546,7 +546,7 @@ public sealed partial class SqliteDataStore
     // The customer bot is managed on its own page, so it has its own write: the general Telegram form above never
     // touches these fields. A null token keeps the stored one; an empty one removes it (and with it the bot).
     public void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username, bool? shop = null,
-        int? codeMinutes = null)
+        int? codeMinutes = null, bool? sales = null)
     {
         using var conn = OpenConnection();
         var t = ReadSingletonNoTx<TelegramSettings>(conn, TelegramKey);
@@ -561,6 +561,7 @@ public sealed partial class SqliteDataStore
         t.CustomerBotPublic = isPublic && t.CustomerBotEnabled;
         t.CustomerBotShop = (shop ?? t.CustomerBotShop) && t.CustomerBotEnabled;
         if (codeMinutes is int minutes) t.CustomerBotCodeMinutes = Math.Clamp(minutes, 1, 1440);
+        t.CustomerBotSales = (sales ?? t.CustomerBotSales) && t.CustomerBotEnabled;
         WriteSingleton(conn, null, TelegramKey, t);
     }
 

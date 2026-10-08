@@ -143,6 +143,10 @@ public class Product
     // the admin panel and never shown to customers; enforced at checkout. Defaults to 1 so level-0 users
     // (registered only) can never purchase.
     public int RequiredLevel { get; set; } = 1;
+    // Sold inside the customer Telegram bot to anyone, with no site account: card-to-card with a receipt photo,
+    // reviewed in the receipt bot like any other. Only plans that ask the buyer for nothing are offered there, and
+    // a product that needs identity documents (level 2) can't be opened this way.
+    public bool TelegramGuestSale { get; set; }
     // Pre-written delivery text for this product; prefills the admin deliver modal so staff
     // don't retype the same instructions for every order of the same product. (Legacy single template,
     // kept for backward compatibility; the multi-template system below supersedes it.)

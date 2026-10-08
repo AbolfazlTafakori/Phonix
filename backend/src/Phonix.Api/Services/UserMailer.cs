@@ -39,6 +39,9 @@ public interface IUserMailer
     // The one-time code for linking Telegram. Email only — never to a chat — and the caller is told whether it
     // went, because without it the customer has nothing to send the bot.
     Task<bool> TelegramLinkCodeAsync(AppUser user, string code, int minutes, string botUsername);
+    // Support's answer in the live chat, to the customer's Telegram (linked, or the account they bought with in the
+    // bot). Telegram only: someone who wrote from the site reads it there, and the chat isn't email.
+    Task SupportReplyAsync(int userId, string body);
 }
 
 public sealed class UserMailer : IUserMailer
@@ -80,7 +83,8 @@ public sealed class UserMailer : IUserMailer
 
     private async Task SendTelegramAsync(AppUser user, string subject, string text)
     {
-        if (_telegram is null || user.TelegramChatId is not long chatId || !user.TelegramNotify) return;
+        // A linked site account, or the Telegram-only account a customer bought with inside the bot.
+        if (_telegram is null || (user.TelegramChatId ?? user.TelegramGuestChatId) is not long chatId || !user.TelegramNotify) return;
         try
         {
             await _telegram.SendAsync(chatId, $"📩 {subject.Trim()}\n\n{text.Trim()}");
@@ -111,6 +115,12 @@ public sealed class UserMailer : IUserMailer
         var digits = new string((card ?? "").Where(char.IsAsciiDigit).ToArray());
         if (digits.Length < 16) return string.IsNullOrWhiteSpace(card) ? "-" : card!;
         return $"{digits[..4]} {digits[4..6]}** **** {digits[^4..]}";
+    }
+
+    public async Task SupportReplyAsync(int userId, string body)
+    {
+        if (_store.GetUser(userId) is not { } user) return;
+        await SendTelegramAsync(user, "پاسخ پشتیبانی", body);
     }
 
     public async Task<bool> TelegramLinkCodeAsync(AppUser user, string code, int minutes, string botUsername)

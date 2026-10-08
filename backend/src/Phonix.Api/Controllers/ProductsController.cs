@@ -169,6 +169,11 @@ public class ProductsController : ControllerBase
         target.Description = input.Description ?? "";
         target.Warning = input.Warning ?? "";
         target.RequiredLevel = Math.Clamp(input.RequiredLevel ?? 1, 1, 2);
+        // Sold in the Telegram bot without a site account. Never for a product that needs identity documents:
+        // those are only ever bought by someone who registered and was verified. Missing from the payload (an
+        // older client) leaves it as it was.
+        if (input.TelegramGuestSale is bool guestSale) target.TelegramGuestSale = guestSale;
+        if (target.RequiredLevel > 1) target.TelegramGuestSale = false;
         // Links the product to the V2Ray catalogue: when set, its selectable plans come from that category
         // instead of its own Plans list (see Product.V2RayCategoryId). 0 = an ordinary product.
         //

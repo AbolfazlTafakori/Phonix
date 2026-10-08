@@ -20,6 +20,44 @@ public sealed partial class SqliteDataStore
         return UsersWithTelegramChat(conn, null, chatId).FirstOrDefault();
     }
 
+    private static AppUser? TelegramGuest(SqliteConnection conn, SqliteTransaction? tx, long chatId) =>
+        conn.Query<string>("SELECT DataJson FROM Users WHERE json_extract(DataJson, '$.TelegramGuestChatId') = @chatId",
+                new { chatId }, tx)
+            .Select(j => Deserialize<AppUser>(j)!)
+            .FirstOrDefault();
+
+    public AppUser? FindTelegramGuest(long chatId)
+    {
+        using var conn = OpenConnection();
+        return TelegramGuest(conn, null, chatId);
+    }
+
+    // One account per Telegram user, made the first time they buy or write to support without a site account.
+    // No email and an unusable password: it can't be signed into — Telegram is the only way to reach it. The
+    // username has an underscore, which a site signup can never pick, so nobody can claim one in advance.
+    public AppUser EnsureTelegramGuest(long chatId, string name) =>
+        WriteTx((conn, tx) =>
+        {
+            if (TelegramGuest(conn, tx, chatId) is { } existing) return existing;
+            var cleanName = (name ?? "").Trim();
+            if (cleanName.Length > 80) cleanName = cleanName[..80];
+            var username = $"tg_{chatId}";
+            for (var n = 2; conn.ExecuteScalar<long>("SELECT COUNT(1) FROM Users WHERE Username = @username COLLATE NOCASE", new { username }, tx) > 0; n++)
+                username = $"tg_{chatId}_{n}";
+            var guest = new AppUser
+            {
+                Name = cleanName.Length > 0 ? cleanName : "کاربر تلگرام",
+                Username = username,
+                Email = "",
+                Phone = "",
+                Password = Security.PasswordHasher.Hash(Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N")),
+                TelegramGuestChatId = chatId,
+                TelegramNotify = true,
+            };
+            PrepareNewUser(guest);
+            return InsertNewUser(conn, tx, guest);
+        });
+
     // Lives in the Tokens table beside the other one-time tokens, so it is consumed (deleted on first read)
     // exactly like them. Asking again replaces the code the account already had: an older email stops working.
     public string CreateTelegramLinkCode(int userId, TimeSpan lifetime)

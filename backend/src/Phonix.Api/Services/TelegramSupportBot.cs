@@ -323,6 +323,8 @@ public sealed class TelegramSupportBot : ITelegramSupportBot
             return;
         }
         _store.AddAdminMessage(id, SupportAuthor, text);
+        // Someone who wrote from the customer bot is waiting there, not on the site.
+        if (conversation.ViaTelegram) _ = _mailer.SupportReplyAsync(conversation.UserId, text);
         _logger.LogInformation("Support bot: chat #{Id} answered from Telegram by {Who}", id, who);
         await SendAsync(token, chatId.ToString(), "✅ پاسخ برای کاربر ارسال شد.", null, messageId, ct);
     }

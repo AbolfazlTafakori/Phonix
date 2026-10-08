@@ -62,7 +62,7 @@ public sealed partial class SqliteDataStore
     public PlaceOrderResult PlaceOrder(AppUser user, IEnumerable<(int productId, int quantity, int? planId)> items,
         string paymentMethod, bool fromWallet, string? discountCode = null, int? paymentMethodId = null,
         RemainderPayment? payment = null, bool customerCheckout = false, IReadOnlyList<OrderLineInfo>? lineInfo = null,
-        IReadOnlyDictionary<(int productId, int? planId), long>? lockedPrices = null)
+        IReadOnlyDictionary<(int productId, int? planId), long>? lockedPrices = null, BotCheckout? bot = null)
     {
         var itemList = items.ToList();
         return WriteTx<PlaceOrderResult>((conn, tx) =>
@@ -116,8 +116,13 @@ public sealed partial class SqliteDataStore
                 // AND the "collect info from the customer" step, so a plan-less checkout would both charge the
                 // bare base price and skip the account details the plan requires. Staff/internal placement is
                 // unaffected — it may still order at the base price.
-                else if (customerCheckout && p.Plans.Any(x => x.IsActive))
+                else if ((customerCheckout || bot is not null) && p.Plans.Any(x => x.IsActive))
                     return new PlaceOrderResult(null, $"برای «{p.Name}» باید یک پلن انتخاب کنید.");
+
+                // In the Telegram bot only what staff opened for it, and only a plan that asks the buyer for
+                // nothing — there is no form there to collect account details or device information.
+                if (bot is not null && (!p.TelegramGuestSale || p.RequiredLevel > 1 || plan is { CollectsInfo: true } or { CollectSeatInfo: true }))
+                    return new PlaceOrderResult(null, $"«{p.Name}» در ربات قابل خرید نیست.");
 
                 var qty = Math.Min(quantity, 100);
                 var planLabel = plan is null ? null : $"{plan.Type} · {plan.Months} ماهه";
@@ -161,12 +166,16 @@ public sealed partial class SqliteDataStore
 
             if (lines.Count == 0) return new PlaceOrderResult(null, "محصولی برای ثبت یافت نشد.");
 
-            // identity-level gate (products default to level 1; a level-0 user can never purchase).
-            foreach (var group in lines.GroupBy(l => l.ProductId))
+            // identity-level gate (products default to level 1; a level-0 user can never purchase). A product opened
+            // for the Telegram bot is sold there to anyone — that is what opening it means; it was checked above.
+            if (bot is null)
             {
-                var p = products[group.Key];
-                if (buyer.VerificationLevel < p.RequiredLevel)
-                    return new PlaceOrderResult(null, $"سطح احراز هویت شما برای «{p.Name}» کافی نیست.");
+                foreach (var group in lines.GroupBy(l => l.ProductId))
+                {
+                    var p = products[group.Key];
+                    if (buyer.VerificationLevel < p.RequiredLevel)
+                        return new PlaceOrderResult(null, $"سطح احراز هویت شما برای «{p.Name}» کافی نیست.");
+                }
             }
 
             // oversell guard: check-and-decrement is inside the IMMEDIATE tx, so two buyers can't both win.
@@ -253,6 +262,11 @@ public sealed partial class SqliteDataStore
                 if (paymentSettings.RequireReceipt && string.IsNullOrWhiteSpace(payment.ReceiptUrl))
                     return new PlaceOrderResult(null, "رسید پرداخت مبلغ باقیمانده را بارگذاری کنید.");
             }
+            if (bot is not null && remainder > 0)
+            {
+                if (paymentMethodId is null) return new PlaceOrderResult(null, "روش پرداخت مشخص نیست.");
+                if (string.IsNullOrWhiteSpace(bot.ReceiptId)) return new PlaceOrderResult(null, "عکس رسید پرداخت دریافت نشد.");
+            }
 
             // gateway fee applies only to the amount paid through the method (its own FeePercent, else global).
             // destMethod is also the destination the buyer paid TO — captured onto the receipt transaction below.
@@ -278,8 +292,11 @@ public sealed partial class SqliteDataStore
                 Subtotal = subtotal, DiscountCode = discount.Code?.Code, DiscountAmount = discount.Amount,
                 DiscountProductIds = discount.Code?.ProductIds is { Count: > 0 } only ? only.ToList() : new(),
                 WalletPaid = walletUsed, VatAmount = vat, FeeAmount = fee, Total = goodsTotal + vat + fee,
-                ReceiptUrl = remainder > 0 && !string.IsNullOrWhiteSpace(payment?.ReceiptUrl) ? payment.ReceiptUrl.Trim() : null,
+                ReceiptUrl = remainder > 0 && !string.IsNullOrWhiteSpace(payment?.ReceiptUrl ?? bot?.ReceiptId)
+                    ? (payment?.ReceiptUrl ?? bot!.ReceiptId).Trim() : null,
                 Date = Today(),
+                PlacedVia = bot is null ? null : "telegram-bot",
+                PlacedAtUtc = DateTime.UtcNow,
                 Status = remainder == 0 ? OrderStatus.Preparing : OrderStatus.PendingApproval,
             };
 
@@ -347,6 +364,23 @@ SELECT last_insert_rowid();",
                     TrackingNumber = payment.TrackingNumber!.Trim(),
                     PaymentDate = payment.PaymentDate!.Trim(),
                     Description = string.IsNullOrWhiteSpace(payment.Description) ? null : payment.Description.Trim(),
+                    OrderCode = order.Code, Date = Today(),
+                });
+            }
+
+            // A bot purchase's receipt, waiting for staff exactly like one sent from the site's checkout.
+            if (bot is not null && remainder > 0)
+            {
+                InsertTransaction(conn, tx, new Transaction
+                {
+                    UserId = buyer.Id, UserName = name, Type = TxTypes.OrderPayment,
+                    Amount = -(order.Total - order.WalletPaid), Status = TxStatus.Pending, Method = paymentMethod,
+                    ReceiptUrl = bot.ReceiptId.Trim(),
+                    SourceHolder = bot.PayerName,
+                    DestinationCard = destMethod?.Value, DestinationHolder = destMethod?.Holder,
+                    TrackingNumber = (bot.TrackingNumber ?? "").Trim(),
+                    PaymentDate = Today(),
+                    Description = "ثبت‌شده از ربات تلگرام",
                     OrderCode = order.Code, Date = Today(),
                 });
             }

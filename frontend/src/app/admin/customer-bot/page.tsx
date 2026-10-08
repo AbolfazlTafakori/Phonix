@@ -18,6 +18,7 @@ export default function AdminCustomerBotPage() {
   const [enabled, setEnabled] = useState(false);
   const [isPublic, setIsPublic] = useState(false);
   const [shop, setShop] = useState(false);
+  const [sales, setSales] = useState(false);
   const [codeMinutes, setCodeMinutes] = useState("15");
   const [busy, setBusy] = useState<"" | "save" | "test" | "remove">("");
   const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
@@ -27,6 +28,7 @@ export default function AdminCustomerBotPage() {
     setEnabled(s.enabled);
     setIsPublic(s.public);
     setShop(s.shop);
+    setSales(s.sales);
     setCodeMinutes(String(s.codeMinutes));
   }
 
@@ -47,7 +49,7 @@ export default function AdminCustomerBotPage() {
     setBusy("save");
     setNote(null);
     try {
-      const s = await api.customerBot.save({ enabled, public: isPublic, token: token.trim() || null, shop, codeMinutes: minutes });
+      const s = await api.customerBot.save({ enabled, public: isPublic, token: token.trim() || null, shop, codeMinutes: minutes, sales });
       apply(s);
       setToken("");
       // Saved either way; a warning means Telegram didn't take the menu button.
@@ -126,7 +128,7 @@ export default function AdminCustomerBotPage() {
                   <span className="block text-sm text-white/85">فعال</span>
                   <span className="block text-[11px] text-white/40">ربات روشن می‌شود و پیام‌ها را دریافت و ارسال می‌کند.</span>
                 </span>
-                <Toggle checked={enabled} onChange={(v) => { setEnabled(v); if (!v) { setIsPublic(false); setShop(false); } }} />
+                <Toggle checked={enabled} onChange={(v) => { setEnabled(v); if (!v) { setIsPublic(false); setShop(false); setSales(false); } }} />
               </label>
 
               <label className={`flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3 ${enabled ? "cursor-pointer" : "opacity-50"}`}>
@@ -147,6 +149,18 @@ export default function AdminCustomerBotPage() {
                   </span>
                 </span>
                 <Toggle checked={shop && enabled} onChange={(v) => enabled && !!status.shopUrl && setShop(v)} />
+              </label>
+
+              <label className={`flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3 ${enabled ? "cursor-pointer" : "opacity-50"}`}>
+                <span>
+                  <span className="block text-sm text-white/85">فروش داخل ربات</span>
+                  <span className="block text-[11px] leading-5 text-white/40">
+                    محصولاتی که در صفحه‌ی محصول «خرید در ربات تلگرام بدون ثبت‌نام» برایشان روشن است، داخل خود ربات و بدون حساب سایت
+                    خریده می‌شوند. بقیه‌ی محصولات فقط با ثبت‌نام و اتصال حساب.
+                    {status.salesCard ? ` کارت مقصد: ${status.salesCard}` : " ⚠️ هیچ روش پرداخت کارت‌به‌کارت فعالی نیست؛ تا یکی فعال نشود چیزی فروخته نمی‌شود."}
+                  </span>
+                </span>
+                <Toggle checked={sales && enabled} onChange={(v) => enabled && setSales(v)} />
               </label>
 
               <Field label="اعتبار کد اتصال (دقیقه)">
@@ -217,6 +231,12 @@ export default function AdminCustomerBotPage() {
                 <dd className={status.public ? "text-emerald-400" : "text-white/45"}>{status.public ? "بله" : "خیر"}</dd>
               </div>
               <div className="flex justify-between gap-3">
+                <dt className="text-white/50">فروش داخل ربات</dt>
+                <dd className={status.sales ? "text-emerald-400" : "text-white/45"}>
+                  {status.sales ? `روشن — ${formatNumber(status.salesProducts)} محصول` : "خاموش"}
+                </dd>
+              </div>
+              <div className="flex justify-between gap-3">
                 <dt className="text-white/50">فروشگاه داخل تلگرام</dt>
                 <dd className={status.shop ? "text-emerald-400" : "text-white/45"}>{status.shop ? "روشن" : "خاموش"}</dd>
               </div>
@@ -236,6 +256,11 @@ export default function AdminCustomerBotPage() {
               <p>۲. ربات را در تلگرام گوشی باز کنید (اگر باز بود، یک بار ببندید) و دکمه‌ی «🛒 فروشگاه» را بزنید.</p>
               <p>۳. یک بار وارد حساب شوید، از منوی حساب کاربری «اتصال به تلگرام» را بزنید و کدی را که به ایمیلتان می‌آید همان‌جا وارد کنید؛ دفعه‌ی بعد خودکار وارد می‌شوید.</p>
               <p>در تلگرام گوشی و دسکتاپ کار می‌کند؛ نسخه‌ی وب تلگرام (web.telegram.org) پشتیبانی نمی‌شود.</p>
+              <p className="pt-2 font-bold text-white/60">فروش داخل ربات</p>
+              <p>۱. در صفحه‌ی محصول، «خرید در ربات تلگرام بدون ثبت‌نام» را برای محصولات دلخواه روشن کنید.</p>
+              <p>۲. اینجا «فروش داخل ربات» را روشن و ذخیره کنید.</p>
+              <p>۳. هر کسی در ربات «🛍 خرید» را بزند، آن محصولات را می‌بیند، کارت‌به‌کارت می‌کند و عکس رسید را می‌فرستد؛ رسید مثل همیشه در ربات رسید بررسی می‌شود و اکانت در خود ربات تحویل می‌شود.</p>
+              <p>برای امنیت: هر نفر هم‌زمان فقط یک خرید بررسی‌نشده و روزانه حداکثر ۵ خرید دارد، و قیمت تا ۳۰ دقیقه ثابت می‌ماند.</p>
             </div>
           </Card>
         </div>

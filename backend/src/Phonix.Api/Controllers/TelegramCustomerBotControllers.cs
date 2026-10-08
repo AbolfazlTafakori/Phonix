@@ -13,10 +13,14 @@ namespace Phonix.Api.Controllers;
 // ShopUrl: where the shop opens in Telegram — null when the site isn't on https, so there is none to offer.
 // Warning: a saved change Telegram didn't fully take (the menu button), for staff to see.
 // CodeMinutes: how long the code mailed for linking stays valid.
+// Sales: buying inside the bot is on. SalesCard: the card the bot asks buyers to pay to (null: none active, so
+// nothing can be bought there). SalesProducts: how many products a buyer can actually pick there right now.
 public record CustomerBotStatusDto(bool Enabled, bool Public, bool HasToken, string TokenHint, string Username,
-    int LinkedCount, bool Polling, bool Shop = false, string? ShopUrl = null, string? Warning = null, int CodeMinutes = 15);
+    int LinkedCount, bool Polling, bool Shop = false, string? ShopUrl = null, string? Warning = null, int CodeMinutes = 15,
+    bool Sales = false, string? SalesCard = null, int SalesProducts = 0);
 // Token: null keeps the saved one; a value replaces it (checked with Telegram first). Shop: null keeps it.
-public record CustomerBotInput(bool Enabled, bool Public, string? Token, bool? Shop = null, int? CodeMinutes = null);
+public record CustomerBotInput(bool Enabled, bool Public, string? Token, bool? Shop = null, int? CodeMinutes = null,
+    bool? Sales = null);
 
 [ApiController]
 [Route("api/admin/customer-bot")]
@@ -48,8 +52,14 @@ public class CustomerBotController : ControllerBase
         var token = (s.CustomerBotToken ?? "").Trim();
         var linked = _store.GetUsers().Count(u => u.TelegramChatId is not null);
         var polling = s.CustomerBotEnabled && token.Length > 0 && _cluster?.Role is not (ClusterRole.Standby or ClusterRole.Recovering);
+        var card = _store.GetPaymentMethods().Where(m => m.IsActive && m.Type == PaymentType.Card && !string.IsNullOrWhiteSpace(m.Value))
+            .OrderBy(m => m.SortOrder).FirstOrDefault();
+        var cardLabel = card is null ? null
+            : $"{card.Title} — {card.Holder} (…{(card.Value.Trim().Length > 4 ? card.Value.Trim()[^4..] : card.Value.Trim())})";
+        var sellable = _store.GetProducts().Count(TelegramCustomerBot.GuestSellable);
         return new CustomerBotStatusDto(s.CustomerBotEnabled, s.CustomerBotPublic, token.Length > 0, Hint(token),
-            s.CustomerBotUsername ?? "", linked, polling, s.CustomerBotShop, TelegramCustomerBot.ShopUrl, null, s.CustomerBotCodeMinutes);
+            s.CustomerBotUsername ?? "", linked, polling, s.CustomerBotShop, TelegramCustomerBot.ShopUrl, null, s.CustomerBotCodeMinutes,
+            s.CustomerBotSales, cardLabel, sellable);
     }
 
     [HttpGet]
@@ -73,7 +83,7 @@ public class CustomerBotController : ControllerBase
             return BadRequest("فروشگاه داخل تلگرام فقط روی آدرس https کار می‌کند؛ PHONIX_FRONTEND_URL سایت https نیست.");
         if (input.CodeMinutes is < 1 or > 1440)
             return BadRequest("اعتبار کد اتصال باید بین ۱ تا ۱۴۴۰ دقیقه باشد.");
-        _store.SetCustomerBot(input.Enabled, input.Public, token, username, input.Shop, input.CodeMinutes);
+        _store.SetCustomerBot(input.Enabled, input.Public, token, username, input.Shop, input.CodeMinutes, input.Sales);
         // The menu button lives on Telegram's side, so it follows the switch here. The settings are saved
         // either way; a refusal is shown to staff, and «تست اتصال» tries again.
         var menu = await _bot.SyncMenuButtonAsync(ct);

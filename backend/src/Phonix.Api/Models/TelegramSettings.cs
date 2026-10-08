@@ -33,6 +33,8 @@ public class TelegramSettings
     // The shop inside Telegram (Mini App): the bot's menu button and /start open the site in Telegram, and a
     // linked customer is signed in there automatically. Its own switch, off until staff have tried it.
     public bool CustomerBotShop { get; set; }
+    // Buying inside the bot itself: the products marked for it can be bought there by anyone. Off by default.
+    public bool CustomerBotSales { get; set; }
     // How long the one-time code mailed for linking stays valid, in minutes (set in the panel).
     public int CustomerBotCodeMinutes { get; set; } = 15;
     public string CustomerBotToken { get; set; } = "";

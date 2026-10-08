@@ -205,6 +205,9 @@ public class Order
     // Recorded at checkout, so a refund later takes the discount back only from the accounts it actually
     // lowered — and editing the code afterwards changes nothing for an order already placed.
     public List<int> DiscountProductIds { get; set; } = new();
+    // "telegram-bot" for an order bought inside the customer bot; null for the site.
+    public string? PlacedVia { get; set; }
+    public DateTime? PlacedAtUtc { get; set; }
     public long WalletPaid { get; set; }
     public long VatAmount { get; set; }
     public long FeeAmount { get; set; }
