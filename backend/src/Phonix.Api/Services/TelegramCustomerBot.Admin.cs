@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Phonix.Api.Data;
 using Phonix.Api.Models;
 
@@ -41,7 +42,7 @@ public sealed partial class TelegramCustomerBot
         });
     }
 
-    private static object[] StaffNav(string? back = null) => back is null
+    private static B[] StaffNav(string? back = null) => back is null
         ? new[] { Btn("⬅️ مدیریت", "adm"), Btn(MenuHome, "home") }
         : new[] { Btn("⬅️ بازگشت", back), Btn("⚙️ مدیریت", "adm") };
 
@@ -117,10 +118,38 @@ public sealed partial class TelegramCustomerBot
                     "📣 پیام همگانی\n\nمتن پیام را بفرستید. برای "
                     + $"{Fa(BroadcastChats().Count)} مشتری فرستاده می‌شود: کسانی که تلگرامشان به ربات وصل است یا از ربات خرید کرده‌اند و اعلان‌ها را خاموش نکرده‌اند."
                     + "\n\nقبل از ارسال، پیش‌نمایش را می‌بینید.",
-                    Inline(new[] { new[] { Btn("❌ انصراف", "adm") } }), ct);
+                    Inline(new[] { new[] { Btn("❌ انصراف", "adm", Red) } }), ct);
                 break;
             case ["adm", "bcy"] when Can(staff, "notifications"):
                 await StartBroadcastAsync(token, at, staff, ct);
+                break;
+            case ["adm", "look"] when staff.Role == UserRole.Admin:
+                await ShowLookAsync(token, at, null, ct);
+                break;
+            case ["adm", "look", "t"] when staff.Role == UserRole.Admin:
+                var premium = !_store.GetTelegramSettings().CustomerBotPremium;
+                _store.SetCustomerBotLook(premium, null);
+                _premiumRefusedAt = DateTime.MinValue;
+                Audit(staff, AuditAction.Update, "customer-bot", null, $"ایموجی پریمیوم ربات {(premium ? "روشن" : "خاموش")} شد");
+                await ShowLookAsync(token, at, "✅ ذخیره شد.", ct);
+                break;
+            case ["adm", "look", "s"] when staff.Role == UserRole.Admin:
+                Sessions[at.ChatId] = Session.Typing("a-emoji");
+                await ShowAsync(token, at,
+                    "<b>📥 ارسال ایموجی‌های پریمیوم</b>\n" + Rule + "\nچند ایموجی پریمیوم را در یک پیام بفرستید. هر کدام جای ایموجی معمولیِ هم‌شکلش "
+                    + "روی دکمه‌ها می‌نشیند؛ مثلاً یک 🛍 پریمیوم جای 🛍 دکمه‌ی «خرید محصول».",
+                    Inline(new[] { new[] { Btn("❌ انصراف", "adm:look", Red) } }), ct, html: true);
+                break;
+            case ["adm", "look", "k", var i] when staff.Role == UserRole.Admin && Id(i, out var index) && index >= 0 && index < BotEmojis.Length:
+                Sessions[at.ChatId] = Session.Typing("a-emoji", BotEmojis[index]);
+                await ShowAsync(token, at,
+                    $"ایموجی پریمیومی را بفرستید که روی دکمه‌ها جای {BotEmojis[index]} بنشیند.",
+                    Inline(new[] { new[] { Btn("❌ انصراف", "adm:look", Red) } }), ct);
+                break;
+            case ["adm", "look", "c"] when staff.Role == UserRole.Admin:
+                _store.SetCustomerBotLook(null, new Dictionary<string, string>());
+                Audit(staff, AuditAction.Delete, "customer-bot", null, "ایموجی‌های پریمیوم ربات پاک شد");
+                await ShowLookAsync(token, at, "🧹 همه‌ی ایموجی‌های پریمیوم پاک شد.", ct);
                 break;
             case ["adm", "set"] when staff.Role == UserRole.Admin:
                 await ShowBotSettingsAsync(token, at, null, ct);
@@ -161,7 +190,7 @@ public sealed partial class TelegramCustomerBot
                 Sessions[chatId] = Session.Typing("a-cast-ok", message);
                 var count = BroadcastChats().Count;
                 await ReplyAsync(token, chatId, $"پیش‌نمایش پیام همگانی 👇\n\n📣 {message}\n\nگیرندگان: {Fa(count)} نفر", ct,
-                    Inline(new[] { new[] { Btn($"✅ ارسال برای {Fa(count)} نفر", "adm:bcy"), Btn("❌ انصراف", "adm") } }));
+                    Inline(new[] { new[] { Btn($"✅ ارسال برای {Fa(count)} نفر", "adm:bcy", Green), Btn("❌ انصراف", "adm", Red) } }));
                 break;
             default:
                 await ShowStaffHomeAsync(token, at, staff, ct);
@@ -176,23 +205,23 @@ public sealed partial class TelegramCustomerBot
         Sessions.TryRemove(at.ChatId, out _);
         var b = _store.GetAdminBadgeCounts();
         var buttons = new List<object>();
-        if (Can(staff, "reports")) buttons.Add(Btn("📊 آمار کلی", "adm:st"));
-        buttons.Add(Btn("🧾 کارهای منتظر", "adm:q"));
+        if (Can(staff, "reports")) buttons.Add(Btn("📊 آمار کلی", "adm:st", Blue));
+        buttons.Add(Btn("🧾 کارهای منتظر", "adm:q", Blue));
         if (Can(staff, OrderSections)) buttons.Add(Btn("🔎 جستجوی سفارش", "adm:os"));
         if (Can(staff, "users")) buttons.Add(Btn("👤 جستجوی کاربر", "adm:us"));
         if (Can(staff, "products")) buttons.Add(Btn("🛍 محصولات", "adm:pc"));
         if (Can(staff, "discounts")) buttons.Add(Btn("🎟 کدهای تخفیف", "adm:dc"));
         if (Can(staff, "reports")) buttons.Add(Btn("🏆 برترین خریداران", "adm:top"));
-        if (Can(staff, "notifications")) buttons.Add(Btn("📣 پیام همگانی", "adm:bc"));
+        if (Can(staff, "notifications")) buttons.Add(Btn("📣 پیام همگانی", "adm:bc", Green));
         var rows = Pairs(buttons).ToList();
-        if (staff.Role == UserRole.Admin) rows.Add(new[] { Btn("🤖 تنظیمات ربات", "adm:set") });
+        if (staff.Role == UserRole.Admin) rows.Add(new[] { Btn("🤖 تنظیمات ربات", "adm:set", Blue), Btn("🎨 ظاهر ربات", "adm:look", Blue) });
         rows.Add(new[] { Link("🌐 پنل مدیریت سایت", $"{Site}/admin") });
         rows.Add(HomeRow());
         await ShowAsync(token, at,
-            $"⚙️ مدیریت فروشگاه\n\nسلام {DisplayName(staff)}، به بخش مدیریت خوش آمدید.\n\n"
-            + $"🧾 {Fa(b.PendingOrders)} رسید در انتظار · 🛠 {Fa(b.PreparingOrders)} سفارش برای تحویل · 🎫 {Fa(b.OpenTickets)} تیکت باز\n\n"
-            + "تغییراتی که اینجا می‌دهید به نام شما در لاگ ممیزی پنل ثبت می‌شود.",
-            Inline(rows), ct);
+            $"<b>⚙️ مدیریت فروشگاه</b>\n{Rule}\nسلام {H(DisplayName(staff))}، به بخش مدیریت خوش آمدید.\n\n"
+            + $"<blockquote>🧾 {Fa(b.PendingOrders)} رسید در انتظار\n🛠 {Fa(b.PreparingOrders)} سفارش برای تحویل\n🎫 {Fa(b.OpenTickets)} تیکت باز</blockquote>\n\n"
+            + "<i>تغییراتی که اینجا می‌دهید به نام شما در لاگ ممیزی پنل ثبت می‌شود.</i>",
+            Inline(rows), ct, html: true);
     }
 
     // ── Statistics ──────────────────────────────────────────────────────────────────────────────────────────
@@ -412,10 +441,10 @@ public sealed partial class TelegramCustomerBot
             Cell(plans.Count > 0 ? $"{(plans.Count > 1 ? "از " : "")}{Toman(plans.Min(x => x.FinalPrice))}" : Toman(p.FinalPrice), "💰 قیمت"),
             Cell(Fa(plans.Count), "🗂 پلن‌های فعال"),
             Cell($"سطح {JalaliDate.ToPersianDigits(p.RequiredLevel.ToString())}", "🪪 احراز لازم"),
-            new[] { Btn(p.IsActive ? "⛔ غیرفعال کردن محصول" : "✅ فعال کردن محصول", $"adm:pa:{p.Id}") },
+            new[] { Btn(p.IsActive ? "⛔ غیرفعال کردن محصول" : "✅ فعال کردن محصول", $"adm:pa:{p.Id}", p.IsActive ? Red : Green) },
         };
         if (p.RequiredLevel <= 1)
-            rows.Add(new[] { Btn(p.TelegramGuestSale ? "🔒 بستن خرید بدون ثبت‌نام" : "🔓 باز کردن خرید بدون ثبت‌نام", $"adm:pg:{p.Id}") });
+            rows.Add(new[] { Btn(p.TelegramGuestSale ? "🔒 بستن خرید بدون ثبت‌نام" : "🔓 باز کردن خرید بدون ثبت‌نام", $"adm:pg:{p.Id}", p.TelegramGuestSale ? Red : Green) });
         rows.Add(new[] { Btn("👁 نمای مشتری", $"shop:p:{p.Id}") });
         rows.Add(StaffNav($"adm:pl:{p.CategoryId}"));
 
@@ -490,7 +519,7 @@ public sealed partial class TelegramCustomerBot
             Cell(d.ExpiresAt is DateTime e ? JalaliDate.Format(e) : "ندارد", "⏳ انقضا"),
             Cell(d.ProductIds.Count > 0 ? $"{Fa(d.ProductIds.Count)} محصول" : "همه", "🛍 محصولات"),
             Cell(d.IsActive ? "✅ فعال" : "⛔ غیرفعال", "📍 وضعیت"),
-            new[] { Btn(d.IsActive ? "⛔ غیرفعال کردن" : "✅ فعال کردن", $"adm:dt:{d.Id}") },
+            new[] { Btn(d.IsActive ? "⛔ غیرفعال کردن" : "✅ فعال کردن", $"adm:dt:{d.Id}", d.IsActive ? Red : Green) },
             StaffNav("adm:dc"),
         }), ct);
     }
@@ -539,6 +568,99 @@ public sealed partial class TelegramCustomerBot
         });
     }
 
+    // ── The bot's look ──────────────────────────────────────────────────────────────────────────────────────
+
+    // The emoji the bot's buttons start with, each of which can be given a premium one.
+    private static readonly string[] BotEmojis =
+    {
+        "🛍", "🚀", "📦", "🔐", "🛒", "👤", "🎁", "📚", "💬", "⚙️", "🏠", "⬅️",
+        "🗂", "🔹", "🔓", "🌍", "💎", "🧾", "❌", "✅", "♻️", "🔗", "📊", "📄",
+        "🔎", "💰", "🪪", "🔔", "🔌", "📝", "📖", "✍️", "📤", "🎟", "📣", "🏆",
+    };
+
+    private const int MaxPremiumEmoji = 200;
+
+    private async Task ShowLookAsync(string token, Screen at, string? notice, CancellationToken ct)
+    {
+        var s = _store.GetTelegramSettings();
+        var map = s.CustomerBotEmoji;
+        var mine = BotEmojis.Count(e => map.ContainsKey(EmojiKey(e)));
+        var refused = DateTime.UtcNow - _premiumRefusedAt < PremiumPause;
+        var rows = new List<object[]>
+        {
+            new[] { Btn(s.CustomerBotPremium ? "✨ ایموجی پریمیوم: روشن" : "✨ ایموجی پریمیوم: خاموش", "adm:look:t", s.CustomerBotPremium ? Green : Red) },
+            new[] { Btn("📥 ارسال ایموجی‌ها", "adm:look:s", Blue), Btn("🧹 پاک کردن همه", "adm:look:c", Red) },
+        };
+        // Each emoji with a mark when it has a premium one — the buttons themselves are the preview.
+        rows.AddRange(BotEmojis.Select((e, i) => (object)Btn(map.ContainsKey(EmojiKey(e)) ? $"{e} ✅" : e, $"adm:look:k:{i}")).Chunk(6));
+        rows.Add(StaffNav());
+        await ShowAsync(token, at,
+            $"<b>🎨 ظاهر ربات</b>\n{Rule}\n"
+            + (notice is null ? "" : $"{H(notice)}\n\n")
+            + "دکمه‌ها بر اساس کارشان رنگی‌اند: سبز برای خرید و تأیید، آبی برای رفت‌وآمد، قرمز برای لغو.\n\n"
+            + $"ایموجی پریمیوم: <b>{(s.CustomerBotPremium ? "روشن" : "خاموش")}</b> · {Fa(mine)} از {Fa(BotEmojis.Length)} ایموجی دکمه‌ها تنظیم شده\n\n"
+            + "<blockquote>ایموجی پریمیوم فقط وقتی روی دکمه‌ها دیده می‌شود که حساب صاحب ربات (همان حسابی که ربات را در BotFather ساخته) "
+            + "Telegram Premium داشته باشد. روی هر ایموجی زیر بزنید تا فقط همان را عوض کنید، یا با «📥 ارسال ایموجی‌ها» چند تا را یک‌جا بفرستید.</blockquote>"
+            + (refused ? "\n\n⚠️ تلگرام اخیراً ایموجی‌های پریمیوم را نپذیرفت و دکمه‌ها با ایموجی معمولی رفتند؛ حساب صاحب ربات Premium دارد؟" : ""),
+            Inline(rows), ct, html: true);
+    }
+
+    // The premium emoji in a message: each custom emoji with the plain emoji it stands for.
+    private static List<(string Plain, string Id)> PremiumEmojiOf(JsonElement msg)
+    {
+        var found = new List<(string, string)>();
+        var text = msg.TryGetProperty("text", out var t) ? t.GetString() ?? "" : "";
+        if (!msg.TryGetProperty("entities", out var entities) || entities.ValueKind != JsonValueKind.Array) return found;
+        foreach (var e in entities.EnumerateArray())
+        {
+            if (!e.TryGetProperty("type", out var type) || type.GetString() != "custom_emoji") continue;
+            if (!e.TryGetProperty("custom_emoji_id", out var id) || id.GetString() is not { Length: > 0 and <= 32 } emojiId || !emojiId.All(char.IsAsciiDigit)) continue;
+            if (!e.TryGetProperty("offset", out var o) || !e.TryGetProperty("length", out var l)) continue;
+            int offset = o.GetInt32(), length = l.GetInt32();
+            // Telegram counts in UTF-16 units, as .NET strings do.
+            if (offset < 0 || length <= 0 || offset + length > text.Length) continue;
+            found.Add((text.Substring(offset, length), emojiId));
+        }
+        return found;
+    }
+
+    private async Task HandleStaffEmojiAsync(string token, long chatId, Session session, JsonElement msg, CancellationToken ct)
+    {
+        var at = new Screen(chatId);
+        if (StaffFor(chatId) is not { Role: UserRole.Admin } staff)
+        {
+            await ShowHomeAsync(token, at, null, ct);
+            return;
+        }
+        var found = PremiumEmojiOf(msg);
+        if (found.Count == 0)
+        {
+            await ReplyAsync(token, chatId, "در این پیام ایموجی پریمیومی پیدا نشد. ایموجی را از بخش ایموجی‌های پریمیوم تلگرام انتخاب کنید (نه ایموجی معمولی).", ct,
+                Inline(new[] { new[] { Btn("🔁 دوباره", "adm:look:s", Blue) }, StaffNav("adm:look") }));
+            return;
+        }
+        var map = new Dictionary<string, string>(_store.GetTelegramSettings().CustomerBotEmoji);
+        var set = 0;
+        if (session.Text is { } only)
+        {
+            map[EmojiKey(only)] = found[0].Id;
+            set = 1;
+        }
+        else
+            foreach (var (plain, id) in found)
+                if (map.Count < MaxPremiumEmoji || map.ContainsKey(EmojiKey(plain)))
+                {
+                    map[EmojiKey(plain)] = id;
+                    set++;
+                }
+        // Setting the first ones is what turning premium on means.
+        _store.SetCustomerBotLook(map.Count > 0 ? true : null, map);
+        _premiumRefusedAt = DateTime.MinValue;
+        Audit(staff, AuditAction.Update, "customer-bot", null, $"{set} ایموجی پریمیوم ربات تنظیم شد");
+        await ShowLookAsync(token, at,
+            $"✅ {JalaliDate.ToPersianDigits(set.ToString())} ایموجی تنظیم شد. اگر روی دکمه‌های همین پیام ایموجی پریمیوم را نمی‌بینید، حساب صاحب ربات Premium ندارد.", ct);
+    }
+
     // ── The bot's own switches ──────────────────────────────────────────────────────────────────────────────
 
     private async Task ShowBotSettingsAsync(string token, Screen at, string? notice, CancellationToken ct)
@@ -554,8 +676,8 @@ public sealed partial class TelegramCustomerBot
             Cell(Fa(_store.GetProducts().Count(GuestSellable)), "🔓 محصولات بدون ثبت‌نام"),
             new[]
             {
-                Btn(s.CustomerBotShop ? "🛒 خاموش کردن فروشگاه" : "🛒 روشن کردن فروشگاه", "adm:set:shop"),
-                Btn(s.CustomerBotSales ? "🔒 بستن خرید بدون ثبت‌نام" : "🔓 باز کردن خرید بدون ثبت‌نام", "adm:set:sales"),
+                Btn(s.CustomerBotShop ? "🛒 خاموش کردن فروشگاه" : "🛒 روشن کردن فروشگاه", "adm:set:shop", s.CustomerBotShop ? Red : Green),
+                Btn(s.CustomerBotSales ? "🔒 بستن خرید بدون ثبت‌نام" : "🔓 باز کردن خرید بدون ثبت‌نام", "adm:set:sales", s.CustomerBotSales ? Red : Green),
             },
             new[] { Link("🌐 همه‌ی تنظیمات در پنل", $"{Site}/admin/customer-bot") },
             StaffNav(),

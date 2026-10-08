@@ -566,6 +566,15 @@ public sealed partial class SqliteDataStore
         WriteSingleton(conn, null, TelegramKey, t);
     }
 
+    public void SetCustomerBotLook(bool? premium, IReadOnlyDictionary<string, string>? emoji)
+    {
+        using var conn = OpenConnection();
+        var t = ReadSingletonNoTx<TelegramSettings>(conn, TelegramKey);
+        if (premium is bool on) t.CustomerBotPremium = on;
+        if (emoji is not null) t.CustomerBotEmoji = new Dictionary<string, string>(emoji);
+        WriteSingleton(conn, null, TelegramKey, t);
+    }
+
     // The support bot is managed on its own page too. A null token keeps the stored one; an empty one removes it.
     public void SetSupportBot(bool enabled, string? token, string? username, string chatId)
     {

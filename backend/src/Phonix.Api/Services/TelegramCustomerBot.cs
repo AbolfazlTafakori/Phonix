@@ -33,10 +33,10 @@ public interface ITelegramCustomerBot
 
     // A notice about one of a customer's orders — a delivery, a decision, a service running out — to their chat
     // (linked, or the one they bought with in the bot), with the buttons to act on it: the order itself, and a
-    // renewal when that is what it is about (a page of the site, or buying the product again here). False when
-    // it was not sent: no chat, notices turned off, or Telegram refused.
+    // renewal when that is what it is about (one service renewed here, a page of the site, or buying the product
+    // again). False when it was not sent: no chat, notices turned off, or Telegram refused.
     Task<bool> NotifyOrderAsync(AppUser user, string text, int orderId, string? renewSitePath = null, int? renewProductId = null,
-        CancellationToken ct = default);
+        int? renewUnitId = null, CancellationToken ct = default);
 }
 
 public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
@@ -94,9 +94,7 @@ public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
     private bool ShopOn => ShopToken(_store) is not null;
 
     // An inline button that opens the shop inside Telegram, or nothing while the shop is off.
-    private string? ShopKeyboard(string label) => ShopOn
-        ? JsonSerializer.Serialize(new { inline_keyboard = new[] { new[] { new { text = label, web_app = new { url = ShopUrl } } } } })
-        : null;
+    private string? ShopKeyboard(string label) => ShopOn ? Inline(new[] { new[] { new B(label, WebApp: ShopUrl, Style: Blue) } }) : null;
 
     public async Task<long> ProcessUpdatesAsync(long offset, CancellationToken ct = default)
     {
@@ -219,7 +217,7 @@ public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
         Failures.TryRemove(chatId, out _);
         _logger.LogInformation("Customer bot: user {UserId} linked a Telegram chat", userId);
         var next = new List<object[]>();
-        if (ShopOn) next.Add(new object[] { new { text = "🛒 ورود به فروشگاه", web_app = new { url = ShopUrl } } });
+        if (ShopOn) next.Add(new[] { new B("🛒 ورود به فروشگاه", WebApp: ShopUrl, Style: Blue) });
         next.Add(HomeRow());
         await ReplyAsync(token, chatId,
             $"✅ حساب «{DisplayName(user)}» ({user.Username}) در فونیکس وریفای به این تلگرام وصل شد.\n\nاز این پس اطلاعات سفارش‌ها، تأیید پرداخت‌ها و پیام‌های پشتیبانی اینجا هم برایتان ارسال می‌شود.\n\nاگر این حساب شما نیست: /stop",
@@ -288,39 +286,23 @@ public sealed partial class TelegramCustomerBot : ITelegramCustomerBot
             html = false;
         }
         if (text.Length > MaxMessage) text = text[..MaxMessage] + "…";
-        try
+        var fields = new Dictionary<string, string>
         {
-            using var http = _httpFactory.CreateClient();
-            http.Timeout = TimeSpan.FromSeconds(20);
-            var fields = new Dictionary<string, string>
-            {
-                ["chat_id"] = chatId.ToString(),
-                ["text"] = text,
-                ["disable_web_page_preview"] = "true",
-            };
-            if (replyMarkup is not null) fields["reply_markup"] = replyMarkup;
-            if (html) fields["parse_mode"] = "HTML";
-            using var form = new FormUrlEncodedContent(fields);
-            using var resp = await http.PostAsync($"https://api.telegram.org/bot{token}/sendMessage", form, ct);
-            if (resp.IsSuccessStatusCode) return true;
-            // 403 when the customer blocked the bot or their account is gone: stop writing into a closed door.
-            // Not for "can't initiate conversation" — someone who linked from inside the shop may simply never
-            // have pressed Start, and their link still signs them in there.
-            if ((int)resp.StatusCode == 403)
-            {
-                var body = await resp.Content.ReadAsStringAsync(ct);
-                if (body.Contains("blocked", StringComparison.OrdinalIgnoreCase)
-                    || body.Contains("deactivated", StringComparison.OrdinalIgnoreCase))
-                    _store.UnlinkTelegramChat(chatId);
-            }
-            _logger.LogWarning("Customer bot sendMessage failed: {Status}", (int)resp.StatusCode);
-            return false;
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Customer bot sendMessage call failed");
-            return false;
-        }
+            ["chat_id"] = chatId.ToString(),
+            ["text"] = text,
+            ["disable_web_page_preview"] = "true",
+        };
+        if (replyMarkup is not null) fields["reply_markup"] = replyMarkup;
+        if (html) fields["parse_mode"] = "HTML";
+        var (ok, status, body) = await PostWithKeyboardAsync(token, "sendMessage", fields, ct);
+        if (ok) return true;
+        // 403 when the customer blocked the bot or their account is gone: stop writing into a closed door.
+        // Not for "can't initiate conversation" — someone who linked from inside the shop may simply never
+        // have pressed Start, and their link still signs them in there.
+        if (status == 403 && (body.Contains("blocked", StringComparison.OrdinalIgnoreCase)
+                              || body.Contains("deactivated", StringComparison.OrdinalIgnoreCase)))
+            _store.UnlinkTelegramChat(chatId);
+        return false;
     }
 
     public Task<(bool Ok, string? Username, string? Error)> CheckTokenAsync(string token, CancellationToken ct = default) =>

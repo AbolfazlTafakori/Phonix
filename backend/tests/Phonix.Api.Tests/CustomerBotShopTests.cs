@@ -25,6 +25,8 @@ public class CustomerBotShopTests
     {
         public List<(string Method, string Body)> Calls { get; } = new();
         public Queue<string> Updates { get; } = new();
+        // Like a bot whose owner has no Telegram Premium, if Telegram turns such keyboards down.
+        public bool RefusePremium { get; set; }
         private static readonly byte[] Photo = MakeJpeg();
 
         private static byte[] MakeJpeg()
@@ -43,6 +45,11 @@ public class CustomerBotShopTests
             var body = request.Content is null ? request.RequestUri.Query : await request.Content.ReadAsStringAsync(ct);
             var decoded = Uri.UnescapeDataString(body.Replace('+', ' '));
             lock (Calls) Calls.Add((method, decoded));
+            if (RefusePremium && decoded.Contains("icon_custom_emoji_id"))
+                return new HttpResponseMessage(HttpStatusCode.BadRequest)
+                {
+                    Content = new StringContent("{\"ok\":false,\"error_code\":400,\"description\":\"Bad Request: premium emoji not allowed\"}"),
+                };
             var result = method switch
             {
                 "getUpdates" => $"[{(Updates.Count > 0 ? Updates.Dequeue() : "")}]",
@@ -165,9 +172,12 @@ public class CustomerBotShopTests
 
         await Run(r, Tap($"shop:p:{Netflix}"));
         var page = LastReply(r);
+        Assert.Contains($"shop:t:{Netflix}:0", page);   // its plans come in two kinds: the kind first
+        Assert.Contains("حساب سایت", page);              // says up front what it takes to buy
+
+        await Run(r, Tap($"shop:t:{Netflix}:0"));
         var plan = r.Store.GetProduct(Netflix)!.Plans.First(p => p.IsActive);
-        Assert.Contains($"shop:b:{Netflix}:{plan.Id}", page);
-        Assert.Contains("حساب سایت", page);   // says up front what it takes to buy
+        Assert.Contains($"shop:b:{Netflix}:{plan.Id}", LastReply(r));
     }
 
     // Opening a product is a staff decision: anything else is never sold here, whatever the buttons say.

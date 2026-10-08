@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging.Abstractions;
 using Phonix.Api.Data;
 using Phonix.Api.Models;
@@ -90,23 +91,259 @@ public class CustomerBotMenuTests
     }
 
     [Fact]
-    public async Task Buying_is_three_numbered_steps_each_with_a_way_back()
+    public async Task Buying_goes_in_numbered_steps_each_with_a_way_back()
     {
         var r = Setup();
 
         await Run(r, Tap("shop:cats", Me));
-        Assert.Contains("اول از سه", Screen(r));
+        Assert.Contains("مرحله اول", Screen(r));
 
         await Run(r, Tap("shop:c:2", Me));
         var products = Screen(r);
-        Assert.Contains("دوم از سه", products);
+        Assert.Contains("مرحله دوم", products);
         Assert.Contains("\"callback_data\":\"shop:cats\"", products);   // one step back
         Assert.Contains("\"callback_data\":\"home\"", products);        // and always the main menu
 
         await Run(r, Tap($"shop:p:{Spotify}", Me));
         var product = Screen(r);
-        Assert.Contains("سوم از سه", product);
+        Assert.Contains("مرحله سوم", product);
         Assert.Contains("\"callback_data\":\"shop:c:2\"", product);
+    }
+
+    // ── How it looks ────────────────────────────────────────────────────────────────────────────────────────
+
+    // The buttons of the screen the customer is looking at: what each says and does, its colour and premium emoji.
+    private static List<JsonElement> Buttons(string call)
+    {
+        var markup = call.Split('&').First(f => f.StartsWith("reply_markup="))["reply_markup=".Length..];
+        using var doc = JsonDocument.Parse(markup);
+        var root = doc.RootElement.TryGetProperty("inline_keyboard", out var inline) ? inline : doc.RootElement.GetProperty("keyboard");
+        return root.EnumerateArray().SelectMany(row => row.EnumerateArray()).Select(b => b.Clone()).ToList();
+    }
+
+    private static string TextOf(JsonElement b) => b.GetProperty("text").GetString()!;
+
+    private static string? Prop(JsonElement b, string name) => b.TryGetProperty(name, out var v) ? v.GetString() : null;
+
+    [Fact]
+    public async Task Categories_and_products_are_names_alone_and_the_price_is_on_the_products_own_page()
+    {
+        var r = Setup();
+
+        await Run(r, Tap("shop:cats", Me));
+        Assert.DoesNotContain(Buttons(Screen(r)), b => TextOf(b).Contains('(') || TextOf(b).Contains("تومان"));
+
+        await Run(r, Tap("shop:c:2", Me));
+        Assert.DoesNotContain(Buttons(Screen(r)), b => TextOf(b).Contains("تومان"));
+
+        await Run(r, Tap($"shop:p:{Spotify}", Me));
+        var buy = Assert.Single(Buttons(Screen(r)), b => Prop(b, "callback_data") == $"shop:b:{Spotify}:0");
+        Assert.Contains("تومان", TextOf(buy));
+        Assert.Equal("success", Prop(buy, "style"));   // going ahead is green
+    }
+
+    [Fact]
+    public async Task Buttons_are_coloured_by_what_they_do()
+    {
+        var r = Setup();
+        r.Store.LinkTelegram(1, Me, "ali_tg");
+
+        await Run(r, Tap("home", Me));
+        var menu = Buttons(Screen(r));
+        Assert.Equal("success", Prop(menu.Single(b => Prop(b, "callback_data") == "shop:cats"), "style"));
+        Assert.Equal("primary", Prop(menu.Single(b => Prop(b, "callback_data") == "ord:l:1"), "style"));
+
+        await Run(r, Tap("acc", Me));
+        Assert.Equal("danger", Prop(Buttons(Screen(r)).Single(b => Prop(b, "callback_data") == "acc:unlink"), "style"));
+    }
+
+    [Fact]
+    public async Task A_premium_emoji_replaces_the_plain_one_a_button_starts_with()
+    {
+        var r = Setup();
+        r.Store.SetCustomerBotLook(true, new Dictionary<string, string> { ["🛍"] = "5368324170671202286" });
+
+        await Run(r, Tap("home", Me));
+
+        var buy = Buttons(Screen(r)).Single(b => Prop(b, "callback_data") == "shop:cats");
+        Assert.Equal("5368324170671202286", Prop(buy, "icon_custom_emoji_id"));
+        Assert.DoesNotContain("🛍", TextOf(buy));
+    }
+
+    [Fact]
+    public async Task When_telegram_refuses_premium_emoji_the_same_screen_goes_out_plain()
+    {
+        var r = Setup();
+        r.Store.SetCustomerBotLook(true, new Dictionary<string, string> { ["🛍"] = "5368324170671202286" });
+        r.Telegram.RefusePremium = true;
+
+        await Run(r, Tap("home", Me));
+
+        var buy = Buttons(Screen(r)).Single(b => Prop(b, "callback_data") == "shop:cats");
+        Assert.Null(Prop(buy, "icon_custom_emoji_id"));
+        Assert.StartsWith("🛍", TextOf(buy));
+
+        // And premium is left alone for a while rather than refused on every screen.
+        var before = r.Telegram.Calls.Count;
+        await Run(r, Tap("acc", Me));
+        Assert.DoesNotContain(r.Telegram.Calls.Skip(before), c => c.Body.Contains("icon_custom_emoji_id"));
+    }
+
+    // An Admin sends premium emoji to the bot; each takes the place of the plain emoji it stands for.
+    [Fact]
+    public async Task An_admin_sets_the_premium_emoji_by_sending_them()
+    {
+        var r = Staffed();
+        await Run(r, Tap("adm:look:s", Me));
+
+        const string text = "🛍 📦";   // 🛍 at 0 (2 UTF-16 units), 📦 at 3
+        r.Telegram.Updates.Enqueue(JsonSerializer.Serialize(new
+        {
+            update_id = 991,
+            message = new
+            {
+                message_id = 9, text, from = new { id = Me, first_name = "Reza" }, chat = new { id = Me, type = "private" },
+                entities = new object[]
+                {
+                    new { type = "custom_emoji", offset = 0, length = 2, custom_emoji_id = "111" },
+                    new { type = "custom_emoji", offset = 3, length = 2, custom_emoji_id = "222" },
+                },
+            },
+        }));
+        await r.Bot.ProcessUpdatesAsync(0);
+
+        var look = r.Store.GetTelegramSettings();
+        Assert.True(look.CustomerBotPremium);
+        Assert.Equal("111", look.CustomerBotEmoji["🛍"]);
+        Assert.Equal("222", look.CustomerBotEmoji["📦"]);
+    }
+
+    [Fact]
+    public async Task Only_an_admin_changes_the_look()
+    {
+        var r = Staffed("mohammad");
+        r.Store.UpdateUser(IdOf(r, "mohammad"), u => u.Permissions = AdminMenuKeys());
+
+        await Run(r, Tap("adm:look:t", Me));
+
+        Assert.False(r.Store.GetTelegramSettings().CustomerBotPremium);
+    }
+
+    // ── Configs: location, then plan ───────────────────────────────────────────────────────────────────────
+
+    // A V2Ray product sold from two locations, opened for the bot.
+    private static (int ProductId, int Netherlands, int Germany) Configs(Rig r)
+    {
+        var nl = r.Store.AddV2RayCategory(new V2RayCategory { Name = "هلند 🇳🇱", SortOrder = 1 });
+        var de = r.Store.AddV2RayCategory(new V2RayCategory { Name = "آلمان 🇩🇪", SortOrder = 2 });
+        var nlPlan = r.Store.AddV2RayPlan(new V2RayPlan { CategoryId = nl.Id, Title = "۳۰ گیگ یک‌ماهه", PanelId = 7, InboundIds = new() { 1 }, VolumeGb = 30, DurationDays = 30, Price = 150_000 });
+        var dePlan = r.Store.AddV2RayPlan(new V2RayPlan { CategoryId = de.Id, Title = "۵۰ گیگ یک‌ماهه", PanelId = 8, InboundIds = new() { 1 }, VolumeGb = 50, DurationDays = 30, Price = 220_000 });
+        var product = r.Store.AddProduct(new Product
+        {
+            Name = "کانفیگ V2Ray", CategoryId = 1, Price = 150_000, IsActive = true, V2RayCategoryId = nl.Id, TelegramGuestSale = true,
+        });
+        return (product.Id, nlPlan.Id, dePlan.Id);
+    }
+
+    [Fact]
+    public async Task Buying_a_config_is_a_location_then_a_plan_with_its_price()
+    {
+        var r = Setup();
+        var (product, nl, de) = Configs(r);
+
+        await Run(r, Tap("home", Me));
+        Assert.Contains(Buttons(Screen(r)), b => Prop(b, "callback_data") == "cfg");
+
+        await Run(r, Tap("cfg", Me));   // the only config product: straight to its locations
+        var locations = Buttons(Screen(r));
+        Assert.Contains(locations, b => Prop(b, "callback_data") == $"cfg:t:{product}:0");
+        Assert.Contains(locations, b => Prop(b, "callback_data") == $"cfg:t:{product}:1");
+        Assert.Contains("مرحله اول", Screen(r));
+
+        await Run(r, Tap($"cfg:t:{product}:1", Me));
+        var plans = Buttons(Screen(r));
+        var plan = Assert.Single(plans, b => Prop(b, "callback_data")?.StartsWith("shop:b:") == true);
+        Assert.Equal($"shop:b:{product}:{de}", Prop(plan, "callback_data"));
+        Assert.Contains("تومان", TextOf(plan));
+        Assert.Contains(plans, b => Prop(b, "callback_data") == $"cfg:p:{product}");   // back to the locations
+        Assert.Contains("مرحله دوم", Screen(r));
+    }
+
+    // ── My services ─────────────────────────────────────────────────────────────────────────────────────────
+
+    private static (Order Order, OrderUnit Unit) ServiceOf(Rig r, int product, int plan, int panel, string token)
+    {
+        var guest = r.Store.EnsureTelegramGuest(Me, "Sara");
+        var order = r.Store.PlaceOrder(guest, new[] { (product, 1, (int?)plan) }, "کارت به کارت", fromWallet: false, paymentMethodId: 1,
+            bot: new BotCheckout("1__0123456789abcdef0123456789abcdef.jpg", null, "Sara")).Order!;
+        var unit = order.Units[0];
+        r.Store.SetUnitV2Ray(order.Id, unit.Id, new V2RayAccount
+        {
+            PanelId = panel, PlanId = plan, Email = "sara-1", Uuid = "u-1", Token = token, SubUrl = "https://sub.test/s/abc",
+            Protocol = "vless", Network = "tcp", VolumeGb = 30, DurationDays = 30,
+            CreatedAtUtc = DateTime.UtcNow.AddDays(-25), ExpiresAtUtc = DateTime.UtcNow.AddDays(5),
+        });
+        return (r.Store.GetOrder(order.Id)!, r.Store.GetOrder(order.Id)!.Units[0]);
+    }
+
+    [Fact]
+    public async Task A_service_is_a_card_with_its_link_and_renewal()
+    {
+        var r = Setup();
+        var (product, nl, _) = Configs(r);
+        var (order, unit) = ServiceOf(r, product, nl, 7, "tok-1");
+
+        await Run(r, Tap("svc:l:1", Me));
+        Assert.Contains(Buttons(Screen(r)), b => Prop(b, "callback_data") == $"svc:v:{order.Id}:{unit.Id}");
+
+        await Run(r, Tap($"svc:v:{order.Id}:{unit.Id}", Me));
+        var card = Buttons(Screen(r));
+        Assert.Contains(card, b => Prop(b, "callback_data") == "noop");                         // the facts table
+        Assert.Contains(card, b => Prop(b, "callback_data") == $"svc:s:{order.Id}:{unit.Id}");
+        Assert.Contains(card, b => Prop(b, "callback_data") == $"svc:r:{order.Id}:{unit.Id}");
+        Assert.Contains(card, b => Prop(b, "url") == "https://shop.test/config/tok-1");          // live usage and QR
+
+        await Run(r, Tap($"svc:s:{order.Id}:{unit.Id}", Me));
+        Assert.Contains("<code>https://sub.test/s/abc</code>", Last(r, "sendMessage"));
+    }
+
+    // Renewing here: the same server only, paid by receipt, placed as a renewal of that very service.
+    [Fact]
+    public async Task A_service_is_renewed_in_the_bot_on_its_own_server()
+    {
+        var r = Setup();
+        var (product, nl, de) = Configs(r);
+        var (order, unit) = ServiceOf(r, product, nl, 7, "tok-2");
+        r.Store.SetOrderStatus(order.Id, OrderStatus.Preparing);   // its own receipt was reviewed long ago
+
+        await Run(r, Tap($"svc:r:{order.Id}:{unit.Id}", Me));
+        var plans = Buttons(Screen(r)).Where(b => Prop(b, "callback_data")?.StartsWith("svc:rp:") == true).ToList();
+        Assert.Equal($"svc:rp:{order.Id}:{unit.Id}:{nl}", Prop(Assert.Single(plans), "callback_data"));   // not the other server's
+
+        await Run(r, Tap($"svc:rp:{order.Id}:{unit.Id}:{de}", Me));   // forged: another server
+        Assert.DoesNotContain("عکس رسید", Screen(r));
+
+        await Run(r, Tap($"svc:rp:{order.Id}:{unit.Id}:{nl}", Me));
+        Assert.Contains("فاکتور تمدید", Screen(r));
+        await Run(r, ReceiptPhoto(chatId: Me));
+
+        var renewal = r.Store.GetUserOrders(order.UserId).OrderByDescending(o => o.Id).First();
+        Assert.NotEqual(order.Id, renewal.Id);
+        Assert.Equal("tok-2", renewal.Units.Single().V2RayRenewToken);
+    }
+
+    [Fact]
+    public async Task Someone_elses_service_is_never_shown_or_renewed()
+    {
+        var r = Setup();
+        var (product, nl, _) = Configs(r);
+        var (order, unit) = ServiceOf(r, product, nl, 7, "tok-3");
+        const long stranger = 913050;
+
+        await Run(r, Tap($"svc:v:{order.Id}:{unit.Id}", stranger), Tap($"svc:s:{order.Id}:{unit.Id}", stranger),
+            Tap($"svc:rp:{order.Id}:{unit.Id}:{nl}", stranger));
+
+        Assert.DoesNotContain(r.Telegram.Calls, c => c.Body.Contains($"chat_id={stranger}") && (c.Body.Contains("sub.test") || c.Body.Contains("فاکتور")));
     }
 
     [Fact]

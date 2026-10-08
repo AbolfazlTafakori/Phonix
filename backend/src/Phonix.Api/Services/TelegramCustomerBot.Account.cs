@@ -39,27 +39,28 @@ public sealed partial class TelegramCustomerBot
         if (orders.Count == 0)
         {
             await ShowAsync(token, at, "📦 سفارش‌های من\n\nهنوز سفارشی ندارید.",
-                Inline(new[] { new[] { Btn("🛍 خرید محصول", "shop:cats") }, HomeRow() }), ct);
+                Inline(new[] { new[] { Btn("🛍 خرید محصول", "shop:cats", Green) }, HomeRow() }), ct);
             return;
         }
         var pages = (orders.Count + OrdersPerPage - 1) / OrdersPerPage;
         page = Math.Clamp(page, 1, pages);
         var rows = orders.Skip((page - 1) * OrdersPerPage).Take(OrdersPerPage)
             .Select(o => new[] { Btn($"{StatusIcon(o.Status)} {o.Code} · {Short(o.Items.FirstOrDefault()?.Name, 22)}", $"ord:v:{o.Id}") })
-            .ToList();
+            .Cast<object[]>().ToList();
         if (pages > 1)
         {
             var pager = new List<object>();
-            if (page > 1) pager.Add(Btn("« قبلی", $"ord:l:{page - 1}"));
+            if (page > 1) pager.Add(Btn("« قبلی", $"ord:l:{page - 1}", Blue));
             pager.Add(Btn($"صفحه {Fa(page)} از {Fa(pages)}", "noop"));
-            if (page < pages) pager.Add(Btn("بعدی »", $"ord:l:{page + 1}"));
+            if (page < pages) pager.Add(Btn("بعدی »", $"ord:l:{page + 1}", Blue));
             rows.Add(pager.ToArray());
         }
-        rows.Add(new[] { Btn("🔎 جستجوی سفارش", "ord:s") });
+        rows.Add(new[] { Btn("🔎 جستجوی سفارش", "ord:s", Blue) });
         rows.Add(HomeRow());
         await ShowAsync(token, at,
-            $"📦 سفارش‌های من ({Fa(orders.Count)})\n\nبرای دیدن جزئیات و اطلاعات اکانت، روی سفارش بزنید.\n\n⏳ در انتظار تأیید · 🛠 در حال آماده‌سازی · ✅ تحویل شده · ❌ لغو شده",
-            Inline(rows), ct);
+            $"<b>📦 سفارش‌های من ({Fa(orders.Count)})</b>\n{Rule}\nبرای دیدن جزئیات و اطلاعات اکانت، روی سفارش بزنید.\n\n"
+            + "<i>⏳ در انتظار تأیید · 🛠 در حال آماده‌سازی · ✅ تحویل شده · ❌ لغو شده</i>",
+            Inline(rows), ct, html: true);
     }
 
     // An order of this chat's, as a card: the delivered accounts in the text (one tap copies them), the facts as
@@ -74,7 +75,7 @@ public sealed partial class TelegramCustomerBot
         }
 
         var units = order.Units.OrderBy(u => u.Id).ToList();
-        var text = new List<string> { $"📄 <b>سفارش {H(order.Code)}</b>" };
+        var text = new List<string> { $"<b>📄 سفارش {H(order.Code)}</b>", Rule };
         // The accounts share one message: each gets its part of Telegram's limit, so the card is never cut short.
         var room = Math.Max(250, 2800 / Math.Clamp(units.Count, 1, 8));
         foreach (var unit in units.Take(8))
@@ -106,24 +107,9 @@ public sealed partial class TelegramCustomerBot
             && !units.Any(u => u.V2Ray is not null || u.WireGuard is not null))
             rows.Add(Cell(JalaliDate.Format(delivered.AddMonths(months)), "⏳ اعتبار تا"));
 
-        // Each service: its numbers, and its own page — the live usage, the config, and renewing it.
-        var services = units.Where(u => u.V2Ray is { Token.Length: > 0 } || u.WireGuard is { Token.Length: > 0 }).Take(3).ToList();
-        foreach (var unit in services)
-        {
-            var many = services.Count > 1 ? $" {Fa(unit.UnitIndex)}" : "";
-            var (volume, expires, protocol, removed, path) = unit.V2Ray is { } v
-                ? (v.VolumeGb, v.ExpiresAtUtc, v.Protocol, v.PanelDeletedAtUtc is not null, $"/config/{v.Token}")
-                : (unit.WireGuard!.VolumeGb, unit.WireGuard.ExpiresAtUtc, "WireGuard", unit.WireGuard.PanelDeletedAtUtc is not null, $"/wg/{unit.WireGuard.Token}");
-            if (removed) rows.Add(Cell("پایان یافته", $"🔌 سرویس{many}"));
-            else
-            {
-                if (volume > 0) rows.Add(Cell($"{Fa(volume)} گیگابایت", $"📦 حجم{many}"));
-                if (expires is DateTime e)
-                    rows.Add(Cell(e <= DateTime.UtcNow ? "منقضی شده" : JalaliDate.Format(e), $"⏳ انقضا{many}"));
-                if (!string.IsNullOrWhiteSpace(protocol)) rows.Add(Cell(protocol, $"🔌 پروتکل{many}"));
-            }
-            rows.Add(new[] { SiteButton($"🔗 صفحه‌ی سرویس{many} و تمدید", path) });
-        }
+        // Each service has its own card: the plan, the dates, the link and renewing it.
+        foreach (var unit in units.Where(u => !u.Rejected && FactsOf(u) is not null).Take(4))
+            rows.Add(new[] { Btn($"🔐 سرویس {Short(unit.Name, 22)}", $"svc:v:{order.Id}:{unit.Id}", Blue) });
         rows.Add(NavRow("ord:l:1", "⬅️ سفارش‌ها"));
         await ShowAsync(token, at, string.Join("\n", text), Inline(rows), ct, html: true);
     }
@@ -138,7 +124,7 @@ public sealed partial class TelegramCustomerBot
         if (found is null)
         {
             await ReplyAsync(token, chatId, "سفارشی با این کد در سفارش‌های شما پیدا نشد.", ct,
-                Inline(new[] { new[] { Btn("🔎 دوباره جستجو کنید", "ord:s") }, NavRow("ord:l:1", "⬅️ سفارش‌ها") }));
+                Inline(new[] { new[] { Btn("🔎 دوباره جستجو کنید", "ord:s", Blue) }, NavRow("ord:l:1", "⬅️ سفارش‌ها") }));
             return;
         }
         await ShowOrderAsync(token, new Screen(chatId), found.Id, ct);
@@ -167,12 +153,16 @@ public sealed partial class TelegramCustomerBot
                 Cell(Toman(user.TotalSpent), "💳 مجموع خرید"),
             };
             if (!string.IsNullOrWhiteSpace(user.JoinedAt)) rows.Add(Cell(JalaliDate.ToPersianDigits(user.JoinedAt), "📅 عضویت"));
-            rows.Add(new[] { SiteButton("💰 شارژ کیف پول", "/account/wallet"), SiteButton("🪪 احراز هویت", "/account/kyc") });
-            rows.Add(new[] { Btn(user.TelegramNotify ? "🔔 اعلان‌ها: روشن" : "🔕 اعلان‌ها: خاموش", "acc:notify"), Btn("🔌 قطع اتصال", "acc:unlink") });
+            rows.Add(new[] { SiteButton("💰 شارژ کیف پول", "/account/wallet", Green), SiteButton("🪪 احراز هویت", "/account/kyc", Blue) });
+            rows.Add(new[]
+            {
+                Btn(user.TelegramNotify ? "🔔 اعلان‌ها: روشن" : "🔕 اعلان‌ها: خاموش", "acc:notify", user.TelegramNotify ? Green : null),
+                Btn("🔌 قطع اتصال", "acc:unlink", Red),
+            });
             rows.Add(HomeRow());
             await ShowAsync(token, at,
-                $"👤 حساب من\n\nحساب سایت «{DisplayName(user)}» به این تلگرام وصل است ✅\nسفارش‌ها، تأیید پرداخت‌ها و پیام‌های حسابتان اینجا هم می‌آید.\n\n🕒 {JalaliDate.NowFa()}",
-                Inline(rows), ct);
+                $"<b>👤 حساب من</b>\n{Rule}\nحساب سایت «{H(DisplayName(user))}» به این تلگرام وصل است ✅\nسفارش‌ها، تأیید پرداخت‌ها و پیام‌های حسابتان اینجا هم می‌آید.\n\n🕒 {JalaliDate.NowFa()}",
+                Inline(rows), ct, html: true);
             return;
         }
 
@@ -214,7 +204,7 @@ public sealed partial class TelegramCustomerBot
                 Cell($"{Fa(_store.CountReferredUsers(user.Id))} نفر", "👥 دعوت‌شده‌ها"),
                 Cell(Fa(earnings.Count), "🛒 خریدهای آن‌ها"),
                 Cell(Toman(earnings.Sum(e => e.Commission)), "💰 درآمد شما"),
-                new[] { Link("📤 فرستادن لینک برای دوستان", share) },
+                new[] { Link("📤 فرستادن لینک برای دوستان", share, Green) },
                 NavRow("acc", "⬅️ حساب من"),
             }), ct);
     }
@@ -238,10 +228,10 @@ public sealed partial class TelegramCustomerBot
         if (tutorials.Count == 0)
         {
             await ShowAsync(token, at, "📚 آموزش‌ها\n\nآموزش نصب و استفاده‌ی هر محصول، بعد از خرید آن همین‌جا برایتان باز می‌شود.",
-                Inline(new[] { new[] { Btn("🛍 خرید محصول", "shop:cats") }, HomeRow() }), ct);
+                Inline(new[] { new[] { Btn("🛍 خرید محصول", "shop:cats", Green) }, HomeRow() }), ct);
             return;
         }
-        var rows = tutorials.Take(30).Select(t => new[] { Btn($"📖 {Short(t.Title, 34)}", $"tut:{t.Id}") }).Append(HomeRow());
+        var rows = tutorials.Take(30).Select(t => new[] { Btn($"📖 {Short(t.Title, 34)}", $"tut:{t.Id}", Blue) }).Append(HomeRow());
         await ShowAsync(token, at, "📚 آموزش‌ها\n\nآموزش محصولاتی که خریده‌اید 👇", Inline(rows), ct);
     }
 
@@ -266,7 +256,7 @@ public sealed partial class TelegramCustomerBot
         Sessions[at.ChatId] = Session.Typing("support");
         return ShowAsync(token, at,
             "💬 پشتیبانی\n\nپیامتان را بنویسید و بفرستید؛ پاسخ پشتیبانی همین‌جا برایتان می‌آید.\nاگر درباره‌ی سفارشی است، کد آن را هم بنویسید.",
-            Inline(new[] { new[] { Btn("❌ انصراف", "home") } }), ct);
+            Inline(new[] { new[] { Btn("❌ انصراف", "home", Red) } }), ct);
     }
 
     private async Task SendToSupportAsync(string token, long chatId, string text, JsonElement from, CancellationToken ct)
@@ -277,7 +267,7 @@ public sealed partial class TelegramCustomerBot
         if (Resolve<ITelegramSupportBot>() is { } support && conversation.Messages.LastOrDefault() is { } sent)
             _ = support.NotifyChatMessageAsync(conversation, sent);
         await ReplyAsync(token, chatId, "✅ پیامتان برای پشتیبانی ارسال شد؛ پاسخ همین‌جا برایتان می‌آید.", ct,
-            Inline(new[] { new[] { Btn("✍️ پیام دیگر", "sup") }, HomeRow() }));
+            Inline(new[] { new[] { Btn("✍️ پیام دیگر", "sup", Blue) }, HomeRow() }));
     }
 
     // ── Notices ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -295,12 +285,12 @@ public sealed partial class TelegramCustomerBot
 
     // The Telegram copy of a notice from a background worker: never throws, never holds the worker up.
     public static async Task NotifyFromWorkerAsync(IDataStore store, ITelegramCustomerBot? telegram, ILogger logger,
-        int userId, int orderId, string text, string? renewSitePath = null, int? renewProductId = null)
+        int userId, int orderId, string text, string? renewSitePath = null, int? renewProductId = null, int? renewUnitId = null)
     {
         if (telegram is null || !telegram.IsActive || store.GetUser(userId) is not { } user) return;
         try
         {
-            await telegram.NotifyOrderAsync(user, text, orderId, renewSitePath, renewProductId);
+            await telegram.NotifyOrderAsync(user, text, orderId, renewSitePath, renewProductId, renewUnitId);
         }
         catch (Exception ex)
         {
@@ -309,14 +299,15 @@ public sealed partial class TelegramCustomerBot
     }
 
     public async Task<bool> NotifyOrderAsync(AppUser user, string text, int orderId, string? renewSitePath = null,
-        int? renewProductId = null, CancellationToken ct = default)
+        int? renewProductId = null, int? renewUnitId = null, CancellationToken ct = default)
     {
         if (ActiveToken() is not { } token || !user.TelegramNotify || (user.TelegramChatId ?? user.TelegramGuestChatId) is not long chatId)
             return false;
         var rows = new List<object[]>();
-        if (renewSitePath is not null) rows.Add(new[] { SiteButton("♻️ تمدید سرویس", renewSitePath) });
-        else if (renewProductId is int productId) rows.Add(new[] { Btn("♻️ تمدید / خرید دوباره", $"shop:p:{productId}:n") });
-        rows.Add(new[] { Btn("📄 مشاهده‌ی سفارش", $"ord:v:{orderId}:n") });
+        if (renewUnitId is int unitId) rows.Add(new[] { Btn("♻️ تمدید سرویس", $"svc:r:{orderId}:{unitId}:n", Green) });
+        else if (renewSitePath is not null) rows.Add(new[] { SiteButton("♻️ تمدید سرویس", renewSitePath, Green) });
+        else if (renewProductId is int productId) rows.Add(new[] { Btn("♻️ تمدید / خرید دوباره", $"shop:p:{productId}:n", Green) });
+        rows.Add(new[] { Btn("📄 مشاهده‌ی سفارش", $"ord:v:{orderId}:n", Blue) });
         return await ReplyAsync(token, chatId, text, ct, Inline(rows));
     }
 }

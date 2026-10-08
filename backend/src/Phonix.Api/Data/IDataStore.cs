@@ -188,6 +188,8 @@ public interface IDataStore
     // shop / codeMinutes / sales / admin: null = keep. Everything but the token switches off with the bot.
     void SetCustomerBot(bool enabled, bool isPublic, string? token, string? username, bool? shop = null, int? codeMinutes = null,
         bool? sales = null, bool? admin = null);
+    // The customer bot's premium emoji. premium / emoji: null = keep; emoji replaces the whole map.
+    void SetCustomerBotLook(bool? premium, IReadOnlyDictionary<string, string>? emoji);
 
     // Linking a customer's account to their chat with the customer bot. A chat belongs to one account: linking it
     // to a new one releases it from the old. Unlink by chat is for when the customer stops or blocks the bot.

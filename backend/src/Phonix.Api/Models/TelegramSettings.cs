@@ -38,6 +38,11 @@ public class TelegramSettings
     // Running the shop from the bot: staff who linked their own account see «مدیریت فروشگاه» in its menu,
     // limited to the panel sections each of them holds. Off until an Admin turns it on.
     public bool CustomerBotAdmin { get; set; }
+    // The bot's premium emoji: for each plain emoji a button starts with, the custom emoji Telegram shows in its
+    // place. Telegram shows them only when the bot's owner has Telegram Premium, so they have their own switch.
+    // Set from inside the bot by an Admin (management → ظاهر ربات).
+    public bool CustomerBotPremium { get; set; }
+    public Dictionary<string, string> CustomerBotEmoji { get; set; } = new();
     // How long the one-time code mailed for linking stays valid, in minutes (set in the panel).
     public int CustomerBotCodeMinutes { get; set; } = 15;
     public string CustomerBotToken { get; set; } = "";

@@ -172,7 +172,7 @@ public class V2RayMonitorWorker : BackgroundService
 
         await TelegramCustomerBot.NotifyFromWorkerAsync(store, telegram, _logger, claimed.UserId, service.OrderId,
             TelegramCustomerBot.RunningOutNotice(claimed.OrderCode, verdict.WarnExpiry ? expiresFa : null, verdict.WarnVolume ? remainingFa : null),
-            renewSitePath: $"/config/{claimed.Token}");
+            renewSitePath: $"/config/{claimed.Token}", renewUnitId: service.UnitId);
 
         if (string.IsNullOrWhiteSpace(claimed.Email)) return;   // the in-app notice already went out
         var (body, markup) = EmailTemplates.V2RayRunningOut(

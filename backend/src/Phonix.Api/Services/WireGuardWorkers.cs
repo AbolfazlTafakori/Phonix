@@ -181,7 +181,7 @@ public class WireGuardMonitorWorker : BackgroundService
 
         await TelegramCustomerBot.NotifyFromWorkerAsync(store, telegram, _logger, claimed.UserId, service.OrderId,
             TelegramCustomerBot.RunningOutNotice(claimed.OrderCode, verdict.WarnExpiry ? expiresFa : null, verdict.WarnVolume ? remainingFa : null),
-            renewSitePath: $"/wg/{claimed.Token}");
+            renewSitePath: $"/wg/{claimed.Token}", renewUnitId: service.UnitId);
 
         if (string.IsNullOrWhiteSpace(claimed.Email)) return;
         var (body, markup) = EmailTemplates.V2RayRunningOut(
