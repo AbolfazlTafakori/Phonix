@@ -12,6 +12,9 @@ namespace Phonix.Api.Services;
 public sealed record SeatRow(
     int OrderId,
     string OrderCode,
+    // The order's own state: a cancelled purchase is still searchable (staff look old cases up) but nothing
+    // is ever chased on it.
+    OrderStatus OrderStatus,
     int UserId,
     string UserName,
     string? UserEmail,
@@ -28,6 +31,9 @@ public sealed record SeatRow(
     // delivery that isn't in the seat format.
     string AccountUsername,
     string? DeliveredAt,
+    // A delivery recorded on the ORDER rather than on an account of it — the shape orders had before a
+    // purchase was split into accounts. UnitId is 0 for these, and index 0 addresses the whole thing.
+    bool LegacyOrderDelivery,
     // Whether the plan this unit was sold under asks the buyer for per-seat details at all, and the wording
     // it asks with. A seat that collects nothing can never be «ثبت نشده».
     bool CollectsInfo,
@@ -66,13 +72,30 @@ public sealed class SeatRosterService : ISeatRosterService
     private readonly IDataStore _store;
     public SeatRosterService(IDataStore store) => _store = store;
 
+    // Which plan's terms govern this delivered unit, when that plan collects per-seat details.
+    //
+    // An order sold a year ago still has to answer this, and its plan may well have been edited, renamed or
+    // deleted since — so the unit's own plan is looked for three ways, narrowest first:
+    //   1. by the plan id the unit recorded (exact, and immune to every later rename),
+    //   2. by the plan's display shape — type + subscription months — which is what older units carry,
+    //   3. and when the unit's plan is simply GONE, by any plan of the product that collects details.
+    // The third step is a fallback for a missing plan only: a plan that is still there and deliberately says
+    // «this one collects nothing» is honoured as the no it is.
     public ProductPlan? SeatInfoPlan(Order order, OrderUnit unit)
     {
         if (_store.GetProduct(unit.ProductId) is not { } product) return null;
         var type = StockFulfillmentService.PlanType(unit.Plan);
         var months = StockFulfillmentService.SubscriptionMonths(order, unit);
-        return product.Plans.FirstOrDefault(pl =>
-            pl.CollectSeatInfo && pl.Type == type && (months <= 0 || pl.Months == months));
+
+        if (unit.PlanId is int planId && product.Plans.FirstOrDefault(pl => pl.Id == planId) is { } byId)
+            return byId.CollectSeatInfo ? byId : null;
+        if (product.Plans.FirstOrDefault(pl => pl.Type == type && (months <= 0 || pl.Months == months)) is { } byShape)
+            return byShape.CollectSeatInfo ? byShape : null;
+
+        // The plan this was sold under no longer exists. The product's own current answer is the best one
+        // available, and it is what keeps a years-old purchase inside the rules rather than invisible to them.
+        return product.Plans.FirstOrDefault(pl => pl.CollectSeatInfo && pl.Type == type)
+               ?? product.Plans.FirstOrDefault(pl => pl.CollectSeatInfo);
     }
 
     public IReadOnlyList<DeliveredSeat> SeatsOf(OrderUnit unit) => SeatContent.Parse(unit.DeliveryContent);
@@ -87,7 +110,11 @@ public sealed class SeatRosterService : ISeatRosterService
     }
 
     public IReadOnlyList<SeatRow> Unregistered() =>
-        All().Where(r => r.CollectsInfo && WaitingOnBuyer(r.Submission)).ToList();
+        All().Where(r => r.CollectsInfo && Live(r) && WaitingOnBuyer(r.Submission)).ToList();
+
+    // A purchase that was cancelled (and refunded) is no longer a service anyone owes details for, so it stays
+    // out of the chase list — it is still findable by search, where staff look old cases up.
+    private static bool Live(SeatRow r) => r.OrderStatus != OrderStatus.Cancelled;
 
     public IReadOnlyList<SeatRow> Revoked() =>
         All().Where(r => r.Submission?.Revoked == true).ToList();
@@ -137,36 +164,78 @@ public sealed class SeatRosterService : ISeatRosterService
 
         foreach (var order in orders.OrderByDescending(o => o.Id))
         {
-            var delivered = order.Units
-                .Where(u => u.Delivered && !u.Rejected && !string.IsNullOrWhiteSpace(u.DeliveryContent))
-                .ToList();
+            var delivered = DeliveredPackages(order);
             if (delivered.Count == 0) continue;
 
             if (!users.TryGetValue(order.UserId, out var user))
                 users[order.UserId] = user = _store.GetUser(order.UserId);
 
-            foreach (var unit in delivered)
+            foreach (var (unit, legacy) in delivered)
             {
                 var plan = SeatInfoPlan(order, unit);
                 var filed = _store.GetSeatSubmissionsForUnit(order.Id, unit.Id);
-                var deviceInfo = unit.CustomerInputs
-                    .Select(v => new OrderInputValue
-                    {
-                        Label = v.Label,
-                        Value = v.Sensitive ? SensitiveField.Reveal(v.Value) : v.Value,
-                        Sensitive = v.Sensitive,
-                    })
-                    .ToList();
+                var deviceInfo = DeviceInfoOf(order, unit);
 
                 foreach (var seat in SeatContent.ParseOrWhole(unit.DeliveryContent))
                     rows.Add(new SeatRow(
-                        order.Id, order.Code, order.UserId, order.UserName, user?.Email, user?.Phone,
-                        unit.Id, unit.UnitIndex, order.Units.Count, unit.ProductId, unit.Name, unit.Plan,
-                        seat.Index, seat.Label, seat.AccountUsername, unit.DeliveredAt,
+                        order.Id, order.Code, order.Status, order.UserId, order.UserName, user?.Email, user?.Phone,
+                        unit.Id, unit.UnitIndex, Math.Max(1, order.Units.Count), unit.ProductId, unit.Name, unit.Plan,
+                        seat.Index, seat.Label, seat.AccountUsername, unit.DeliveredAt, legacy,
                         plan is not null, plan?.SeatInfoHint ?? "", deviceInfo,
                         filed.FirstOrDefault(s => s.SeatIndex == seat.Index)));
             }
         }
         return rows;
+    }
+
+    // Everything of this order that has actually been handed to the buyer, as units.
+    //
+    // Normally that is the order's own accounts. An order from before a purchase was split into accounts
+    // recorded its delivery on the ORDER instead, and those buyers hold a live service just the same — so the
+    // order-level content is served here as ONE unit with id 0, which is how staff address it (and how a
+    // warranty decision on it is stored) without a second code path for old data.
+    internal static List<(OrderUnit Unit, bool Legacy)> DeliveredPackages(Order order)
+    {
+        var units = order.Units
+            .Where(u => u.Delivered && !u.Rejected && !string.IsNullOrWhiteSpace(u.DeliveryContent))
+            .Select(u => (u, false))
+            .ToList();
+        if (units.Count > 0 || string.IsNullOrWhiteSpace(order.DeliveryContent)) return units;
+
+        var item = order.Items.FirstOrDefault();
+        return new List<(OrderUnit, bool)>
+        {
+            (new OrderUnit
+            {
+                Id = 0,
+                ProductId = item?.ProductId ?? 0,
+                Name = item?.Name ?? "",
+                Plan = item?.Plan,
+                PlanId = item?.PlanId,
+                UnitIndex = 1,
+                Delivered = true,
+                DeliveredAt = order.DeliveredAt,
+                DeliveryContent = order.DeliveryContent,
+                CustomerInputs = item?.CustomerInputs ?? new(),
+            }, true),
+        };
+    }
+
+    // What the buyer typed for this account at checkout, decrypted. Older orders captured it on the order LINE
+    // rather than on the account, so the line is the fallback — otherwise the device an old buyer named would
+    // be invisible to the very search meant to find it.
+    private static List<OrderInputValue> DeviceInfoOf(Order order, OrderUnit unit)
+    {
+        var source = unit.CustomerInputs.Count > 0
+            ? unit.CustomerInputs
+            : order.Items.FirstOrDefault(i => i.ProductId == unit.ProductId)?.CustomerInputs ?? new();
+        return source
+            .Select(v => new OrderInputValue
+            {
+                Label = v.Label,
+                Value = v.Sensitive ? SensitiveField.Reveal(v.Value) : v.Value,
+                Sensitive = v.Sensitive,
+            })
+            .ToList();
     }
 }

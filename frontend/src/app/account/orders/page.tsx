@@ -276,7 +276,7 @@ export default function OrdersPage() {
                           <img loading="lazy" decoding="async" src={selProduct.image} alt={selProduct.name} className="h-7 w-7 rounded-lg object-cover" />
                           <span className="text-sm font-bold" style={{ color: "var(--ac-title)" }}>{selProduct.name}</span>
                         </div>
-                        {legacy && o.deliveryContent?.trim() ? (
+                        {legacy && (o.deliveryContent?.trim() || closedOf(0).length > 0) ? (
                           <div className="rounded-xl p-4" style={{ background: "rgba(16,185,129,0.08)", border: "1px solid rgba(16,185,129,0.28)" }}>
                             <div className="mb-2 flex items-center justify-between gap-2">
                               <span className="flex items-center gap-2">
@@ -289,7 +289,14 @@ export default function OrdersPage() {
                                 </span>
                               )}
                             </div>
-                            <DeliveryContent content={o.deliveryContent} />
+                            {/* An order delivered before purchases were split into accounts: unit 0 is the
+                                whole thing, so closing it leaves the buyer the reason and nothing else. */}
+                            {(() => {
+                              const whole = closedOf(0).find((r) => r.seatIndex === 0);
+                              return whole
+                                ? <RevokedNote reason={whole.reason} />
+                                : <DeliveryContent content={o.deliveryContent ?? ""} />;
+                            })()}
                           </div>
                         ) : selUnits.length > 0 ? (
                           selUnits.map((u) => {

@@ -37,15 +37,16 @@ public record SeatSubmissionDto(int Id, int UserId, int OrderId, int UnitId, int
 
 // One seat of one delivered account as the panel lists it: who bought it, which block of which shared account
 // it is, what the buyer entered at checkout, and whatever they filed for it.
-public record SeatRowDto(int OrderId, string OrderCode, int UserId, string UserName, string? UserEmail,
-    string? UserPhone, int UnitId, int UnitIndex, int UnitCount, int ProductId, string ProductName, string? Plan,
-    int SeatIndex, string SeatLabel, string AccountUsername, string? DeliveredAt, bool CollectsInfo,
-    string SeatInfoHint, IReadOnlyList<OrderInputValue> DeviceInfo, SeatSubmissionDto? Submission)
+public record SeatRowDto(int OrderId, string OrderCode, OrderStatus OrderStatus, int UserId, string UserName,
+    string? UserEmail, string? UserPhone, int UnitId, int UnitIndex, int UnitCount, int ProductId,
+    string ProductName, string? Plan, int SeatIndex, string SeatLabel, string AccountUsername,
+    string? DeliveredAt, bool LegacyOrderDelivery, bool CollectsInfo, string SeatInfoHint,
+    IReadOnlyList<OrderInputValue> DeviceInfo, SeatSubmissionDto? Submission)
 {
     public static SeatRowDto From(SeatRow r) =>
-        new(r.OrderId, r.OrderCode, r.UserId, r.UserName, r.UserEmail, r.UserPhone, r.UnitId, r.UnitIndex,
-            r.UnitCount, r.ProductId, r.ProductName, r.Plan, r.SeatIndex, r.SeatLabel, r.AccountUsername,
-            r.DeliveredAt, r.CollectsInfo, r.SeatInfoHint, r.DeviceInfo,
+        new(r.OrderId, r.OrderCode, r.OrderStatus, r.UserId, r.UserName, r.UserEmail, r.UserPhone, r.UnitId,
+            r.UnitIndex, r.UnitCount, r.ProductId, r.ProductName, r.Plan, r.SeatIndex, r.SeatLabel,
+            r.AccountUsername, r.DeliveredAt, r.LegacyOrderDelivery, r.CollectsInfo, r.SeatInfoHint, r.DeviceInfo,
             r.Submission is null ? null : SeatSubmissionDto.From(r.Submission));
 }
 
@@ -285,8 +286,12 @@ public class SeatSubmissionsController : ControllerBase
         if (seatIndexes is null || seatIndexes.Count == 0) return BadRequest("هیچ پروفایلی انتخاب نشده است.");
         if (seatIndexes.Count > MaxSeatsPerAction) return BadRequest("تعداد پروفایل‌های انتخابی بیش از حد مجاز است.");
         var order = _store.GetOrder(orderId);
-        var unit = order?.Units.FirstOrDefault(u => u.Id == unitId);
-        if (order is null || unit is null) return NotFound();
+        if (order is null) return NotFound();
+        // The same resolution the roster lists from, so an order delivered before purchases were split into
+        // accounts (unit id 0) is addressable by exactly the rows the panel is showing.
+        var unit = SeatRosterService.DeliveredPackages(order)
+            .Select(p => p.Unit).FirstOrDefault(u => u.Id == unitId);
+        if (unit is null) return NotFound();
         if (!unit.Delivered || unit.Rejected) return BadRequest("این اکانت تحویل نشده است.");
 
         var seats = SeatContent.ParseOrWhole(unit.DeliveryContent);

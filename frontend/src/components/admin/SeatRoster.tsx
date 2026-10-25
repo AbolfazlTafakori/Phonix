@@ -178,6 +178,14 @@ export default function SeatRoster({
               {head.userEmail && <span dir="ltr" className="text-white/35" style={{ unicodeBidi: "isolate" }}>{head.userEmail}</span>}
               {head.userPhone && <span dir="ltr" className="text-white/35" style={{ unicodeBidi: "isolate" }}>{head.userPhone}</span>}
               <span className="rounded-md bg-white/10 px-2 py-0.5 text-white/60">{head.productName}</span>
+              {head.orderStatus === "Cancelled" && (
+                /* Searchable, never chased: the purchase was cancelled and refunded. */
+                <span className="rounded-md bg-rose-500/10 px-2 py-0.5 font-bold text-rose-300/80">سفارش لغو شده</span>
+              )}
+              {head.legacyOrderDelivery && (
+                /* An old order whose delivery sits on the ORDER, not on an account of it. */
+                <span className="rounded-md bg-white/5 px-2 py-0.5 text-white/45">سفارش قدیمی — بدون تفکیک اکانت</span>
+              )}
               {head.plan && <span className="rounded-md bg-white/5 px-2 py-0.5 text-white/45">{head.plan}</span>}
               {head.unitCount > 1 && <span className="text-white/35">اکانت {head.unitIndex}</span>}
               <span className="mr-auto text-white/35">{head.deliveredAt || faDate(head.submission?.createdAtUtc)}</span>

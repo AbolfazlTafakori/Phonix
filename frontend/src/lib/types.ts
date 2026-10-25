@@ -217,6 +217,8 @@ export type SeatSubmissionEvent = {
 export type SeatRow = {
   orderId: number;
   orderCode: string;
+  // The order's own state — a cancelled purchase is searchable but never chased.
+  orderStatus: OrderStatus;
   userId: number;
   userName: string;
   userEmail: string | null;
@@ -232,6 +234,9 @@ export type SeatRow = {
   // The shared account's own login — which account this block belongs to. Empty for a one-user delivery.
   accountUsername: string;
   deliveredAt: string | null;
+  // A delivery recorded on the ORDER rather than on one of its accounts — how orders looked before a purchase
+  // was split into accounts. unitId is 0 for these, and seat 0 addresses the whole thing.
+  legacyOrderDelivery: boolean;
   collectsInfo: boolean;
   seatInfoHint: string;
   deviceInfo: OrderInputValue[];

@@ -92,19 +92,22 @@ public class SeatWarrantyTests
         var store = NewStore();
         var (order, unit) = Delivered(store, users: 2);
         var roster = new SeatRosterService(store);
+        // Scoped to this order: the seeded shop has delivered purchases of its own, and they are now in the
+        // same lists (which is the point — old orders fall under these rules too).
+        int waiting() => roster.Unregistered().Count(r => r.OrderId == order.Id);
 
-        Assert.Equal(2, roster.Unregistered().Count);   // nothing filed for either seat yet
+        Assert.Equal(2, waiting());                     // nothing filed for either seat yet
 
         var filed = store.SaveSeatSubmission(Stub(order, unit, 0, "A - 1", "my device"))!;
-        Assert.Single(roster.Unregistered());           // seat 0 is now the staff's problem, not the buyer's
+        Assert.Equal(1, waiting());                     // seat 0 is now the staff's problem, not the buyer's
 
         // Handing it back for a correction puts it back on the buyer, even though the old text is still there.
         store.ReopenSeatSubmission(filed.Id, "تصویر واضح‌تر بفرستید");
-        Assert.Equal(2, roster.Unregistered().Count);
+        Assert.Equal(2, waiting());
 
         // …and their next save takes it off the list again.
         store.SaveSeatSubmission(Stub(order, unit, 0, "A - 1", "clearer"));
-        Assert.Single(roster.Unregistered());
+        Assert.Equal(1, waiting());
     }
 
     [Fact]
@@ -172,7 +175,8 @@ public class SeatWarrantyTests
         // Only this seat: the other two are untouched and still waiting on the buyer, not closed.
         Assert.Single(roster.Revoked());
         Assert.Equal(1, roster.Revoked().Single().SeatIndex);
-        Assert.Equal(new[] { 0, 2 }, roster.Unregistered().Select(r => r.SeatIndex));
+        Assert.Equal(new[] { 0, 2 },
+            roster.Unregistered().Where(r => r.OrderId == order.Id).Select(r => r.SeatIndex));
     }
 
     [Fact]
@@ -232,6 +236,91 @@ public class SeatWarrantyTests
         Assert.Empty(SeatContent.Parse(plain));
         Assert.Equal("", SeatContent.MaskRevoked(plain, new[] { 0 }));
         Assert.Equal(plain, SeatContent.MaskRevoked(plain, Array.Empty<int>()));
+    }
+
+    // ── Orders sold before any of this existed ────────────────────────────────────────────────────
+
+    [Fact]
+    public void A_unit_whose_plan_was_deleted_still_falls_under_the_rules()
+    {
+        var store = NewStore();
+        var (order, unit) = Delivered(store, users: 2);
+        // The plan this was sold under is edited away, as happens over a year of a shop's life. The product
+        // still collects seat details on a plan of its own, so the purchase stays inside the rules.
+        var product = store.GetProduct(unit.ProductId)!;
+        product.Plans.Clear();
+        product.Plans.Add(new ProductPlan
+        {
+            Type = "اشتراکی", Months = 12, Price = 90_000, IsActive = true, UserCount = 2,
+            CollectSeatInfo = true, SeatInfoHint = "تصویر دستگاه", SeatInfoEditLimit = 1,
+        });
+        store.UpdateProduct(product);
+
+        var rows = new SeatRosterService(store).All().Where(r => r.OrderId == order.Id).ToList();
+        Assert.Equal(2, rows.Count);
+        Assert.All(rows, r => Assert.True(r.CollectsInfo));
+        Assert.Equal(2, new SeatRosterService(store).Unregistered().Count(r => r.OrderId == order.Id));
+    }
+
+    [Fact]
+    public void A_plan_that_says_it_collects_nothing_is_still_taken_at_its_word()
+    {
+        var store = NewStore();
+        var (order, unit) = Delivered(store, users: 2);
+        // The plan is still there and now asks for nothing. That is a deliberate no, not a missing plan, so
+        // these seats drop out of the chase list instead of being given the product's answer.
+        var product = store.GetProduct(unit.ProductId)!;
+        foreach (var pl in product.Plans) pl.CollectSeatInfo = false;
+        store.UpdateProduct(product);
+
+        var roster = new SeatRosterService(store);
+        Assert.All(roster.All().Where(r => r.OrderId == order.Id), r => Assert.False(r.CollectsInfo));
+        Assert.Empty(roster.Unregistered().Where(r => r.OrderId == order.Id));
+        // It can still be searched for and closed — warranty is not a question of what the plan collects.
+        Assert.Equal(2, roster.Search(order.Code).Count);
+    }
+
+    [Fact]
+    public void An_order_delivered_before_accounts_were_split_is_addressed_as_one_seat()
+    {
+        var store = NewStore();
+        // The old shape: one delivery recorded on the ORDER, with nothing delivered on its accounts.
+        var placed = store.PlaceOrder(store.GetUser(5)!, new[] { (2, 1, (int?)null) }, "wallet", fromWallet: true);
+        Assert.Null(placed.Error);
+        var order = store.DeliverOrder(placed.Order!.Id, "Spotify\nUser : old@mail.com\nPass : secret", "admin")!;
+
+        var rows = new SeatRosterService(store).All().Where(r => r.OrderId == order.Id).ToList();
+
+        Assert.Single(rows);
+        Assert.Equal(0, rows[0].UnitId);        // unit 0 = the whole order
+        Assert.Equal(0, rows[0].SeatIndex);
+        Assert.True(rows[0].LegacyOrderDelivery);
+        Assert.Equal(order.Code, rows[0].OrderCode);
+        Assert.Contains(new SeatRosterService(store).Search(order.Code), r => r.UnitId == 0);
+
+        // And staff can close it, through the same action the panel uses for any other seat.
+        var (panel, _) = Panel(store);
+        var done = Payload(panel.Revoke(new Phonix.Api.Controllers.SeatRevokeInput(
+            order.Id, 0, new List<int> { 0 }, "اشتراک‌گذاری اکانت")));
+        Assert.Single(done);
+        Assert.True(done[0].Revoked);
+        Assert.Equal(0, done[0].UnitId);
+        Assert.Single(new SeatRosterService(store).Revoked());
+    }
+
+    [Fact]
+    public void A_cancelled_purchase_is_searchable_but_never_chased()
+    {
+        var store = NewStore();
+        var (order, _) = Delivered(store, users: 2);
+        // A fully delivered order is refused by CancelOrder (its accounts can't be taken back), so the state
+        // this is about is reached the way staff actually reach it.
+        Assert.NotNull(store.SetOrderStatus(order.Id, OrderStatus.Cancelled, "admin", "تست"));
+
+        var roster = new SeatRosterService(store);
+        Assert.Empty(roster.Unregistered().Where(r => r.OrderId == order.Id));
+        Assert.NotEmpty(roster.Search(order.Code));
+        Assert.All(roster.Search(order.Code), r => Assert.Equal(OrderStatus.Cancelled, r.OrderStatus));
     }
 
     // ── Through the controller ────────────────────────────────────────────────────────────────────

@@ -199,6 +199,12 @@ public class OrdersController : ControllerBase
             if (seats.Count == 0) continue;
             unit.DeliveryContent = SeatContent.MaskRevoked(unit.DeliveryContent, seats);
         }
+        // An order delivered before purchases were split into accounts keeps its content on the ORDER, and the
+        // seat that closes it is unit 0 — withheld here, or that buyer would keep reading what the panel says
+        // they may no longer see.
+        if (mine.Any(s => s.UnitId == 0) && !string.IsNullOrWhiteSpace(clone.DeliveryContent))
+            clone.DeliveryContent = SeatContent.MaskRevoked(clone.DeliveryContent,
+                mine.Where(s => s.UnitId == 0).Select(s => s.SeatIndex).ToHashSet());
         return clone;
     }
 

@@ -104,7 +104,17 @@ public sealed partial class TelegramCustomerBot
         }
         if (units.Count > 8) text.Add($"\n… و {Fa(units.Count - 8)} اکانت دیگر.");
         if (units.Count == 0 && !string.IsNullOrWhiteSpace(order.DeliveryContent))
-            text.Add($"\n<pre>{H(order.DeliveryContent.Trim().Length > 2000 ? order.DeliveryContent.Trim()[..2000] + "…" : order.DeliveryContent.Trim())}</pre>");
+        {
+            // An order delivered before purchases were split into accounts: unit 0 is the whole thing, so a
+            // warranty decision on it closes this content here too.
+            var wholeClosed = closed.Where(s => s.UnitId == 0).ToList();
+            var legacy = SeatContent
+                .MaskRevoked(order.DeliveryContent, wholeClosed.Select(s => s.SeatIndex).ToHashSet()).Trim();
+            if (legacy.Length > 0)
+                text.Add($"\n<pre>{H(legacy.Length > 2000 ? legacy[..2000] + "…" : legacy)}</pre>");
+            foreach (var seat in wholeClosed)
+                text.Add($"🔒 <b>این اکانت خارج از گارانتی است</b>\n<i>{H(seat.RevokeReason ?? "—")}</i>");
+        }
 
         var rows = new List<object[]>
         {
