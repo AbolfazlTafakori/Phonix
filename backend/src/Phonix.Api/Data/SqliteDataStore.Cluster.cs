@@ -49,9 +49,50 @@ ON CONFLICT(EntityTable, EntityId) DO UPDATE SET LastWriteUtc = excluded.LastWri
     {
         if (!_clusterEnabled || _applyingRemote.Value) return;
         var now = DateTime.UtcNow.ToString("o");
-        conn.Execute("INSERT INTO SyncOutbox (EntityTable, EntityId, Op, DataJson, CreatedAtUtc) VALUES (@table, @id, @op, @dataJson, @now)",
+        var entryId = conn.ExecuteScalar<long>(@"
+INSERT INTO SyncOutbox (EntityTable, EntityId, Op, DataJson, CreatedAtUtc) VALUES (@table, @id, @op, @dataJson, @now);
+SELECT last_insert_rowid();",
             new { table, id, op, dataJson, now }, tx);
+        // Everything this row supersedes is dead weight. Replication is last-writer-wins PER ROW
+        // (see ApplyRemoteOp), so a peer that receives only the newest entry for an entity ends up in exactly
+        // the state the whole chain would have left it in — and a peer mid-batch is protected by the same
+        // timestamp check if it applies an older copy it had already fetched.
+        //
+        // Without this the queue keeps one 30 KB copy of a product for every price tick: a USD-priced
+        // catalogue re-priced every few minutes wrote ~10,000 rows a DAY, which is how a 4 MB database
+        // reached 24 GB and filled the disk. Collapsing bounds the table at one row per changed entity.
+        conn.Execute(
+            "DELETE FROM SyncOutbox WHERE EntityTable = @table AND EntityId = @id AND Id < @entryId",
+            new { table, id, entryId }, tx);
         TouchRowVersion(conn, tx, table, id, now);
+        EnforceOutboxCap(conn, tx);
+    }
+
+    // The queue is only allowed to retire rows the PEER has acknowledged (PruneOutboxUpTo), which is right
+    // until the peer stops answering: a Standby that is gone for months leaves the cursor frozen and nothing
+    // is ever eligible, so the queue grows until the disk is full and the SHOP goes down with it. That trade
+    // is the wrong way round — an unreachable replica has to be re-bootstrapped anyway — so this is the
+    // backstop that keeps the primary alive. Collapsing above means it should never actually fire.
+    private const int OutboxHardCap = 20_000;
+    private const int OutboxCapCheckEvery = 500;
+    private int _appendsSinceCapCheck;
+
+    private void EnforceOutboxCap(SqliteConnection conn, SqliteTransaction tx)
+    {
+        // Counting on every write would cost more than the problem; sampling keeps it off the hot path.
+        if (Interlocked.Increment(ref _appendsSinceCapCheck) < OutboxCapCheckEvery) return;
+        Interlocked.Exchange(ref _appendsSinceCapCheck, 0);
+        var trimmed = conn.Execute(@"
+DELETE FROM SyncOutbox WHERE Id <= (
+    SELECT Id FROM SyncOutbox ORDER BY Id DESC LIMIT 1 OFFSET @cap
+);", new { cap = OutboxHardCap }, tx);
+        // Stamped so the operator can see WHY a peer that comes back is told to bootstrap instead of resuming.
+        if (trimmed > 0)
+        {
+            var state = ReadSingletonNoTx<ClusterState>(conn, ClusterKey);
+            state.OutboxTrimmedAtUtc = DateTime.UtcNow;
+            WriteSingleton(conn, tx, ClusterKey, state);
+        }
     }
 
     // ── Live cluster role (a Singletons row, not the env var — see PHONIX_CLUSTER_MODE's own comment) ─────

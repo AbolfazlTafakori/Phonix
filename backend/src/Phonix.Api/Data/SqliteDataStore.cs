@@ -305,6 +305,8 @@ CREATE TABLE IF NOT EXISTS SyncOutbox (
     CreatedAtUtc TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS IX_SyncOutbox_Table ON SyncOutbox(EntityTable, Id);
+-- Collapsing a superseded entry looks a row up by its entity, not by its position in the queue.
+CREATE INDEX IF NOT EXISTS IX_SyncOutbox_Entity ON SyncOutbox(EntityTable, EntityId, Id);
 
 CREATE TABLE IF NOT EXISTS SyncRowVersion (
     EntityTable  TEXT NOT NULL,

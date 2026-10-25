@@ -31,6 +31,11 @@ public class ClusterState
     // this and nothing else: a peer that is behind, offline, or was never configured simply never advances it,
     // so entries it still needs can't be deleted out from under it.
     public long PeerAckCursor { get; set; }
+    // Set when the outbox had to be trimmed past what the peer had acknowledged, because the peer stopped
+    // consuming long enough for the queue to threaten the disk. A peer that returns after this cannot resume
+    // from its cursor — the entries it missed are gone — so it has to be re-bootstrapped, and this is the
+    // stamp that says why.
+    public DateTime? OutboxTrimmedAtUtc { get; set; }
     // True once this node has reserved its disjoint autoincrement id band (see BumpAutoincrementOffset). Only
     // a Standby ever does this, and only once — the flag makes the bump idempotent across restarts so it is
     // never applied twice (which would push ids into a second, overlapping band). Set the moment a node first

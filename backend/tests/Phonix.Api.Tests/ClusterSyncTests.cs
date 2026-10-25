@@ -138,6 +138,55 @@ public class ClusterSyncTests
         Assert.Single(peer.GetSeatSubmissionsForUnit(22, 1));
     }
 
+    // A USD-priced catalogue is re-priced every few minutes, and each pass used to leave another full copy of
+    // every product in the queue — the shape that grew a 4 MB database to 24 GB and filled the live disk.
+    // Replication is last-writer-wins per row, so only the newest entry for a row is worth keeping.
+    [Fact]
+    public void Repeated_writes_to_one_row_leave_only_its_newest_outbox_entry()
+    {
+        var store = FreshStore(clusterEnabled: true);
+        var product = store.AddProduct(new Product { Name = "P", CategoryId = 1, Price = 1000, Stock = 1, IsActive = true });
+        var other = store.AddProduct(new Product { Name = "Q", CategoryId = 1, Price = 2000, Stock = 1, IsActive = true });
+
+        for (var price = 1100; price <= 1500; price += 100)
+        {
+            product.Price = price;
+            Assert.True(store.UpdateProduct(product));
+        }
+
+        var entries = store.GetOutboxSince(0);
+        // One entry per ROW, not per write: two products, two entries, however many times either was saved.
+        Assert.Equal(2, entries.Count);
+        Assert.Equal(new[] { product.Id, other.Id }.OrderBy(id => id), entries.Select(e => (int)e.EntityId).OrderBy(id => id));
+        // And the survivor is the LAST state, which is the only one a peer needs to converge.
+        var mine = entries.Single(e => e.EntityId == product.Id);
+        Assert.Contains("\"Price\":1500", mine.DataJson);
+        // The queue still ends at the newest id, so a caught-up peer computes zero pending.
+        Assert.Equal(entries.Max(e => e.Id), store.GetOutboxHighWaterMark());
+    }
+
+    [Fact]
+    public void Collapsing_keeps_the_latest_operation_so_a_peer_still_converges()
+    {
+        var store = FreshStore(clusterEnabled: true);
+        var peer = FreshStore(clusterEnabled: true);
+        var product = store.AddProduct(new Product { Name = "P", CategoryId = 1, Price = 1000, Stock = 1, IsActive = true });
+        product.Price = 7777;
+        store.UpdateProduct(product);
+
+        // Replaying everything the queue still holds has to leave the peer in the primary's final state.
+        foreach (var entry in store.GetOutboxSince(0)) peer.ApplyRemoteOp(entry);
+        Assert.Equal(7777, peer.GetProduct(product.Id)!.Price);
+
+        // A row deleted after being edited collapses to the delete — the peer must not resurrect it.
+        store.DeleteProduct(product.Id);
+        var after = store.GetOutboxSince(0).Where(e => e.EntityTable == "Products").ToList();
+        Assert.Single(after);
+        Assert.Equal("Delete", after[0].Op);
+        foreach (var entry in after) peer.ApplyRemoteOp(entry);
+        Assert.Null(peer.GetProduct(product.Id));
+    }
+
     // The outbox is append-only and every write lands in it, so it has to be retired eventually. The rule that
     // keeps that safe: only entries the peer said it consumed, and only once they have aged.
     [Fact]
