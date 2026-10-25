@@ -9,6 +9,8 @@ import type {
   StockManagedAccount,
   StockWaitingOrder,
   Invoice,
+  SeatRevocation,
+  SeatRow,
   SeatSubmission,
   SeatUnitInfo,
   StockSummary,
@@ -480,6 +482,25 @@ export const api = {
       request<SeatSubmission>(`/seat-info/${id}/reject`, { method: "POST", body: json({ note: reason ?? null }) }),
     reopen: (id: number, note?: string) =>
       request<SeatSubmission>(`/seat-info/${id}/reopen`, { method: "POST", body: json({ note: note ?? null }) }),
+    // Every seat of every delivered account, or the ones matching a term (order code, buyer, device, service,
+    // block label, the shared account's login, what was filed).
+    seats: (q?: string) => request<SeatRow[]>(`/seat-info/seats${qs({ q })}`),
+    // Seats whose service asks for details and that are waiting on the buyer.
+    unregistered: () => request<SeatRow[]>("/seat-info/unregistered"),
+    revokedSeats: () => request<SeatRow[]>("/seat-info/revoked"),
+    // Every seat of one delivered account — asked before choosing which users of a shared account to close.
+    unitSeats: (orderId: number, unitId: number) =>
+      request<SeatRow[]>(`/seat-info/unit/${orderId}/${unitId}/seats`),
+    // Warning 1 or 2 for the chosen seats: the buyer gets an email and an in-site notification with this text.
+    warn: (body: { orderId: number; unitId: number; seatIndexes: number[]; level: 1 | 2; message: string }) =>
+      request<SeatSubmission[]>("/seat-info/warn", { method: "POST", body: json(body) }),
+    // Out of warranty, per seat: the reason is the only thing the buyer sees in place of the account details.
+    revoke: (body: { orderId: number; unitId: number; seatIndexes: number[]; reason: string }) =>
+      request<SeatSubmission[]>("/seat-info/revoke", { method: "POST", body: json(body) }),
+    restore: (body: { orderId: number; unitId: number; seatIndexes: number[] }) =>
+      request<SeatSubmission[]>("/seat-info/restore", { method: "POST", body: json(body) }),
+    // The buyer's own closed seats — their orders page needs them before anything is opened.
+    myRevocations: () => request<SeatRevocation[]>("/seat-info/my-revocations"),
   },
   discounts: {
     list: () => request<DiscountCode[]>("/discounts"),

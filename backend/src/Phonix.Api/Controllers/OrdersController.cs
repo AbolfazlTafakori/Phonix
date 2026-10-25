@@ -166,7 +166,12 @@ public class OrdersController : ControllerBase
     public ActionResult<IEnumerable<Order>> ForUser(int userId)
     {
         if (!this.OwnsOrStaff(userId)) return Forbid();
-        return Ok(_store.GetUserOrders(userId).Select(RevealInputs));
+        var orders = _store.GetUserOrders(userId).Select(RevealInputs);
+        if (this.IsStaff()) return Ok(orders);
+        // The buyer's own read: a seat out of warranty must not carry its credentials in the payload, or
+        // "you can no longer see this account" would mean nothing more than a hidden element on the page.
+        var revoked = _store.GetUserSeatSubmissions(userId).Where(s => s.Revoked).ToList();
+        return Ok(orders.Select(o => WithheldForRevokedSeats(o, revoked)).ToList());
     }
 
     [HttpGet("{id:int}")]
@@ -175,7 +180,26 @@ public class OrdersController : ControllerBase
         var order = _store.GetOrder(id);
         if (order is null) return NotFound();
         if (!this.OwnsOrStaff(order.UserId)) return Forbid();
-        return RevealInputs(order);
+        var revealed = RevealInputs(order);
+        if (this.IsStaff()) return revealed;
+        return WithheldForRevokedSeats(revealed,
+            _store.GetUserSeatSubmissions(order.UserId).Where(s => s.Revoked).ToList());
+    }
+
+    // Strips the credentials of this order's revoked seats, keeping each seat's own block and label so the
+    // buyer's panel can still show WHICH profile was closed — with the reason in place of the details.
+    private static Order WithheldForRevokedSeats(Order order, IReadOnlyList<SeatSubmission> revoked)
+    {
+        var mine = revoked.Where(s => s.OrderId == order.Id).ToList();
+        if (mine.Count == 0) return order;
+        var clone = JsonSerializer.Deserialize<Order>(JsonSerializer.Serialize(order))!;
+        foreach (var unit in clone.Units)
+        {
+            var seats = mine.Where(s => s.UnitId == unit.Id).Select(s => s.SeatIndex).ToHashSet();
+            if (seats.Count == 0) continue;
+            unit.DeliveryContent = SeatContent.MaskRevoked(unit.DeliveryContent, seats);
+        }
+        return clone;
     }
 
     // The customer invoice: what was actually DELIVERED, priced from the order's own figures with the

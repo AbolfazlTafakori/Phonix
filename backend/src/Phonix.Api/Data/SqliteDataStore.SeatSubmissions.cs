@@ -46,6 +46,13 @@ VALUES (@Id, @UserId, @OrderId, @UnitId, @Status, @DataJson)",
             .OrderBy(s => s.SeatIndex).ToList();
     }
 
+    public IReadOnlyList<SeatSubmission> GetUserSeatSubmissions(int userId)
+    {
+        using var conn = OpenConnection();
+        return conn.Query<string>("SELECT DataJson FROM SeatSubmissions WHERE UserId = @userId", new { userId })
+            .Select(j => Deserialize<SeatSubmission>(j)!).ToList();
+    }
+
     public SeatSubmission? GetSeatSubmission(int id) => OneJson<SeatSubmission>("SeatSubmissions", id);
 
     public SeatSubmission? SaveSeatSubmission(SeatSubmission input) =>
@@ -139,6 +146,94 @@ SELECT last_insert_rowid();",
                 OrderNotices.SeatInfoRejected(item.OrderCode, item.ProductName, SeatName(item), item.ReviewNote));
             return new SeatRejection(item, removedImageId);
         });
+
+    // A seat the buyer has never filed anything for still needs somewhere to keep what staff did about it —
+    // the warnings sent, the warranty taken away. That is this stub: same row, Status NotFiled, so it never
+    // appears in the review queue and never pretends the buyer sent something.
+    public SeatSubmission EnsureSeatSubmission(SeatSubmission stub) =>
+        WriteTx((conn, tx) =>
+        {
+            var existing = conn.Query<string>(
+                    "SELECT DataJson FROM SeatSubmissions WHERE OrderId=@OrderId AND UnitId=@UnitId",
+                    new { stub.OrderId, stub.UnitId }, tx)
+                .Select(j => Deserialize<SeatSubmission>(j)!)
+                .FirstOrDefault(s => s.SeatIndex == stub.SeatIndex);
+            if (existing is not null) return existing;
+
+            stub.Status = SeatSubmissionStatus.NotFiled;
+            stub.Text = "";
+            stub.ImageId = null;
+            stub.CreatedAtUtc = stub.UpdatedAtUtc = DateTime.UtcNow;
+            var id = (int)conn.ExecuteScalar<long>(@"
+INSERT INTO SeatSubmissions (UserId, OrderId, UnitId, Status, DataJson)
+VALUES (@UserId, @OrderId, @UnitId, @Status, @DataJson);
+SELECT last_insert_rowid();",
+                new { stub.UserId, stub.OrderId, stub.UnitId, Status = (int)stub.Status, DataJson = Serialize(stub) }, tx);
+            stub.Id = id;
+            UpsertSeatSubmission(conn, tx, stub);
+            return stub;
+        })!;
+
+    // A warning goes out once per level: resending level 1 would restart a clock the buyer has already been
+    // given, so the caller is told no instead (null) and the panel offers the next one.
+    public SeatSubmission? WarnSeat(int id, int level, string? by, string message) =>
+        WriteTx<SeatSubmission?>((conn, tx) =>
+        {
+            if (level is not (1 or 2)) return null;
+            if (LoadSeat(conn, tx, id) is not { } item) return null;
+            if (level == 1 && item.Warning1AtUtc is not null) return null;
+            if (level == 2 && item.Warning2AtUtc is not null) return null;
+            var now = DateTime.UtcNow;
+            if (level == 1) { item.Warning1AtUtc = now; item.Warning1By = by; }
+            else { item.Warning2AtUtc = now; item.Warning2By = by; }
+            item.LastWarningText = message;
+            item.UpdatedAtUtc = now;
+            SeatSubmissionRules.Log(item, "warned", by, $"هشدار {level}: {message}");
+            UpsertSeatSubmission(conn, tx, item);
+            Notify(conn, tx, item.UserId,
+                OrderNotices.SeatWarning(level, item.OrderCode, item.ProductName, SeatName(item), message));
+            return item;
+        });
+
+    // Out of warranty. The customer's own entry and its history are left untouched — unlike a rejection, this
+    // is not about the details being wrong, and handing the seat back has to give them exactly what they had.
+    public SeatSubmission? RevokeSeat(int id, string? by, string reason) =>
+        WriteTx<SeatSubmission?>((conn, tx) =>
+        {
+            if (LoadSeat(conn, tx, id) is not { } item) return null;
+            if (item.Revoked) return item;   // already out; doing it twice would notify the buyer twice
+            item.RevokedAtUtc = DateTime.UtcNow;
+            item.RevokedBy = by;
+            item.RevokeReason = reason.Trim();
+            item.UpdatedAtUtc = item.RevokedAtUtc.Value;
+            SeatSubmissionRules.Log(item, "revoked", by, item.RevokeReason);
+            UpsertSeatSubmission(conn, tx, item);
+            Notify(conn, tx, item.UserId,
+                OrderNotices.SeatRevoked(item.OrderCode, item.ProductName, SeatName(item), item.RevokeReason));
+            return item;
+        });
+
+    public SeatSubmission? RestoreSeat(int id, string? by) =>
+        WriteTx<SeatSubmission?>((conn, tx) =>
+        {
+            if (LoadSeat(conn, tx, id) is not { } item) return null;
+            if (!item.Revoked) return item;
+            item.RevokedAtUtc = null;
+            item.RevokedBy = null;
+            item.RevokeReason = null;
+            item.RestoredAtUtc = DateTime.UtcNow;
+            item.RestoredBy = by;
+            item.UpdatedAtUtc = item.RestoredAtUtc.Value;
+            SeatSubmissionRules.Log(item, "restored", by);
+            UpsertSeatSubmission(conn, tx, item);
+            Notify(conn, tx, item.UserId,
+                OrderNotices.SeatRestored(item.OrderCode, item.ProductName, SeatName(item)));
+            return item;
+        });
+
+    private SeatSubmission? LoadSeat(SqliteConnection conn, SqliteTransaction? tx, int id) =>
+        conn.QueryFirstOrDefault<string>("SELECT DataJson FROM SeatSubmissions WHERE Id = @id", new { id }, tx)
+            is { } json ? Deserialize<SeatSubmission>(json) : null;
 
     // What the customer calls this seat. The label is what they picked it by; the index is the fallback for
     // rows filed before labels were carried.

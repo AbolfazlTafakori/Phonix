@@ -71,6 +71,9 @@ public class OrderPlacementAnnounceTests
         public Task KycDecidedAsync(KycRequest kyc) => Task.CompletedTask;
         public Task SeatInfoRejectedAsync(SeatSubmission submission) => Task.CompletedTask;
         public Task SeatInfoReopenedAsync(SeatSubmission submission, string message) => Task.CompletedTask;
+        public Task SeatWarningAsync(SeatSubmission submission, int level, string message) => Task.CompletedTask;
+        public Task SeatRevokedAsync(SeatSubmission submission) => Task.CompletedTask;
+        public Task SeatRestoredAsync(SeatSubmission submission) => Task.CompletedTask;
         public Task OrderCancelledAsync(Order order, string reason, bool refunded) => Task.CompletedTask;
         public Task OrderUnitRejectedAsync(Order order, int unitId, string reason, long refunded) => Task.CompletedTask;
         public Task StaffMessageAsync(int userId, string title, string body, string? link) => Task.CompletedTask;

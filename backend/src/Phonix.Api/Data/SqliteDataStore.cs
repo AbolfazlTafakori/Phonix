@@ -280,6 +280,7 @@ CREATE TABLE IF NOT EXISTS SeatSubmissions (
 );
 CREATE INDEX IF NOT EXISTS IX_SeatSubmissions_Unit   ON SeatSubmissions(OrderId, UnitId);
 CREATE INDEX IF NOT EXISTS IX_SeatSubmissions_Status ON SeatSubmissions(Status);
+CREATE INDEX IF NOT EXISTS IX_SeatSubmissions_User   ON SeatSubmissions(UserId);
 
 -- Named monotonic counters that aren't a table PK (currently just the global chat-message id).
 CREATE TABLE IF NOT EXISTS Counters (Name TEXT PRIMARY KEY, Value INTEGER NOT NULL);

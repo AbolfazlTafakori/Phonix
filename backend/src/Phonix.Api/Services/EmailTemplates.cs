@@ -483,6 +483,53 @@ public static class EmailTemplates
         return (text, html);
     }
 
+    // A warning about one seat of a purchase. The message is written by staff in the panel and is the whole
+    // point of the mail, so it is reproduced in full, in its own box, line breaks kept.
+    public static (string text, string html) SeatWarning(int level, string orderCode, string productName,
+        string seatLabel, string message, string ordersUrl)
+    {
+        var levelFa = level >= 2 ? "هشدار دوم" : "هشدار اول";
+        var body = (message ?? "").Trim();
+        var text = $"{levelFa}\n\nسفارش: {orderCode}\nسرویس: {productName}\nپروفایل: {seatLabel}\n\n{body}\n\n{ordersUrl}";
+        var html = Shell($"{levelFa} درباره‌ی سرویس شما",
+            $"پیامی درباره‌ی پروفایل {seatLabel} از سفارش {orderCode}",
+            Rows(("سفارش", orderCode), ("سرویس", productName), ("پروفایل", seatLabel))
+            + WarnNote($"<b style=\"color:{Accent};\">{WebUtility.HtmlEncode(levelFa)}</b><br>{Multiline(body)}")
+            + Button("مشاهده‌ی سفارش‌ها", ordersUrl)
+            + LinkFallback(ordersUrl));
+        return (text, html);
+    }
+
+    // One seat taken out of warranty: the buyer can no longer see that account's details, and the reason is the
+    // only explanation there is — so it is bolded here exactly as it is in their panel.
+    public static (string text, string html) SeatRevoked(string orderCode, string productName, string seatLabel,
+        string reason, string ordersUrl)
+    {
+        var reasonFa = (reason ?? "").Trim();
+        var text = $"سرویس شما از گارانتی خارج شد.\n\nسفارش: {orderCode}\nسرویس: {productName}\nپروفایل: {seatLabel}\n"
+                   + $"دلیل: {reasonFa}\n\nتا زمان رسیدگی، اطلاعات این اکانت در حساب شما نمایش داده نمی‌شود:\n{ordersUrl}";
+        var html = Shell("سرویس شما از گارانتی خارج شد",
+            $"دسترسی پروفایل {seatLabel} از سفارش {orderCode} بسته شد.",
+            "<p style=\"margin:0;\">دسترسی شما به اطلاعات این اکانت بسته شد و تا زمان رسیدگی در حساب کاربری نمایش داده نمی‌شود.</p>"
+            + Rows(("سفارش", orderCode), ("سرویس", productName), ("پروفایل", seatLabel))
+            + WarnNote($"<b style=\"color:{Accent};\">دلیل خروج از گارانتی</b><br>{Multiline(reasonFa)}")
+            + Button("مشاهده‌ی سفارش‌ها", ordersUrl)
+            + LinkFallback(ordersUrl));
+        return (text, html);
+    }
+
+    public static (string text, string html) SeatRestored(string orderCode, string productName, string seatLabel,
+        string ordersUrl)
+    {
+        var text = $"گارانتی سرویس شما باز شد.\n\nسفارش: {orderCode}\nسرویس: {productName}\nپروفایل: {seatLabel}\n\n{ordersUrl}";
+        var html = Shell("گارانتی سرویس شما باز شد ✅",
+            $"دسترسی پروفایل {seatLabel} از سفارش {orderCode} دوباره باز شد.",
+            "<p style=\"margin:0;\">دسترسی شما به اطلاعات این اکانت دوباره باز شد و می‌توانید آن را در حساب کاربری خود ببینید.</p>"
+            + Rows(("سفارش", orderCode), ("سرویس", productName), ("پروفایل", seatLabel))
+            + Button("مشاهده‌ی سفارش‌ها", ordersUrl));
+        return (text, html);
+    }
+
     public static (string text, string html) SeatInfoRejected(string orderCode, string productName, string seatLabel,
         string? reason, string ordersUrl)
     {

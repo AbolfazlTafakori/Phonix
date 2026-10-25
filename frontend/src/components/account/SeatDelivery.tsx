@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import type { OrderInputValue, SeatUnitInfo } from "@/lib/types";
+import type { OrderInputValue, SeatRevocation, SeatUnitInfo } from "@/lib/types";
 import SeatInfoForm from "./SeatInfoForm";
 
 // Seat-based view of a shared-account delivery. The delivered text is one self-contained block per seat (see
@@ -113,11 +113,31 @@ export function InfoRow({ label, value, sensitive = false }: { label: string; va
   );
 }
 
+// What a profile taken out of warranty shows instead of its credentials. The reason is the only explanation
+// the buyer gets, so it is the loudest thing on the block — staff write it for exactly this spot.
+export function RevokedNote({ reason }: { reason: string }) {
+  return (
+    <div className="rounded-xl p-3" style={{ background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.35)" }}>
+      <div className="mb-1 flex items-center gap-2 text-sm font-black" style={{ color: "#e11d48" }}>
+        <svg viewBox="0 0 24 24" aria-hidden="true" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="4" y="11" width="16" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" />
+        </svg>
+        این سرویس از گارانتی خارج شده است
+      </div>
+      <p className="text-sm font-bold leading-7" style={{ color: "var(--ac-text)" }}>{reason}</p>
+      <p className="mt-2 text-xs" style={{ color: "var(--ac-muted)" }}>
+        تا زمان رسیدگی، اطلاعات این اکانت نمایش داده نمی‌شود. برای پیگیری از بخش پشتیبانی تیکت ثبت کنید.
+      </p>
+    </div>
+  );
+}
+
 export default function SeatDelivery({
   seats,
   deviceInfo,
   orderId,
   unitId,
+  revoked = [],
 }: {
   seats: Seat[];
   deviceInfo?: OrderInputValue[];
@@ -125,6 +145,9 @@ export default function SeatDelivery({
   // seat collect its own info. Omitted (e.g. a preview), the form simply isn't offered.
   orderId?: number;
   unitId?: number;
+  // Seats of THIS account that are out of warranty. Per seat on purpose: one user of a shared account can be
+  // closed while everyone else on the same credentials keeps their service.
+  revoked?: SeatRevocation[];
 }) {
   const [sel, setSel] = useState(0);
   // Whether this service asks for per-seat info, and what's already been filed, keyed by seat index. Loaded
@@ -143,6 +166,7 @@ export default function SeatDelivery({
   if (seats.length === 0) return null;
   const activeIndex = Math.min(sel, seats.length - 1);
   const active = seats[activeIndex];
+  const activeRevoked = revoked.find((r) => r.seatIndex === activeIndex);
   const service = seats.find((s) => s.service)?.service ?? "";
   const months = seats.find((s) => s.months)?.months ?? "";
 
@@ -165,12 +189,16 @@ export default function SeatDelivery({
         <div dir="ltr" className="flex flex-wrap justify-start gap-2">
           {seats.map((s, i) => {
             const on = i === Math.min(sel, seats.length - 1);
+            // A closed profile stays in the row — the buyer has to be able to find out WHICH one was closed
+            // and why — but it reads as switched off, and opening it shows the reason instead of credentials.
+            const closed = revoked.some((r) => r.seatIndex === i);
             return (
               <button
                 key={i}
                 type="button"
                 onClick={() => setSel(i)}
-                className={`rounded-lg px-3 py-1.5 text-sm font-bold transition ${on ? "ring-2 ring-[#FF5A1F]" : "hover:brightness-105"}`}
+                title={closed ? "خارج از گارانتی" : undefined}
+                className={`rounded-lg px-3 py-1.5 text-sm font-bold transition ${on ? "ring-2 ring-[#FF5A1F]" : "hover:brightness-105"} ${closed ? "line-through opacity-60" : ""}`}
                 style={{ background: on ? "rgba(255,90,31,0.12)" : "var(--ac-menu-hover)", border: "1px solid var(--ac-panel-border)", color: "var(--ac-text)" }}
               >
                 {s.seatLabel}
@@ -188,6 +216,12 @@ export default function SeatDelivery({
           <span>پروفایل</span>
           <span dir="ltr" style={{ unicodeBidi: "isolate" }}>{active.seatLabel}</span>
         </div>
+        {/* A closed profile shows nothing but why. Everything below — credentials, plan, the info form, the
+            device details — belongs to a service this buyer no longer has access to. */}
+        {activeRevoked ? (
+          <RevokedNote reason={activeRevoked.reason} />
+        ) : (
+        <>
         {/* username (right) + password (left) as a matched pair — page direction is RTL, so the first item in
             DOM order lands on the right without needing an explicit dir override on this row. */}
         <div className="grid grid-cols-1 gap-2 min-[380px]:grid-cols-2">
@@ -207,7 +241,10 @@ export default function SeatDelivery({
         {/* per-seat submission — scoped to the profile selected above, so on a multi-seat purchase each person
             files their own picture and note without touching anyone else's */}
         {info?.enabled && orderId !== undefined && unitId !== undefined && (() => {
-          const filed = info.submissions.find((s) => s.seatIndex === activeIndex);
+          // A NotFiled entry is a staff-side record (a warning, a warranty note) against a seat the buyer has
+          // never sent anything for, so the form has to open as if there were nothing there — which there isn't.
+          const found = info.submissions.find((s) => s.seatIndex === activeIndex);
+          const filed = found?.status === "NotFiled" ? undefined : found;
           // The key carries the seat AND the state of what was filed for it, so the form remounts when staff
           // change that underneath the customer. It matters on a rejection: the server clears the text and the
           // picture, and a form still holding the old draft in local state would put both straight back.
@@ -240,6 +277,8 @@ export default function SeatDelivery({
               <InfoRow key={i} label={d.label} value={d.value} sensitive={d.sensitive} />
             ))}
           </div>
+        )}
+        </>
         )}
       </div>
     </div>

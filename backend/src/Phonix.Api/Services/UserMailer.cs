@@ -27,6 +27,11 @@ public interface IUserMailer
     Task SeatInfoRejectedAsync(SeatSubmission submission);
     // A seat reopened for the customer to file new details; message is what staff wrote (or the default).
     Task SeatInfoReopenedAsync(SeatSubmission submission, string message);
+    // Warranty enforcement on one seat: the warning staff wrote, the warranty being taken away (the reason is
+    // the only thing the buyer is told), and the warranty coming back.
+    Task SeatWarningAsync(SeatSubmission submission, int level, string message);
+    Task SeatRevokedAsync(SeatSubmission submission);
+    Task SeatRestoredAsync(SeatSubmission submission);
     // Staff turned an order down (a rejected receipt, a cancellation from the panel). The reason goes out in full.
     Task OrderCancelledAsync(Order order, string reason, bool refunded);
     // One account of an order was rejected and refunded — from the panel or the Telegram order bot.
@@ -291,6 +296,25 @@ public sealed class UserMailer : IUserMailer
         return SendToUserAsync(s.UserId, $"مشخصات دستگاه خود را به‌روز کنید — سفارش {s.OrderCode}",
             EmailTemplates.SeatInfoReopened(s.OrderCode, s.ProductName, seat, message, Url("/account/orders")));
     }
+
+    // The seat as the buyer knows it. Same fallback the in-site notification uses (see the store's SeatName),
+    // so the mail and the bell never name one seat two different ways.
+    private static string SeatName(SeatSubmission s) =>
+        string.IsNullOrWhiteSpace(s.SeatLabel) ? $"پروفایل {s.SeatIndex + 1}" : s.SeatLabel;
+
+    public Task SeatWarningAsync(SeatSubmission s, int level, string message) =>
+        SendToUserAsync(s.UserId,
+            level >= 2 ? $"هشدار دوم — سفارش {s.OrderCode}" : $"هشدار — سفارش {s.OrderCode}",
+            EmailTemplates.SeatWarning(level, s.OrderCode, s.ProductName, SeatName(s), message, Url("/account/orders")));
+
+    public Task SeatRevokedAsync(SeatSubmission s) =>
+        SendToUserAsync(s.UserId, $"خروج از گارانتی — سفارش {s.OrderCode}",
+            EmailTemplates.SeatRevoked(s.OrderCode, s.ProductName, SeatName(s), s.RevokeReason ?? "",
+                Url("/account/orders")));
+
+    public Task SeatRestoredAsync(SeatSubmission s) =>
+        SendToUserAsync(s.UserId, $"بازگشت گارانتی — سفارش {s.OrderCode}",
+            EmailTemplates.SeatRestored(s.OrderCode, s.ProductName, SeatName(s), Url("/account/orders")));
 
     public Task KycDecidedAsync(KycRequest kyc) => kyc.Status switch
     {

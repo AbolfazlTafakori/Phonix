@@ -174,7 +174,8 @@ export type SeatSubmission = {
   imageId: string | null;
   text: string;
   // Rejected: staff turned it down, the text and picture were cleared, and the seat is the buyer's again.
-  status: "Pending" | "Reviewed" | "Rejected";
+  // NotFiled: nothing was ever sent — the row exists only to carry what staff did about the seat.
+  status: "Pending" | "Reviewed" | "Rejected" | "NotFiled";
   editable: boolean;
   createdAtUtc: string;
   updatedAtUtc: string;
@@ -190,13 +191,63 @@ export type SeatSubmission = {
   history: SeatSubmissionVersion[];
   // Every action on the seat, oldest first: who did what, when (by = staff username; null = the customer).
   events: SeatSubmissionEvent[];
+  // Staff handed the seat back for a correction and the buyer hasn't saved since — what puts it in «ثبت نشده‌ها».
+  reopenedForEdit: boolean;
+  // Warranty enforcement, staff-only: the two escalating warnings and the warranty itself.
+  warningsSent: number;
+  warning1AtUtc: string | null;
+  warning2AtUtc: string | null;
+  lastWarningText: string | null;
+  revoked: boolean;
+  revokedAtUtc: string | null;
+  revokedBy: string | null;
+  revokeReason: string | null;
+  restoredAtUtc: string | null;
 };
 
 export type SeatSubmissionEvent = {
   atUtc: string;
-  action: "submitted" | "edited" | "reviewed" | "reopened" | "rejected";
+  action: "submitted" | "edited" | "reviewed" | "reopened" | "rejected" | "warned" | "revoked" | "restored";
   by: string | null;
   note: string | null;
+};
+
+// One seat of one delivered account, as the admin panel lists it: the buyer, the block it is («A - 2») and the
+// shared account it sits on, what was entered at checkout, and whatever was filed for it.
+export type SeatRow = {
+  orderId: number;
+  orderCode: string;
+  userId: number;
+  userName: string;
+  userEmail: string | null;
+  userPhone: string | null;
+  unitId: number;
+  unitIndex: number;
+  unitCount: number;
+  productId: number;
+  productName: string;
+  plan: string | null;
+  seatIndex: number;
+  seatLabel: string;
+  // The shared account's own login — which account this block belongs to. Empty for a one-user delivery.
+  accountUsername: string;
+  deliveredAt: string | null;
+  collectsInfo: boolean;
+  seatInfoHint: string;
+  deviceInfo: OrderInputValue[];
+  submission: SeatSubmission | null;
+};
+
+// A seat of the signed-in buyer's own orders that is out of warranty, with the reason they are shown.
+export type SeatRevocation = {
+  orderId: number;
+  unitId: number;
+  seatIndex: number;
+  seatLabel: string;
+  productId: number;
+  productName: string;
+  reason: string;
+  revokedAtUtc: string | null;
 };
 
 export type SeatSubmissionVersion = {
@@ -204,7 +255,7 @@ export type SeatSubmissionVersion = {
   text: string;
   seatLabel: string;
   submittedAtUtc: string;
-  status: "Pending" | "Reviewed" | "Rejected";
+  status: "Pending" | "Reviewed" | "Rejected" | "NotFiled";
   reviewNote: string | null;
 };
 

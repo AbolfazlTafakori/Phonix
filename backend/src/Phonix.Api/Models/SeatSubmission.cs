@@ -8,6 +8,10 @@ public enum SeatSubmissionStatus
     // the seat is theirs to file afresh rather than edit around the refused details — while staff keep the
     // record of what was refused. It is not in the staff queue — this one is waiting on the customer.
     Rejected = 2,
+    // Nothing was ever filed for this seat. The row exists only because staff acted on the seat anyway — a
+    // warning, or taking it out of warranty — and that outcome has to live somewhere. It is NOT in the review
+    // queue (there is nothing to review) and the buyer may still file details against it as if it were absent.
+    NotFiled = 3,
 }
 
 // The outcome of turning a seat submission down: the cleared record, plus the storage id of the picture it no
@@ -19,7 +23,7 @@ public sealed record SeatRejection(SeatSubmission Submission, string? RemovedIma
 public class SeatSubmissionEvent
 {
     public DateTime AtUtc { get; set; } = DateTime.UtcNow;
-    // submitted | edited | reviewed | reopened | rejected
+    // submitted | edited | reviewed | reopened | rejected | warned | revoked | restored
     public string Action { get; set; } = "";
     public string? By { get; set; }
     public string? Note { get; set; }
@@ -86,11 +90,39 @@ public class SeatSubmission
     // staff approving it as it stands — so one reopen allows exactly one change.
     public bool ReopenedForEdit { get; set; }
 
+    // ── Warranty enforcement (staff-only; nothing here is ever written by a customer) ──────────────────
+    // Two escalating nudges for a seat whose details are missing or wrong. Each level is sent once; the stamps
+    // are the record that it went out, and the text is kept so the panel can show what the buyer was told.
+    public DateTime? Warning1AtUtc { get; set; }
+    public string? Warning1By { get; set; }
+    public DateTime? Warning2AtUtc { get; set; }
+    public string? Warning2By { get; set; }
+    public string? LastWarningText { get; set; }
+    // Out of warranty: this ONE seat loses access to its delivered credentials until staff hand it back. The
+    // reason is mandatory — it is the only thing the customer is shown in place of the account details.
+    public DateTime? RevokedAtUtc { get; set; }
+    public string? RevokedBy { get; set; }
+    public string? RevokeReason { get; set; }
+    // Last time the warranty was handed back, kept as history once RevokedAtUtc is cleared.
+    public DateTime? RestoredAtUtc { get; set; }
+    public string? RestoredBy { get; set; }
+
+    public bool Revoked => RevokedAtUtc is not null;
+    // Whether the customer has actually sent anything for this seat (a NotFiled row is a staff-side stub).
+    public bool Filed => Status != SeatSubmissionStatus.NotFiled;
+    public int WarningsSent => (Warning1AtUtc is not null ? 1 : 0) + (Warning2AtUtc is not null ? 1 : 0);
+
     // Filed details are FROZEN. The customer files once; after that only staff can let them change anything —
     // by reopening the seat, or by rejecting it (which asks for new details). Details that shift under staff
     // while they work from them, or after a seat was set up on a device, are exactly what this prevents. The
     // plan's post-approval allowance (EditLimit) no longer lets a customer edit on their own.
-    public bool Editable => Status == SeatSubmissionStatus.Rejected || ReopenedForEdit || ReopenedBeforeTheFlag;
+    //
+    // A seat out of warranty is closed for everything: it has no service to set up, so letting the buyer keep
+    // filing details for it would put work in the queue that nobody can act on. A NotFiled stub is the
+    // opposite — it only carries what staff did, and the buyer has still never filed, so it stays open.
+    public bool Editable => !Revoked
+                            && (Status is SeatSubmissionStatus.Rejected or SeatSubmissionStatus.NotFiled
+                                || ReopenedForEdit || ReopenedBeforeTheFlag);
 
     // Seats reopened before ReopenedForEdit existed carry no flag; the customer was still told to send new
     // details. For those, "the last thing that happened was a reopen" is the same fact.

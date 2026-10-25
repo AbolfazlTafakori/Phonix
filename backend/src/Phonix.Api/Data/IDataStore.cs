@@ -56,6 +56,8 @@ public interface IDataStore
     // ── Per-seat customer submissions (a picture + note filed for ONE seat of a shared account) ─────
     IReadOnlyList<SeatSubmission> GetSeatSubmissions(SeatSubmissionStatus? status = null);
     IReadOnlyList<SeatSubmission> GetSeatSubmissionsForUnit(int orderId, int unitId);
+    // The buyer's own entries across every order — what their panel needs to know which seats are closed.
+    IReadOnlyList<SeatSubmission> GetUserSeatSubmissions(int userId);
     SeatSubmission? GetSeatSubmission(int id);
     // Creates the seat's submission, or replaces the one already there. Null when the existing entry has been
     // reviewed — from that point it's frozen and only staff can reopen it.
@@ -66,6 +68,18 @@ public interface IDataStore
     // in one transaction. The picture is not this layer's to erase, so the id it just detached is returned for
     // the caller to remove from storage.
     SeatRejection? RejectSeatSubmission(int id, string? rejectedBy, string? reason);
+
+    // ── Seat warranty enforcement (staff only) ──────────────────────────────────────────────────────
+    // The row that carries staff decisions for ONE seat, created on the spot when the buyer has never filed
+    // anything for it (Status NotFiled — a stub, not a queue entry). Returns the row already there otherwise.
+    SeatSubmission EnsureSeatSubmission(SeatSubmission stub);
+    // Sends warning 1 or 2 for a seat: records that it went out, with the text the buyer was shown, and
+    // notifies them in the same write. Null when that level has already been sent.
+    SeatSubmission? WarnSeat(int id, int level, string? by, string message);
+    // Takes one seat out of warranty. The reason is what the buyer is shown in place of the account details.
+    SeatSubmission? RevokeSeat(int id, string? by, string reason);
+    // Hands the warranty back: the seat returns to exactly what it was, the buyer's own entry included.
+    SeatSubmission? RestoreSeat(int id, string? by);
 
     // ── Stock accounts (multi-seat shared subscriptions; slots are generated, never typed) ──────────
     IReadOnlyList<StockAccount> GetStockAccounts(int? productId = null);

@@ -8,11 +8,11 @@ import { formatToman, toFa } from "@/lib/format";
 import { orderStatusLabel } from "@/lib/labels";
 import { PageTitle, Panel } from "@/components/account/Panel";
 import DeliveryContent from "@/components/account/DeliveryContent";
-import SeatDelivery, { parseSeats } from "@/components/account/SeatDelivery";
+import SeatDelivery, { RevokedNote, parseSeats } from "@/components/account/SeatDelivery";
 import PanelDelivery from "@/components/account/PanelDelivery";
 import ProductTutorials from "@/components/account/ProductTutorials";
 import { StatusBadge } from "@/components/admin/ui";
-import type { Order, Tutorial } from "@/lib/types";
+import type { Order, SeatRevocation, Tutorial } from "@/lib/types";
 
 const cancellable = (status: Order["status"]) => status === "PendingApproval" || status === "Preparing";
 
@@ -29,6 +29,10 @@ export default function OrdersPage() {
   // productId → «لوگو سرویس» from the catalog; order items only carry the product image, so the square
   // service logo set in the admin panel is resolved live (falls back to the item image when unset).
   const [logoMap, setLogoMap] = useState<Record<number, string>>({});
+  // Seats of these orders that are out of warranty. Loaded up front because it changes how the ORDER LIST
+  // looks — a service with a closed seat is greyed out before anything is opened — and the reason replaces the
+  // account details once it is.
+  const [revocations, setRevocations] = useState<SeatRevocation[]>([]);
   // How-to guides for the products this customer has paid for (the server only returns those).
   const [tutorials, setTutorials] = useState<Tutorial[]>([]);
   const tutorialsFor = (productId: number) => tutorials.filter((t) => t.productIds.includes(productId));
@@ -46,6 +50,8 @@ export default function OrdersPage() {
             .catch(() => {}),
           // A failure here only hides the guides; the orders themselves still load.
           api.tutorials.mine().then(setTutorials).catch(() => {}),
+          // Same here: without it nothing is marked closed, but the orders page still works.
+          api.seatInfo.myRevocations().then(setRevocations).catch(() => {}),
         ]);
         setOrders(list);
         setError("");
@@ -143,6 +149,13 @@ export default function OrdersPage() {
                   .filter((p, i, arr) => arr.findIndex((x) => x.productId === p.productId) === i);
                 const legacy = units.length === 0;
                 const unitsOf = (pid: number) => units.filter((u) => u.productId === pid);
+                // Seats of THIS order that are closed, and the ones belonging to one account.
+                const closed = revocations.filter((r) => r.orderId === o.id);
+                const closedOf = (unitId: number) => closed.filter((r) => r.unitId === unitId);
+                // A service is shown as out of warranty as soon as ANY of its seats is closed — the buyer
+                // should see at a glance that something is wrong with it, then find which profile inside.
+                const closedProduct = (pid: number) =>
+                  closed.some((r) => unitsOf(pid).some((u) => u.id === r.unitId));
                 const deliveredOf = (pid: number) =>
                   legacy
                     ? o.deliveryContent?.trim()
@@ -155,7 +168,11 @@ export default function OrdersPage() {
                   setSelected((s) => ({ ...s, [o.id]: s[o.id] === pid ? null : pid }));
 
                 const selProduct = sel === null ? null : products.find((p) => p.productId === sel) ?? null;
-                const selUnits = sel === null ? [] : unitsOf(sel).filter((u) => u.delivered && u.deliveryContent.trim());
+                // A closed one-user account comes back with its content withheld, so it is kept in the list by
+                // its revocation — otherwise it would read as "not delivered yet" instead of "out of warranty".
+                const selUnits = sel === null
+                  ? []
+                  : unitsOf(sel).filter((u) => u.delivered && (u.deliveryContent.trim() || closedOf(u.id).length > 0));
                 const selMulti = sel === null ? false : totalOf(sel) > 1;
 
                 return (
@@ -167,12 +184,19 @@ export default function OrdersPage() {
                           const delivered = deliveredOf(p.productId);
                           const total = totalOf(p.productId);
                           const active = sel === p.productId;
+                          const outOfWarranty = closedProduct(p.productId);
                           return (
                             <button
                               key={p.productId}
                               type="button"
                               onClick={() => toggle(p.productId)}
-                              title={`${p.name} — ${delivered > 0 ? `اطلاعات سرویس (${toFa(delivered)}/${toFa(total)})` : "در انتظار تحویل"}`}
+                              title={`${p.name} — ${
+                                outOfWarranty
+                                  ? "خارج از گارانتی"
+                                  : delivered > 0
+                                    ? `اطلاعات سرویس (${toFa(delivered)}/${toFa(total)})`
+                                    : "در انتظار تحویل"
+                              }`}
                               className={`relative rounded-xl transition ${active ? "ring-2 ring-[#FF5A1F]" : "hover:brightness-95"}`}
                             >
                               <img
@@ -180,9 +204,9 @@ export default function OrdersPage() {
                                 decoding="async"
                                 src={p.image}
                                 alt={p.name}
-                                className={`h-10 w-10 rounded-xl object-cover ${delivered === 0 ? "opacity-50 grayscale" : ""}`}
+                                className={`h-10 w-10 rounded-xl object-cover ${delivered === 0 || outOfWarranty ? "opacity-50 grayscale" : ""}`}
                               />
-                              {delivered > 0 && (
+                              {delivered > 0 && !outOfWarranty && (
                                 <span className="absolute -left-1 -top-1 grid h-4 w-4 place-items-center rounded-full bg-emerald-700 text-[10px] text-white">✓</span>
                               )}
                               {tutorialsFor(p.productId).length > 0 && (
@@ -286,15 +310,30 @@ export default function OrdersPage() {
                                     </span>
                                   )}
                                 </div>
-                                {seats.length > 0 ? (
-                                  <SeatDelivery seats={seats} deviceInfo={u.customerInputs} orderId={o.id} unitId={u.id} />
-                                ) : u.v2Ray || u.wireGuard ? (
-                                  // A panel-provisioned service is a handful of fields, shown as tiles like a
-                                  // seat's credentials rather than as raw lines.
-                                  <PanelDelivery content={u.deliveryContent} />
-                                ) : (
-                                  <DeliveryContent content={u.deliveryContent} />
-                                )}
+                                {(() => {
+                                  const unitClosed = closedOf(u.id);
+                                  if (seats.length > 0)
+                                    return (
+                                      <SeatDelivery
+                                        seats={seats}
+                                        deviceInfo={u.customerInputs}
+                                        orderId={o.id}
+                                        unitId={u.id}
+                                        revoked={unitClosed}
+                                      />
+                                    );
+                                  // A delivery with no profiles to pick from is addressed as one seat, so
+                                  // closing index 0 closes the whole account: the reason is all there is left.
+                                  const whole = unitClosed.find((r) => r.seatIndex === 0);
+                                  if (whole) return <RevokedNote reason={whole.reason} />;
+                                  return u.v2Ray || u.wireGuard ? (
+                                    // A panel-provisioned service is a handful of fields, shown as tiles like
+                                    // a seat's credentials rather than as raw lines.
+                                    <PanelDelivery content={u.deliveryContent} />
+                                  ) : (
+                                    <DeliveryContent content={u.deliveryContent} />
+                                  );
+                                })()}
                                 {/* A V2Ray account has a live status page of its own — usage, remaining days
                                     and the connection QR — opened in its own tab so it can be shared. */}
                                 {u.v2Ray?.token && (

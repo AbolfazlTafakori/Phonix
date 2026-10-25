@@ -76,6 +76,26 @@ public static class OrderNotices
             $"اطلاعات «{productName}» ({seatLabel}) در سفارش {orderCode} برای ویرایش باز شد.\n{message.Trim()}",
             OrdersLink);
 
+    // A warning about one seat. The staff's own words are the message, so they are what the notification
+    // carries; the level is said out loud, because a second warning has to read as more serious than the first.
+    public static Notice SeatWarning(int level, string orderCode, string productName, string seatLabel, string message) =>
+        new(level >= 2 ? "هشدار دوم درباره‌ی سرویس شما" : "هشدار درباره‌ی سرویس شما",
+            $"«{productName}» ({seatLabel}) — سفارش {orderCode}\n{message.Trim()}",
+            OrdersLink);
+
+    // One seat is out of warranty: the buyer loses the account details for it until staff hand it back. The
+    // reason is the only explanation they get, so it travels with the notification as well as the panel.
+    public static Notice SeatRevoked(string orderCode, string productName, string seatLabel, string? reason) =>
+        new("سرویس شما از گارانتی خارج شد",
+            $"دسترسی شما به اطلاعات «{productName}» ({seatLabel}) در سفارش {orderCode} بسته شد. "
+            + $"دلیل: {(string.IsNullOrWhiteSpace(reason) ? "—" : reason!.Trim())}",
+            OrdersLink);
+
+    public static Notice SeatRestored(string orderCode, string productName, string seatLabel) =>
+        new("گارانتی سرویس شما باز شد",
+            $"دسترسی شما به اطلاعات «{productName}» ({seatLabel}) در سفارش {orderCode} دوباره باز شد.",
+            OrdersLink);
+
     // Shared by the notification and the email so the customer reads the same sentence in both places.
     public static string SeatInfoRejectionReason(string? reason) =>
         string.IsNullOrWhiteSpace(reason)

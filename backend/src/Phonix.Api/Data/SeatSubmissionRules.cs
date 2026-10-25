@@ -45,7 +45,10 @@ public static class SeatSubmissionRules
         var hadContent = existing.Text.Length > 0 || existing.ImageId is not null;
         if (hadContent && (input.Text != existing.Text || newImage != existing.ImageId))
             PushHistory(existing, Snapshot(existing));
-        Log(existing, existing.Status == SeatSubmissionStatus.Rejected ? "submitted" : "edited", by: null);
+        // A NotFiled stub has never carried anything either, so the buyer's first real save is a filing, not
+        // an edit.
+        Log(existing, existing.Status is SeatSubmissionStatus.Rejected or SeatSubmissionStatus.NotFiled
+            ? "submitted" : "edited", by: null);
 
         if (existing.Status == SeatSubmissionStatus.Reviewed)
         {
@@ -53,6 +56,14 @@ public static class SeatSubmissionRules
             existing.Status = SeatSubmissionStatus.Pending;
             existing.ReviewedAtUtc = null;
             existing.ReviewedBy = null;
+        }
+        else if (existing.Status == SeatSubmissionStatus.NotFiled)
+        {
+            // The row existed only to carry staff's own actions on this seat (a warning, a warranty note).
+            // The buyer filing for the first time costs no allowance, and the plan's allowance arrives now —
+            // the stub was created without one.
+            existing.Status = SeatSubmissionStatus.Pending;
+            existing.EditLimit = input.EditLimit;
         }
         else if (existing.Status == SeatSubmissionStatus.Rejected)
         {

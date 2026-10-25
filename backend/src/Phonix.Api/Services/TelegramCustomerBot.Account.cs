@@ -76,16 +76,27 @@ public sealed partial class TelegramCustomerBot
 
         var units = order.Units.OrderBy(u => u.Id).ToList();
         var text = new List<string> { $"<b>📄 سفارش {H(order.Code)}</b>", Rule };
+        // Seats taken out of warranty are closed HERE too, not just on the site: the buyer is told why instead
+        // of being handed the credentials the panel is refusing to show them.
+        var closed = _store.GetUserSeatSubmissions(order.UserId)
+            .Where(s => s.Revoked && s.OrderId == order.Id).ToList();
         // The accounts share one message: each gets its part of Telegram's limit, so the card is never cut short.
         var room = Math.Max(250, 2800 / Math.Clamp(units.Count, 1, 8));
         foreach (var unit in units.Take(8))
         {
             text.Add("");
             text.Add($"▫️ <b>{H(unit.Name)}</b>{(string.IsNullOrWhiteSpace(unit.Plan) ? "" : $" — {H(unit.Plan)}")}");
+            var unitClosed = closed.Where(s => s.UnitId == unit.Id).ToList();
             if (unit.Delivered && !string.IsNullOrWhiteSpace(unit.DeliveryContent))
             {
-                var content = unit.DeliveryContent.Trim();
-                text.Add($"<pre>{H(content.Length > room ? content[..room] + "…" : content)}</pre>");
+                var content = SeatContent
+                    .MaskRevoked(unit.DeliveryContent, unitClosed.Select(s => s.SeatIndex).ToHashSet())
+                    .Trim();
+                if (content.Length > 0)
+                    text.Add($"<pre>{H(content.Length > room ? content[..room] + "…" : content)}</pre>");
+                foreach (var seat in unitClosed)
+                    text.Add($"🔒 <b>{H(string.IsNullOrWhiteSpace(seat.SeatLabel) ? "این اکانت" : seat.SeatLabel)} خارج از گارانتی است</b>"
+                             + $"\n<i>{H(seat.RevokeReason ?? "—")}</i>");
             }
             else if (unit.Rejected) text.Add("❌ رد شد و مبلغ آن برگشت داده شد.");
             else if (order.Status == OrderStatus.Cancelled) text.Add("❌ لغو شده");

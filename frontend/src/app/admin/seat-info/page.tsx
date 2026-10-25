@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/api";
-import type { SeatSubmission, SeatSubmissionEvent } from "@/lib/types";
+import type { SeatRow, SeatSubmission, SeatSubmissionEvent } from "@/lib/types";
 import { formatNumber } from "@/lib/format";
 import { Card, PageHeader, Spinner, Modal, Field, inputCls } from "@/components/admin/ui";
+import SeatRoster from "@/components/admin/SeatRoster";
 
 // The review queue for per-seat customer submissions: everything buyers filed for individual seats of shared
 // accounts, newest first. One row per seat, so a five-user purchase shows five independent entries.
@@ -14,8 +15,23 @@ import { Card, PageHeader, Spinner, Modal, Field, inputCls } from "@/components/
 // it deletes what the buyer sent and asks them for it again, with the reason delivered by notification and
 // email — so unusable details are cleared out rather than sitting in the queue being re-read.
 
+// Beside the queue there are three more views over the same seats: «ثبت نشده‌ها» (the plan asks for details
+// and the seat is waiting on the BUYER — nothing ever filed, or reopened and untouched since), «خارج از
+// گارانتی» (closed seats, where the only action left is handing the warranty back), and a search that reaches
+// any purchased seat by order code, buyer, device, service, block label or the shared account's own login.
+// Warnings and warranty decisions live there rather than here, because they are per SEAT: on a shared account
+// one user can be closed without touching the other people on the same credentials.
+
 type Action = "review" | "reopen" | "reject";
+type Tab = "queue" | "unregistered" | "revoked" | "search";
 type Filter = "Pending" | "Reviewed" | "Rejected" | "all";
+
+const tabLabel: Record<Tab, string> = {
+  queue: "صف بررسی",
+  unregistered: "ثبت نشده‌ها",
+  revoked: "خارج از گارانتی",
+  search: "جست‌وجو",
+};
 
 const filterLabel: Record<Filter, string> = {
   Pending: "در انتظار بررسی",
@@ -28,12 +44,14 @@ const statusLabel: Record<SeatSubmission["status"], string> = {
   Pending: "در انتظار بررسی",
   Reviewed: "بررسی شده",
   Rejected: "رد شده — در انتظار ارسال دوباره",
+  NotFiled: "ثبت نشده",
 };
 
 const statusStyle: Record<SeatSubmission["status"], string> = {
   Pending: "bg-amber-500/15 text-amber-300",
   Reviewed: "bg-emerald-500/15 text-emerald-400",
   Rejected: "bg-rose-500/15 text-rose-300",
+  NotFiled: "bg-white/10 text-white/60",
 };
 
 // What the dialog asks for, per action. "message" is a free note to the customer about this seat.
@@ -67,6 +85,9 @@ const actionLabel: Record<SeatSubmissionEvent["action"], string> = {
   reviewed: "بررسی شد",
   reopened: "بازگشایی برای ویرایش",
   rejected: "رد شد",
+  warned: "هشدار ارسال شد",
+  revoked: "خروج از گارانتی",
+  restored: "بازگشایی گارانتی",
 };
 
 const faDate = (iso: string) =>
@@ -86,6 +107,13 @@ export default function AdminSeatInfoPage() {
   const [messageTitle, setMessageTitle] = useState("");
   const [dialogError, setDialogError] = useState("");
   const [sent, setSent] = useState<number | null>(null);
+  // ── the three roster views ───────────────────────────────────────────────────────────────────────
+  const [tab, setTab] = useState<Tab>("queue");
+  const [rows, setRows] = useState<SeatRow[]>([]);
+  const [rowsLoading, setRowsLoading] = useState(false);
+  // The term that was actually searched, kept apart from the box so typing doesn't fire a request per letter.
+  const [term, setTerm] = useState("");
+  const [query, setQuery] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -99,16 +127,50 @@ export default function AdminSeatInfoPage() {
     })();
   }, []);
 
+  // One loader for the three roster views: whichever tab is open decides what to ask for.
+  const loadRows = useCallback(async (which: Tab, q: string) => {
+    if (which === "queue") return;
+    setRowsLoading(true);
+    setError("");
+    try {
+      setRows(
+        which === "unregistered"
+          ? await api.seatInfo.unregistered()
+          : which === "revoked"
+            ? await api.seatInfo.revokedSeats()
+            : q.trim().length === 0
+              ? []
+              : await api.seatInfo.seats(q.trim()),
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "خطا در بارگذاری");
+      setRows([]);
+    } finally {
+      setRowsLoading(false);
+    }
+  }, []);
+
+  // Switching tab (or searching) is an event, not derived state, so the fetch hangs off the click rather than
+  // an effect — nothing reloads behind the operator's back.
+  function go(next: Tab, q = query) {
+    setTab(next);
+    setQuery(q);
+    void loadRows(next, q);
+  }
+
   const counts = useMemo(
     () => ({
       Pending: items.filter((s) => s.status === "Pending").length,
       Reviewed: items.filter((s) => s.status === "Reviewed").length,
       Rejected: items.filter((s) => s.status === "Rejected").length,
-      all: items.length,
+      // Staff-side stubs (NotFiled) carry warnings and warranty, not something a buyer sent, so they are no
+      // part of the queue or its totals.
+      all: items.filter((s) => s.status !== "NotFiled").length,
     }),
     [items],
   );
-  const shown = filter === "all" ? items : items.filter((s) => s.status === filter);
+  const queue = items.filter((s) => s.status !== "NotFiled");
+  const shown = filter === "all" ? queue : queue.filter((s) => s.status === filter);
 
   // Every action opens a dialog first; closing it (✕, Escape, «انصراف») does nothing — rejecting and reopening
   // both email the customer, which shouldn't happen because a note box was dismissed.
@@ -155,26 +217,83 @@ export default function AdminSeatInfoPage() {
     <div>
       <PageHeader
         title="اطلاعات کاربران اکانت‌ها"
-        desc="اطلاعاتی که خریداران برای هر پروفایل از اکانت‌های اشتراکی ارسال کرده‌اند"
+        desc="اطلاعاتی که خریداران برای هر پروفایل از اکانت‌های اشتراکی ارسال کرده‌اند، و وضعیت گارانتی هر پروفایل"
       />
 
+      {/* search — the way into any purchased seat, whichever tab is open */}
       <div className="mb-4 flex flex-wrap items-center gap-2">
-        {(["Pending", "Reviewed", "Rejected", "all"] as Filter[]).map((f) => (
+        <input
+          value={term}
+          onChange={(e) => setTerm(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") go("search", term); }}
+          placeholder="جست‌وجو: کد سفارش، نام یا ایمیل کاربر، مدل دستگاه، نام سرویس، بلوک (A - 2) یا یوزرنیم اکانت"
+          className={`${inputCls} sm:max-w-xl`}
+        />
+        <button
+          onClick={() => go("search", term)}
+          className="rounded-xl bg-gradient-to-l from-[#1733d6] to-[#3a64f2] px-5 py-2.5 text-xs font-bold text-white transition hover:brightness-110"
+        >
+          جست‌وجو
+        </button>
+        {query && (
           <button
-            key={f}
-            onClick={() => setFilter(f)}
+            onClick={() => { setTerm(""); go("queue", ""); }}
+            className="rounded-xl border border-white/15 px-4 py-2.5 text-xs font-bold text-white/70 transition hover:bg-white/10"
+          >
+            پاک کردن
+          </button>
+        )}
+      </div>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        {(["queue", "unregistered", "revoked", "search"] as Tab[]).map((t) => (
+          <button
+            key={t}
+            onClick={() => go(t)}
             className={`rounded-xl px-4 py-2 text-xs font-bold transition ${
-              filter === f ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-white" : "border border-white/15 text-white/70 hover:bg-white/10"
+              tab === t ? "bg-gradient-to-l from-[#1733d6] to-[#3a64f2] text-white" : "border border-white/15 text-white/70 hover:bg-white/10"
             }`}
           >
-            {filterLabel[f]} ({formatNumber(counts[f])})
+            {tabLabel[t]}
+            {t === "queue" ? ` (${formatNumber(counts.Pending)})` : ""}
           </button>
         ))}
       </div>
 
+      {tab === "queue" && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          {(["Pending", "Reviewed", "Rejected", "all"] as Filter[]).map((f) => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`rounded-xl border px-3 py-1.5 text-[11px] font-bold transition ${
+                filter === f ? "border-[#3a64f2]/60 bg-[#3a64f2]/10 text-white" : "border-white/10 text-white/55 hover:bg-white/5"
+              }`}
+            >
+              {filterLabel[f]} ({formatNumber(counts[f])})
+            </button>
+          ))}
+        </div>
+      )}
+
       {error && <Card className="mb-4 p-4 text-sm text-rose-400">{error}</Card>}
 
-      {loading ? (
+      {tab !== "queue" ? (
+        <SeatRoster
+          rows={rows}
+          loading={rowsLoading}
+          empty={
+            tab === "unregistered"
+              ? "همه‌ی اکانت‌های فروخته‌شده اطلاعاتشان ثبت شده است."
+              : tab === "revoked"
+                ? "هیچ سرویسی خارج از گارانتی نیست."
+                : query
+                  ? "موردی با این عبارت پیدا نشد."
+                  : "عبارتی را جست‌وجو کنید تا سفارش‌های مربوط به آن بیاید."
+          }
+          onChanged={() => void loadRows(tab, query)}
+        />
+      ) : loading ? (
         <div className="grid place-items-center py-24"><Spinner className="h-8 w-8" /></div>
       ) : shown.length === 0 ? (
         <Card className="p-10 text-center text-sm text-white/40">موردی برای نمایش نیست.</Card>
@@ -192,6 +311,14 @@ export default function AdminSeatInfoPage() {
                 <span className={`rounded-md px-2 py-0.5 font-bold ${statusStyle[s.status]}`}>
                   {statusLabel[s.status]}
                 </span>
+                {s.revoked && (
+                  <span className="rounded-md bg-rose-500/15 px-2 py-0.5 font-bold text-rose-300">خارج از گارانتی</span>
+                )}
+                {s.warningsSent > 0 && (
+                  <span className="rounded-md bg-orange-500/15 px-2 py-0.5 font-bold text-orange-300">
+                    {s.warningsSent === 2 ? "هشدار ۱ و ۲" : "هشدار ۱"} ارسال شده
+                  </span>
+                )}
                 {s.history?.length > 0 && (
                   <span className="rounded-md bg-amber-500/15 px-2 py-0.5 font-bold text-amber-300">
                     {s.status === "Rejected" ? "اطلاعات قبلی در سوابق" : `ویرایش‌شده · ${formatNumber(s.history.length)} نسخه‌ی قبلی`}

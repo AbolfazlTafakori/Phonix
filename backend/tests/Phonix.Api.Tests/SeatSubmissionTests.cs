@@ -491,7 +491,8 @@ public class SeatReopenNotifyTests
         var admin = store.GetUsers().First(u => u.Role == UserRole.Admin);
         var outbox = new Outbox();
         var controller = new Phonix.Api.Controllers.SeatSubmissionsController(store, new Phonix.Api.Services.LocalFileStorageService(),
-            new Phonix.Api.Services.UserMailer(store, outbox, Microsoft.Extensions.Logging.Abstractions.NullLogger<Phonix.Api.Services.UserMailer>.Instance))
+            new Phonix.Api.Services.UserMailer(store, outbox, Microsoft.Extensions.Logging.Abstractions.NullLogger<Phonix.Api.Services.UserMailer>.Instance),
+            new Phonix.Api.Services.SeatRosterService(store))
         {
             ControllerContext = new Microsoft.AspNetCore.Mvc.ControllerContext
             {

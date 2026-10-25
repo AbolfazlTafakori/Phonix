@@ -90,6 +90,7 @@ try
     builder.Services.AddSingleton<ITelegramAlertSender, TelegramAlertSender>();
     // Shared by every path that confirms a payment (checkout, receipts page, transactions page, receipt bot)
     // and by the orders bot's approve button, so the stock pool has exactly one way to deliver.
+    builder.Services.AddSingleton<ISeatRosterService, SeatRosterService>();
     builder.Services.AddSingleton<IStockFulfillmentService, StockFulfillmentService>();
     // V2Ray purchases are provisioned on the panel out of band, so an unreachable server never blocks an
     // approval; the worker sweeps approved orders and retries until the account exists.
